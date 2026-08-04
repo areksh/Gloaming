@@ -1,54 +1,110 @@
-# Before development can commence
+# Provisioning and setup
 
-The provisioning and one-off setup needed before the first code task (recreating
-the app scaffold). None of it is blocked on a third party: all three
-data-source permissions (AuroraWatch UK, Open-Meteo, CelesTrak) were granted in
-July 2026 (Sec. 1 of `docs/sourcing and constraints.md`). Keep the
-correspondence.
+One-off setup for the project's infrastructure and signing material. Nothing
+here is blocked on a third party: all three data-source permissions (AuroraWatch
+UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
+`docs/sourcing and constraints.md`). Keep the correspondence.
 
-## Checklist
+## Status
 
-1. **Buy the domain** (~GBP 10/year) and add it to Cloudflare DNS. The manifest
-   and migration story depend on owning it before v1.0 (Sec. 10): it is the
-   difference between "migration is a DNS change" and "migration is impossible".
+| | Item | State |
+|---|---|---|
+| 1 | Domain `arek.sh` on Cloudflare DNS | Done |
+| 2 | R2 bucket `gloaming-data` | Done |
+| 3 | Public custom domain `sky.arek.sh` (TLS 1.2 minimum) | Done, serving |
+| 4 | Ed25519 manifest keypair | Done, in `secrets/` |
+| 5 | Maintainer ntfy topic | Done, in `secrets/` |
+| 6 | Codeberg repository and `origin` remote | Done |
+| 7 | Package id `sh.arek.gloaming` | Done |
+| 8 | Compose app scaffold | Done |
+| 9 | Wrangler installed and authenticated | Done |
+| 10 | **Android release keystore** | **Outstanding - see below** |
+| 11 | Worker deployed, manifest signing secret uploaded | Outstanding |
+| 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
+| 13 | CI runner on Codeberg (Woodpecker or Forgejo Actions) | Outstanding |
 
-2. **Cloudflare account** (free plan), with:
-   - an **R2 bucket** and a **public custom domain** serving `sky.<domain>/v1/`;
-   - **Cron Triggers** on the Worker (confirm the free plan allows the four
-     schedules needed and 3-minute cron - issue #2 in `docs/architecture.md`);
-   - a **KV namespace** for the CelesTrak circuit-breaker flag;
-   - **Wrangler** installed and authenticated.
+The F-Droid-repo-on-Codeberg-Pages setup and F-Droid main-repo submission are
+post-v1 (Sec. 12).
 
-3. **Generate the Ed25519 manifest keypair offline.** The private key becomes a
-   Wrangler secret; the public key is committed for compile-in to the APK. Back up
-   the private key. (App-side verification needs a bundled Ed25519 verifier at
-   `minSdk 24` - issue #3.)
+## Generating the Android release keystore
 
-4. **Generate the Android release keystore offline and back it up.** Losing it
-   means every install must be manually reinstalled (Sec. 12). Needed at release,
-   but generate and back it up early.
+Every future update must be signed with this exact key. There is no recovery:
+lose it and every installed copy has to be uninstalled and reinstalled by hand,
+because Android refuses an update signed by a different key. Off-Play there is
+no Play App Signing to fall back on, so this file and its passphrase are the
+single most valuable things in the project.
 
-5. **Create the maintainer-only ntfy topic** for circuit-breaker and
-   silent-failure alerts. First check whether Cloudflare's free-plan Workers
-   alerting already covers cron failure (Sec. 3), to avoid building what exists.
+Generate it yourself rather than having it done for you, so the passphrase never
+passes through a tool, a shell history or a log.
 
-6. **Codeberg** repository for code, issues and releases. Decide the CI runner
-   (Woodpecker or Forgejo Actions). The F-Droid-repo-on-Pages setup and F-Droid
-   main-repo submission are post-v1 (Sec. 12).
+```sh
+cd /home/arek/Code/Gloaming
 
-7. **Confirm the package id and display name** from the Gloaming decision
-   (ADR-0001), for example `cc.<domain>.gloaming`.
+keytool -genkeypair -v \
+  -keystore secrets/gloaming-release.p12 \
+  -storetype PKCS12 \
+  -alias gloaming \
+  -keyalg RSA -keysize 4096 \
+  -validity 10000 \
+  -dname "CN=Gloaming, O=Gloaming, C=GB"
+```
 
-8. **Recreate the Android project** as the Compose stack in `docs/architecture.md`
-   Sec. 5 (`minSdk 24`, `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.x, Compose
-   BOM 2026.06.x), replacing the current Views/AppCompat scaffold. This is the
-   first code task once the architecture is agreed.
+It will prompt for a passphrase. Notes on the choices:
+
+- **PKCS12, not JKS.** JKS is the obsolete proprietary format; `keytool` warns
+  about it and PKCS12 is the standard. One passphrase covers store and key.
+- **RSA 4096.** Android supports it everywhere back to API 24, and this key has
+  to stay credible for decades.
+- **10,000 days** (about 27 years). The validity must outlast the app: an expired
+  signing certificate means no further updates. F-Droid also expects a long
+  validity.
+- `secrets/` is gitignored, as are `*.keystore` and `*.jks`; `*.p12` sits inside
+  the ignored directory.
+
+Then record the fingerprint, which is what lets anyone verify an APK really came
+from this project:
+
+```sh
+keytool -list -v -keystore secrets/gloaming-release.p12 -storetype PKCS12 \
+  | grep -A1 "SHA256:"
+```
+
+Publish that fingerprint in the README once you have it, so users installing via
+Obtainium can check what they are trusting.
+
+### Back it up before using it
+
+- Copy `secrets/gloaming-release.p12` somewhere durable and offline - an
+  encrypted volume, or a password manager that takes file attachments. More than
+  one location.
+- Store the passphrase in the password manager, separately from the file.
+- Do not put either in the repository, in cloud storage that syncs
+  automatically, or in a note on the build machine only.
+
+### Wiring it into the build, at release time
+
+Do not put the passphrase in `app/build.gradle.kts`. Read it from a gitignored
+`keystore.properties` or from the environment, and let the release build fail
+loudly if it is absent rather than silently producing an unsigned or
+debug-signed APK. This is not needed until there is something to release.
+
+## Remaining Cloudflare setup
+
+Once the Worker is deployed, upload the manifest signing key as a secret:
+
+```sh
+cd worker
+npx wrangler secret put MANIFEST_SIGNING_KEY < ../secrets/manifest_ed25519_private.pem
+```
+
+The public half is compiled into the APK so the app can reject a manifest that
+was not signed by this project (Sec. 10).
 
 ## Not blockers
 
-Left deliberately open, to be settled by reading a policy page or writing code,
-not before starting (Sec. 15): default alert thresholds `T_on`/`T_off`,
-adaptive-polling escalation values, storm-mode exit condition, OVATION
-storm-time gzip size, and Shetland per-region alerting. Begin logging aurora
-activity against a subjective "was it worth it?" judgement from Phase 1 so there
-is data to calibrate the thresholds against by the time Phase 2 needs them.
+Left deliberately open, to be settled by writing code or reading a policy page
+(Sec. 15): default alert thresholds `T_on`/`T_off`, adaptive-polling escalation
+values, storm-mode exit condition, and Shetland per-region alerting. Begin
+logging aurora activity against a subjective "was it worth it?" judgement from
+Phase 1, so there is something to calibrate against by the time Phase 2 needs
+it.
