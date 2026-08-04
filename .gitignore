@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/local.properties
+local.properties
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# IDE configuration is per-developer
+/.idea/
+
+# Local secrets and signing material - never commit
+/secrets/
+*.keystore
+*.jks
+
+# Node tooling for the Cloudflare Worker
+node_modules/
+.wrangler/
