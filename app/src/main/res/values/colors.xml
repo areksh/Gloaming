@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Colours live in Compose (ui/theme/Color.kt); none are needed in XML yet. -->
+</resources>

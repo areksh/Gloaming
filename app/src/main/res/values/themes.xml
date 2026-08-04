@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Base application theme. A pure-Compose app themes at runtime via
+      GloamingTheme; this platform theme only needs to provide a no-action-bar
+      window, so we avoid depending on the Material Components view library.
+    -->
+    <style name="Theme.Gloaming" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
