@@ -92,8 +92,17 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   key is compiled into the APK (Sec. 10, ADR-0003).
 - **Observability.** `health.json` in R2 carries last-success and last-error per
   source. One maintainer-only ntfy topic receives a POST when a breaker trips or
-  a source fails silently. Check whether Cloudflare's own free-plan Workers
-  alerting covers cron failure before building more than this (Sec. 3).
+  a source fails silently.
+
+  Sec. 3 asks whether Cloudflare's own alerting covers cron failure first, so as
+  not to build what already exists. **Checked 2026-08-05: it does not.** There
+  is no Workers or Cron Trigger entry in Cloudflare's notification catalogue at
+  any tier, and webhook delivery is restricted to paid accounts regardless. Both
+  halves of the alerting path therefore have to be built.
+
+  Note this is developer-facing alerting only, and is the *one* place ntfy
+  appears in the design. It is not how users are notified - see ADR-0003 and the
+  distinction drawn in Sec. 5 below.
 
 State stores: use **R2 for the `status.json` partials** (1M Class A writes/month
 free, ample headroom) and **KV only for the rarely-written breaker flag**, to
@@ -180,6 +189,14 @@ Package-based separation inside `:app` is enough for Phases 1-2; the
 - **notification:** one channel per category - `aurora`, `iss-passes`,
   `bright-satellites`, `comets`, `eclipses`, `meteor-showers`, `conjunctions` -
   created behind the `SDK_INT >= 26` branch.
+
+  **These are local notifications, posted by the device to itself.** The app
+  wakes on its own schedule, fetches, decides, and posts. No server is involved
+  in the decision, nothing is delivered to the device from outside, and the app
+  has no push dependency of any kind - not Firebase, not UnifiedPush, not ntfy
+  (ADR-0003). The developer ntfy topic in Sec. 3 is an entirely separate thing
+  that reaches one phone, the maintainer's, and is not part of the user-facing
+  path. The two are easily conflated because both are called "notifications".
 - **ui:** Compose screens; a prominent staleness display that distinguishes
   "quiet/dormant" from "not looked recently" (Sec. 10); red night-vision mode
   and a home-screen widget (Phase 2).

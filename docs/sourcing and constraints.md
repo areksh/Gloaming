@@ -1233,8 +1233,11 @@ decision the project can settle on its own.
   answers factual questions readily. Sec. 3.
 - **Developer alerting path.** The CelesTrak circuit breaker is required to report to a
   human and there is currently no channel to one. `health.json` plus a maintainer-only ntfy
-  topic, and check whether Cloudflare's free-plan Workers alerting covers cron failure
-  first. Roughly half a day, and it covers silent AuroraWatch and SWPC failures too. Sec. 3.
+  topic. Roughly half a day, and it covers silent AuroraWatch and SWPC failures too. Sec. 3.
+  - ~~Check whether Cloudflare's own alerting covers cron failure first~~ - checked
+    2026-08-05: **it does not.** Cloudflare's notification catalogue carries no Workers or
+    Cron Trigger entry at any tier, and webhook delivery needs a paid account regardless.
+    Nothing to reuse, so both halves get built. The topic is generated and unused so far.
 - ~~**OVATION grid packing** - confirm the real-world gzipped size during a large storm~~ -
   measured 2026-08-04 against live SWPC data. The packed grid is 65,160 bytes; at 26% of
   cells non-zero it gzips to **1.6 KB**, and a simulated severe storm at 61% non-zero reaches
