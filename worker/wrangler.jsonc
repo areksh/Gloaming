@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "gloaming-data",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+
+  // Each schedule runs one source. The scheduled handler branches on
+  // event.cron, so adding a source is a new entry here plus a new branch.
+  //   */3 - AuroraWatch UK, their documented minimum interval
+  //   */5 - SWPC (OVATION grid, Kp, solar wind), which updates every 5 minutes
+  // CelesTrak (2-hourly) and MPC (weekly) arrive in Phases 3 and 5.
+  "triggers": {
+    "crons": ["*/3 * * * *", "*/5 * * * *"]
+  },
+
+  "r2_buckets": [
+    {
+      "binding": "DATA",
+      "bucket_name": "gloaming-data"
+    }
+  ],
+
+  // Upstream URLs live in configuration rather than in the fetch calls: the
+  // AuroraWatch base URL is expected to move, and a swap must be a config
+  // change rather than a redeploy of new code.
+  "vars": {
+    "SWPC_OVATION_URL": "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
+    "SWPC_KP_URL": "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
+    "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json",
+    "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
+    "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/gloaming)"
+  }
+}
