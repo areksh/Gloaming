@@ -14,6 +14,8 @@ windows delivered reliably through Doze.
 
 ## Quick start
 
+### Android app
+
 Requires JDK 21 and the Android SDK with platform `android-37.0`.
 
 ```sh
@@ -22,6 +24,25 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
 ```
 
 The APK lands in `app/build/outputs/apk/debug/`.
+
+### Data Worker
+
+The `worker/` directory holds the Cloudflare cron Worker that fetches upstream
+space-weather data and publishes the small derived files the app reads. It needs
+Node and no Cloudflare account to develop or test against.
+
+```sh
+cd worker
+npm install
+npm test        # unit tests, run inside the Workers runtime
+npm run typecheck
+
+npx wrangler dev --test-scheduled                       # run it locally
+curl "http://localhost:8787/__scheduled?cron=*/5+*+*+*+*"  # fire the SWPC refresh
+```
+
+Deploying needs a Cloudflare account, an R2 bucket and `wrangler login`; see
+[`docs/prerequisites.md`](docs/prerequisites.md).
 
 ## Documentation
 

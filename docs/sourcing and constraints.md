@@ -1,7 +1,11 @@
-# Sky Alerts - Sourcing and Constraints
+# Gloaming - Sourcing and Constraints
 
 A free, ad-free, Play-Services-free Android app that tells you when to look up:
 aurora, satellite passes, comets, eclipses, meteor showers and conjunctions.
+
+> **On the name:** this document was drafted under the working title "Sky
+> Alerts". The app is called **Gloaming**; see `docs/adr/0001-adopt-engineering-practices.md`.
+> Remaining references to the old title mean this app.
 
 Global by design, UK-enhanced. Code and releases on Codeberg; data on Cloudflare behind
 a project-owned domain.
@@ -487,7 +491,7 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 
 | Source | Endpoint | Auth | Refresh | Licence / terms |
 |---|---|---|---|---|
-| **NOAA SWPC** | `services.swpc.noaa.gov/json/ovation_aurora_latest.json` (global grid), `/json/planetary_k_index_1m.json`, `/products/solar-wind/` | None | 5 min | US Gov, **public domain**. The unrestricted foundation. |
+| **NOAA SWPC** | `services.swpc.noaa.gov/json/ovation_aurora_latest.json` (global grid), `/json/planetary_k_index_1m.json`, `/products/summary/solar-wind-mag-field.json` (Bz, Bt), `/products/summary/solar-wind-speed.json` | None | 5 min | US Gov, **public domain**. The unrestricted foundation. |
 | **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** |
 | **CelesTrak** | `celestrak.org/NORAD/elements/gp.php?GROUP=...&FORMAT=CSV` - groups `stations`, `visual` | None | **2 h, once per update** | Non-profit. 403 on repeat. Firewall on abuse. **OMM CSV, not TLE.** |
 | **MPC** | Comet orbital elements | None | Weekly | Public. Includes H (absolute magnitude) and slope. |
@@ -1231,9 +1235,12 @@ decision the project can settle on its own.
   human and there is currently no channel to one. `health.json` plus a maintainer-only ntfy
   topic, and check whether Cloudflare's free-plan Workers alerting covers cron failure
   first. Roughly half a day, and it covers silent AuroraWatch and SWPC failures too. Sec. 3.
-- **OVATION grid packing** - confirm the real-world gzipped size during a large storm, when
-  far fewer cells are zero. If it balloons, clip to cells above a probability floor, or
-  split north/south and ship only the observer's hemisphere.
+- ~~**OVATION grid packing** - confirm the real-world gzipped size during a large storm~~ -
+  measured 2026-08-04 against live SWPC data. The packed grid is 65,160 bytes; at 26% of
+  cells non-zero it gzips to **1.6 KB**, and a simulated severe storm at 61% non-zero reaches
+  only **2.5 KB**. Both are well inside the 5-10 KB budgeted, so neither clipping to a
+  probability floor nor splitting the hemispheres is needed. Revisit only if a real storm
+  contradicts the simulation.
 - **Default alert thresholds** - `T_on`/`T_off` need real values, ideally validated against
   a season of data rather than guessed. This is the only item here that cannot be settled by
   reading a policy page or writing code. Log aurora activity against a subjective "was it

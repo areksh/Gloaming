@@ -67,8 +67,13 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 - **`status.json` composition.** Two crons contribute to `status.json` on
   different cadences, so neither may PUT the whole object or it clobbers the
   other's fresh fields. Each source writes its own contribution as a small
-  partial object in R2; a single `composeStatus()` step reads the partials and
-  PUTs the composed `status.json`. This is the resolution to issue #1 below.
+  partial object in R2 (`internal/space.json`, `internal/uk.json`); a single
+  `composeStatus()` step reads the partials and PUTs the composed
+  `status.json`. This is the resolution to issue #1 below.
+
+  Note the partials sit in the same public bucket and are therefore world
+  readable. They hold only already-public derived data, so this is the same
+  judgement as `health.json` (issue #8) rather than a new exposure.
 - **`oval.bin` packer.** The SWPC OVATION 360x181 grid is packed to one byte per
   cell (probability 0-100), row-major, then gzipped at PUT. The pack/unpack pair
   is covered by a round-trip unit test.
@@ -113,8 +118,8 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 |---|---|---|---|---|
 | `index.json` | ~200 B | on change | `public, max-age=3600` | Manifest. The only URL baked into the APK. Signed. |
 | `index.json.sig` | 64 B | on change | `public, max-age=3600` | Ed25519 detached signature over `index.json`. |
-| `status.json` | ~1 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `oval_etag`. Latency-critical. |
-| `oval.bin` | ~5-10 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major, 360x181. Fetched conditionally on `oval_etag` change (Sec. 4). |
+| `status.json` | ~0.5 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `max_probability` + `oval_etag`. Latency-critical. |
+| `oval.bin` | 1.6-2.5 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major by latitude, 360x181, gzipped. Fetched conditionally on `oval_etag` change (Sec. 4). Sizes measured against live data, quiet to simulated severe storm. |
 | `sats.json` | ~20 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. Phase 3. |
 | `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
 | `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
@@ -240,10 +245,25 @@ errors; the sourcing document is strong.
    composition step, whichever writes last clobbers the other's fresh field.
    Resolved by per-source partials plus a single `composeStatus()` step (Sec. 3
    above). The sourcing document treats `status.json` as single-writer.
-2. **Cloudflare free-plan Cron Trigger limits are unverified.** Confirm the free
-   plan permits the number of schedules needed (four) and sub-5-minute (3-minute)
-   cron before relying on it. Believed fine at 1-minute granularity, but it is
-   exactly the kind of provider limit the sourcing document otherwise pins down.
+2. **Cloudflare free-plan limits: checked 2026-08-04, and one is a real risk.**
+   - *Cron Trigger count:* the free plan allows **5 per account**, not per
+     Worker. The design needs four (AuroraWatch, SWPC, CelesTrak, MPC), so it
+     fits with one spare - but any other Worker on the same account competes for
+     the same five. Worth knowing before the account is used for anything else.
+   - *CPU time:* **10 ms per cron invocation** on the free plan, the same as for
+     an HTTP request. Wall time is a generous 15 minutes, but CPU is not, and
+     the OVATION refresh is CPU-bound: roughly 900 KB of JSON to parse, 65,160
+     cells to pack, then gzip. Measured off-runtime this comes to about 5-15 ms
+     depending on JIT warmth - straddling the limit. `JSON.parse` dominates at
+     an order of magnitude more than the packing itself.
+
+     This cannot be settled off workerd. **Measure real CPU time on the deployed
+     Worker before assuming the free plan carries the 5-minute schedule.** If it
+     does not, the resolution is already anticipated in the sourcing document's
+     upgrade path: Workers Paid at $5/month. Cheaper alternatives if that is
+     unwelcome - drop the SWPC schedule to 10 minutes, or stream the JSON rather
+     than parsing it whole - are worse for latency and complexity respectively,
+     and should only be reached for if the paid plan is genuinely ruled out.
 3. **Ed25519 verification at `minSdk 24`.** The platform primitive
    (`java.security` EdDSA via Conscrypt) only arrives around API 33, so a bundled
    verifier is required (BouncyCastle, Lazysodium, or a small vendored

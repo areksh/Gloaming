@@ -15,9 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   project): `minSdk 24`, `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.0 via
   AGP 9 built-in Kotlin, Compose BOM 2026.06.00, Material 3. A `MainActivity`
   and `GloamingTheme` render a placeholder screen; the debug APK builds green.
+- GPL-3.0 licence and a README, including the endpoint-use note for forks.
+- Cloudflare cron Worker publishing the Phase 1 data files: the packed OVATION
+  aurora grid as `oval.bin`, and `status.json` composed from the SWPC and
+  AuroraWatch UK sources on their separate schedules, with the documented
+  `Cache-Control` set at PUT time.
 
 ### Changed
 
 - Base application theme no longer depends on the Material Components view
   library; a pure-Compose app themes at runtime, so the platform theme only
   supplies a no-action-bar window.
+- Corrected the recorded SWPC solar wind endpoints: the paths under
+  `/products/solar-wind/` now return 404, and the summary products are used
+  instead.
+
+### Notes
+
+- Measured the packed aurora grid against live data: 1.6 KB gzipped in quiet
+  conditions and about 2.5 KB under a simulated severe storm, comfortably inside
+  the budgeted 5-10 KB. This closes an open question in the sourcing document.
+- Flagged a free-plan risk: Cloudflare allows 10 ms CPU per cron invocation, and
+  the OVATION refresh straddles it. Needs measuring on the deployed Worker.
