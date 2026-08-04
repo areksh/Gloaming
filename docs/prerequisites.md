@@ -19,7 +19,8 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 8 | Compose app scaffold | Done |
 | 9 | Wrangler installed and authenticated | Done |
 | 10 | Android release keystore (`secrets/gloaming-release.p12`) | Done, fingerprint in README |
-| 11 | Worker deployed, manifest signing secret uploaded | Outstanding |
+| 11 | Worker deployed, manifest signing secret uploaded | Done, publishing live |
+| 11a | **Cache Rule on `sky.arek.sh/v1/*`** | **Outstanding - see below** |
 | 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
 | 13 | CI runner on Codeberg (Woodpecker or Forgejo Actions) | Outstanding |
 
@@ -88,17 +89,36 @@ Do not put the passphrase in `app/build.gradle.kts`. Read it from a gitignored
 loudly if it is absent rather than silently producing an unsigned or
 debug-signed APK. This is not needed until there is something to release.
 
-## Remaining Cloudflare setup
+## Remaining Cloudflare setup: the Cache Rule
 
-Once the Worker is deployed, upload the manifest signing key as a secret:
+The read path works but the CDN is not yet honouring the caching contract, and
+the deployment token cannot change zone settings. In the dashboard, under
+**Caching -> Cache Rules**, add a rule matching hostname `sky.arek.sh` and URI
+path starting `/v1/`, set to:
+
+- **Eligible for cache** - without this `status.json` is never cached, because
+  Cloudflare's default policy keys off file extension and `.json` is not in it.
+  Every device poll currently reaches R2, which is exactly the fan-out the
+  architecture exists to avoid.
+- **Browser TTL: respect origin** - the zone's 4-hour default is currently
+  rewriting `oval.bin` from `max-age=120` to `max-age=14400`, so a device would
+  sit on a stale aurora grid for four hours.
+- Edge TTL: respect origin.
+
+Verify afterwards with `curl -sI https://sky.arek.sh/v1/status.json`: the
+`cf-cache-status` should reach `HIT` on a second request rather than staying
+`DYNAMIC`, and `oval.bin` should report `max-age=120`.
+
+## Already done
+
+The manifest signing key is uploaded as the Worker secret
+`MANIFEST_SIGNING_KEY`; its public half is compiled into the APK so the app can
+reject a manifest that was not signed by this project (Sec. 10). To rotate it:
 
 ```sh
 cd worker
 npx wrangler secret put MANIFEST_SIGNING_KEY < ../secrets/manifest_ed25519_private.pem
 ```
-
-The public half is compiled into the APK so the app can reject a manifest that
-was not signed by this project (Sec. 10).
 
 ## Not blockers
 

@@ -190,7 +190,7 @@ The app verifies the Ed25519 detached signature over `index.json` before
 trusting it, and falls back to its last known-good manifest on an absent or bad
 signature; `message` renders as inert plain text with no clickable links
 regardless (Sec. 10). Verification needs a bundled Ed25519 verifier because the
-platform primitive is not available at `minSdk 24` (issue #3).
+platform primitive is not available at `minSdk 24` (issue #4).
 
 ### Dependency injection
 
@@ -251,43 +251,60 @@ errors; the sourcing document is strong.
      fits with one spare - but any other Worker on the same account competes for
      the same five. Worth knowing before the account is used for anything else.
    - *CPU time:* **10 ms per cron invocation** on the free plan, the same as for
-     an HTTP request. Wall time is a generous 15 minutes, but CPU is not, and
-     the OVATION refresh is CPU-bound: roughly 900 KB of JSON to parse, 65,160
-     cells to pack, then gzip. Measured off-runtime this comes to about 5-15 ms
-     depending on JIT warmth - straddling the limit. `JSON.parse` dominates at
-     an order of magnitude more than the packing itself.
+     an HTTP request. The OVATION refresh is CPU-bound - roughly 900 KB of JSON
+     to parse, 65,160 cells to pack, then gzip - and measured off-runtime at
+     about 5-15 ms depending on JIT warmth, which straddled the limit.
 
-     This cannot be settled off workerd. **Measure real CPU time on the deployed
-     Worker before assuming the free plan carries the 5-minute schedule.** If it
-     does not, the resolution is already anticipated in the sourcing document's
-     upgrade path: Workers Paid at $5/month. Cheaper alternatives if that is
-     unwelcome - drop the SWPC schedule to 10 minutes, or stream the JSON rather
-     than parsing it whole - are worse for latency and complexity respectively,
-     and should only be reached for if the paid plan is genuinely ruled out.
-3. **Ed25519 verification at `minSdk 24`.** The platform primitive
+     **Settled in production, 2026-08-04: the free plan carries it.** Across
+     invocations of both schedules on the deployed Worker every outcome was
+     `Ok`, with objects published and `status.json` refreshing on cadence. A
+     Worker over the CPU limit is terminated with an `exceededCpu` outcome and
+     publishes nothing, so completing successfully is the answer. The exact
+     millisecond figure needs the dashboard's Worker metrics; the operational
+     question is closed either way. If a future change pushes it over, the
+     upgrade path is Workers Paid at $5/month.
+3. **The CDN does not yet honour the caching contract. Outstanding zone
+   configuration, and it matters.** Observed on the live deployment:
+   - **`status.json` is never edge-cached** (`cf-cache-status: DYNAMIC` on
+     every request). Cloudflare's default cache policy keys off file extension
+     and `.json` is not in it, so *every device poll reaches R2*. Class B
+     operations then scale linearly with the install base, which is precisely
+     the fan-out ADR-0002 exists to avoid. `oval.bin` does cache (`HIT`).
+   - **`max-age` is rewritten on cached objects**: `oval.bin` is published with
+     `max-age=120` and served with `max-age=14400`. That is the zone's Browser
+     Cache TTL of 4 hours overriding the origin header, so a device would hold a
+     stale aurora grid for four hours instead of two minutes - a correctness
+     problem for alerting, not merely a cost one.
+
+   Both need a **Cache Rule** on `sky.arek.sh/v1/*` that caches regardless of
+   extension and sets Browser Cache TTL to "respect origin", which requires zone
+   permissions the deployment token does not carry. Conditional GETs already
+   return 304 correctly, so this is the last piece of the read path.
+
+4. **Ed25519 verification at `minSdk 24`.** The platform primitive
    (`java.security` EdDSA via Conscrypt) only arrives around API 33, so a bundled
    verifier is required (BouncyCastle, Lazysodium, or a small vendored
    implementation). A concrete dependency the "afternoon of work" estimate in
    Sec. 10 omits. The Worker side is unaffected (SubtleCrypto).
-4. **GPL-3.0 is a preference, not forced by SGP4.** Sec. 1 says an MIT licence
+5. **GPL-3.0 is a preference, not forced by SGP4.** Sec. 1 says an MIT licence
    was available only in the aurora-only scope, but Sec. 7 notes predict4java was
    relicensed to MIT in 2026, so full scope could stay permissive via
    predict4java instead of vendoring Look4Sat. The project has chosen GPL-3.0
    from day one (ADR-0004), so this is settled - but the sourcing wording should
    be corrected so it is not later re-litigated as if SGP4 forced GPL.
-5. **Name inconsistency.** The sourcing document says "Sky Alerts" throughout;
+6. **Name inconsistency.** The sourcing document says "Sky Alerts" throughout;
    the project is Gloaming. Resolved (ADR-0001); the sourcing document should be
    updated or annotated so the names do not drift.
-6. **`specialUse` foreground service manifest property.** On `targetSdk` 34+ the
+7. **`specialUse` foreground service manifest property.** On `targetSdk` 34+ the
    service needs `android:foregroundServiceType="specialUse"` plus the
    `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` `<property>`. Off-Play there is no reviewer,
    but the declaration is still required to run. An implementation note, not an
    error.
-7. **KV free-tier write ceiling (1,000/day/namespace).** Keeping the
+8. **KV free-tier write ceiling (1,000/day/namespace).** Keeping the
    `status.json` composition buffer in KV would approach the cap from the 3- and
    5-minute crons alone. Use R2 for the partials and reserve KV for the
    rarely-written breaker flag (Sec. 3 above).
-8. **`health.json` is world-readable** under the public domain, exposing
+9. **`health.json` is world-readable** under the public domain, exposing
    per-source error codes and timestamps. Low sensitivity (all upstreams are
    public), but worth a conscious keep-public-or-gate decision.
 
