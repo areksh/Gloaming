@@ -263,23 +263,27 @@ errors; the sourcing document is strong.
      millisecond figure needs the dashboard's Worker metrics; the operational
      question is closed either way. If a future change pushes it over, the
      upgrade path is Workers Paid at $5/month.
-3. **The CDN does not yet honour the caching contract. Outstanding zone
-   configuration, and it matters.** Observed on the live deployment:
-   - **`status.json` is never edge-cached** (`cf-cache-status: DYNAMIC` on
-     every request). Cloudflare's default cache policy keys off file extension
-     and `.json` is not in it, so *every device poll reaches R2*. Class B
-     operations then scale linearly with the install base, which is precisely
-     the fan-out ADR-0002 exists to avoid. `oval.bin` does cache (`HIT`).
-   - **`max-age` is rewritten on cached objects**: `oval.bin` is published with
-     `max-age=120` and served with `max-age=14400`. That is the zone's Browser
-     Cache TTL of 4 hours overriding the origin header, so a device would hold a
-     stale aurora grid for four hours instead of two minutes - a correctness
-     problem for alerting, not merely a cost one.
+3. ~~**The CDN does not honour the caching contract.**~~ **Resolved
+   2026-08-04 by a Cache Rule on `sky.arek.sh/v1/*`.** Recorded because the
+   default behaviour is a trap worth knowing about, and because nothing in the
+   Worker's own configuration would have revealed it:
+   - `status.json` was never edge-cached (`cf-cache-status: DYNAMIC` on every
+     request), because Cloudflare's default cache policy keys off file extension
+     and `.json` is not in it. Every device poll reached R2 - precisely the
+     fan-out ADR-0002 exists to prevent.
+   - `oval.bin` was published with `max-age=120` and served with
+     `max-age=14400`, the zone's 4-hour Browser Cache TTL overriding the origin
+     header. A device would have held a stale aurora grid for four hours.
 
-   Both need a **Cache Rule** on `sky.arek.sh/v1/*` that caches regardless of
-   extension and sets Browser Cache TTL to "respect origin", which requires zone
-   permissions the deployment token does not carry. Conditional GETs already
-   return 304 correctly, so this is the last piece of the read path.
+   The rule makes `/v1/*` cache-eligible and sets browser and edge TTL to
+   respect the origin. Verified live: `status.json` goes MISS then HIT with
+   `max-age=60` intact, `oval.bin` reports `max-age=120`, and conditional GETs
+   return 304 with a zero-byte body. A cold poll of both objects is about
+   2.2 KB.
+
+   The general lesson, worth remembering before adding an object: the caching
+   contract in Sec. 2 is only real if the zone is configured to honour it. Check
+   the served headers, not the ones that were set.
 
 4. **Ed25519 verification at `minSdk 24`.** The platform primitive
    (`java.security` EdDSA via Conscrypt) only arrives around API 33, so a bundled
