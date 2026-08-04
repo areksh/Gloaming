@@ -31,15 +31,14 @@ describe("publish", () => {
     expect(await stored?.text()).toBe('{"schema":1}');
   });
 
-  it("records a content encoding when the body is already compressed", async () => {
+  it("stores binary bodies byte for byte", async () => {
     await publish(env.DATA, "v1/oval.bin", new Uint8Array([1, 2, 3]), {
       cacheControl: CACHE_CONTROL["oval.bin"],
       contentType: "application/octet-stream",
-      contentEncoding: "gzip",
     });
 
     const stored = await env.DATA.get("v1/oval.bin");
-    expect(stored?.httpMetadata?.contentEncoding).toBe("gzip");
+    expect([...new Uint8Array(await stored!.arrayBuffer())]).toEqual([1, 2, 3]);
     expect(stored?.httpMetadata?.cacheControl).toBe("public, max-age=120, stale-while-revalidate=180");
   });
 

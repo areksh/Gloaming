@@ -78,10 +78,11 @@ export async function refreshSpaceWeather(env: Env, deps: Deps): Promise<void> {
   const grid = parseOvation(await gridResponse.json());
   const packed = packOvalGrid(grid);
 
+  // Opaque gzip bytes: the client inflates them. See gzip() for why no
+  // Content-Encoding is declared.
   const written = await publish(env.DATA, OVAL_KEY, await gzip(packed), {
     cacheControl: CACHE_CONTROL["oval.bin"],
     contentType: "application/octet-stream",
-    contentEncoding: "gzip",
   });
 
   // Supporting readings must not fail the run: the grid alone is enough to

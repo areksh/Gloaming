@@ -67,10 +67,17 @@ describe("refreshSpaceWeather", () => {
 
     const oval = await env.DATA.get("v1/oval.bin");
     expect(oval).not.toBeNull();
-    expect(oval?.httpMetadata?.contentEncoding).toBe("gzip");
     // The packed grid is 65,160 bytes and almost all zeros, so it must
     // compress to a small fraction of that.
     expect(oval!.size).toBeLessThan(5000);
+
+    // Compression is part of the payload, not an HTTP transfer encoding.
+    // Declaring Content-Encoding lets the CDN inflate the object and serve the
+    // full 65 KB, so the body is opaque gzip the client inflates itself and
+    // carries no encoding header for anything to act on.
+    expect(oval?.httpMetadata?.contentEncoding).toBeUndefined();
+    const magic = new Uint8Array(await oval!.arrayBuffer()).slice(0, 2);
+    expect([...magic]).toEqual([0x1f, 0x8b]);
 
     const status = await readStatus();
     // The device compares this against the ETag the CDN serves, which is the

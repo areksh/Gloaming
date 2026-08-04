@@ -20,7 +20,6 @@ export const CACHE_CONTROL = {
 export interface PublishOptions {
   cacheControl: string;
   contentType: string;
-  contentEncoding?: string;
 }
 
 export async function publish(
@@ -33,14 +32,21 @@ export async function publish(
     httpMetadata: {
       cacheControl: options.cacheControl,
       contentType: options.contentType,
-      ...(options.contentEncoding === undefined
-        ? {}
-        : { contentEncoding: options.contentEncoding }),
     },
   });
 }
 
-/** Compresses with gzip so the ~65 KB grid ships as a couple of kilobytes. */
+/**
+ * Compresses with gzip so the ~65 KB grid ships as a couple of kilobytes.
+ *
+ * Deliberately no `Content-Encoding` accompanies the result. Declaring one
+ * invites the CDN to inflate the object and cache the inflated form, which it
+ * then serves in full because it does not re-compress `application/octet-stream`
+ * - measured in production as 65,160 bytes delivered against 1,763 stored, and
+ * a weak ETag that undermines the conditional GET as well. Treating compression
+ * as part of the payload rather than as a transfer encoding leaves nothing for
+ * an intermediary to helpfully undo; the client inflates it.
+ */
 export async function gzip(body: Uint8Array): Promise<ArrayBuffer> {
   const stream = new Response(body as unknown as BodyInit).body?.pipeThrough(
     new CompressionStream("gzip"),
