@@ -32,7 +32,11 @@
   "vars": {
     "SWPC_OVATION_URL": "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json",
     "SWPC_KP_URL": "https://services.swpc.noaa.gov/json/planetary_k_index_1m.json",
-    "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/solar-wind/mag-1-day.json",
+    // The summary products carry a single current reading. The bulk
+    // /products/solar-wind/ paths referenced in older notes now 404, and the
+    // rtsw series returns thousands of rows across several spacecraft.
+    "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
+    "SWPC_SOLAR_WIND_SPEED_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
     "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
     "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/gloaming)"
   }

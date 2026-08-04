@@ -19,3 +19,6 @@ local.properties
 # Node tooling for the Cloudflare Worker
 node_modules/
 .wrangler/
+
+# Regenerated offline by `npm run types`; half a megabyte of runtime types
+worker-configuration.d.ts
