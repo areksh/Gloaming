@@ -18,7 +18,7 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 7 | Package id `sh.arek.gloaming` | Done |
 | 8 | Compose app scaffold | Done |
 | 9 | Wrangler installed and authenticated | Done |
-| 10 | **Android release keystore** | **Outstanding - see below** |
+| 10 | Android release keystore (`secrets/gloaming-release.p12`) | Done, fingerprint in README |
 | 11 | Worker deployed, manifest signing secret uploaded | Outstanding |
 | 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
 | 13 | CI runner on Codeberg (Woodpecker or Forgejo Actions) | Outstanding |

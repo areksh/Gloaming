@@ -53,6 +53,25 @@ Deploying needs a Cloudflare account, an R2 bucket and `wrangler login`; see
 | [`docs/prerequisites.md`](docs/prerequisites.md) | Provisioning to work through before development |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 
+## Verifying a release
+
+Every release is signed with the project's own key. Nothing is published yet,
+but when it is, check the APK's signing certificate against this fingerprint
+before installing - particularly if you got the file from anywhere other than
+this repository:
+
+```
+SHA-256: 1B:14:A3:3F:AE:BB:E1:A4:AC:73:D1:6E:88:71:73:8B:
+         4D:AD:EF:05:97:3D:77:94:7D:0D:D4:DA:8E:A5:D2:FF
+```
+
+```sh
+apksigner verify --print-certs gloaming-release.apk
+```
+
+Obtainium checks this for you once the first release has pinned it. A build
+signed with any other key is not from this project, whatever it claims.
+
 ## Licence
 
 GPL-3.0. See [`LICENSE`](LICENSE).
