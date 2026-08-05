@@ -10,8 +10,15 @@ import android.content.SharedPreferences
  * unmaintained, and this holds a location the user typed on their own device -
  * the same threat model as the rest of their phone. Encrypting it would add a
  * dependency and imply a protection it does not provide.
+ *
+ * These take `SharedPreferences` rather than a `Context` on purpose. Which
+ * storage is in play - credential-encrypted or device-encrypted - is the whole
+ * point of the split, so it is named at the call site instead of being derived
+ * inside. Deriving it here once cost exactly that: calling `applicationContext`
+ * on a device-protected context hands back the ordinary one, so both stores
+ * quietly became the same file.
  */
-private const val FILE = "gloaming"
+const val PREFERENCES_FILE = "gloaming"
 
 private const val KEY_LATITUDE = "latitude"
 private const val KEY_LONGITUDE = "longitude"
@@ -29,11 +36,23 @@ private const val KEY_LAST_ERROR = "last_error"
 
 private const val UNSET = Long.MIN_VALUE
 
-private fun prefs(context: Context): SharedPreferences =
-    context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+/**
+ * Preferences in the ordinary, credential-encrypted store: unreadable until the
+ * device has been unlocked after a boot. The precise position lives here.
+ */
+fun credentialPreferences(context: Context): SharedPreferences =
+    context.applicationContext.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
 
-class PreferencesSettingsStore(context: Context) : SettingsStore {
-    private val prefs = prefs(context)
+/**
+ * Preferences in the device-encrypted store: readable before first unlock.
+ *
+ * Note the deliberate absence of `applicationContext` - it would undo exactly
+ * the property this function exists to provide.
+ */
+fun devicePreferences(context: Context): SharedPreferences =
+    BootAware.deviceContext(context).getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+
+class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsStore {
 
     override fun read(): UserSettings {
         val latitude = prefs.getLong(KEY_LATITUDE, UNSET)
@@ -73,8 +92,7 @@ class PreferencesSettingsStore(context: Context) : SettingsStore {
     }
 }
 
-class PreferencesAlertStateStore(context: Context) : AlertStateStore {
-    private val prefs = prefs(context)
+class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertStateStore {
 
     override fun read(): AlertState {
         val lastAlertAt = prefs.getLong(KEY_LAST_ALERT_AT, UNSET)

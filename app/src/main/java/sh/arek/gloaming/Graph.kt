@@ -10,6 +10,8 @@ import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.PreferencesAlertStateStore
+import sh.arek.gloaming.data.credentialPreferences
+import sh.arek.gloaming.data.devicePreferences
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.SkyRepository
@@ -45,7 +47,7 @@ object Graph {
 
     /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =
-        PreferencesSettingsStore(context.applicationContext)
+        PreferencesSettingsStore(credentialPreferences(context))
 
     /**
      * Alert state also lives in device-protected storage. It is a timestamp, a
@@ -54,7 +56,7 @@ object Graph {
      * hysteresis and rate limiting rather than each keeping their own.
      */
     fun alertState(context: Context): AlertStateStore =
-        PreferencesAlertStateStore(BootAware.deviceContext(context))
+        PreferencesAlertStateStore(devicePreferences(context))
 
     fun poller(context: Context): SkyPoller {
         val application = context.applicationContext

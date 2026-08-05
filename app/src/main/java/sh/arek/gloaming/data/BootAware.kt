@@ -44,7 +44,7 @@ object BootAware {
      * exactly the state where the other store cannot be opened.
      */
     fun beforeUnlockEnabled(context: Context): Boolean =
-        PreferencesSettingsStore(deviceContext(context)).read().alertsBeforeUnlock
+        PreferencesSettingsStore(devicePreferences(context)).read().alertsBeforeUnlock
 
     /**
      * Whether a scheduled poll can do anything right now.
@@ -65,30 +65,41 @@ object BootAware {
      * data at the weaker protection after the user opted out of it.
      */
     fun saveSettings(context: Context, settings: UserSettings) {
-        PreferencesSettingsStore(context.applicationContext).write(settings)
+        PreferencesSettingsStore(credentialPreferences(context)).write(settings)
 
-        val mirror = PreferencesSettingsStore(deviceContext(context))
-        val cell = settings.cell
-        if (settings.alertsBeforeUnlock && cell != null) {
-            mirror.write(
-                settings.copy(
-                    latitude = cell.latitude.toDouble(),
-                    longitude = cell.longitude.toDouble(),
-                ),
-            )
-        } else {
+        val mirror = PreferencesSettingsStore(devicePreferences(context))
+        val toMirror = mirrorOf(settings)
+        if (toMirror == null) {
             mirror.clear()
             // The flag itself must survive, or the next locked wake cannot tell
             // that the user turned the option off rather than never set it.
-            mirror.write(UserSettings(alertsBeforeUnlock = settings.alertsBeforeUnlock))
+            mirror.write(UserSettings(alertsBeforeUnlock = false))
+        } else {
+            mirror.write(toMirror)
         }
+    }
+
+    /**
+     * What belongs in device-encrypted storage, or null if nothing should.
+     *
+     * The position is reduced to its grid cell first: the lookup rounds to
+     * whole degrees anyway, so alerting loses nothing while what sits in the
+     * weaker store is a region rather than an address.
+     */
+    fun mirrorOf(settings: UserSettings): UserSettings? {
+        val cell = settings.cell
+        if (!settings.alertsBeforeUnlock || cell == null) return null
+        return settings.copy(
+            latitude = cell.latitude.toDouble(),
+            longitude = cell.longitude.toDouble(),
+        )
     }
 
     /** Settings for the polling path, from whichever store is authoritative. */
     fun pollSettings(context: Context): SettingsStore =
         if (beforeUnlockEnabled(context)) {
-            PreferencesSettingsStore(deviceContext(context))
+            PreferencesSettingsStore(devicePreferences(context))
         } else {
-            PreferencesSettingsStore(context.applicationContext)
+            PreferencesSettingsStore(credentialPreferences(context))
         }
 }
