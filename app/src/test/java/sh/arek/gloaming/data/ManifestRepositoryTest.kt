@@ -8,6 +8,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.net.HttpFetcher
+import sh.arek.gloaming.net.HttpResult
 
 class ManifestRepositoryTest {
 
@@ -35,10 +36,10 @@ class ManifestRepositoryTest {
     ) : HttpFetcher {
         val requested = mutableListOf<String>()
 
-        override suspend fun getBytes(url: String): ByteArray {
+        override suspend fun get(url: String, etag: String?): HttpResult {
             requested += url
             val response = responses[url] ?: throw IOException("no route for $url")
-            return response.getOrThrow()
+            return HttpResult.Ok(response.getOrThrow(), null)
         }
     }
 

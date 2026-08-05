@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   received, caches the verified copy, and falls back to the last known-good
   manifest - re-checking its signature too - whenever the network copy cannot be
   trusted.
+- Aurora grid handling on the device: inflates the published grid and looks up
+  probability for an observer position, wrapping longitudes and clamping at the
+  poles. Both hemispheres, so the aurora australis works without extra code.
+- Status fetching with conditional GET, and two-tier grid fetching that pulls
+  `oval.bin` only when its ETag changes. Failures degrade to the cached copy
+  rather than leaving the app with nothing to say.
 
 ### Changed
 

@@ -3,6 +3,7 @@ package sh.arek.gloaming.data
 import kotlinx.serialization.json.Json
 import sh.arek.gloaming.crypto.Ed25519Verifier
 import sh.arek.gloaming.net.HttpFetcher
+import sh.arek.gloaming.net.getBytes
 
 /**
  * Fetches, verifies and caches the signed manifest.
