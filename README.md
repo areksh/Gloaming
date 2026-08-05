@@ -19,9 +19,16 @@ windows delivered reliably through Doze.
 Requires JDK 21 and the Android SDK with platform `android-37.0`.
 
 ```sh
-./gradlew :app:assembleDebug     # build the debug APK
-./gradlew :app:testDebugUnitTest # run unit tests
+./gradlew :app:assembleDebug          # build the debug APK
+./gradlew :app:testDebugUnitTest      # unit tests, no device needed
+./gradlew :app:connectedDebugAndroidTest  # instrumented tests, needs a device
 ```
+
+The instrumented tests cover the seams a JVM test cannot reach: that the
+credential- and device-encrypted preference stores really are separate, that the
+manifest declares every permission the code uses and nothing more, and that
+notifications post without throwing. They need a device connected over adb with
+USB debugging enabled.
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
