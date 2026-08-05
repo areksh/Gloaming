@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ed25519 signature verification for the app (`Ed25519Verifier`), so the signed
   manifest can be checked on Android 7.0 where the platform has no Ed25519.
   Verify-only, no dependency, validated against the RFC 8032 vectors.
+- Manifest fetching for the app: verifies the signature over the exact bytes
+  received, caches the verified copy, and falls back to the last known-good
+  manifest - re-checking its signature too - whenever the network copy cannot be
+  trusted.
 
 ### Changed
 
