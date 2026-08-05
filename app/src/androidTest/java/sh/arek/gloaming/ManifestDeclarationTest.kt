@@ -56,12 +56,18 @@ class ManifestDeclarationTest {
     }
 
     /**
-     * Nothing beyond what is used. The permission list is the first thing this
-     * audience reads, and an unexplained entry costs trust.
+     * Nothing arrives that the app did not ask for, beyond what the OS itself
+     * adds.
+     *
+     * This catches a dependency contributing a permission during the manifest
+     * merge - which is how WAKE_LOCK appeared in the first place, and how it
+     * later vanished. What the app's own manifest declares is checked
+     * separately and deterministically by ManifestPermissionsTest; the package
+     * manager cannot serve that purpose because the OS adds to this list.
      */
     @Test
-    fun declaresNothingItDoesNotUse() {
-        val expected = setOf(
+    fun requestsNothingBeyondItsOwnManifestAndTheSystem() {
+        val ours = setOf(
             android.Manifest.permission.INTERNET,
             android.Manifest.permission.WAKE_LOCK,
             android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
@@ -69,12 +75,20 @@ class ManifestDeclarationTest {
             "android.permission.POST_NOTIFICATIONS",
         )
 
+        val addedByTheSystem = setOf(
+            // GrapheneOS injects its Sensors toggle into every app, so the user
+            // can revoke access to sensors no other permission covers. Defined
+            // by the platform (sourcePackage=android), not by this manifest.
+            "android.permission.OTHER_SENSORS",
+        )
+
         val unexpected = requestedPermissions()
-            .filterNot { it in expected }
+            .filterNot { it in ours }
+            .filterNot { it in addedByTheSystem }
             // The build tools synthesise this for runtime-registered receivers.
             .filterNot { it.endsWith("DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION") }
 
-        assertEquals("undeclared-but-requested permissions", emptyList<String>(), unexpected)
+        assertEquals("permissions nobody here asked for", emptyList<String>(), unexpected)
     }
 
     /**
