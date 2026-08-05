@@ -47,8 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   minimum between alerts that a substantially larger event can still escape.
 - A screen: manual location entry, threshold, prominent data age, and prompts
   for the battery-optimisation exemption and notification permission.
+- Optional before-unlock alerting, off by default, for devices that reboot on a
+  timer. Keeps alerts working while the phone sits locked after a reboot, at the
+  cost of copying the rounded grid cell - never the precise position - into
+  device-protected storage.
 
 ### Changed
+
+- Scheduling moved from WorkManager to AlarmManager with Direct Boot aware
+  receivers. WorkManager cannot run before first unlock, which is precisely the
+  state a scheduled reboot leaves the device in.
 
 - Base application theme no longer depends on the Material Components view
   library; a pure-Compose app themes at runtime, so the platform theme only

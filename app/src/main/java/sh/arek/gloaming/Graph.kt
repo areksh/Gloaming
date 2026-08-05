@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import okhttp3.OkHttpClient
 import sh.arek.gloaming.data.AlertStateStore
+import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.GloamingEndpoints
@@ -23,20 +24,37 @@ import sh.arek.gloaming.notify.AndroidAuroraNotifier
  * of objects with no scoping to speak of, and a background wake wants to be
  * cheap to start. Hilt earns its keep when the graph grows past what this file
  * can state plainly; it has not yet.
+ *
+ * Everything the background poll touches is anchored in device-protected
+ * storage, so a wake before first unlock finds its caches and state where it
+ * expects them.
  */
 object Graph {
 
     /** One client, so connections and the thread pool are reused across wakes. */
     private val httpClient by lazy { OkHttpClient() }
 
+    /**
+     * Caches live in device-protected storage unconditionally. They hold the
+     * manifest, the status document and the aurora grid - all published at a
+     * public URL, so there is nothing here that credential encryption would be
+     * protecting.
+     */
     private fun cacheDirectory(context: Context): File =
-        File(context.applicationContext.filesDir, "sky")
+        File(BootAware.deviceContext(context).filesDir, "sky")
 
+    /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =
         PreferencesSettingsStore(context.applicationContext)
 
+    /**
+     * Alert state also lives in device-protected storage. It is a timestamp, a
+     * probability and a latch - nothing worth protecting - and keeping it in
+     * one place means a poll before unlock and one after share the same
+     * hysteresis and rate limiting rather than each keeping their own.
+     */
     fun alertState(context: Context): AlertStateStore =
-        PreferencesAlertStateStore(context.applicationContext)
+        PreferencesAlertStateStore(BootAware.deviceContext(context))
 
     fun poller(context: Context): SkyPoller {
         val application = context.applicationContext
@@ -50,7 +68,9 @@ object Graph {
                 manifestUrl = GloamingEndpoints.MANIFEST_URL,
             ),
             sky = SkyRepository(http, FileSkyCache(cacheDirectory(application))),
-            settings = settings(application),
+            // Whichever store is authoritative for polling: the device-protected
+            // mirror when before-unlock alerting is on, the normal one otherwise.
+            settings = BootAware.pollSettings(application),
             state = alertState(application),
             notifier = AndroidAuroraNotifier(application),
         )

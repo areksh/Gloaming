@@ -58,15 +58,16 @@ class SkyPoller(
         previous: AlertState,
     ): PollOutcome {
         if (!user.alertsEnabled) return PollOutcome.AlertsDisabled
-        val latitude = user.latitude
-        val longitude = user.longitude
-        if (latitude == null || longitude == null) return PollOutcome.NoLocation
+        // The grid cell rather than the raw position, so a poll before unlock -
+        // which only has the cell - produces exactly the same answer as one
+        // after it.
+        val cell = user.cell ?: return PollOutcome.NoLocation
 
         val manifest = manifests.refresh()
         val snapshot = sky.refresh(manifest)
         val grid = snapshot.grid ?: return PollOutcome.NoGrid
 
-        val probability = grid.probabilityAt(latitude, longitude)
+        val probability = grid.probabilityAt(cell.latitude.toDouble(), cell.longitude.toDouble())
 
         val decision = AlertDecision.evaluate(
             probability = probability,

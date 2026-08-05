@@ -44,6 +44,7 @@ fun MainScreen(
     onLongitudeChange: (String) -> Unit,
     onThresholdChange: (Int) -> Unit,
     onAlertsEnabledChange: (Boolean) -> Unit,
+    onBeforeUnlockChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -84,6 +85,7 @@ fun MainScreen(
 
         LocationCard(state, onLatitudeChange, onLongitudeChange, onSave)
         ThresholdCard(state, onThresholdChange, onAlertsEnabledChange)
+        BeforeUnlockCard(state, onBeforeUnlockChange)
 
         Button(onClick = onPollNow, modifier = Modifier.fillMaxWidth()) {
             Text("Check now")
@@ -205,6 +207,49 @@ private fun ThresholdCard(
             Spacer(Modifier.height(4.dp))
             Text(
                 "Checks run about every ${state.settings.pollIntervalMinutes} minutes.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * The before-unlock option, with the trade stated rather than buried.
+ *
+ * A phone set to reboot on a timer sits at the lock screen afterwards, and an
+ * app whose data is behind the user's credential cannot run until someone picks
+ * it up. Enabling this keeps alerts working across that gap, at the cost of
+ * putting the grid cell and alert settings into storage the system can read
+ * before unlock.
+ */
+@Composable
+private fun BeforeUnlockCard(state: MainUiState, onBeforeUnlockChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Alert before unlock", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.alertsBeforeUnlock,
+                    onCheckedChange = onBeforeUnlockChange,
+                )
+            }
+            Text(
+                "If your phone reboots on a timer, it sits locked until you pick it " +
+                    "up, and Gloaming cannot read its own settings until then. Turn " +
+                    "this on to keep alerting through that gap.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "The cost: your rounded location " +
+                    (state.settings.cell?.let { "(${it.latitude}, ${it.longitude}) " } ?: "") +
+                    "and alert settings are copied to storage the system can read " +
+                    "before you unlock. Only the whole degree is stored - about " +
+                    "111 km - never the position you typed. Turning this off deletes " +
+                    "that copy.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

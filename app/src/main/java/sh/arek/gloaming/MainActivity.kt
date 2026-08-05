@@ -29,7 +29,8 @@ import androidx.compose.runtime.DisposableEffect
 import sh.arek.gloaming.ui.MainScreen
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.theme.GloamingTheme
-import sh.arek.gloaming.work.SkyPollWorker
+import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.work.PollAlarm
 
 class MainActivity : ComponentActivity() {
 
@@ -39,7 +40,7 @@ class MainActivity : ComponentActivity() {
 
         // Make sure a schedule exists, in case this is a first run or the chain
         // was ever lost. Enqueuing is idempotent under a unique work name.
-        SkyPollWorker.schedule(this, Graph.settings(this).read())
+        PollAlarm.schedule(this, Graph.settings(this).read().pollIntervalMinutes)
 
         setContent {
             GloamingTheme {
@@ -110,22 +111,28 @@ private fun GloamingApp(modifier: Modifier = Modifier) {
         onLatitudeChange = { latitudeInput = it },
         onLongitudeChange = { longitudeInput = it },
         onThresholdChange = {
-            settings = settings.copy(threshold = it).also(settingsStore::write)
+            settings = settings.copy(threshold = it)
+            BootAware.saveSettings(context, settings)
         },
         onAlertsEnabledChange = {
-            settings = settings.copy(alertsEnabled = it).also(settingsStore::write)
-            if (it) SkyPollWorker.schedule(context, settings) else SkyPollWorker.cancel(context)
+            settings = settings.copy(alertsEnabled = it)
+            BootAware.saveSettings(context, settings)
+            if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
+        },
+        onBeforeUnlockChange = {
+            settings = settings.copy(alertsBeforeUnlock = it)
+            BootAware.saveSettings(context, settings)
         },
         onSave = {
             val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
             val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
             settings = settings.copy(latitude = latitude, longitude = longitude)
-                .also(settingsStore::write)
+            BootAware.saveSettings(context, settings)
             latitudeInput = latitude?.toString().orEmpty()
             longitudeInput = longitude?.toString().orEmpty()
-            SkyPollWorker.runNow(context)
+            PollAlarm.scheduleNow(context)
         },
-        onPollNow = { SkyPollWorker.runNow(context) },
+        onPollNow = { PollAlarm.scheduleNow(context) },
         onRequestBatteryExemption = {
             // Sends the user to the system list rather than using the
             // direct-request intent, which Play forbids and which several OEM

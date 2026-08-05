@@ -16,8 +16,27 @@ data class UserSettings(
     val threshold: Int = DEFAULT_THRESHOLD,
     val alertsEnabled: Boolean = true,
     val pollIntervalMinutes: Int = DEFAULT_POLL_MINUTES,
+    /**
+     * Whether to keep alerting after a reboot, before the device is unlocked.
+     *
+     * Off by default, and deliberately so. Enabling it copies the observer's
+     * grid cell and alert settings into device-protected storage, which is
+     * readable by the system before first unlock - the very state a scheduled
+     * reboot exists to return the device to. Only the rounded cell is stored,
+     * never the precise position, so the cost is a region rather than an
+     * address; but it is a real cost and the user makes that choice.
+     */
+    val alertsBeforeUnlock: Boolean = false,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
+
+    /** The observer position at the grid's own resolution, if one is set. */
+    val cell: GridCell?
+        get() = if (latitude != null && longitude != null) {
+            GridCell.of(latitude, longitude)
+        } else {
+            null
+        }
 
     companion object {
         /**

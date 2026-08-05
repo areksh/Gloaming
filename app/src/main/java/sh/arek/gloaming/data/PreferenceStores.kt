@@ -18,6 +18,7 @@ private const val KEY_LONGITUDE = "longitude"
 private const val KEY_THRESHOLD = "threshold"
 private const val KEY_ALERTS_ENABLED = "alerts_enabled"
 private const val KEY_POLL_MINUTES = "poll_minutes"
+private const val KEY_BEFORE_UNLOCK = "alerts_before_unlock"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -43,6 +44,7 @@ class PreferencesSettingsStore(context: Context) : SettingsStore {
             threshold = prefs.getInt(KEY_THRESHOLD, UserSettings.DEFAULT_THRESHOLD),
             alertsEnabled = prefs.getBoolean(KEY_ALERTS_ENABLED, true),
             pollIntervalMinutes = prefs.getInt(KEY_POLL_MINUTES, UserSettings.DEFAULT_POLL_MINUTES),
+            alertsBeforeUnlock = prefs.getBoolean(KEY_BEFORE_UNLOCK, false),
         )
     }
 
@@ -61,7 +63,13 @@ class PreferencesSettingsStore(context: Context) : SettingsStore {
             putInt(KEY_THRESHOLD, settings.threshold)
             putBoolean(KEY_ALERTS_ENABLED, settings.alertsEnabled)
             putInt(KEY_POLL_MINUTES, settings.pollIntervalMinutes)
+            putBoolean(KEY_BEFORE_UNLOCK, settings.alertsBeforeUnlock)
         }.apply()
+    }
+
+    /** Removes everything, used when a storage mirror should no longer exist. */
+    fun clear() {
+        prefs.edit().clear().apply()
     }
 }
 
