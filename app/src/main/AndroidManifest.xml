@@ -10,6 +10,15 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Runtime-requested from Android 13; ignored below it. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      Lifts Doze's network restrictions so overnight checks happen on the app's
+      own schedule rather than being deferred into maintenance windows hours
+      apart. Off-Play this can be declared without a reviewer deciding an
+      astronomy app does not qualify.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:allowBackup="true"

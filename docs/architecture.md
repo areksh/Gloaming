@@ -218,9 +218,11 @@ platform primitive is not available at `minSdk 24` (issue #4).
 
 ### Dependency injection
 
-Hilt. It works fully off-Play (it is a compile-time processor, not a Play
-Services dependency) and is the mainstream choice for this stack. Recorded here
-rather than asked because it is low-cost to change.
+Hand-written wiring in `Graph`, not Hilt, for now. The graph is a handful of
+objects with no scoping to speak of, and a background wake wants to be cheap to
+start. Hilt works fully off-Play and remains the intended answer once the graph
+outgrows a file that states it plainly; adding it before then would be apparatus
+the project does not yet need.
 
 ## 6. Cross-cutting concerns
 

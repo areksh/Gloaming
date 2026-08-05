@@ -40,6 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status fetching with conditional GET, and two-tier grid fetching that pulls
   `oval.bin` only when its ETag changes. Failures degrade to the cached copy
   rather than leaving the app with nothing to say.
+- Scheduled background polling via chained one-time WorkManager requests, with
+  every wake jittered and the next always queued even after a failure.
+- Alert decisions: per-user threshold, hysteresis so a value hovering at the
+  threshold produces one notification rather than a stream, and a six-hour
+  minimum between alerts that a substantially larger event can still escape.
+- A screen: manual location entry, threshold, prominent data age, and prompts
+  for the battery-optimisation exemption and notification permission.
 
 ### Changed
 
