@@ -26,15 +26,20 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         val application = context.applicationContext
-        val settings = BootAware.pollSettings(application).read()
 
-        if (!settings.alertsEnabled) {
-            Log.i(TAG, "alerts are off; not rescheduling after boot")
-            return
-        }
+        // A throw here means the alarm is never armed and the app stays silent
+        // until someone opens it - the exact failure this receiver exists to
+        // prevent - so it degrades to a logged error instead.
+        runCatching {
+            val settings = BootAware.pollSettings(application).read()
+            if (!settings.alertsEnabled) {
+                Log.i(TAG, "alerts are off; not rescheduling after boot")
+                return@runCatching
+            }
 
-        PollAlarm.schedule(application, settings.pollIntervalMinutes)
-        Log.i(TAG, "rescheduled after $action (unlocked=${BootAware.isUnlocked(application)})")
+            PollAlarm.schedule(application, settings.pollIntervalMinutes)
+            Log.i(TAG, "rescheduled after $action (unlocked=${BootAware.isUnlocked(application)})")
+        }.onFailure { Log.e(TAG, "failed to reschedule after $action", it) }
     }
 
     private companion object {

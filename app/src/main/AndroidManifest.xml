@@ -9,7 +9,6 @@
       into LocationManager later.
     -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Runtime-requested from Android 13; ignored below it. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
@@ -21,6 +20,12 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Re-arms the alarm after a reboot; alarms do not survive a restart. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!--
+      Held while a scheduled poll runs, so the device does not sleep between the
+      alarm firing and the fetch completing. Previously arrived transitively via
+      WorkManager; it is declared here now that the scheduler is our own.
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="true"

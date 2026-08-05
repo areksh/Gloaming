@@ -28,9 +28,17 @@ class PollReceiver : BroadcastReceiver() {
         val pending = goAsync()
         val application = context.applicationContext
 
-        val wakeLock = application.getSystemService(PowerManager::class.java)
-            ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            ?.apply { acquire(WAKE_LOCK_TIMEOUT_MILLIS) }
+        // A wake lock is an optimisation, not a precondition: without it the
+        // device may sleep mid-fetch and the poll fails, which the next wake
+        // retries. Crashing the receiver instead would take the app down on
+        // every alarm - the worst possible failure for something whose job is
+        // to be awake overnight - so acquisition failure is tolerated.
+        val wakeLock = runCatching {
+            application.getSystemService(PowerManager::class.java)
+                ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
+                ?.apply { acquire(WAKE_LOCK_TIMEOUT_MILLIS) }
+        }.onFailure { Log.w(TAG, "could not hold a wake lock; polling anyway", it) }
+            .getOrNull()
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
