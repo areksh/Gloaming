@@ -40,8 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status fetching with conditional GET, and two-tier grid fetching that pulls
   `oval.bin` only when its ETag changes. Failures degrade to the cached copy
   rather than leaving the app with nothing to say.
-- Scheduled background polling via chained one-time WorkManager requests, with
-  every wake jittered and the next always queued even after a failure.
+- Scheduled background polling, with every wake jittered and the next always
+  queued even after a failure.
 - Alert decisions: per-user threshold, hysteresis so a value hovering at the
   threshold produces one notification rather than a stream, and a six-hour
   minimum between alerts that a substantially larger event can still escape.
@@ -54,9 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Scheduling moved from WorkManager to AlarmManager with Direct Boot aware
-  receivers. WorkManager cannot run before first unlock, which is precisely the
-  state a scheduled reboot leaves the device in.
+- Scheduling uses AlarmManager with Direct Boot aware receivers rather than
+  WorkManager, which cannot run before first unlock - precisely the state a
+  scheduled reboot leaves the device in.
 
 - Base application theme no longer depends on the Material Components view
   library; a pure-Compose app themes at runtime, so the platform theme only
