@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health tracking and maintainer alerting: `health.json` records per-source
   state, last success and last error; a maintainer-only ntfy topic receives one
   push when a source starts failing and one when it recovers.
+- Ed25519 signature verification for the app (`Ed25519Verifier`), so the signed
+  manifest can be checked on Android 7.0 where the platform has no Ed25519.
+  Verify-only, no dependency, validated against the RFC 8032 vectors.
 
 ### Changed
 

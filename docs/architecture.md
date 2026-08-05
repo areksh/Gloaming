@@ -309,11 +309,13 @@ errors; the sourcing document is strong.
    contract in Sec. 2 is only real if the zone is configured to honour it. Check
    the served headers, not the ones that were set.
 
-4. **Ed25519 verification at `minSdk 24`.** The platform primitive
-   (`java.security` EdDSA via Conscrypt) only arrives around API 33, so a bundled
-   verifier is required (BouncyCastle, Lazysodium, or a small vendored
-   implementation). A concrete dependency the "afternoon of work" estimate in
-   Sec. 10 omits. The Worker side is unaffected (SubtleCrypto).
+4. ~~**Ed25519 verification at `minSdk 24`.**~~ **Resolved: a vendored
+   verify-only implementation** in `sh.arek.gloaming.crypto.Ed25519Verifier`
+   (ADR-0005). The platform primitive only arrives around API 33, and a general
+   crypto library costs megabytes for one primitive. Verification handles no
+   secret, so the hazard is correctness rather than side channels; it is
+   validated against all three RFC 8032 section 7.1 vectors and against a real
+   signature from the deployed Worker.
 5. **GPL-3.0 is a preference, not forced by SGP4.** Sec. 1 says an MIT licence
    was available only in the aurora-only scope, but Sec. 7 notes predict4java was
    relicensed to MIT in 2026, so full scope could stay permissive via
@@ -347,3 +349,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0002 - R2 object store with a cron Worker out of the read path.
 - ADR-0003 - all computation on-device; polling only, no push.
 - ADR-0004 - GPL-3.0 from day one.
+- ADR-0005 - a vendored Ed25519 verifier rather than a crypto library.
