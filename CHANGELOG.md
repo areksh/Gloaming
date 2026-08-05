@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
 
+### Notes
+
+- Instrumented tests verified on a Pixel 8a running GrapheneOS: storage
+  partitioning, permission declarations, scheduling and notifications.
+
 ### Changed
 
 - Scheduling uses AlarmManager with Direct Boot aware receivers rather than
