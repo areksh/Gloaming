@@ -38,6 +38,16 @@
     "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
     "SWPC_SOLAR_WIND_SPEED_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
     "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
-    "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/gloaming)"
+    "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/gloaming)",
+
+    // Manifest contents. The app bakes in only the manifest URL, so every other
+    // endpoint can move by editing these and redeploying.
+    "PUBLIC_BASE_URL": "https://sky.arek.sh/v1",
+    "OPEN_METEO_URL": "https://api.open-meteo.com/v1/forecast",
+    // Kill switch: installs reporting a lower version are told to update.
+    "MIN_SUPPORTED_VERSION": 1,
+    // Broadcast channel into a notification on every install. Empty means none.
+    // Rendered as inert plain text by the app, never as a link.
+    "MANIFEST_MESSAGE": ""
   }
 }

@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aurora grid as `oval.bin`, and `status.json` composed from the SWPC and
   AuroraWatch UK sources on their separate schedules, with the documented
   `Cache-Control` set at PUT time.
+- Signed manifest: `index.json` plus an Ed25519 detached signature at
+  `index.json.sig`, republished only when its contents change. This is the only
+  URL the app will bake in, so every other endpoint can move without stranding
+  installs that never update.
 
 ### Changed
 

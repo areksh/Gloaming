@@ -1,7 +1,8 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { toPem } from "../src/manifest";
 import { GRID_LONGITUDES } from "../src/oval";
-import { refreshSpaceWeather, refreshUk } from "../src/pipeline";
+import { ensureManifest, refreshSpaceWeather, refreshUk } from "../src/pipeline";
 import type { Status } from "../src/status";
 
 function ovationBody(peak: number) {
@@ -160,5 +161,82 @@ describe("composition across the two crons", () => {
     expect(status.aurorawatch?.status).toBe("amber");
     expect(status.max_probability).toBe(15);
     expect(status.global_activity).toBe("low");
+  });
+});
+
+describe("ensureManifest", () => {
+  async function envWithKey() {
+    const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+      "sign",
+      "verify",
+    ])) as CryptoKeyPair;
+    const pkcs8 = (await crypto.subtle.exportKey("pkcs8", pair.privateKey)) as ArrayBuffer;
+    return {
+      env: { ...env, MANIFEST_SIGNING_KEY: toPem(new Uint8Array(pkcs8)) } as unknown as Env,
+      publicKey: pair.publicKey,
+    };
+  }
+
+  it("publishes the manifest with a signature its public key verifies", async () => {
+    const { env: e, publicKey } = await envWithKey();
+
+    await ensureManifest(e);
+
+    const manifest = await e.DATA.get("v1/index.json");
+    const signature = await e.DATA.get("v1/index.json.sig");
+    expect(manifest).not.toBeNull();
+    expect(signature).not.toBeNull();
+
+    const body = await manifest!.text();
+    const sig = await signature!.arrayBuffer();
+    expect(sig.byteLength).toBe(64);
+
+    // Verify over the bytes actually published, which is what the app does.
+    const ok = await crypto.subtle.verify(
+      { name: "Ed25519" },
+      publicKey,
+      sig,
+      new TextEncoder().encode(body),
+    );
+    expect(ok).toBe(true);
+
+    const parsed = JSON.parse(body);
+    expect(parsed.endpoints.status).toBe(`${e.PUBLIC_BASE_URL}/status.json`);
+    expect(parsed.endpoints.weather).toBe(e.OPEN_METEO_URL);
+  });
+
+  // Ed25519 is deterministic, but republishing on every cron would still churn
+  // the object and reset its cache age for no reason.
+  it("leaves an unchanged manifest alone", async () => {
+    const { env: e } = await envWithKey();
+
+    await ensureManifest(e);
+    const first = await e.DATA.get("v1/index.json");
+    const firstUploaded = first!.uploaded.getTime();
+
+    await ensureManifest(e);
+    const second = await e.DATA.get("v1/index.json");
+
+    expect(second!.uploaded.getTime()).toBe(firstUploaded);
+  });
+
+  it("republishes when the manifest contents change", async () => {
+    const { env: e } = await envWithKey();
+
+    await ensureManifest(e);
+    await ensureManifest({ ...e, MANIFEST_MESSAGE: "Maintenance tonight" } as unknown as Env);
+
+    const manifest = await e.DATA.get("v1/index.json");
+    expect(JSON.parse(await manifest!.text()).message).toBe("Maintenance tonight");
+  });
+
+  it("restores the manifest if it is deleted", async () => {
+    const { env: e } = await envWithKey();
+    await ensureManifest(e);
+    await e.DATA.delete("v1/index.json");
+
+    await ensureManifest(e);
+
+    expect(await e.DATA.get("v1/index.json")).not.toBeNull();
   });
 });

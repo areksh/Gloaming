@@ -7,7 +7,7 @@
  * Devices read from the R2 custom domain through the CDN instead.
  */
 
-import { refreshSpaceWeather, refreshUk } from "./pipeline";
+import { ensureManifest, refreshSpaceWeather, refreshUk } from "./pipeline";
 
 /** Which cron expression drives which source. Matches `triggers.crons`. */
 const AURORAWATCH_CRON = "*/3 * * * *";
@@ -18,6 +18,10 @@ export default {
     // fetch must stay bound to the global scope. Passing the bare reference
     // through loses `this` and fails at runtime with "Illegal invocation".
     const deps = { fetch: globalThis.fetch.bind(globalThis), now: () => new Date() };
+
+    // Cheap no-op once published, and it means the manifest repairs itself
+    // within one cycle rather than needing a deploy.
+    await ensureManifest(env);
 
     switch (controller.cron) {
       case AURORAWATCH_CRON:

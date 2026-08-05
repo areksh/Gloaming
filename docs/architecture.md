@@ -139,6 +139,13 @@ The manifest is the only URL in the APK. It carries `schema`,
 rendered as inert plain text) and the `endpoints` map including the Open-Meteo
 `weather` URL (Sec. 10).
 
+It advertises only endpoints that exist. `sats` and `comets` arrive with Phases
+3 and 5; because the manifest is re-fetched daily, adding a key then costs
+nothing, whereas advertising a URL that 404s today would have the app handling a
+failure that means nothing. The Worker republishes it only when the contents
+change, and does so on every cron rather than at deploy time, so a deleted
+manifest repairs itself within one cycle.
+
 ## 5. Android app
 
 Recreated as a Compose project matching Sec. 7: `minSdk 24`,

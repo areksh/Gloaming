@@ -10,6 +10,7 @@
  * outbound traffic.
  */
 
+import { buildManifest, importSigningKey, serialiseManifest, signManifest } from "./manifest";
 import { packOvalGrid } from "./oval";
 import { parseAuroraWatchStatus } from "./sources/aurorawatch";
 import { parseKp, parseOvation, parseSolarWindMagField, parseSolarWindSpeed } from "./sources/swpc";
@@ -30,6 +31,8 @@ const SPACE_PARTIAL_KEY = "internal/space.json";
 const UK_PARTIAL_KEY = "internal/uk.json";
 const STATUS_KEY = "v1/status.json";
 const OVAL_KEY = "v1/oval.bin";
+const MANIFEST_KEY = "v1/index.json";
+const MANIFEST_SIG_KEY = "v1/index.json.sig";
 
 /**
  * Fetches an upstream, naming the app in the User-Agent as AuroraWatch's terms
@@ -66,6 +69,44 @@ async function republishStatus(env: Env, now: Date): Promise<void> {
 
   await publish(env.DATA, STATUS_KEY, JSON.stringify(status), {
     cacheControl: CACHE_CONTROL["status.json"],
+    contentType: "application/json",
+  });
+}
+
+/**
+ * Publishes `index.json` and its detached signature, but only when the contents
+ * have actually changed.
+ *
+ * Called on every cron rather than on deploy, so a manifest that is deleted or
+ * never written comes back within one cycle without anyone intervening.
+ * Rewriting it unchanged would reset the object's cache age for no reason.
+ */
+export async function ensureManifest(env: Env): Promise<void> {
+  const manifest = buildManifest({
+    minSupportedVersion: env.MIN_SUPPORTED_VERSION,
+    message: env.MANIFEST_MESSAGE === "" ? null : env.MANIFEST_MESSAGE,
+    baseUrl: env.PUBLIC_BASE_URL,
+    weatherUrl: env.OPEN_METEO_URL,
+  });
+  const body = serialiseManifest(manifest);
+
+  const current = await env.DATA.get(MANIFEST_KEY);
+  if (current !== null && (await current.text()) === body) {
+    return;
+  }
+
+  const key = await importSigningKey(env.MANIFEST_SIGNING_KEY);
+  const signature = await signManifest(key, body);
+
+  // Signature first: a manifest briefly present without its signature would be
+  // rejected by every app that fetched in between, whereas a stale signature
+  // simply fails closed against the old body.
+  await publish(env.DATA, MANIFEST_SIG_KEY, signature, {
+    cacheControl: CACHE_CONTROL["index.json"],
+    contentType: "application/octet-stream",
+  });
+  await publish(env.DATA, MANIFEST_KEY, body, {
+    cacheControl: CACHE_CONTROL["index.json"],
     contentType: "application/json",
   });
 }
