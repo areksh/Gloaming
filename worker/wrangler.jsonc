@@ -48,6 +48,11 @@
     "MIN_SUPPORTED_VERSION": 1,
     // Broadcast channel into a notification on every install. Empty means none.
     // Rendered as inert plain text by the app, never as a link.
-    "MANIFEST_MESSAGE": ""
+    "MANIFEST_MESSAGE": "",
+
+    // Maintainer alerting. The topic itself is a secret, since anyone knowing
+    // it can read and post. Configurable base URL so it can be self-hosted
+    // later without a code change.
+    "NTFY_BASE_URL": "https://ntfy.sh"
   }
 }

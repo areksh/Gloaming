@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `index.json.sig`, republished only when its contents change. This is the only
   URL the app will bake in, so every other endpoint can move without stranding
   installs that never update.
+- Health tracking and maintainer alerting: `health.json` records per-source
+  state, last success and last error; a maintainer-only ntfy topic receives one
+  push when a source starts failing and one when it recovers.
 
 ### Changed
 

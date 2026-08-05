@@ -73,7 +73,7 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 
   Note the partials sit in the same public bucket and are therefore world
   readable. They hold only already-public derived data, so this is the same
-  judgement as `health.json` (issue #8) rather than a new exposure.
+  judgement as `health.json` (issue #9) rather than a new exposure.
 - **`oval.bin` packer.** The SWPC OVATION 360x181 grid is packed to one byte per
   cell (probability 0-100), row-major, then gzipped at PUT. The pack/unpack pair
   is covered by a round-trip unit test.
@@ -132,7 +132,7 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `sats.json` | ~20 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. Phase 3. |
 | `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
 | `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
-| `health.json` | small | on change | short | Per-source last-success/last-error. World-readable (issue #8). |
+| `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
 
 The manifest is the only URL in the APK. It carries `schema`,
 `min_supported_version` (the kill switch), `message` (a broadcast channel

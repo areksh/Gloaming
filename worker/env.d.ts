@@ -12,6 +12,11 @@
 interface GloamingSecrets {
   /** PKCS8 PEM Ed25519 private key used to sign `index.json`. */
   MANIFEST_SIGNING_KEY: string;
+  /**
+   * Maintainer-only ntfy topic for failure alerts. Secret because anyone who
+   * knows a topic name can read and post to it. Empty disables alerting.
+   */
+  NTFY_TOPIC: string;
 }
 
 interface Env extends GloamingSecrets {}
