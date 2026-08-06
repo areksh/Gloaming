@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Darkness windows and moon phase, computed on the device with no network at
+  all. The polar cases are answered rather than guarded against: Shetland's
+  simmer dim reports that no astronomical darkness arrives, and the polar night
+  reports darkness with no dawn to find.
 - Cloud cover from Open-Meteo, fetched by the device itself rather than through
   the project's Worker, because Open-Meteo's rate limits are per-IP. The
   position sent is rounded to about a kilometre - the resolution of the finest
