@@ -29,13 +29,17 @@ class OpenMeteoWeather(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    override fun lastKnown(latitude: Double, longitude: Double): CloudCover? =
+        held(round(latitude) to round(longitude))?.takeIf { now() - it.fetchedAt < STALE_LIMIT_MS }
+            ?.cover
+
     override suspend fun cloudCover(
         baseUrl: String,
         latitude: Double,
         longitude: Double,
     ): CloudCover? {
         val place = round(latitude) to round(longitude)
-        val cached = cache.read()?.takeIf { round(it.latitude) to round(it.longitude) == place }
+        val cached = held(place)
         val age = cached?.let { now() - it.fetchedAt }
 
         if (age != null && age < REFRESH_INTERVAL_MS) return cached.cover
@@ -56,6 +60,10 @@ class OpenMeteoWeather(
         // round, and an unknown reading - which notifies - is the honest answer.
         return cached?.takeIf { age != null && age < STALE_LIMIT_MS }?.cover
     }
+
+    /** The cached reading, but only if it was taken at the same rounded place. */
+    private fun held(place: Pair<Double, Double>): CachedCloud? =
+        cache.read()?.takeIf { round(it.latitude) to round(it.longitude) == place }
 
     private fun url(baseUrl: String, latitude: Double, longitude: Double): String =
         "$baseUrl?latitude=$latitude&longitude=$longitude&current=${encode(CURRENT_FIELDS)}"

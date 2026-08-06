@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.aurora.OvalGrid
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
@@ -104,6 +105,7 @@ class SkyPollerTest {
     private class Weather(
         private val cover: CloudCover? = CloudCover(0, 0, 0, 0),
         private val fails: Boolean = false,
+        private val known: CloudCover? = null,
     ) : WeatherSource {
         val requested = mutableListOf<Triple<String, Double, Double>>()
 
@@ -116,6 +118,8 @@ class SkyPollerTest {
             if (fails) throw java.io.IOException("offline")
             return cover
         }
+
+        override fun lastKnown(latitude: Double, longitude: Double): CloudCover? = known
     }
 
     private class Manifests(var stored: CachedManifest?) : ManifestStore {
@@ -138,7 +142,7 @@ class SkyPollerTest {
         notifier: Notifier,
         failing: Set<String> = emptySet(),
         weather: Weather = Weather(),
-        isDark: Boolean = true,
+        darkness: Darkness = Darkness.Now(endsAt = null),
         localMinuteOfDay: Int = 2 * 60,
         manifestBody: ByteArray = this.manifestBody,
         signature: ByteArray = this.signature,
@@ -164,7 +168,7 @@ class SkyPollerTest {
             // are exercised for real elsewhere. Pinning them here keeps every
             // assertion about the decision rather than about the date the suite
             // happens to run on.
-            darkness = { _, _, _ -> isDark },
+            darkness = { _, _, _ -> darkness },
             localMinuteOfDay = { localMinuteOfDay },
         )
     }
@@ -179,9 +183,9 @@ class SkyPollerTest {
         val notifier = Notifier()
         val state = State()
 
-        val outcome = poller(70, settingsAt(), state, notifier).poll()
+        val result = poller(70, settingsAt(), state, notifier).poll()
 
-        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(listOf(70), notifier.notified)
     }
 
@@ -189,9 +193,9 @@ class SkyPollerTest {
     fun `stays quiet below the threshold and notifies nobody`() = runTest {
         val notifier = Notifier()
 
-        val outcome = poller(5, settingsAt(), State(), notifier).poll()
+        val result = poller(5, settingsAt(), State(), notifier).poll()
 
-        assertEquals(PollOutcome.Quiet(5, AlertDecision.BelowThreshold), outcome)
+        assertEquals(PollOutcome.Quiet(5, AlertDecision.BelowThreshold), result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -204,7 +208,7 @@ class SkyPollerTest {
         poller(70, settings, state, notifier).poll()
         assertFalse(state.value.armed)
 
-        val second = poller(70, settings, state, notifier).poll()
+        val second = poller(70, settings, state, notifier).poll().outcome
 
         assertEquals(PollOutcome.Quiet(70, AlertDecision.NotReArmed), second)
         assertEquals(1, notifier.notified.size)
@@ -237,9 +241,9 @@ class SkyPollerTest {
     fun `records a failure rather than throwing when the network is down`() = runTest {
         val state = State()
 
-        val outcome = poller(70, settingsAt(), state, Notifier(), failing = setOf(manifestUrl)).poll()
+        val result = poller(70, settingsAt(), state, Notifier(), failing = setOf(manifestUrl)).poll()
 
-        assertTrue(outcome is PollOutcome.Failed)
+        assertTrue(result.outcome is PollOutcome.Failed)
         assertEquals(nowMillis, state.value.lastPollAt)
         assertTrue(state.value.lastError!!.isNotEmpty())
     }
@@ -248,9 +252,9 @@ class SkyPollerTest {
     fun `does nothing without a location`() = runTest {
         val notifier = Notifier()
 
-        val outcome = poller(70, Settings(UserSettings()), State(), notifier).poll()
+        val result = poller(70, Settings(UserSettings()), State(), notifier).poll()
 
-        assertEquals(PollOutcome.NoLocation, outcome)
+        assertEquals(PollOutcome.NoLocation, result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -261,9 +265,9 @@ class SkyPollerTest {
             UserSettings(latitude = 55.95, longitude = -3.19, alertsEnabled = false),
         )
 
-        val outcome = poller(90, settings, State(), notifier).poll()
+        val result = poller(90, settings, State(), notifier).poll()
 
-        assertEquals(PollOutcome.AlertsDisabled, outcome)
+        assertEquals(PollOutcome.AlertsDisabled, result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -278,9 +282,9 @@ class SkyPollerTest {
             ),
         )
 
-        val outcome = poller(72, settingsAt(), state, notifier).poll()
+        val result = poller(72, settingsAt(), state, notifier).poll()
 
-        assertEquals(PollOutcome.Quiet(72, AlertDecision.RateLimited), outcome)
+        assertEquals(PollOutcome.Quiet(72, AlertDecision.RateLimited), result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -288,9 +292,9 @@ class SkyPollerTest {
     fun `stays quiet while the sun is up`() = runTest {
         val notifier = Notifier()
 
-        val outcome = poller(90, settingsAt(), State(), notifier, isDark = false).poll()
+        val result = poller(90, settingsAt(), State(), notifier, darkness = Darkness.Later(startsAt = nowMillis + 3_600_000, endsAt = null)).poll()
 
-        assertEquals(PollOutcome.Quiet(90, AlertDecision.TooLight), outcome)
+        assertEquals(PollOutcome.Quiet(90, AlertDecision.TooLight), result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -312,7 +316,7 @@ class SkyPollerTest {
     fun `does not fetch cloud cover while the sun is up`() = runTest {
         val weather = Weather()
 
-        poller(90, settingsAt(), State(), Notifier(), weather = weather, isDark = false).poll()
+        poller(90, settingsAt(), State(), Notifier(), weather = weather, darkness = Darkness.Later(startsAt = nowMillis + 3_600_000, endsAt = null)).poll()
 
         assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
     }
@@ -334,9 +338,9 @@ class SkyPollerTest {
         val notifier = Notifier()
         val weather = Weather(CloudCover(total = 100, low = 100, mid = 0, high = 0))
 
-        val outcome = poller(70, settingsAt(), State(), notifier, weather = weather).poll()
+        val result = poller(70, settingsAt(), State(), notifier, weather = weather).poll()
 
-        assertEquals(PollOutcome.Quiet(70, AlertDecision.TooCloudy), outcome)
+        assertEquals(PollOutcome.Quiet(70, AlertDecision.TooCloudy), result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 
@@ -359,7 +363,7 @@ class SkyPollerTest {
     fun `notifies with cloud unknown when the forecast cannot be reached`() = runTest {
         val notifier = Notifier()
 
-        val outcome = poller(
+        val result = poller(
             70,
             settingsAt(),
             State(),
@@ -367,7 +371,7 @@ class SkyPollerTest {
             weather = Weather(fails = true),
         ).poll()
 
-        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(listOf(null), notifier.clouds)
     }
 
@@ -378,7 +382,7 @@ class SkyPollerTest {
         val weather = Weather()
         val notifier = Notifier()
 
-        val outcome = poller(
+        val result = poller(
             70,
             settingsAt(),
             State(),
@@ -388,7 +392,7 @@ class SkyPollerTest {
             signature = weatherlessSignature,
         ).poll()
 
-        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
         assertEquals(listOf(null), notifier.clouds)
     }
@@ -401,9 +405,9 @@ class SkyPollerTest {
             UserSettings(latitude = 55.95, longitude = -3.19, cloudGateEnabled = false),
         )
 
-        val outcome = poller(70, settings, State(), notifier, weather = weather).poll()
+        val result = poller(70, settings, State(), notifier, weather = weather).poll()
 
-        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
     }
 
@@ -418,7 +422,7 @@ class SkyPollerTest {
             ),
         )
 
-        val outcome = poller(
+        val result = poller(
             70,
             settings,
             State(),
@@ -426,7 +430,82 @@ class SkyPollerTest {
             localMinuteOfDay = 2 * 60,
         ).poll()
 
-        assertEquals(PollOutcome.Quiet(70, AlertDecision.InQuietHours), outcome)
+        assertEquals(PollOutcome.Quiet(70, AlertDecision.InQuietHours), result.outcome)
         assertTrue(notifier.notified.isEmpty())
     }
+
+    @Test
+    fun `comes back at the quiet rate on a dark, unremarkable night`() = runTest {
+        val result = poller(5, settingsAt(), State(), Notifier()).poll()
+
+        assertEquals(PollingPolicy.Reason.QUIET, result.next.reason)
+        assertEquals(PollingPolicy.QUIET_MINUTES, result.next.delayMinutes)
+    }
+
+    @Test
+    fun `sleeps until dusk rather than polling through the day`() = runTest {
+        val result = poller(
+            5,
+            settingsAt(),
+            State(),
+            Notifier(),
+            darkness = Darkness.Later(startsAt = nowMillis + 4 * 3_600_000, endsAt = null),
+        ).poll()
+
+        assertEquals(PollingPolicy.Reason.DAYLIGHT, result.next.reason)
+        assertEquals(4 * 60, result.next.delayMinutes)
+    }
+
+    /**
+     * Darkness needs no network, so a poll that reached nothing still knows
+     * whether it is daylight. Without this the app would retry at the storm
+     * rate all afternoon on a phone that happened to be offline at dawn.
+     */
+    @Test
+    fun `still sleeps through the day when the poll failed entirely`() = runTest {
+        val result = poller(
+            70,
+            settingsAt(),
+            State(),
+            Notifier(),
+            failing = setOf(manifestUrl),
+            darkness = Darkness.Later(startsAt = nowMillis + 6 * 3_600_000, endsAt = null),
+        ).poll()
+
+        assertTrue(result.outcome is PollOutcome.Failed)
+        assertEquals(PollingPolicy.Reason.DAYLIGHT, result.next.reason)
+    }
+
+    @Test
+    fun `goes dormant where it does not get dark at all`() = runTest {
+        val result = poller(5, settingsAt(), State(), Notifier(), darkness = Darkness.None).poll()
+
+        assertEquals(PollingPolicy.Reason.DORMANT, result.next.reason)
+    }
+
+    /**
+     * The scheduler reads the cloud it already has rather than fetching one.
+     * Spending a radio wake to decide how often to wake the radio would undo
+     * the saving the whole policy exists for.
+     */
+    @Test
+    fun `slows down for cloud it already knew about, without asking again`() = runTest {
+        val weather = Weather(known = CloudCover(95, 95, 0, 0))
+
+        val result = poller(5, settingsAt(), State(), Notifier(), weather = weather).poll()
+
+        assertEquals(PollingPolicy.Reason.OVERCAST, result.next.reason)
+        assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    @Test
+    fun `falls back to the flat interval when there is nowhere to compute a schedule for`() =
+        runTest {
+            val settings = Settings(UserSettings(pollIntervalMinutes = 15))
+
+            val result = poller(70, settings, State(), Notifier()).poll()
+
+            assertEquals(PollOutcome.NoLocation, result.outcome)
+            assertEquals(15, result.next.delayMinutes)
+        }
 }

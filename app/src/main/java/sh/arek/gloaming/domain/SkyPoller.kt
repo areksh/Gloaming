@@ -1,6 +1,7 @@
 package sh.arek.gloaming.domain
 
 import java.util.Calendar
+import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
@@ -22,9 +23,9 @@ interface AuroraNotifier {
     fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?)
 }
 
-/** Whether it is dark enough where the observer stands for anything to show. */
+/** How dark it is where the observer stands, and when that next changes. */
 fun interface DarknessCheck {
-    fun isDark(latitude: Double, longitude: Double, atMillis: Long): Boolean
+    fun at(latitude: Double, longitude: Double, atMillis: Long): Darkness
 }
 
 /** What one poll did, for logging and for the UI to show. */
@@ -36,6 +37,15 @@ sealed interface PollOutcome {
     data object NoGrid : PollOutcome
     data class Failed(val reason: String) : PollOutcome
 }
+
+/**
+ * What the poll did, and when to come back.
+ *
+ * The schedule comes out of the poll rather than being asked for separately
+ * because the poll is what learned the things it depends on - and because the
+ * next wake has to be armed even when the poll failed, from whatever is known.
+ */
+data class PollResult(val outcome: PollOutcome, val next: PollPlan)
 
 /**
  * One wake: fetch, look up, decide, and notify if warranted.
@@ -61,59 +71,95 @@ class SkyPoller(
     private val state: AlertStateStore,
     private val notifier: AuroraNotifier,
     private val now: () -> Long = System::currentTimeMillis,
-    private val darkness: DarknessCheck = DarknessCheck(Twilight::isDark),
+    private val darkness: DarknessCheck = DarknessCheck(Twilight::darkness),
     /** Minutes since local midnight, for quiet hours. The device's own zone. */
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
     private val minimumAlertIntervalMillis: Long = DEFAULT_MINIMUM_INTERVAL,
 ) {
 
-    suspend fun poll(): PollOutcome {
+    suspend fun poll(): PollResult {
         val user = settings.read()
         val previous = state.read()
+        val at = now()
 
-        val outcome = runCatching { pollOnce(user, previous) }
-            .getOrElse { PollOutcome.Failed(it.message ?: it::class.java.simpleName) }
+        val attempt = runCatching { pollOnce(user, previous, at) }
+            .getOrElse { Attempt(PollOutcome.Failed(it.message ?: it::class.java.simpleName)) }
 
-        record(outcome, previous)
-        return outcome
+        record(attempt.outcome, previous)
+        return PollResult(attempt.outcome, nextPoll(user, at, attempt.status))
     }
 
-    private suspend fun pollOnce(user: UserSettings, previous: AlertState): PollOutcome {
-        if (!user.alertsEnabled) return PollOutcome.AlertsDisabled
+    /** What one attempt produced, including what the schedule needs from it. */
+    private class Attempt(val outcome: PollOutcome, val status: SkyStatus? = null)
 
-        val latitude = user.latitude ?: return PollOutcome.NoLocation
-        val longitude = user.longitude ?: return PollOutcome.NoLocation
+    private suspend fun pollOnce(user: UserSettings, previous: AlertState, at: Long): Attempt {
+        if (!user.alertsEnabled) return Attempt(PollOutcome.AlertsDisabled)
+
+        val latitude = user.latitude ?: return Attempt(PollOutcome.NoLocation)
+        val longitude = user.longitude ?: return Attempt(PollOutcome.NoLocation)
         // The grid cell rather than the raw position, so a poll before unlock -
         // which only has the cell - produces exactly the same answer as one
         // after it.
-        val cell = user.cell ?: return PollOutcome.NoLocation
+        val cell = user.cell ?: return Attempt(PollOutcome.NoLocation)
 
         val manifest = manifests.refresh()
         val snapshot = sky.refresh(manifest)
-        val grid = snapshot.grid ?: return PollOutcome.NoGrid
+        val status = snapshot.status
+        val grid = snapshot.grid ?: return Attempt(PollOutcome.NoGrid, status)
 
-        val at = now()
         val probability = grid.probabilityAt(cell.latitude.toDouble(), cell.longitude.toDouble())
 
         val decision = AlertDecision.evaluate(
             probability = probability,
-            isDark = darkness.isDark(latitude, longitude, at),
+            isDark = darkness.at(latitude, longitude, at) is Darkness.Now,
             localMinuteOfDay = localMinuteOfDay(at),
             settings = user,
             state = previous,
             now = at,
             minimumIntervalMillis = minimumAlertIntervalMillis,
         )
-        if (decision != AlertDecision.Notify) return PollOutcome.Quiet(probability, decision)
+        if (decision != AlertDecision.Notify) {
+            return Attempt(PollOutcome.Quiet(probability, decision), status)
+        }
 
         // Only now, with everything free already satisfied, is a radio wake
         // worth paying for.
         val cloud = cloudCover(manifest.endpoints[ENDPOINT_WEATHER], user, latitude, longitude)
         val gated = AlertDecision.cloudGate(cloud, user)
-        if (gated != AlertDecision.Notify) return PollOutcome.Quiet(probability, gated)
+        if (gated != AlertDecision.Notify) {
+            return Attempt(PollOutcome.Quiet(probability, gated), status)
+        }
 
-        notifier.notifyAurora(probability, snapshot.status, cloud)
-        return PollOutcome.Notified(probability)
+        notifier.notifyAurora(probability, status, cloud)
+        return Attempt(PollOutcome.Notified(probability), status)
+    }
+
+    /**
+     * When to come back.
+     *
+     * Computed from whatever is known, including after a failure: darkness needs
+     * no network, so even a poll that could reach nothing still sleeps through
+     * the daylight rather than retrying at the storm rate all afternoon.
+     *
+     * Without a position there is nothing to compute, and the flat interval
+     * stands in - which is also the only case where the user's own poll interval
+     * is still used.
+     */
+    private fun nextPoll(user: UserSettings, at: Long, status: SkyStatus?): PollPlan {
+        val latitude = user.latitude
+        val longitude = user.longitude
+        if (latitude == null || longitude == null) {
+            return PollPlan(user.pollIntervalMinutes, PollingPolicy.Reason.QUIET)
+        }
+
+        return PollingPolicy.next(
+            darkness = darkness.at(latitude, longitude, at),
+            now = at,
+            // Read from the cache rather than fetched: the schedule must not
+            // cost the very radio wake it exists to save.
+            cloud = weather.lastKnown(latitude, longitude),
+            status = status,
+        )
     }
 
     /**

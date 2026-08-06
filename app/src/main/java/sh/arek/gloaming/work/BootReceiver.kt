@@ -37,6 +37,10 @@ class BootReceiver : BroadcastReceiver() {
                 return@runCatching
             }
 
+            // The flat interval, not the adaptive one: working out a schedule
+            // needs a poll's worth of state, and getting one wake armed matters
+            // more here than getting its timing ideal. The first poll after it
+            // computes the real rate.
             PollAlarm.schedule(application, settings.pollIntervalMinutes)
             Log.i(TAG, "rescheduled after $action (unlocked=${BootAware.isUnlocked(application)})")
         }.onFailure { Log.e(TAG, "failed to reschedule after $action", it) }

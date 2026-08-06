@@ -38,6 +38,12 @@ data class UserSettings(
     /** Local aurora probability, as a percentage, worth an alert. */
     val threshold: Int = DEFAULT_THRESHOLD,
     val alertsEnabled: Boolean = true,
+    /**
+     * Only a fallback. How often the app really looks is worked out from the
+     * sky - nothing while the sun is up, every few minutes when the solar wind
+     * turns southward - and this stands in only when there is no position to
+     * work that out from.
+     */
     val pollIntervalMinutes: Int = DEFAULT_POLL_MINUTES,
     /**
      * Whether to keep alerting after a reboot, before the device is unlocked.
@@ -92,8 +98,9 @@ data class UserSettings(
         const val DEFAULT_THRESHOLD = 30
 
         /**
-         * Phase 1 polls at a flat interval. Adaptive polling arrives in Phase 2
-         * once the darkness and cloud inputs exist to drive it.
+         * The fallback interval, used only when there is no position to work a
+         * schedule out from. Everything else is decided by
+         * [sh.arek.gloaming.domain.PollingPolicy] from the sky itself.
          */
         const val DEFAULT_POLL_MINUTES = 15
 

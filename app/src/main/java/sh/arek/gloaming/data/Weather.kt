@@ -47,4 +47,13 @@ interface WeatherSource {
      *   the direct-from-device call is the one most likely to need moving.
      */
     suspend fun cloudCover(baseUrl: String, latitude: Double, longitude: Double): CloudCover?
+
+    /**
+     * The last reading held for this place, without touching the network.
+     *
+     * For the scheduler, which wants to know whether the sky is worth watching
+     * but must not spend a request - and a radio wake - to find out. Null when
+     * nothing recent is held, or when the reading was taken somewhere else.
+     */
+    fun lastKnown(latitude: Double, longitude: Double): CloudCover?
 }

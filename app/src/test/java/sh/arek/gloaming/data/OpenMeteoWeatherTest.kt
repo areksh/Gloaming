@@ -256,6 +256,54 @@ class OpenMeteoWeatherTest {
         assertNull(cover)
     }
 
+    /**
+     * The scheduler asks what the sky was doing, and must not pay for a radio
+     * wake to find out - the whole point of adapting the poll rate is to spend
+     * less, not to spend it differently.
+     */
+    @Test
+    fun `reports the last reading without touching the network`() {
+        val cache = FakeCache(
+            CachedCloud(CloudCover(total = 95, low = 95, mid = 0, high = 0), 55.94, -3.17, 1_000L),
+        )
+        val http = FakeFetcher.failing()
+
+        val cover = weather(http, cache, now = 1_000L + 2 * 60 * 60_000L)
+            .lastKnown(latitude = 55.94, longitude = -3.17)
+
+        assertEquals(95, cover!!.total)
+        assertEquals(emptyList<String>(), http.requested)
+    }
+
+    @Test
+    fun `reports no last reading once it is stale`() {
+        val cache = FakeCache(
+            CachedCloud(CloudCover(95, 95, 0, 0), 55.94, -3.17, 1_000L),
+        )
+
+        val cover = weather(FakeFetcher.failing(), cache, now = 1_000L + 4 * 60 * 60_000L)
+            .lastKnown(latitude = 55.94, longitude = -3.17)
+
+        assertNull(cover)
+    }
+
+    @Test
+    fun `reports no last reading for somewhere else`() {
+        val cache = FakeCache(
+            CachedCloud(CloudCover(95, 95, 0, 0), 55.94, -3.17, 1_000L),
+        )
+
+        val cover = weather(FakeFetcher.failing(), cache, now = 2_000L)
+            .lastKnown(latitude = 51.51, longitude = -0.13)
+
+        assertNull(cover)
+    }
+
+    @Test
+    fun `reports no last reading when nothing has been fetched`() {
+        assertNull(weather(FakeFetcher.failing()).lastKnown(55.94, -3.17))
+    }
+
     /** The document Open-Meteo actually serves. */
     @Test
     fun `parses the response open-meteo really returns`() = runTest {

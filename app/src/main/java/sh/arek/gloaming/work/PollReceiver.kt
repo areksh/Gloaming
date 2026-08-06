@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.domain.PollPlan
 
 /**
  * Runs one poll when the alarm fires.
@@ -41,12 +42,21 @@ class PollReceiver : BroadcastReceiver() {
             .getOrNull()
 
         CoroutineScope(Dispatchers.IO).launch {
+            // Set by a poll that got far enough to work one out. Anything else
+            // falls back to the flat interval below.
+            var next: PollPlan? = null
             try {
                 if (BootAware.canPollNow(application)) {
-                    val outcome = withTimeout(POLL_TIMEOUT_MILLIS) {
+                    val result = withTimeout(POLL_TIMEOUT_MILLIS) {
                         Graph.poller(application).poll()
                     }
-                    Log.i(TAG, "poll outcome: $outcome (unlocked=${BootAware.isUnlocked(application)})")
+                    next = result.next
+                    Log.i(
+                        TAG,
+                        "poll outcome: ${result.outcome} " +
+                            "(unlocked=${BootAware.isUnlocked(application)}, " +
+                            "next in ${result.next.delayMinutes}m: ${result.next.reason})",
+                    )
                 } else {
                     // Before first unlock without the option enabled there is
                     // nothing readable to act on. Sleep until the next wake.
@@ -60,7 +70,8 @@ class PollReceiver : BroadcastReceiver() {
                 runCatching {
                     PollAlarm.schedule(
                         application,
-                        BootAware.pollSettings(application).read().pollIntervalMinutes,
+                        next?.delayMinutes
+                            ?: BootAware.pollSettings(application).read().pollIntervalMinutes,
                     )
                 }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }

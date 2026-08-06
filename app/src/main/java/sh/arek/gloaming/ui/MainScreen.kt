@@ -29,6 +29,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
+import sh.arek.gloaming.domain.PollingPolicy
 
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
@@ -227,7 +228,11 @@ private fun ThresholdCard(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "Checks run about every ${state.settings.pollIntervalMinutes} minutes.",
+                "How often Gloaming checks follows the sky: not at all while the sun " +
+                    "is up, every ${PollingPolicy.QUIET_MINUTES} minutes on a quiet " +
+                    "dark night, and every ${PollingPolicy.ELEVATED_MINUTES} when the " +
+                    "solar wind turns southward - which is about half an hour of " +
+                    "warning before anything starts.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

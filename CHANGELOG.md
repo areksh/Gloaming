@@ -51,6 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Adaptive polling. The app sleeps until dusk rather than checking through the
+  day, goes dormant where the sun does not set, slows to hourly under heavy
+  cloud, and escalates to five minutes when the solar wind turns southward or Kp
+  rises - which, because Bz is measured an hour upstream at L1, is warning of a
+  substorm that has not started yet. The schedule reads cloud from the cache
+  rather than fetching it: spending a radio wake to decide how often to wake the
+  radio would undo the saving.
 - The darkness and cloud gates, quiet hours, and an opt-in override that lets an
   exceptional display through them. The gates run cheapest first - threshold,
   darkness, hysteresis, quiet hours and rate limiting all cost nothing - so only
@@ -92,8 +99,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Measured the cost of inexact alarms: a two-minute interval is delivered at
   roughly four, both in Doze and before unlock. `setAndAllowWhileIdle` is
   inexact by design and the system batches it, so the configured interval is a
-  floor rather than a period. The adaptive-polling design should assume about
-  double what it asks for.
+  floor rather than a period. The overhead looks like a roughly fixed cost
+  rather than a multiplier - a batching window just under two minutes was
+  observed in the alarm dump, on top of the jitter the scheduler adds itself -
+  which would put a five-minute request at about eight and a thirty-minute one
+  at about thirty-nine. Adaptive polling is built on that reading and therefore
+  does not compensate, since asking for half of what is wanted would double the
+  cost on any device that delivers punctually. Inferred from one measurement at
+  one interval, so it wants confirming with `tools/doze-check.sh` at five and
+  thirty minutes.
 - Three states stop alerting silently, and all are now checked before a test
   run: an app in the stopped state receives no broadcasts at all and sits there
   from installation until first opened; a never-opened app is in the `NEVER`
