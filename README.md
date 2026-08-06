@@ -4,9 +4,15 @@ A free, ad-free, Play-Services-free Android app that tells you when to look up:
 aurora, satellite passes, comets, eclipses, meteor showers and conjunctions.
 Global by design, UK-enhanced.
 
-Location never leaves your phone. All the astronomy is computed on-device, all
+Your location is never sent to us. All the astronomy is computed on-device, all
 alert decisions are made on-device, and nothing can contact the app - it reaches
 out on its own schedule and nothing reaches in.
+
+The one thing that does leave the phone is a rounded position, at most once an
+hour, to Open-Meteo for the cloud forecast - a question about a place cannot be
+asked without naming one. It is rounded to about a kilometre, which is the
+resolution of the finest model they run, and it travels with no account, key or
+identifier of any kind. Nothing this project runs ever learns where you are.
 
 **Status: pre-release.** The application scaffold builds; no features are
 implemented yet. The v1.0 release gate is aurora, cloud cover and darkness

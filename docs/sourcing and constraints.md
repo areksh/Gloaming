@@ -1046,13 +1046,37 @@ chooses.** No push, no distributor, no persistent connection, no per-device addr
 anywhere, and nothing that could contact the app if it wanted to.
 
 The Data Safety story is **"no data collected"**. No accounts, no keys, no analytics, no
-ads, no Play Services. Location never leaves the phone.
+ads, no Play Services. Nothing this project runs ever learns where a user is.
 
 The data is all public, so this is the app's actual differentiator, and belongs on the
 listing.
 
 Two things would break this claim and are therefore excluded by design: a coordinate-keyed
 aurora endpoint (Sec. 4), and UnifiedPush-generic endpoint storage (Sec. 9.3).
+
+### The one exception: cloud cover
+
+**Open-Meteo is asked about a position, and that is unavoidable.** A cloud forecast is a
+question about a place; there is no grid small enough to ship, and proxying it through the
+Worker trades the disclosure for a rate limit that takes every user down at once (Sec. 2).
+So one request, to a third party, carries where the user is.
+
+Three things keep it as small as it can be, and the claim above should be stated with this
+caveat rather than without it:
+
+- **The position is rounded to two decimal places** - about 1.1 km, the resolution of the
+  finest model Open-Meteo runs, so the forecast loses nothing. The request carries a
+  neighbourhood, not an address.
+- **At most one request an hour**, which is also the cap Open-Meteo's terms set. A cached
+  reading answers the rest.
+- **No identifier travels with it.** There is no account, no key and no device token, so
+  the requests are not linkable into a track by anything except the IP address - which for
+  most users is CGNAT shared with a whole carrier.
+
+The honest phrasing for the listing is therefore "no data collected; your location is
+never sent to us" - not "location never leaves your phone", which the cloud gate makes
+untrue. If a user would rather not make that trade, the cloud gate is the thing to make
+optional; the darkness gate is offline and stays non-optional (Sec. 9.2).
 
 ---
 
