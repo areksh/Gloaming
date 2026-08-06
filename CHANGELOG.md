@@ -51,6 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Storm mode: while a large display is actually overhead on a dark, clear night,
+  the app follows it every couple of minutes behind a `specialUse` foreground
+  service, so someone standing outside sees it strengthen or fade. It costs
+  nothing the rest of the time because it does not run, and it stops as soon as
+  the display fades, the sky closes in or it gets light - with a four-hour cap
+  as a safety net, since it holds a wake lock to keep the cadence honest.
 - Adaptive polling. The app sleeps until dusk rather than checking through the
   day, goes dormant where the sun does not set, slows to hourly under heavy
   cloud, and escalates to five minutes when the solar wind turns southward or Kp

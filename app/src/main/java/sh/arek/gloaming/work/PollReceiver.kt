@@ -51,12 +51,17 @@ class PollReceiver : BroadcastReceiver() {
                         Graph.poller(application).poll()
                     }
                     next = result.next
+                    val unlocked = BootAware.isUnlocked(application)
+                    val storm = if (result.storm) ", storm" else ""
                     Log.i(
                         TAG,
-                        "poll outcome: ${result.outcome} " +
-                            "(unlocked=${BootAware.isUnlocked(application)}, " +
-                            "next in ${result.next.delayMinutes}m: ${result.next.reason})",
+                        "poll outcome: ${result.outcome} (unlocked=$unlocked, " +
+                            "next in ${result.next.delayMinutes}m: " +
+                            "${result.next.reason}$storm)",
                     )
+                    // Only once unlocked: a foreground service cannot be
+                    // started before then, and the attempt would throw.
+                    if (unlocked) StormService.apply(application, result.storm)
                 } else {
                     // Before first unlock without the option enabled there is
                     // nothing readable to act on. Sleep until the next wake.

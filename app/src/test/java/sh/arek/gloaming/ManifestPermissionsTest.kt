@@ -29,6 +29,9 @@ class ManifestPermissionsTest {
         "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
         // Posting the aurora notification on Android 13 and later.
         "android.permission.POST_NOTIFICATIONS",
+        // Storm mode only: following a display that is overhead right now.
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
     )
 
     private fun manifestSource(): File =
@@ -56,6 +59,21 @@ class ManifestPermissionsTest {
     @Test
     fun `declares WAKE_LOCK, which the poll receiver cannot run without`() {
         assertTrue(declaredPermissions().contains("android.permission.WAKE_LOCK"))
+    }
+
+    /**
+     * `specialUse` needs the subtype property alongside it from `targetSdk` 34.
+     * Without it the service will not start - and it is the one code path that
+     * only runs during an event nobody is going to reproduce on demand.
+     */
+    @Test
+    fun `declares the special-use subtype the foreground service needs`() {
+        val manifest = manifestSource().readText()
+
+        assertTrue(manifest.contains("""android:foregroundServiceType="specialUse""""))
+        assertTrue(
+            manifest.contains("""android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE""""),
+        )
     }
 
     @Test

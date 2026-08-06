@@ -144,6 +144,7 @@ class SkyPollerTest {
         weather: Weather = Weather(),
         darkness: Darkness = Darkness.Now(endsAt = null),
         localMinuteOfDay: Int = 2 * 60,
+        stormRunning: Boolean = false,
         manifestBody: ByteArray = this.manifestBody,
         signature: ByteArray = this.signature,
     ): SkyPoller {
@@ -170,6 +171,7 @@ class SkyPollerTest {
             // happens to run on.
             darkness = { _, _, _ -> darkness },
             localMinuteOfDay = { localMinuteOfDay },
+            stormRunning = { stormRunning },
         )
     }
 
@@ -496,6 +498,66 @@ class SkyPollerTest {
 
         assertEquals(PollingPolicy.Reason.OVERCAST, result.next.reason)
         assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    @Test
+    fun `calls for storm mode when a big display is overhead on a clear night`() = runTest {
+        val weather = Weather(known = CloudCover(5, 0, 0, 5))
+
+        val result = poller(
+            StormMode.ENTER_PROBABILITY + 10,
+            settingsAt(),
+            State(),
+            Notifier(),
+            weather = weather,
+        ).poll()
+
+        assertTrue(result.storm)
+    }
+
+    @Test
+    fun `does not call for storm mode on an ordinary night`() = runTest {
+        val weather = Weather(known = CloudCover(5, 0, 0, 5))
+
+        val result = poller(20, settingsAt(), State(), Notifier(), weather = weather).poll()
+
+        assertFalse(result.storm)
+    }
+
+    /**
+     * Storm mode running is not the same as storm mode being right, and a poll
+     * that reached nothing has learned neither. Ending an event because the
+     * network flickered would drop the tracker mid-display.
+     */
+    @Test
+    fun `leaves storm mode alone when the poll reached nothing`() = runTest {
+        val result = poller(
+            90,
+            settingsAt(),
+            State(),
+            Notifier(),
+            failing = setOf(manifestUrl),
+            stormRunning = true,
+        ).poll()
+
+        assertTrue(result.outcome is PollOutcome.Failed)
+        assertTrue(result.storm)
+    }
+
+    @Test
+    fun `ends storm mode once the display has faded`() = runTest {
+        val weather = Weather(known = CloudCover(5, 0, 0, 5))
+
+        val result = poller(
+            StormMode.LEAVE_PROBABILITY - 1,
+            settingsAt(),
+            State(),
+            Notifier(),
+            weather = weather,
+            stormRunning = true,
+        ).poll()
+
+        assertFalse(result.storm)
     }
 
     @Test

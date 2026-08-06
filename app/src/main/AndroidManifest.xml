@@ -26,6 +26,15 @@
       WorkManager; it is declared here now that the scheduler is our own.
     -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!--
+      Storm mode only: while a display is actually overhead the app follows it
+      minute by minute, which needs a foreground service. `specialUse` is the
+      honest type - this is not media, location or data sync - and off-Play it
+      can be declared without a reviewer deciding an astronomy app does not
+      qualify. It runs for the duration of an event and not otherwise.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="true"
@@ -56,6 +65,20 @@
             android:name=".work.PollReceiver"
             android:directBootAware="true"
             android:exported="false" />
+
+        <!--
+          Not directBootAware: a foreground service cannot be started before
+          first unlock, and nobody is outside watching an aurora on a phone they
+          have not unlocked since it rebooted.
+        -->
+        <service
+            android:name=".work.StormService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Follows an aurora that is overhead now, polling every couple of minutes so the user standing outside sees it strengthen or fade. Starts only when the display is large, the sky is dark and the forecast is clear, and stops when any of those ends." />
+        </service>
 
         <receiver
             android:name=".work.BootReceiver"

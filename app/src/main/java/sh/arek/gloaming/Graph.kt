@@ -20,6 +20,7 @@ import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.OkHttpFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
+import sh.arek.gloaming.work.StormService
 
 /**
  * How the pieces are wired together.
@@ -78,6 +79,7 @@ object Graph {
             settings = BootAware.pollSettings(application),
             state = alertState(application),
             notifier = AndroidAuroraNotifier(application),
+            stormRunning = { StormService.running },
         )
     }
 }

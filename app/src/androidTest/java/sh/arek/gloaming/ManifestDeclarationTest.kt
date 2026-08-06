@@ -1,12 +1,15 @@
 package sh.arek.gloaming
 
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import sh.arek.gloaming.work.StormService
 
 /**
  * That the installed app declares what its code actually needs.
@@ -43,6 +46,15 @@ class ManifestDeclarationTest {
             "RECEIVE_BOOT_COMPLETED missing",
             declared.contains(android.Manifest.permission.RECEIVE_BOOT_COMPLETED),
         )
+        // StormService, which cannot start in the foreground without both.
+        assertTrue(
+            "FOREGROUND_SERVICE missing",
+            declared.contains("android.permission.FOREGROUND_SERVICE"),
+        )
+        assertTrue(
+            "FOREGROUND_SERVICE_SPECIAL_USE missing",
+            declared.contains("android.permission.FOREGROUND_SERVICE_SPECIAL_USE"),
+        )
         // The exemption flow sends the user to the system setting.
         assertTrue(
             "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS missing",
@@ -73,6 +85,8 @@ class ManifestDeclarationTest {
             android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
             "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
             "android.permission.POST_NOTIFICATIONS",
+            "android.permission.FOREGROUND_SERVICE",
+            "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
         )
 
         val addedByTheSystem = setOf(
@@ -107,5 +121,30 @@ class ManifestDeclarationTest {
         for (receiver in ours) {
             assertTrue("${receiver.name} is not directBootAware", receiver.directBootAware)
         }
+    }
+
+    /**
+     * Storm mode's service, checked from the installed package rather than by
+     * starting it.
+     *
+     * A `specialUse` service that is missing its type, or is not declared at
+     * all, fails only when it is started - and it is started only during an
+     * aurora large enough to be worth standing outside for, which is not a
+     * condition anyone can reproduce on demand. So the declaration is asserted
+     * instead, from what the system actually installed.
+     */
+    @Test
+    fun stormServiceIsInstalledAsSpecialUse() {
+        val services = context.packageManager.getPackageInfo(
+            context.packageName,
+            PackageManager.GET_SERVICES,
+        ).services.orEmpty()
+
+        val storm = services.singleOrNull { it.name == StormService::class.java.name }
+        assertNotNull("StormService is not declared", storm)
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            storm!!.foregroundServiceType,
+        )
     }
 }

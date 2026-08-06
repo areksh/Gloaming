@@ -45,7 +45,12 @@ sealed interface PollOutcome {
  * because the poll is what learned the things it depends on - and because the
  * next wake has to be armed even when the poll failed, from whatever is known.
  */
-data class PollResult(val outcome: PollOutcome, val next: PollPlan)
+data class PollResult(
+    val outcome: PollOutcome,
+    val next: PollPlan,
+    /** Whether storm mode should be running after this poll. */
+    val storm: Boolean = false,
+)
 
 /**
  * One wake: fetch, look up, decide, and notify if warranted.
@@ -74,6 +79,8 @@ class SkyPoller(
     private val darkness: DarknessCheck = DarknessCheck(Twilight::darkness),
     /** Minutes since local midnight, for quiet hours. The device's own zone. */
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
+    /** Whether storm mode is running now, which decides which bar it has to clear. */
+    private val stormRunning: () -> Boolean = { false },
     private val minimumAlertIntervalMillis: Long = DEFAULT_MINIMUM_INTERVAL,
 ) {
 
@@ -86,11 +93,19 @@ class SkyPoller(
             .getOrElse { Attempt(PollOutcome.Failed(it.message ?: it::class.java.simpleName)) }
 
         record(attempt.outcome, previous)
-        return PollResult(attempt.outcome, nextPoll(user, at, attempt.status))
+        return PollResult(
+            outcome = attempt.outcome,
+            next = nextPoll(user, at, attempt.status),
+            storm = storm(user, at, attempt.probability),
+        )
     }
 
     /** What one attempt produced, including what the schedule needs from it. */
-    private class Attempt(val outcome: PollOutcome, val status: SkyStatus? = null)
+    private class Attempt(
+        val outcome: PollOutcome,
+        val status: SkyStatus? = null,
+        val probability: Int? = null,
+    )
 
     private suspend fun pollOnce(user: UserSettings, previous: AlertState, at: Long): Attempt {
         if (!user.alertsEnabled) return Attempt(PollOutcome.AlertsDisabled)
@@ -119,7 +134,7 @@ class SkyPoller(
             minimumIntervalMillis = minimumAlertIntervalMillis,
         )
         if (decision != AlertDecision.Notify) {
-            return Attempt(PollOutcome.Quiet(probability, decision), status)
+            return Attempt(PollOutcome.Quiet(probability, decision), status, probability)
         }
 
         // Only now, with everything free already satisfied, is a radio wake
@@ -127,11 +142,11 @@ class SkyPoller(
         val cloud = cloudCover(manifest.endpoints[ENDPOINT_WEATHER], user, latitude, longitude)
         val gated = AlertDecision.cloudGate(cloud, user)
         if (gated != AlertDecision.Notify) {
-            return Attempt(PollOutcome.Quiet(probability, gated), status)
+            return Attempt(PollOutcome.Quiet(probability, gated), status, probability)
         }
 
         notifier.notifyAurora(probability, status, cloud)
-        return Attempt(PollOutcome.Notified(probability), status)
+        return Attempt(PollOutcome.Notified(probability), status, probability)
     }
 
     /**
@@ -159,6 +174,27 @@ class SkyPoller(
             // cost the very radio wake it exists to save.
             cloud = weather.lastKnown(latitude, longitude),
             status = status,
+        )
+    }
+
+    /**
+     * Whether to watch minute by minute after this poll.
+     *
+     * A poll that never reached a reading leaves it alone rather than guessing:
+     * false would end a display that is still going because the network
+     * flickered, and true would start one on no evidence at all.
+     */
+    private fun storm(user: UserSettings, at: Long, probability: Int?): Boolean {
+        val running = stormRunning()
+        val latitude = user.latitude ?: return false
+        val longitude = user.longitude ?: return false
+        if (probability == null) return running
+
+        return StormMode.shouldRun(
+            running = running,
+            probability = probability,
+            darkness = darkness.at(latitude, longitude, at),
+            cloud = weather.lastKnown(latitude, longitude),
         )
     }
 
