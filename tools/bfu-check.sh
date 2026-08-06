@@ -72,7 +72,9 @@ while [ $# -gt 0 ]; do
         --expect-alert) EXPECT_ALERT=1; shift ;;
         --prepare) PREPARE=1; shift ;;
         --resume) RESUME=1; shift ;;
-        -h|--help) sed -n '2,30p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        # Everything between the shebang and the first line of code. A fixed
+        # line range silently truncated the option list as it grew.
+        -h|--help) sed -e '1d' -e '/^[^#]/,$d' "$0" | sed 's/^# \?//'; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -153,6 +155,22 @@ our_log() {
     adb logcat -d -b all -s "$1" 2>/dev/null | tr -d '\r' | grep -v '^---------' || true
 }
 
+# Epoch milliseconds of the last boot, read from the device's own clock so host
+# and device do not have to agree.
+#
+# `last_alert_at` is durable and survives reboots, which is what makes it useful
+# after an overnight run and also what makes it misleading: a timestamp from
+# days ago looks exactly like one from this run. Everything this harness cares
+# about happened after the reboot, so the boot moment is the cut.
+boot_epoch_ms() {
+    local uptime now
+    uptime=$(adb shell cat /proc/uptime 2>/dev/null | tr -d '\r' | awk '{print int($1)}' || true)
+    now=$(adb shell date +%s 2>/dev/null | tr -d '\r' || true)
+    case "$uptime" in ''|*[!0-9]*) return 0 ;; esac
+    case "$now" in ''|*[!0-9]*) return 0 ;; esac
+    printf '%s' $(( (now - uptime) * 1000 ))
+}
+
 # ---------------------------------------------------------------- preflight --
 
 if [ "$RESUME" -eq 0 ]; then
@@ -166,7 +184,7 @@ if [ "$RESUME" -eq 0 ]; then
         "$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r')" \
         "$(adb shell pm list packages 2>/dev/null | grep -qi graphene && echo yes || echo no)"
 
-    if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${PACKAGE}$"; then
+    if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${PACKAGE}$"; then
         echo "  FAIL  $PACKAGE is not installed: ./gradlew :app:installDebug" >&2
         exit 1
     fi
@@ -259,8 +277,14 @@ if [ "$RESUME" -eq 0 ]; then
             "App standby will defer the wakes. Grant it in the app, or for a test: adb shell dumpsys deviceidle whitelist +$PACKAGE"
     fi
 
+    # A bucket that cannot be read is a failure, not a pass. Comparing an empty
+    # or non-numeric value with `-ge` errors, and an errored test is false - so
+    # the unreadable case used to report the precondition as satisfied.
     bucket=$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')
-    if [ "${bucket:-50}" -ge 45 ] 2>/dev/null; then
+    if ! printf '%s' "$bucket" | grep -qE '^[0-9]+$'; then
+        fail "could not read the app standby bucket (got '$bucket')" \
+            "Without it the deferral that silences overnight wakes goes unchecked."
+    elif [ "$bucket" -ge 45 ]; then
         fail "app standby bucket is $bucket: $(bucket_name "$bucket")" \
             "Alarms in this bucket are deferred indefinitely. Open the app once."
     else
@@ -335,9 +359,12 @@ fi
 
 step "Did the boot receiver re-arm the alarm before unlock?"
 
-# Filtered to our own process: the platform has a BootReceiver of its own that
-# logs under exactly the same tag.
-boot_log=$(our_log BootReceiver | grep -v 'tombstone' || true)
+# Filtered to our own messages: the platform has a BootReceiver of its own that
+# logs under exactly the same tag. Matched on what this receiver actually says -
+# it rescheduled, it failed to, or alerts are off - because excluding the
+# platform's lines by subject matter left enough of them behind that the
+# "buffer rolled over" branch below could never be reached.
+boot_log=$(our_log BootReceiver | grep -E 'reschedul' || true)
 if printf '%s' "$boot_log" | grep -q 'LOCKED_BOOT_COMPLETED'; then
     pass "BootReceiver ran on LOCKED_BOOT_COMPLETED"
     printf '%s\n' "$boot_log" | grep 'LOCKED_BOOT_COMPLETED' | tail -2 | sed 's/^/        /'
@@ -383,10 +410,26 @@ step "Did an alert actually post?"
 # becomes a failure when the run was set up to expect one. Two independent
 # records are checked: the notification the system still holds, and the
 # timestamp the app wrote before it posted.
-alert_at=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+#
+# The timestamp is durable, so it is dated against the boot rather than taken at
+# face value. Without that an alert from days ago reads as a pass and satisfies
+# --expect-alert, which is precisely the false result this harness exists to
+# rule out.
+recorded_at=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
     | sed -n 's/.*name="last_alert_at" value="\([0-9]*\)".*/\1/p')
+booted_at=$(boot_epoch_ms)
 posted=$(adb shell dumpsys notification --noredact 2>/dev/null | tr -d '\r' \
     | grep -c "pkg=$PACKAGE" || true)
+
+alert_at=""
+stale_alert=""
+if [ -n "$recorded_at" ]; then
+    if [ -z "$booted_at" ] || [ "$recorded_at" -ge "$booted_at" ]; then
+        alert_at="$recorded_at"
+    else
+        stale_alert="$recorded_at"
+    fi
+fi
 
 if [ -n "$alert_at" ]; then
     when=$(date -d "@$((alert_at / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$alert_at")
@@ -396,6 +439,11 @@ elif [ "$EXPECT_ALERT" -eq 1 ]; then
         "The poll ran but the decision never reached Notify."
 else
     printf '  NOTE  no alert raised; expected when conditions are quiet\n'
+fi
+
+if [ -n "$stale_alert" ]; then
+    when=$(date -d "@$((stale_alert / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$stale_alert")
+    printf '  NOTE  the most recent alert on record is %s, from before this boot\n' "$when"
 fi
 
 if [ "${posted:-0}" -gt 0 ]; then
@@ -424,7 +472,11 @@ else
     fail "no last_poll_at recorded" "No poll has ever completed on this device."
 fi
 
-last_error=$(printf '%s' "$prefs" | sed -n 's/.*name="last_error" value="\([^"]*\)".*/\1/p')
+# Strings are the one preference type without a `value` attribute: they are
+# written as `<string name="k">text</string>`, so the numeric form used above
+# matches nothing here and the last error went unreported.
+last_error=$(printf '%s' "$prefs" \
+    | sed -n 's|.*<string name="last_error">\(.*\)</string>.*|\1|p')
 [ -n "$last_error" ] && printf '  NOTE  last error recorded: %s\n' "$last_error"
 
 listing=$(as_app "ls -l $DE_CACHE 2>/dev/null")
