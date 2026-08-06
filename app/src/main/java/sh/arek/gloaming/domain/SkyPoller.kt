@@ -3,6 +3,7 @@ package sh.arek.gloaming.domain
 import java.util.Calendar
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.CloudCover
@@ -16,11 +17,15 @@ import sh.arek.gloaming.data.WeatherSource
 /** Posts the user-facing notification. Local, always: nothing pushes to this app. */
 interface AuroraNotifier {
     /**
+     * @param likelihood how likely an aurora is here, and which reading said so
+     *   - the notification attributes it, since AuroraWatch's terms require
+     *   attribution and since "a UK magnetometer says this" carries more weight
+     *   than a global model.
      * @param cloud the forecast over the observer, or null when it could not be
      *   reached - in which case the notification says cloud cover is unknown
      *   rather than implying a clear sky.
      */
-    fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?)
+    fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?)
 }
 
 /** How dark it is where the observer stands, and when that next changes. */
@@ -122,7 +127,15 @@ class SkyPoller(
         val status = snapshot.status
         val grid = snapshot.grid ?: return Attempt(PollOutcome.NoGrid, status)
 
-        val probability = grid.probabilityAt(cell.latitude.toDouble(), cell.longitude.toDouble())
+        // One model, whichever source it came from: inside the UK a real
+        // magnetometer reading can raise what the global grid says.
+        val likelihood = Likelihood.evaluate(
+            latitude = latitude,
+            longitude = longitude,
+            ovation = grid.probabilityAt(cell.latitude.toDouble(), cell.longitude.toDouble()),
+            aurorawatch = status.aurorawatch,
+        )
+        val probability = likelihood.probability
 
         val decision = AlertDecision.evaluate(
             probability = probability,
@@ -145,7 +158,7 @@ class SkyPoller(
             return Attempt(PollOutcome.Quiet(probability, gated), status, probability)
         }
 
-        notifier.notifyAurora(probability, status, cloud)
+        notifier.notifyAurora(likelihood, status, cloud)
         return Attempt(PollOutcome.Notified(probability), status, probability)
     }
 

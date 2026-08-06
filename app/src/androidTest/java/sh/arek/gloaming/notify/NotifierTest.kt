@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
 
@@ -32,9 +33,15 @@ class NotifierTest {
 
     private val clear = CloudCover(total = 5, low = 0, mid = 0, high = 5)
 
+    private fun ovation(probability: Int) =
+        Likelihood(probability, Likelihood.Source.OVATION)
+
+    private fun uk(probability: Int) =
+        Likelihood(probability, Likelihood.Source.AURORAWATCH)
+
     @Test
     fun postingCreatesTheAuroraChannel() {
-        AndroidAuroraNotifier(context).notifyAurora(72, status, clear)
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java)
@@ -55,11 +62,11 @@ class NotifierTest {
     fun postingNeverThrows() {
         val notifier = AndroidAuroraNotifier(context)
 
-        notifier.notifyAurora(0, status, clear)
-        notifier.notifyAurora(100, status, CloudCover(100, 100, 100, 100))
-        notifier.notifyAurora(60, status, null)
+        notifier.notifyAurora(ovation(0), status, clear)
+        notifier.notifyAurora(ovation(100), status, CloudCover(100, 100, 100, 100))
+        notifier.notifyAurora(uk(60), status, null)
         notifier.notifyAurora(
-            55,
+            ovation(55),
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
         )

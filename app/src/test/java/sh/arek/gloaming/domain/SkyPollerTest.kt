@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.aurora.OvalGrid
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
@@ -94,9 +95,11 @@ class SkyPollerTest {
 
     private class Notifier : AuroraNotifier {
         val notified = mutableListOf<Int>()
+        val sources = mutableListOf<Likelihood.Source>()
         val clouds = mutableListOf<CloudCover?>()
-        override fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?) {
-            notified += probability
+        override fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?) {
+            notified += likelihood.probability
+            sources += likelihood.source
             clouds += cloud
         }
     }
@@ -147,13 +150,15 @@ class SkyPollerTest {
         stormRunning: Boolean = false,
         manifestBody: ByteArray = this.manifestBody,
         signature: ByteArray = this.signature,
+        statusBody: String = this.statusBody,
+        gridCell: Pair<Int, Int> = 56 to 357,
     ): SkyPoller {
         val http = Fetcher(
             mapOf(
                 manifestUrl to manifestBody,
                 "$manifestUrl.sig" to signature,
                 statusUrl to statusBody.toByteArray(),
-                ovalUrl to grid(probability),
+                ovalUrl to grid(probability, gridCell.first, gridCell.second),
             ),
             failing,
         )
@@ -498,6 +503,45 @@ class SkyPollerTest {
 
         assertEquals(PollingPolicy.Reason.OVERCAST, result.next.reason)
         assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    /**
+     * The UK quality bump, end to end. Edinburgh with a red AuroraWatch status
+     * alerts on a grid reading that would otherwise be below the threshold.
+     */
+    @Test
+    fun `lets a UK magnetometer reading raise a quiet grid`() = runTest {
+        val notifier = Notifier()
+        val red = """{"schema":1,"generated":"g","global_activity":"low",""" +
+            """"max_probability":10,"oval_etag":"e1",""" +
+            """"aurorawatch":{"status":"red","updated":"u","site_id":"AWN"}}"""
+
+        val result = poller(10, settingsAt(), State(), notifier, statusBody = red).poll()
+
+        assertEquals(PollOutcome.Notified(Likelihood.forLevel("red")!!), result.outcome)
+        assertEquals(listOf(Likelihood.Source.AURORAWATCH), notifier.sources)
+    }
+
+    @Test
+    fun `leaves a reading outside the UK to the global grid`() = runTest {
+        val notifier = Notifier()
+        val tromso = Settings(UserSettings(latitude = 69.65, longitude = 18.96))
+        val red = """{"schema":1,"generated":"g","global_activity":"low",""" +
+            """"max_probability":10,"oval_etag":"e1",""" +
+            """"aurorawatch":{"status":"red","updated":"u","site_id":"AWN"}}"""
+
+        // Tromso's own cell, so the assertion is that the grid was read and
+        // AuroraWatch ignored - not merely that the grid was empty here.
+        val result = poller(
+            10,
+            tromso,
+            State(),
+            notifier,
+            statusBody = red,
+            gridCell = 70 to 19,
+        ).poll()
+
+        assertEquals(PollOutcome.Quiet(10, AlertDecision.BelowThreshold), result.outcome)
     }
 
     @Test

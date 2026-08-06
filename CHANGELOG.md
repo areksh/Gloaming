@@ -51,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- The AuroraWatch UK enhancement layer. Inside a UK bounding box a real
+  magnetometer reading can raise what the global model says, feeding one
+  internal likelihood so nothing downstream branches on which source is in play.
+  It can only raise: AuroraWatch's alerts come from a single site that defaults
+  to the Lancaster magnetometer and get steadily more pessimistic further north,
+  and a green status silencing a grid that says 65% over Shetland would be the
+  app failing at its one job. Notifications say when a reading came from
+  AuroraWatch, which their terms require and which the user should be able to
+  tell anyway.
 - Storm mode: while a large display is actually overhead on a dark, clear night,
   the app follows it every couple of minutes behind a `specialUse` foreground
   service, so someone standing outside sees it strengthen or fade. It costs

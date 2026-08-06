@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import sh.arek.gloaming.R
+import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
@@ -23,11 +24,17 @@ import sh.arek.gloaming.domain.AuroraNotifier
  */
 class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
 
-    override fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?) {
+    override fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?) {
         ensureChannel()
 
         val detail = buildString {
-            append("Local probability $probability%")
+            append("Local probability ${likelihood.probability}%")
+            // Attributed, both because AuroraWatch's terms require it and
+            // because a real UK magnetometer reading carries more weight than a
+            // global model and the user should be able to tell which they have.
+            if (likelihood.source == Likelihood.Source.AURORAWATCH) {
+                append(" (AuroraWatch UK)")
+            }
             append(", ").append(describe(cloud))
             status.kp?.let { append(", Kp ${it.value}") }
             status.solarWind?.let { append(", Bz ${it.bz} nT") }
