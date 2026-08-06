@@ -25,13 +25,18 @@ PACKAGE="sh.arek.gloaming"
 SERIAL="${ANDROID_SERIAL:-}"
 MINUTES=30
 BUCKET=""
+# The bucket the app was in before `--bucket` forced it, so `restore` can put it
+# back. Set before anything is forced, and empty when nothing was.
+ORIGINAL_BUCKET=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --serial) SERIAL="$2"; shift 2 ;;
         --minutes) MINUTES="$2"; shift 2 ;;
         --bucket) BUCKET="$2"; shift 2 ;;
-        -h|--help) sed -n '2,20p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        # Everything between the shebang and the first line of code, so adding
+        # an option cannot leave the help text behind.
+        -h|--help) sed -e '1d' -e '/^[^#]/,$d' "$0" | sed 's/^# \?//'; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
     esac
 done
@@ -59,17 +64,27 @@ restore() {
     printf '\nRestoring the device.\n'
     adb shell dumpsys deviceidle unforce >/dev/null 2>&1 || true
     adb shell dumpsys battery reset >/dev/null 2>&1 || true
-    [ -n "$BUCKET" ] && adb shell am set-standby-bucket "$PACKAGE" active >/dev/null 2>&1 || true
+    # Back to the bucket the app was in, not to `active`: forcing it to active
+    # would leave the device in a state the run created rather than found.
+    [ -n "$ORIGINAL_BUCKET" ] \
+        && adb shell am set-standby-bucket "$PACKAGE" "$ORIGINAL_BUCKET" >/dev/null 2>&1 || true
     printf 'Done. The screen is still off; the device is otherwise back to normal.\n'
 }
-trap restore EXIT INT TERM
+
+# Only EXIT runs `restore`. A signal handler that merely restores would put the
+# device back and then let the watch loop carry on for the rest of its deadline,
+# measuring poll spacing on a device that is no longer in Doze - so the signal
+# handlers exit instead, and the EXIT trap does the restoring exactly once.
+trap restore EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if ! adb shell true >/dev/null 2>&1; then
     echo "no device reachable over adb" >&2
     exit 1
 fi
 
-if ! adb shell pm list packages 2>/dev/null | grep -q "^package:${PACKAGE}$"; then
+if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${PACKAGE}$"; then
     echo "$PACKAGE is not installed: ./gradlew :app:installDebug" >&2
     exit 1
 fi
@@ -83,6 +98,7 @@ else
 fi
 
 if [ -n "$BUCKET" ]; then
+    ORIGINAL_BUCKET=$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')
     adb shell am set-standby-bucket "$PACKAGE" "$BUCKET" >/dev/null 2>&1 \
         && printf '  standby bucket forced to %s\n' "$BUCKET" \
         || printf '  could not force the standby bucket to %s\n' "$BUCKET"
