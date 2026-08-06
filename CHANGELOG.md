@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Cloud cover from Open-Meteo, fetched by the device itself rather than through
+  the project's Worker, because Open-Meteo's rate limits are per-IP. The
+  position sent is rounded to about a kilometre - the resolution of the finest
+  model Open-Meteo runs, so the forecast loses nothing - and readings are cached
+  for an hour, which is also the cap their terms set.
 - Test harnesses for the two things only a real phone can answer:
   `tools/bfu-check.sh` reboots a device and reports whether alerting survived
   the locked state, and `tools/doze-check.sh` forces deep Doze and measures how
