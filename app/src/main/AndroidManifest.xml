@@ -80,6 +80,22 @@
                 android:value="Follows an aurora that is overhead now, polling every couple of minutes so the user standing outside sees it strengthen or fade. Starts only when the display is large, the sky is dark and the forecast is clear, and stops when any of those ends." />
         </service>
 
+        <!--
+          Direct Boot aware like the rest: a poll before first unlock should be
+          able to redraw the widget it just produced a reading for.
+        -->
+        <receiver
+            android:name=".widget.AuroraWidget"
+            android:directBootAware="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_aurora_info" />
+        </receiver>
+
         <receiver
             android:name=".work.BootReceiver"
             android:directBootAware="true"

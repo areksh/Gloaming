@@ -51,6 +51,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- A home-screen widget showing the local probability and its age, so "is it
+  worth checking?" can be answered at a glance without an interruption. Plain
+  `RemoteViews`, no Glance: it is three pieces of text, and a Compose runtime in
+  the launcher's process would be a poor trade. It never refreshes on a schedule
+  of its own - each poll redraws it, so it is exactly as fresh as the data
+  behind it and costs no wakes - and a reading older than twelve hours is not
+  shown at all rather than being presented as current.
 - Red night-vision mode: pure red on unlit black, with the screen dimmed. Not a
   red-tinted dark theme - the green and blue channels are zero, because a dimmed
   white screen still emits across the spectrum and costs the twenty minutes of

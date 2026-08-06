@@ -116,8 +116,11 @@ class ManifestDeclarationTest {
             PackageManager.GET_RECEIVERS,
         ).receivers.orEmpty()
 
+        // The poll receiver, the boot receiver and the widget. The count is
+        // asserted so a receiver cannot appear without somebody deciding
+        // whether it needs to survive a locked boot.
         val ours = receivers.filter { it.name.startsWith("sh.arek.gloaming") }
-        assertEquals(2, ours.size)
+        assertEquals(3, ours.size)
         for (receiver in ours) {
             assertTrue("${receiver.name} is not directBootAware", receiver.directBootAware)
         }

@@ -12,6 +12,7 @@ import kotlinx.coroutines.withTimeout
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.domain.PollPlan
+import sh.arek.gloaming.widget.AuroraWidget
 
 /**
  * Runs one poll when the alarm fires.
@@ -62,6 +63,10 @@ class PollReceiver : BroadcastReceiver() {
                     // Only once unlocked: a foreground service cannot be
                     // started before then, and the attempt would throw.
                     if (unlocked) StormService.apply(application, result.storm)
+                    // The widget is redrawn by the poll rather than on a
+                    // schedule of its own, so it is exactly as fresh as the
+                    // data behind it and costs no wakes.
+                    AuroraWidget.refresh(application)
                 } else {
                     // Before first unlock without the option enabled there is
                     // nothing readable to act on. Sleep until the next wake.

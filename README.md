@@ -14,12 +14,13 @@ asked without naming one. It is rounded to about a kilometre, which is the
 resolution of the finest model they run, and it travels with no account, key or
 identifier of any kind. Nothing this project runs ever learns where you are.
 
-**Status: pre-release.** Aurora alerting works end to end - the Worker publishes,
-the app fetches and verifies, and alerts have been delivered on a real phone in
-deep Doze and before first unlock. Cloud cover, darkness windows and the full
-decision rules are in. Still to come before v1.0: adaptive polling, storm mode,
-the AuroraWatch UK layer, a widget and a night-vision mode. The release gate is
-all of that delivered reliably through Doze.
+**Status: pre-release.** Everything in the v1.0 aurora scope is built - cloud
+cover, darkness windows, the full decision rules, adaptive polling, storm mode,
+the AuroraWatch UK layer, a home-screen widget and a night-vision mode - on top
+of alerting already verified on a real phone in deep Doze and before first
+unlock. What remains before release is the part no test suite can do for you: a
+season of real nights, to calibrate the thresholds and confirm the app is worth
+keeping installed.
 
 ## Quick start
 
