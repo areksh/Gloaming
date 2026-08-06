@@ -122,9 +122,15 @@ class SchedulingTest {
      * history" records each cancelled alarm as a snapshot carrying the very
      * same `*walarm*` tag, so searching the whole dump reads the record of a
      * cancellation as proof the alarm is still scheduled.
+     *
+     * The heading is matched without its colon, and identically to
+     * `tools/bfu-check.sh`, which reads the same dump for the same reason.
+     * `substringBefore` returns the whole string when its delimiter is absent,
+     * so a heading that does not match exactly quietly reinstates the very
+     * history this excludes.
      */
     private fun hasRegisteredAlarm(): Boolean {
-        val pending = shell("dumpsys alarm").substringBefore("App Alarm history:")
+        val pending = shell("dumpsys alarm").substringBefore("App Alarm history")
         return pending.contains("*walarm*:${context.packageName}/.work.PollReceiver")
     }
 
