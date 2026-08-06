@@ -51,11 +51,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Test harnesses for the two things only a real phone can answer:
+  `tools/bfu-check.sh` reboots a device and reports whether alerting survived
+  the locked state, and `tools/doze-check.sh` forces deep Doze and measures how
+  far apart the polls actually land. Both turn an overnight wait into minutes.
 
 ### Notes
 
 - Instrumented tests verified on a Pixel 8a running GrapheneOS: storage
   partitioning, permission declarations, scheduling and notifications.
+- GrapheneOS defaults the USB-C port to charging-only while locked, so adb is
+  unreachable for the whole before-unlock window. The harness gathers its
+  evidence afterwards instead - from `last_poll_at` in device-encrypted storage,
+  the cache file timestamps, and the `unlocked=false` the app logs at the moment
+  of each poll - rather than requiring a live connection that cannot exist.
 
 ### Changed
 

@@ -32,6 +32,28 @@ USB debugging enabled.
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
+### Testing overnight delivery
+
+Whether an alert arrives at three in the morning is the only thing that matters
+and the hardest thing to test. Two harnesses answer it in minutes rather than a
+night:
+
+```sh
+./gradlew :app:installDebug :app:installDebugAndroidTest
+tools/bfu-check.sh --seed     # reboot, hold at the lock screen, report back
+tools/doze-check.sh           # force deep Doze, measure the real poll spacing
+```
+
+`bfu-check.sh` tests the before-first-unlock path. It gathers its evidence after
+the fact rather than over a live connection, because adb is generally
+unreachable while the device is locked - GrapheneOS defaults the USB-C port to
+charging-only in that state. Run it with `--resume` in the morning to read back a
+real overnight run.
+
+`doze-check.sh` reports the measured interval between polls, which Doze rewrites:
+the app's battery-optimisation exemption and its app standby bucket both change
+the answer, so the number worth trusting is the one from the device.
+
 ### Data Worker
 
 The `worker/` directory holds the Cloudflare cron Worker that fetches upstream

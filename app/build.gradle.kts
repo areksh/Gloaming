@@ -17,6 +17,9 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // The harness package seeds device state for tools/bfu-check.sh and
+        // deliberately leaves it behind, so it is not part of the test run.
+        testInstrumentationRunnerArguments["notPackage"] = "sh.arek.gloaming.harness"
     }
 
     buildTypes {
