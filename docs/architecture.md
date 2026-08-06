@@ -175,6 +175,15 @@ Proportionate to start, growing with the phases:
 Package-based separation inside `:app` is enough for Phases 1-2; the
 `:core:predict` module is extracted when the propagator lands.
 
+Vendored third-party source lives in a separate source directory,
+`app/src/main/vendor`, declared in `app/build.gradle.kts` and documented in
+`app/src/main/vendor/README.md`. That is what isolates vendored code and its
+licence headers today - astronomy-engine (ADR-0006), and Look4Sat's SGP4 when
+Phase 3 arrives. A module is the heavier version of the same separation, worth
+extracting when one directory stops being enough rather than in advance. Nothing
+vendored is ever edited: the app wraps it instead, so an upgrade is a file
+replacement.
+
 ### Layers
 
 - **data:** OkHttp + kotlinx-serialization clients (`ManifestClient`,
@@ -364,3 +373,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0003 - all computation on-device; polling only, no push.
 - ADR-0004 - GPL-3.0 from day one.
 - ADR-0005 - a vendored Ed25519 verifier rather than a crypto library.
+- ADR-0006 - vendor astronomy-engine rather than resolve it from JitPack.

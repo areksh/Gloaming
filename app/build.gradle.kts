@@ -36,6 +36,12 @@ android {
     buildFeatures {
         compose = true
     }
+    // Vendored third-party source, kept in its own tree so it is never mistaken
+    // for the project's own and can be replaced wholesale on an upgrade. See
+    // app/src/main/vendor/README.md.
+    sourceSets.getByName("main") {
+        kotlin.directories.add("src/main/vendor")
+    }
 }
 
 dependencies {

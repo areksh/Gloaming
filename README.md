@@ -131,6 +131,11 @@ signed with any other key is not from this project, whatever it claims.
 
 GPL-3.0. See [`LICENSE`](LICENSE).
 
+Third-party source vendored into this repository keeps its own licence, and
+those licences are GPL-compatible. See
+[`app/src/main/vendor/README.md`](app/src/main/vendor/README.md) for what is
+vendored, where it came from and under what terms.
+
 ### A note on the data endpoints
 
 Gloaming fetches its data from endpoints run by this project, which exist under

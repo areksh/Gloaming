@@ -102,6 +102,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- astronomy-engine is vendored (MIT, tag `v2.1.19`) rather than resolved as a
+  dependency. It is not published to Maven Central at all - only to JitPack,
+  which builds it on demand - and a third-party build service in the supply
+  chain is a poor trade for one dependency-free file. See ADR-0006.
 - Scheduling uses AlarmManager with Direct Boot aware receivers rather than
   WorkManager, which cannot run before first unlock - precisely the state a
   scheduled reboot leaves the device in.

@@ -693,7 +693,7 @@ wants.
 
 | Library | Coordinates | Licence | minSdk impact |
 |---|---|---|---|
-| **astronomy-engine** | `io.github.cosinekitty:astronomy:2.1.19` | MIT | **None.** The 10,675-line Kotlin source imports `kotlin.math.*` and nothing else - zero `java.*` imports, no `java.time`, no `Calendar`. `Time.fromMillisecondsSince1970(Long)`. No desugaring. |
+| **astronomy-engine** | **vendored** at `app/src/main/vendor/`, from tag `v2.1.19` | MIT | **None.** The 10,674-line Kotlin source imports `kotlin.math.*` and nothing else - zero `java.*` imports, no `java.time`, no `Calendar`. `Time.fromMillisecondsSince1970(Long)`. No desugaring. |
 | **SGP4/SDP4** | vendor `core/domain/.../predict/` from Look4Sat | **GPL-3** | None - pure `kotlin.math`. Needs an OMM constructor adding (Sec. 3). |
 | OkHttp, Room, Compose, coroutines, kotlinx-serialization | | | Standard. |
 
@@ -716,13 +716,23 @@ change that produces passes 40 seconds out. Vallado's SGP4 verification test vec
 run in CI against the vendored code before Phase 3 ships. This is a checklist item, not an
 aspiration.
 
-### astronomy-engine: dormancy
+### astronomy-engine: dormancy, and why it is vendored
 
 Last release **v2.1.19, December 2023**; last repo push **January 2025**. Roughly 18 months
 quiet despite the author's stated long-term commitment. For an ephemeris library this is
 more defensible than most - VSOP87 does not rot, and it is validated against NOVAS and JPL
-Horizons to +/-1 arcminute - but it is an unmaintained dependency. It is MIT and
-self-contained, so vendoring is the fallback if it breaks.
+Horizons to +/-1 arcminute - but it is an unmaintained dependency.
+
+**It is also not on Maven Central.** The coordinate recorded in earlier drafts of this
+document (`io.github.cosinekitty:astronomy:2.1.19`) does not exist anywhere. The only
+distribution of the Kotlin/JVM edition is JitPack, as `com.github.cosinekitty:astronomy:v2.1.19`,
+and JitPack builds the artefact on demand rather than serving an immutable release - a
+third-party build service in the supply chain, and friction for both F-Droid inclusion and
+reproducible builds (Sec. 12).
+
+Since it is MIT, one file and dependency-free, it is **vendored** instead, byte-identical,
+under `app/src/main/vendor/`. See ADR-0006. Dormancy stops being a risk once the source is
+in the tree.
 
 ---
 
