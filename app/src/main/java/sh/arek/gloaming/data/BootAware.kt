@@ -2,6 +2,7 @@ package sh.arek.gloaming.data
 
 import android.content.Context
 import android.os.UserManager
+import kotlin.math.roundToInt
 
 /**
  * Which storage the app uses, and whether it may run yet.
@@ -82,16 +83,24 @@ object BootAware {
     /**
      * What belongs in device-encrypted storage, or null if nothing should.
      *
-     * The position is reduced to its grid cell first: the lookup rounds to
-     * whole degrees anyway, so alerting loses nothing while what sits in the
-     * weaker store is a region rather than an address.
+     * The position is rounded to the grid's own resolution first: the lookup
+     * rounds to whole degrees anyway, so alerting loses nothing while what sits
+     * in the weaker store is a region rather than an address.
+     *
+     * Rounded, not converted to a [GridCell]'s coordinates. The cell numbers a
+     * column from 0 to 359, and storing that as a longitude put every user west
+     * of Greenwich at, say, 357 - which the aurora lookup wraps and does not
+     * notice, but which the cloud forecast rejects outright and which would put
+     * Edinburgh in Kazakhstan for anything that compares longitudes. This stays
+     * a real longitude; `GridCell.of` does the wrapping where the grid needs it.
      */
     fun mirrorOf(settings: UserSettings): UserSettings? {
-        val cell = settings.cell
-        if (!settings.alertsBeforeUnlock || cell == null) return null
+        val latitude = settings.latitude
+        val longitude = settings.longitude
+        if (!settings.alertsBeforeUnlock || latitude == null || longitude == null) return null
         return settings.copy(
-            latitude = cell.latitude.toDouble(),
-            longitude = cell.longitude.toDouble(),
+            latitude = latitude.roundToInt().toDouble(),
+            longitude = longitude.roundToInt().toDouble(),
         )
     }
 

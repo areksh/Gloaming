@@ -169,8 +169,45 @@ class MirrorSelectionTest {
         val mirror = BootAware.mirrorOf(precise.copy(alertsBeforeUnlock = true))!!
 
         assertEquals(56.0, mirror.latitude!!, 0.0)
-        assertEquals(357.0, mirror.longitude!!, 0.0)
+        assertEquals(-3.0, mirror.longitude!!, 0.0)
         assertNotEquals(precise.latitude!!, mirror.latitude!!, 0.0)
+    }
+
+    /**
+     * A longitude, not a grid column.
+     *
+     * The mirror used to store the grid's own 0-359 column, so a user west of
+     * Greenwich came back at 357 before first unlock. The aurora lookup wraps
+     * and did not care, which is why it went unnoticed - but everything else
+     * that takes a longitude does: the cloud forecast rejects 357 outright, and
+     * a bounding box would place Edinburgh in Kazakhstan.
+     */
+    @Test
+    fun `mirrors a western longitude as negative, not as a grid column`() {
+        val mirror = BootAware.mirrorOf(precise.copy(alertsBeforeUnlock = true))!!
+
+        assertTrue("longitude ${mirror.longitude} is outside -180..180", mirror.longitude!! in -180.0..180.0)
+    }
+
+    // Rounding still has to land on the same cell it always did, or a poll
+    // before unlock would read a different part of the grid from one after it.
+    @Test
+    fun `mirrors to the same grid cell as the precise position`() {
+        val settings = precise.copy(alertsBeforeUnlock = true)
+
+        val mirror = BootAware.mirrorOf(settings)!!
+
+        assertEquals(settings.cell, mirror.cell)
+    }
+
+    @Test
+    fun `mirrors an eastern longitude unchanged`() {
+        val tromso = UserSettings(latitude = 69.65, longitude = 18.96, alertsBeforeUnlock = true)
+
+        val mirror = BootAware.mirrorOf(tromso)!!
+
+        assertEquals(19.0, mirror.longitude!!, 0.0)
+        assertEquals(tromso.cell, mirror.cell)
     }
 
     @Test

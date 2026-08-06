@@ -55,11 +55,16 @@ class StoragePartitionTest {
         assertEquals(55.95, shown.latitude!!, 0.0)
         assertEquals(-3.19, shown.longitude!!, 0.0)
 
-        // What survives a reboot is only the cell.
+        // What survives a reboot is only the whole degree - a real longitude,
+        // not the grid's own 0-359 column, so anything geographic that reads it
+        // gets an answer it can use.
         val mirrored = PreferencesSettingsStore(devicePreferences(context)).read()
         assertEquals(56.0, mirrored.latitude!!, 0.0)
-        assertEquals(357.0, mirrored.longitude!!, 0.0)
+        assertEquals(-3.0, mirrored.longitude!!, 0.0)
         assertNotEquals(shown.longitude, mirrored.longitude, 0.0)
+        // And it still lands on the cell the precise position does, so a poll
+        // before unlock reads the same part of the grid as one after it.
+        assertEquals(settings.cell, mirrored.cell)
     }
 
     @Test
