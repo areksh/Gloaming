@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- Red night-vision mode: pure red on unlit black, with the screen dimmed. Not a
+  red-tinted dark theme - the green and blue channels are zero, because a dimmed
+  white screen still emits across the spectrum and costs the twenty minutes of
+  dark adaptation it looks like it is protecting.
 - The AuroraWatch UK enhancement layer. Inside a UK bounding box a real
   magnetometer reading can raise what the global model says, feeding one
   internal likelihood so nothing downstream branches on which source is in play.

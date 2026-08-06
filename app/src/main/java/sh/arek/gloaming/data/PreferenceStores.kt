@@ -31,6 +31,7 @@ private const val KEY_CLOUD_GATE = "cloud_gate_enabled"
 private const val KEY_QUIET_START = "quiet_hours_start"
 private const val KEY_QUIET_END = "quiet_hours_end"
 private const val KEY_QUIET_OVERRIDE = "quiet_hours_override"
+private const val KEY_NIGHT_VISION = "night_vision"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -91,6 +92,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 QuietHours(quietStart, quietEnd)
             },
             quietHoursOverride = prefs.getBoolean(KEY_QUIET_OVERRIDE, false),
+            nightVision = prefs.getBoolean(KEY_NIGHT_VISION, false),
         )
     }
 
@@ -121,6 +123,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 putInt(KEY_QUIET_END, quietHours.endMinute)
             }
             putBoolean(KEY_QUIET_OVERRIDE, settings.quietHoursOverride)
+            putBoolean(KEY_NIGHT_VISION, settings.nightVision)
         }.apply()
     }
 

@@ -1,6 +1,9 @@
 package sh.arek.gloaming
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -56,18 +59,49 @@ class MainActivity : ComponentActivity() {
         // was ever lost. Enqueuing is idempotent under a unique work name.
         PollAlarm.schedule(this, Graph.settings(this).read().pollIntervalMinutes)
 
-        setContent {
-            GloamingTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                    GloamingApp(Modifier.padding(padding))
-                }
-            }
-        }
+        setContent { GloamingApp() }
     }
 }
 
+/**
+ * Dims the screen while night vision is on, and hands it back afterwards.
+ *
+ * Red on black is most of the answer but not all of it: a bright screen of any
+ * colour still floods a dark-adapted eye. Set on this window rather than in
+ * system settings, so it applies to this app alone and reverts the moment it
+ * closes.
+ */
 @androidx.compose.runtime.Composable
-private fun GloamingApp(modifier: Modifier = Modifier) {
+private fun DimScreen(enabled: Boolean) {
+    val activity = LocalContext.current.findActivity() ?: return
+    DisposableEffect(enabled) {
+        activity.setBrightness(if (enabled) NIGHT_BRIGHTNESS else SYSTEM_BRIGHTNESS)
+        onDispose { activity.setBrightness(SYSTEM_BRIGHTNESS) }
+    }
+}
+
+private fun Activity.setBrightness(value: Float) {
+    window.attributes = window.attributes.apply { screenBrightness = value }
+}
+
+/** As dim as the platform allows without switching the backlight off entirely. */
+private const val NIGHT_BRIGHTNESS = 0.01f
+
+/** The sentinel that hands brightness back to the system. */
+private const val SYSTEM_BRIGHTNESS = -1f
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
+ * The theme is applied here rather than around this, because night vision is a
+ * setting and the settings are read here.
+ */
+@androidx.compose.runtime.Composable
+private fun GloamingApp() {
     val context = LocalContext.current
     val settingsStore = remember { Graph.settings(context) }
     val stateStore = remember { Graph.alertState(context) }
@@ -118,107 +152,116 @@ private fun GloamingApp(modifier: Modifier = Modifier) {
         ActivityResultContracts.RequestPermission(),
     ) { notificationsOk = notificationsAllowed() }
 
-    MainScreen(
-        state = MainUiState(
-            settings = settings,
-            alertState = alertState,
-            latitudeInput = latitudeInput,
-            longitudeInput = longitudeInput,
-            quietFromInput = quietFromInput,
-            quietUntilInput = quietUntilInput,
-            batteryExempt = batteryOk,
-            notificationsAllowed = notificationsOk,
-            nowMillis = shownAt,
-        ),
-        onLatitudeChange = { latitudeInput = it },
-        onLongitudeChange = { longitudeInput = it },
-        onThresholdChange = {
-            settings = settings.copy(threshold = it)
-            BootAware.saveSettings(context, settings)
-        },
-        onAlertsEnabledChange = {
-            settings = settings.copy(alertsEnabled = it)
-            BootAware.saveSettings(context, settings)
-            if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
-        },
-        onBeforeUnlockChange = {
-            settings = settings.copy(alertsBeforeUnlock = it)
-            BootAware.saveSettings(context, settings)
-        },
-        onCloudGateChange = {
-            settings = settings.copy(cloudGateEnabled = it)
-            BootAware.saveSettings(context, settings)
-        },
-        onCloudToleranceChange = {
-            settings = settings.copy(cloudTolerance = it)
-            BootAware.saveSettings(context, settings)
-        },
-        onQuietHoursEnabledChange = { enabled ->
-            settings = settings.copy(
-                quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
+    GloamingTheme(nightVision = settings.nightVision) {
+        DimScreen(settings.nightVision)
+        Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+            MainScreen(
+                state = MainUiState(
+                    settings = settings,
+                    alertState = alertState,
+                    latitudeInput = latitudeInput,
+                    longitudeInput = longitudeInput,
+                    quietFromInput = quietFromInput,
+                    quietUntilInput = quietUntilInput,
+                    batteryExempt = batteryOk,
+                    notificationsAllowed = notificationsOk,
+                    nowMillis = shownAt,
+                ),
+                onLatitudeChange = { latitudeInput = it },
+                onLongitudeChange = { longitudeInput = it },
+                onThresholdChange = {
+                    settings = settings.copy(threshold = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onAlertsEnabledChange = {
+                    settings = settings.copy(alertsEnabled = it)
+                    BootAware.saveSettings(context, settings)
+                    if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
+                },
+                onBeforeUnlockChange = {
+                    settings = settings.copy(alertsBeforeUnlock = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onCloudGateChange = {
+                    settings = settings.copy(cloudGateEnabled = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onCloudToleranceChange = {
+                    settings = settings.copy(cloudTolerance = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onQuietHoursEnabledChange = { enabled ->
+                    settings = settings.copy(
+                        quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
+                    )
+                    BootAware.saveSettings(context, settings)
+                },
+                // Applied as typed, and only when both fields parse. A half-typed
+                // "2" must not become quiet hours starting at two in the morning.
+                onQuietFromChange = { typed ->
+                    quietFromInput = typed
+                    quietHoursFrom(typed, quietUntilInput)?.let {
+                        settings = settings.copy(quietHours = it)
+                        BootAware.saveSettings(context, settings)
+                    }
+                },
+                onQuietUntilChange = { typed ->
+                    quietUntilInput = typed
+                    quietHoursFrom(quietFromInput, typed)?.let {
+                        settings = settings.copy(quietHours = it)
+                        BootAware.saveSettings(context, settings)
+                    }
+                },
+                onQuietHoursOverrideChange = {
+                    settings = settings.copy(quietHoursOverride = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onNightVisionChange = {
+                    settings = settings.copy(nightVision = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onSave = {
+                    val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
+                    val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
+                    settings = settings.copy(latitude = latitude, longitude = longitude)
+                    BootAware.saveSettings(context, settings)
+                    latitudeInput = latitude?.toString().orEmpty()
+                    longitudeInput = longitude?.toString().orEmpty()
+                    PollAlarm.scheduleNow(context)
+                },
+                onPollNow = { PollAlarm.scheduleNow(context) },
+                onRequestBatteryExemption = {
+                    // Sends the user to the system list rather than using the
+                    // direct-request intent, which Play forbids and which several OEM
+                    // builds ignore. Off-Play either is permitted; the settings screen
+                    // is the one that behaves consistently.
+                    runCatching {
+                        context.startActivity(
+                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                        )
+                    }.onFailure {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null),
+                            ),
+                        )
+                    }
+                },
+                onRequestNotifications = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null),
+                            ),
+                        )
+                    }
+                },
+                modifier = Modifier.padding(padding),
             )
-            BootAware.saveSettings(context, settings)
-        },
-        // Applied as typed, and only when both fields parse. A half-typed
-        // "2" must not become quiet hours starting at two in the morning.
-        onQuietFromChange = { typed ->
-            quietFromInput = typed
-            quietHoursFrom(typed, quietUntilInput)?.let {
-                settings = settings.copy(quietHours = it)
-                BootAware.saveSettings(context, settings)
-            }
-        },
-        onQuietUntilChange = { typed ->
-            quietUntilInput = typed
-            quietHoursFrom(quietFromInput, typed)?.let {
-                settings = settings.copy(quietHours = it)
-                BootAware.saveSettings(context, settings)
-            }
-        },
-        onQuietHoursOverrideChange = {
-            settings = settings.copy(quietHoursOverride = it)
-            BootAware.saveSettings(context, settings)
-        },
-        onSave = {
-            val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
-            val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
-            settings = settings.copy(latitude = latitude, longitude = longitude)
-            BootAware.saveSettings(context, settings)
-            latitudeInput = latitude?.toString().orEmpty()
-            longitudeInput = longitude?.toString().orEmpty()
-            PollAlarm.scheduleNow(context)
-        },
-        onPollNow = { PollAlarm.scheduleNow(context) },
-        onRequestBatteryExemption = {
-            // Sends the user to the system list rather than using the
-            // direct-request intent, which Play forbids and which several OEM
-            // builds ignore. Off-Play either is permitted; the settings screen
-            // is the one that behaves consistently.
-            runCatching {
-                context.startActivity(
-                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
-                )
-            }.onFailure {
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.fromParts("package", context.packageName, null),
-                    ),
-                )
-            }
-        },
-        onRequestNotifications = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                        Uri.fromParts("package", context.packageName, null),
-                    ),
-                )
-            }
-        },
-        modifier = modifier,
-    )
+        }
+    }
 }

@@ -52,6 +52,7 @@ class PreferenceStoresTest {
             cloudGateEnabled = false,
             quietHours = QuietHours(23 * 60, 7 * 60),
             quietHoursOverride = true,
+            nightVision = true,
         )
 
         store.write(settings)
@@ -93,6 +94,7 @@ class PreferenceStoresTest {
         assertTrue(settings.cloudGateEnabled)
         assertNull(settings.quietHours)
         assertEquals(false, settings.quietHoursOverride)
+        assertEquals(false, settings.nightVision)
     }
 
     @Test

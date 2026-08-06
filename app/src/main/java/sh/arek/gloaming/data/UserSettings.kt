@@ -77,6 +77,11 @@ data class UserSettings(
      * user decides what is worth being woken for, not the app.
      */
     val quietHoursOverride: Boolean = false,
+    /**
+     * Red on black, for reading the screen outside without losing twenty
+     * minutes of dark adaptation to it.
+     */
+    val nightVision: Boolean = false,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 

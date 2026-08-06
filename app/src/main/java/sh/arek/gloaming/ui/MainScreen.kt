@@ -58,6 +58,7 @@ fun MainScreen(
     onQuietFromChange: (String) -> Unit,
     onQuietUntilChange: (String) -> Unit,
     onQuietHoursOverrideChange: (Boolean) -> Unit,
+    onNightVisionChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -107,6 +108,7 @@ fun MainScreen(
             onQuietHoursOverrideChange,
         )
         BeforeUnlockCard(state, onBeforeUnlockChange)
+        NightVisionCard(state, onNightVisionChange)
 
         Button(onClick = onPollNow, modifier = Modifier.fillMaxWidth()) {
             Text("Check now")
@@ -430,6 +432,39 @@ private fun BeforeUnlockCard(state: MainUiState, onBeforeUnlockChange: (Boolean)
                     "before you unlock. Only the whole degree is stored - about " +
                     "111 km - never the position you typed. Turning this off deletes " +
                     "that copy.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * Night vision, which is the whole reason to open this app outside.
+ *
+ * Not tied to the system's dark theme: dark mode is grey-on-black and still
+ * emits across the spectrum, which costs the dark adaptation it looks like it
+ * is protecting.
+ */
+@Composable
+private fun NightVisionCard(state: MainUiState, onNightVisionChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Night vision", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.nightVision,
+                    onCheckedChange = onNightVisionChange,
+                )
+            }
+            Text(
+                "Red on black, and the screen dimmed. Your eyes take twenty minutes to " +
+                    "adapt to the dark and one glance at a white screen to lose it. Deep " +
+                    "red is the one colour that barely registers, which is why " +
+                    "observatories and ships' bridges use it.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
