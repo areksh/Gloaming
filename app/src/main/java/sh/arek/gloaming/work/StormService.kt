@@ -95,6 +95,11 @@ class StormService : Service() {
         val startedAt = System.currentTimeMillis()
 
         while (scope.isActive) {
+            // Waits before polling rather than after. Storm mode is entered as
+            // the result of a poll that has only just finished, so an immediate
+            // one would re-fetch what is already known.
+            delay(StormMode.POLL_MINUTES * 60_000L)
+
             val result = runCatching { Graph.poller(applicationContext).poll() }
                 .onFailure { Log.w(TAG, "storm poll failed", it) }
                 .getOrNull()
@@ -112,8 +117,6 @@ class StormService : Service() {
                 Log.i(TAG, "storm mode hit its time limit; stopping")
                 break
             }
-
-            delay(StormMode.POLL_MINUTES * 60_000L)
         }
 
         stopSelf()
@@ -166,6 +169,11 @@ class StormService : Service() {
             .addAction(0, "Stop watching", stop)
             .setOngoing(true)
             .setSilent(true)
+            // Shown at once. The system defers a low-importance foreground
+            // notification by about ten seconds, and this one is the only sign
+            // the app has started following a display - by which point the user
+            // has put the phone back in their pocket.
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
