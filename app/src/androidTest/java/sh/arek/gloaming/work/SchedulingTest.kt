@@ -78,35 +78,6 @@ class SchedulingTest {
     }
 
     /**
-     * "Check now" registers an alarm, for the moment it asked for.
-     *
-     * The delay is injected rather than left at its production default of a
-     * second, because at that default the alarm fires part-way through this
-     * test: `PollReceiver` then makes a real network request, and re-arms the
-     * schedule in its `finally` long after [cancelAlarm] has run - so the
-     * alarm outlives the test and fails whichever one comes next.
-     *
-     * Asserting the requested delay is what the alarm manager holds is what
-     * keeps that injection honest. Without it the parameter could be quietly
-     * ignored, the alarm would still register, and the test would still pass
-     * while the stray poll came back.
-     */
-    @Test
-    fun checkNowRegistersAnAlarmForTheMomentItAsksFor() {
-        PollAlarm.cancel(context)
-
-        PollAlarm.scheduleNow(context, delayMillis = 10 * 60_000L)
-
-        assertTrue("no alarm was registered", hasRegisteredAlarm())
-        val requested = requestedTriggerTime()
-        assertNotNull("the pending alarm records no requested trigger time", requested)
-        assertTrue(
-            "the alarm was requested for $requested, not the ten minutes asked for",
-            Regex("""^\+(9|10)m""").containsMatchIn(requested!!),
-        )
-    }
-
-    /**
      * The alarm targets a receiver that is actually installed. A rename or a
      * dropped manifest entry would otherwise fail silently: the alarm fires
      * into nothing and the app never wakes again.
@@ -138,18 +109,6 @@ class SchedulingTest {
     /** Whether the alarm manager currently holds a pending alarm for this app. */
     private fun hasRegisteredAlarm(): Boolean =
         pendingAlarms().contains(ourAlarmTag)
-
-    /**
-     * When the pending alarm asked to be woken, relative to now.
-     *
-     * Reads `origWhen` rather than `whenElapsed`: the latter is the time left
-     * after app standby, Doze and battery saver have each had their say, and
-     * says nothing about what was requested. Null when no alarm is pending.
-     */
-    private fun requestedTriggerTime(): String? {
-        val ours = pendingAlarms().substringAfter(ourAlarmTag, missingDelimiterValue = "")
-        return Regex("""origWhen=(\+\S+)""").find(ours)?.groupValues?.get(1)
-    }
 
     private val ourAlarmTag: String
         get() = "*walarm*:${context.packageName}/.work.PollReceiver"

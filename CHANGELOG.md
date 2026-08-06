@@ -150,6 +150,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the cache file timestamps, and the `unlocked=false` the app logs at the moment
   of each poll - rather than requiring a live connection that cannot exist.
 
+### Fixed
+
+- "Check now" now actually checks, and the screen shows that it did. It went
+  through `AlarmManager`, which is inexact - a "one second" alarm can be batched
+  up to two minutes out - and the screen only re-read the poll result when the
+  app was resumed, so the button appeared to do nothing at all. A check the user
+  asked for is run directly, reports itself as busy while it runs, and re-arms
+  the schedule from the plan it produces. That last part matters after a
+  location change: the pending wake was worked out for the old position, and
+  dusk somewhere else is at a different time.
+
 ### Changed
 
 - astronomy-engine is vendored (MIT, tag `v2.1.19`) rather than resolved as a

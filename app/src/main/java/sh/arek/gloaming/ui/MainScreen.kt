@@ -42,6 +42,8 @@ data class MainUiState(
     val batteryExempt: Boolean,
     val notificationsAllowed: Boolean,
     val nowMillis: Long,
+    /** True while a check the user asked for is in flight. */
+    val checking: Boolean = false,
 )
 
 @Composable
@@ -110,8 +112,15 @@ fun MainScreen(
         BeforeUnlockCard(state, onBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
 
-        Button(onClick = onPollNow, modifier = Modifier.fillMaxWidth()) {
-            Text("Check now")
+        // Disabled while in flight, and says so. A button that looks idle
+        // during the second or two a check takes reads as a broken button, and
+        // the second press would only queue the same work again.
+        Button(
+            onClick = onPollNow,
+            enabled = !state.checking,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (state.checking) "Checking..." else "Check now")
         }
 
         Text(

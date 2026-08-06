@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -21,10 +22,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -152,6 +157,36 @@ private fun GloamingApp() {
         ActivityResultContracts.RequestPermission(),
     ) { notificationsOk = notificationsAllowed() }
 
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+
+    /**
+     * Runs a check the user asked for, here and now.
+     *
+     * Deliberately not through `AlarmManager`. `setAndAllowWhileIdle` is
+     * inexact and the system attaches a batching window - just under two
+     * minutes, measured on this hardware - so a "check now" routed through the
+     * scheduler could sit unfired while the user stares at an unchanged screen.
+     * A button somebody is watching gets run directly.
+     *
+     * The next scheduled wake is then re-armed from the plan the poll returned,
+     * which is what the receiver does after every other poll. That matters most
+     * after a location change: the pending alarm was worked out for the old
+     * position, and dusk somewhere else is at a different time.
+     */
+    fun checkNow() {
+        if (checking) return
+        checking = true
+        scope.launch {
+            runCatching { withContext(Dispatchers.IO) { Graph.poller(context).poll() } }
+                .onSuccess { PollAlarm.schedule(context, it.next.delayMinutes) }
+                .onFailure { Log.w("Gloaming", "check now failed", it) }
+            alertState = stateStore.read()
+            shownAt = System.currentTimeMillis()
+            checking = false
+        }
+    }
+
     GloamingTheme(nightVision = settings.nightVision) {
         DimScreen(settings.nightVision)
         Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
@@ -166,6 +201,7 @@ private fun GloamingApp() {
                     batteryExempt = batteryOk,
                     notificationsAllowed = notificationsOk,
                     nowMillis = shownAt,
+                    checking = checking,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -227,9 +263,11 @@ private fun GloamingApp() {
                     BootAware.saveSettings(context, settings)
                     latitudeInput = latitude?.toString().orEmpty()
                     longitudeInput = longitude?.toString().orEmpty()
-                    PollAlarm.scheduleNow(context)
+                    // A new position changes the whole schedule, not just the
+                    // reading: dusk somewhere else is at a different time.
+                    checkNow()
                 },
-                onPollNow = { PollAlarm.scheduleNow(context) },
+                onPollNow = { checkNow() },
                 onRequestBatteryExemption = {
                     // Sends the user to the system list rather than using the
                     // direct-request intent, which Play forbids and which several OEM
