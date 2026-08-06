@@ -28,9 +28,23 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import sh.arek.gloaming.ui.MainScreen
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.formatTimeOfDay
+import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.work.PollAlarm
+
+/** What the switch offers when quiet hours are first turned on. */
+private const val DEFAULT_QUIET_FROM = 23 * 60
+private const val DEFAULT_QUIET_UNTIL = 7 * 60
+
+/** Quiet hours from two typed times, or null if either is not a time. */
+private fun quietHoursFrom(from: String, until: String): QuietHours? {
+    val start = parseTimeOfDay(from) ?: return null
+    val end = parseTimeOfDay(until) ?: return null
+    return QuietHours(start, end)
+}
 
 class MainActivity : ComponentActivity() {
 
@@ -62,6 +76,12 @@ private fun GloamingApp(modifier: Modifier = Modifier) {
     var alertState by remember { mutableStateOf(stateStore.read()) }
     var latitudeInput by remember { mutableStateOf(settings.latitude?.toString().orEmpty()) }
     var longitudeInput by remember { mutableStateOf(settings.longitude?.toString().orEmpty()) }
+    var quietFromInput by remember {
+        mutableStateOf(formatTimeOfDay(settings.quietHours?.startMinute ?: DEFAULT_QUIET_FROM))
+    }
+    var quietUntilInput by remember {
+        mutableStateOf(formatTimeOfDay(settings.quietHours?.endMinute ?: DEFAULT_QUIET_UNTIL))
+    }
 
     fun batteryExempt(): Boolean {
         val power = context.getSystemService(PowerManager::class.java)
@@ -104,6 +124,8 @@ private fun GloamingApp(modifier: Modifier = Modifier) {
             alertState = alertState,
             latitudeInput = latitudeInput,
             longitudeInput = longitudeInput,
+            quietFromInput = quietFromInput,
+            quietUntilInput = quietUntilInput,
             batteryExempt = batteryOk,
             notificationsAllowed = notificationsOk,
             nowMillis = shownAt,
@@ -121,6 +143,40 @@ private fun GloamingApp(modifier: Modifier = Modifier) {
         },
         onBeforeUnlockChange = {
             settings = settings.copy(alertsBeforeUnlock = it)
+            BootAware.saveSettings(context, settings)
+        },
+        onCloudGateChange = {
+            settings = settings.copy(cloudGateEnabled = it)
+            BootAware.saveSettings(context, settings)
+        },
+        onCloudToleranceChange = {
+            settings = settings.copy(cloudTolerance = it)
+            BootAware.saveSettings(context, settings)
+        },
+        onQuietHoursEnabledChange = { enabled ->
+            settings = settings.copy(
+                quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
+            )
+            BootAware.saveSettings(context, settings)
+        },
+        // Applied as typed, and only when both fields parse. A half-typed
+        // "2" must not become quiet hours starting at two in the morning.
+        onQuietFromChange = { typed ->
+            quietFromInput = typed
+            quietHoursFrom(typed, quietUntilInput)?.let {
+                settings = settings.copy(quietHours = it)
+                BootAware.saveSettings(context, settings)
+            }
+        },
+        onQuietUntilChange = { typed ->
+            quietUntilInput = typed
+            quietHoursFrom(quietFromInput, typed)?.let {
+                settings = settings.copy(quietHours = it)
+                BootAware.saveSettings(context, settings)
+            }
+        },
+        onQuietHoursOverrideChange = {
+            settings = settings.copy(quietHoursOverride = it)
             BootAware.saveSettings(context, settings)
         },
         onSave = {

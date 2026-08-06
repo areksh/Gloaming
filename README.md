@@ -14,9 +14,12 @@ asked without naming one. It is rounded to about a kilometre, which is the
 resolution of the finest model they run, and it travels with no account, key or
 identifier of any kind. Nothing this project runs ever learns where you are.
 
-**Status: pre-release.** The application scaffold builds; no features are
-implemented yet. The v1.0 release gate is aurora, cloud cover and darkness
-windows delivered reliably through Doze.
+**Status: pre-release.** Aurora alerting works end to end - the Worker publishes,
+the app fetches and verifies, and alerts have been delivered on a real phone in
+deep Doze and before first unlock. Cloud cover, darkness windows and the full
+decision rules are in. Still to come before v1.0: adaptive polling, storm mode,
+the AuroraWatch UK layer, a widget and a night-vision mode. The release gate is
+all of that delivered reliably through Doze.
 
 ## Quick start
 

@@ -19,12 +19,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.AlertDecision
 
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
@@ -32,6 +36,8 @@ data class MainUiState(
     val alertState: AlertState,
     val latitudeInput: String,
     val longitudeInput: String,
+    val quietFromInput: String,
+    val quietUntilInput: String,
     val batteryExempt: Boolean,
     val notificationsAllowed: Boolean,
     val nowMillis: Long,
@@ -45,6 +51,12 @@ fun MainScreen(
     onThresholdChange: (Int) -> Unit,
     onAlertsEnabledChange: (Boolean) -> Unit,
     onBeforeUnlockChange: (Boolean) -> Unit,
+    onCloudGateChange: (Boolean) -> Unit,
+    onCloudToleranceChange: (Int) -> Unit,
+    onQuietHoursEnabledChange: (Boolean) -> Unit,
+    onQuietFromChange: (String) -> Unit,
+    onQuietUntilChange: (String) -> Unit,
+    onQuietHoursOverrideChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -85,6 +97,14 @@ fun MainScreen(
 
         LocationCard(state, onLatitudeChange, onLongitudeChange, onSave)
         ThresholdCard(state, onThresholdChange, onAlertsEnabledChange)
+        SkyCard(state, onCloudGateChange, onCloudToleranceChange)
+        QuietHoursCard(
+            state,
+            onQuietHoursEnabledChange,
+            onQuietFromChange,
+            onQuietUntilChange,
+            onQuietHoursOverrideChange,
+        )
         BeforeUnlockCard(state, onBeforeUnlockChange)
 
         Button(onClick = onPollNow, modifier = Modifier.fillMaxWidth()) {
@@ -92,8 +112,9 @@ fun MainScreen(
         }
 
         Text(
-            "Your location never leaves this device. The aurora grid is downloaded whole " +
-                "and looked up here, so nothing is ever asked about where you are.",
+            "Nothing this app's own servers run ever learns where you are. The aurora " +
+                "grid is downloaded whole and looked up on this phone, and every alert " +
+                "decision is made here.",
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -207,6 +228,160 @@ private fun ThresholdCard(
             Spacer(Modifier.height(4.dp))
             Text(
                 "Checks run about every ${state.settings.pollIntervalMinutes} minutes.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * The two gates that decide whether a reading is worth acting on.
+ *
+ * Darkness is stated but not offered: it costs nothing, needs no network, and
+ * an alert in daylight is never useful. Cloud is optional, because it is the
+ * one thing the app asks a third party - and the trade is stated here rather
+ * than buried, so switching it off is an informed choice and not a hidden one.
+ */
+@Composable
+private fun SkyCard(
+    state: MainUiState,
+    onCloudGateChange: (Boolean) -> Unit,
+    onCloudToleranceChange: (Int) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Sky conditions", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Alerts are never sent while the sun is up. That is worked out on this " +
+                    "phone and cannot be switched off.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Check cloud cover", style = MaterialTheme.typography.bodyLarge)
+                Switch(
+                    checked = state.settings.cloudGateEnabled,
+                    onCheckedChange = onCloudGateChange,
+                )
+            }
+
+            if (state.settings.cloudGateEnabled) {
+                Text(
+                    "Hold alerts back above ${state.settings.cloudTolerance}% cloud.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (option in listOf(40, 60, 80, 100)) {
+                        OutlinedButton(onClick = { onCloudToleranceChange(option) }) {
+                            Text("$option%")
+                        }
+                    }
+                }
+                Text(
+                    "This is the one thing that leaves your phone: a location rounded to " +
+                        "about a kilometre, at most once an hour, with no account or " +
+                        "identifier attached. If the forecast cannot be reached you are " +
+                        "alerted anyway and told the cloud is unknown.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                // CC BY 4.0 requires attribution next to the data it covers.
+                Text(
+                    buildAnnotatedString {
+                        append("Weather data by ")
+                        withLink(LinkAnnotation.Url("https://open-meteo.com/")) {
+                            append("Open-Meteo.com")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Quiet hours, off by default.
+ *
+ * The exceptional-event override is a separate switch rather than folded in,
+ * because "do not wake me" and "unless it is remarkable" are different
+ * decisions and only the user can make either.
+ */
+@Composable
+private fun QuietHoursCard(
+    state: MainUiState,
+    onEnabledChange: (Boolean) -> Unit,
+    onFromChange: (String) -> Unit,
+    onUntilChange: (String) -> Unit,
+    onOverrideChange: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Quiet hours", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.quietHours != null,
+                    onCheckedChange = onEnabledChange,
+                )
+            }
+
+            if (state.settings.quietHours == null) {
+                Text(
+                    "Off. The aurora happens in the small hours, so Gloaming will wake " +
+                        "you unless you tell it not to.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                return@Column
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = state.quietFromInput,
+                    onValueChange = onFromChange,
+                    label = { Text("From") },
+                    singleLine = true,
+                    isError = parseTimeOfDay(state.quietFromInput) == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = state.quietUntilInput,
+                    onValueChange = onUntilChange,
+                    label = { Text("Until") },
+                    singleLine = true,
+                    isError = parseTimeOfDay(state.quietUntilInput) == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text("24-hour, like 23:00.", style = MaterialTheme.typography.bodySmall)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "Wake me for something exceptional",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                Switch(
+                    checked = state.settings.quietHoursOverride,
+                    onCheckedChange = onOverrideChange,
+                )
+            }
+            Text(
+                "Lets through anything above " +
+                    "${AlertDecision.EXCEPTIONAL_PROBABILITY}% local probability - the " +
+                    "sort of display people remember for years.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
