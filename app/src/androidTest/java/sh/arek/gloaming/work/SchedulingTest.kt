@@ -77,13 +77,33 @@ class SchedulingTest {
         assertFalse("the alarm outlived its cancellation", hasRegisteredAlarm())
     }
 
+    /**
+     * "Check now" registers an alarm, for the moment it asked for.
+     *
+     * The delay is injected rather than left at its production default of a
+     * second, because at that default the alarm fires part-way through this
+     * test: `PollReceiver` then makes a real network request, and re-arms the
+     * schedule in its `finally` long after [cancelAlarm] has run - so the
+     * alarm outlives the test and fails whichever one comes next.
+     *
+     * Asserting the requested delay is what the alarm manager holds is what
+     * keeps that injection honest. Without it the parameter could be quietly
+     * ignored, the alarm would still register, and the test would still pass
+     * while the stray poll came back.
+     */
     @Test
-    fun checkNowAlsoRegistersAnAlarm() {
+    fun checkNowRegistersAnAlarmForTheMomentItAsksFor() {
         PollAlarm.cancel(context)
 
-        PollAlarm.scheduleNow(context)
+        PollAlarm.scheduleNow(context, delayMillis = 10 * 60_000L)
 
-        assertTrue(hasRegisteredAlarm())
+        assertTrue("no alarm was registered", hasRegisteredAlarm())
+        val requested = requestedTriggerTime()
+        assertNotNull("the pending alarm records no requested trigger time", requested)
+        assertTrue(
+            "the alarm was requested for $requested, not the ten minutes asked for",
+            Regex("""^\+(9|10)m""").containsMatchIn(requested!!),
+        )
     }
 
     /**
@@ -115,12 +135,31 @@ class SchedulingTest {
         )
     }
 
+    /** Whether the alarm manager currently holds a pending alarm for this app. */
+    private fun hasRegisteredAlarm(): Boolean =
+        pendingAlarms().contains(ourAlarmTag)
+
     /**
-     * Whether the alarm manager currently holds a pending alarm for this app.
+     * When the pending alarm asked to be woken, relative to now.
      *
-     * Only the part of the dump before the history sections counts. "Removal
-     * history" records each cancelled alarm as a snapshot carrying the very
-     * same `*walarm*` tag, so searching the whole dump reads the record of a
+     * Reads `origWhen` rather than `whenElapsed`: the latter is the time left
+     * after app standby, Doze and battery saver have each had their say, and
+     * says nothing about what was requested. Null when no alarm is pending.
+     */
+    private fun requestedTriggerTime(): String? {
+        val ours = pendingAlarms().substringAfter(ourAlarmTag, missingDelimiterValue = "")
+        return Regex("""origWhen=(\+\S+)""").find(ours)?.groupValues?.get(1)
+    }
+
+    private val ourAlarmTag: String
+        get() = "*walarm*:${context.packageName}/.work.PollReceiver"
+
+    /**
+     * The part of the alarm dump that lists alarms actually scheduled.
+     *
+     * Only the part before the history sections counts. "Removal history"
+     * records each cancelled alarm as a snapshot carrying the very same
+     * `*walarm*` tag, so searching the whole dump reads the record of a
      * cancellation as proof the alarm is still scheduled.
      *
      * The heading is matched without its colon, and identically to
@@ -129,10 +168,8 @@ class SchedulingTest {
      * so a heading that does not match exactly quietly reinstates the very
      * history this excludes.
      */
-    private fun hasRegisteredAlarm(): Boolean {
-        val pending = shell("dumpsys alarm").substringBefore("App Alarm history")
-        return pending.contains("*walarm*:${context.packageName}/.work.PollReceiver")
-    }
+    private fun pendingAlarms(): String =
+        shell("dumpsys alarm").substringBefore("App Alarm history")
 
     private fun shell(command: String): String {
         val descriptor = InstrumentationRegistry.getInstrumentation()

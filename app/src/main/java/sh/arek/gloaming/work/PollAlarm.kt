@@ -25,6 +25,9 @@ object PollAlarm {
 
     private const val REQUEST_CODE = 1
 
+    /** How soon after "check now" the poll is asked to run. */
+    private const val CHECK_NOW_DELAY_MS = 1_000L
+
     /**
      * Queues the next poll.
      *
@@ -44,11 +47,18 @@ object PollAlarm {
         )
     }
 
-    /** Queues a poll almost immediately, for the in-app "check now" action. */
-    fun scheduleNow(context: Context) {
+    /**
+     * Queues a poll almost immediately, for the in-app "check now" action.
+     *
+     * [delayMillis] exists for the instrumented test and nothing else: at the
+     * default the alarm fires part-way through it, and the poll that follows
+     * reaches the network and re-arms the schedule after the test has torn
+     * itself down. Production always takes the default.
+     */
+    fun scheduleNow(context: Context, delayMillis: Long = CHECK_NOW_DELAY_MS) {
         alarmManager(context)?.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
-            SystemClock.elapsedRealtime() + 1_000L,
+            SystemClock.elapsedRealtime() + delayMillis,
             pendingIntent(context),
         )
     }
