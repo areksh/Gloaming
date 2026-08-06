@@ -248,8 +248,20 @@ Greenfield, held to the full TDD bar (ADR-0001).
   checklist gate before Phase 3 ships, not an aspiration.
 - **Worker:** Vitest against workerd for the fetchers, `composeStatus()`, the
   packer and the circuit breaker.
-- **The load-bearing manual milestone** is the overnight real-phone Doze test
-  (Sec. 14 step 6). Everything else is decoration on top of reliable delivery.
+- **The load-bearing milestone** is overnight delivery on a real phone
+  (Sec. 14 step 6). Everything else is decoration on top of it. `tools/` holds
+  two harnesses that answer it in minutes rather than a night:
+  `bfu-check.sh` reboots a device, holds it at the lock screen and reports on
+  each link in the chain separately; `doze-check.sh` forces deep idle and
+  measures the interval the polls actually land at.
+- **App standby, not Doze, is the binding constraint.** Measured on a Pixel 8a:
+  `setAndAllowWhileIdle` defeats Doze exactly as documented (`device_idle=--`
+  in the alarm dump), while app standby deferred the same alarm by 365 days.
+  Two things cause that, and a user can hit both - an app in the `NEVER` bucket
+  because it has not been opened yet, and no battery-optimisation exemption. A
+  deferred alarm is still listed as pending and looks healthy; only the
+  `policyWhenElapsed` line distinguishes it, which is why the harness reads it.
+  The exemption request flow is therefore load-bearing, not a nicety.
 - **CI:** Codeberg CI (Woodpecker or Forgejo Actions) builds and tests the app
   and deploys the Worker via Wrangler. Reproducible builds for the F-Droid main
   repo are a post-v1 concern (Sec. 12).

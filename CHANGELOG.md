@@ -60,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Instrumented tests verified on a Pixel 8a running GrapheneOS: storage
   partitioning, permission declarations, scheduling and notifications.
+- Before-unlock alerting verified end to end on a Pixel 8a running GrapheneOS:
+  after a reboot the boot receiver re-armed the alarm 50 seconds in, and two
+  polls fetched, verified and cached the manifest, status and grid while the
+  device was still locked.
+- App standby, not Doze, is what stops overnight wakes. `setAndAllowWhileIdle`
+  defeats Doze as documented, but app standby deferred the same alarm by 365
+  days while it still appeared pending and healthy. The causes are an app in
+  the `NEVER` bucket - where it sits until the user first opens it - and a
+  missing battery-optimisation exemption.
 - GrapheneOS defaults the USB-C port to charging-only while locked, so adb is
   unreachable for the whole before-unlock window. The harness gathers its
   evidence afterwards instead - from `last_poll_at` in device-encrypted storage,

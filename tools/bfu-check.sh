@@ -83,8 +83,36 @@ user_state() {
 # Only alarms currently pending count. "Removal history" further down the dump
 # records each cancelled alarm under the very same tag, so searching the whole
 # dump reads the record of a cancellation as proof of a live alarm.
-pending_alarms() {
-    adb shell dumpsys alarm 2>/dev/null | sed -n '1,/App Alarm history/p'
+#
+# Matched on the full tag rather than the package name: the pending region also
+# names packages in unrelated bookkeeping, and a bare package match reports an
+# alarm that is not there.
+poll_alarm() {
+    adb shell dumpsys alarm 2>/dev/null | tr -d '\r' \
+        | sed -n '1,/App Alarm history/p' \
+        | grep -A 4 "walarm\*:${PACKAGE}/\.work\.PollReceiver" || true
+}
+
+# App standby buckets, from UsageStatsManager. NEVER is what an app sits in
+# until the user opens it for the first time, and its alarms are deferred so far
+# out that they may as well not exist.
+bucket_name() {
+    case "$1" in
+        5)  printf 'EXEMPTED - on the power allowlist' ;;
+        10) printf 'ACTIVE' ;;
+        20) printf 'WORKING_SET' ;;
+        30) printf 'FREQUENT' ;;
+        40) printf 'RARE' ;;
+        45) printf 'RESTRICTED' ;;
+        50) printf 'NEVER - the app has never been opened by the user' ;;
+        *)  printf 'unknown (%s)' "$1" ;;
+    esac
+}
+
+# Log lines from our own tags, minus logcat's own banner, so "nothing was
+# logged" can be told apart from "the tag logged nothing".
+our_log() {
+    adb logcat -d -b all -s "$1" 2>/dev/null | tr -d '\r' | grep -v '^---------' || true
 }
 
 # ---------------------------------------------------------------- preflight --
@@ -141,10 +169,30 @@ if [ "$RESUME" -eq 0 ]; then
             "Every locked wake will skip. Run again with --seed."
     fi
 
+    # The exemption is what lifts app-standby deferral, and app standby - not
+    # Doze - is what actually stops the overnight wakes. Without it an alarm can
+    # be pushed a year out while still looking perfectly healthy in dumpsys.
     if adb shell dumpsys deviceidle whitelist 2>/dev/null | grep -q "$PACKAGE"; then
-        printf '  NOTE  exempt from battery optimisation\n'
+        pass "exempt from battery optimisation"
     else
-        printf '  NOTE  NOT exempt from battery optimisation - Doze will defer wakes\n'
+        fail "not exempt from battery optimisation" \
+            "App standby will defer the wakes. Grant it in the app, or for a test: adb shell dumpsys deviceidle whitelist +$PACKAGE"
+    fi
+
+    bucket=$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')
+    if [ "${bucket:-50}" -ge 45 ] 2>/dev/null; then
+        fail "app standby bucket is $bucket: $(bucket_name "$bucket")" \
+            "Alarms in this bucket are deferred indefinitely. Open the app once."
+    else
+        pass "app standby bucket is $bucket ($(bucket_name "$bucket"))"
+    fi
+
+    if adb shell dumpsys package "$PACKAGE" 2>/dev/null \
+        | grep -q 'POST_NOTIFICATIONS: granted=true'; then
+        pass "notification permission is granted"
+    else
+        fail "notification permission is not granted" \
+            "A poll can decide to alert and still post nothing. Grant it in the app, or: adb shell pm grant $PACKAGE android.permission.POST_NOTIFICATIONS"
     fi
 
     [ "$FAIL" -eq 0 ] || { printf '\nFix the above before rebooting.\n'; exit 1; }
@@ -207,7 +255,9 @@ fi
 
 step "Did the boot receiver re-arm the alarm before unlock?"
 
-boot_log=$(adb logcat -d -b all -s BootReceiver:V 2>/dev/null | tr -d '\r' || true)
+# Filtered to our own process: the platform has a BootReceiver of its own that
+# logs under exactly the same tag.
+boot_log=$(our_log BootReceiver | grep -v 'tombstone' || true)
 if printf '%s' "$boot_log" | grep -q 'LOCKED_BOOT_COMPLETED'; then
     pass "BootReceiver ran on LOCKED_BOOT_COMPLETED"
     printf '%s\n' "$boot_log" | grep 'LOCKED_BOOT_COMPLETED' | tail -2 | sed 's/^/        /'
@@ -223,7 +273,7 @@ step "Did a poll actually run while the device was locked?"
 
 # The app logs the unlock state at the moment of the poll, so this needs no
 # inference about when the unlock happened.
-poll_log=$(adb logcat -d -b all -s PollReceiver:V 2>/dev/null | tr -d '\r' || true)
+poll_log=$(our_log PollReceiver)
 locked_polls=$(printf '%s' "$poll_log" | grep -c 'unlocked=false' || true)
 skipped=$(printf '%s' "$poll_log" | grep -c 'before-unlock alerting is off' || true)
 
@@ -273,10 +323,24 @@ else
         "Nothing was ever fetched and stored where a locked wake can reach it."
 fi
 
-if pending_alarms | grep -q "$PACKAGE"; then
-    pass "an alarm is still pending, so the schedule continues"
-else
+alarm=$(poll_alarm)
+if [ -z "$alarm" ]; then
     fail "no alarm is pending" "The chain stopped; nothing will wake the app again."
+else
+    # A pending alarm is not the same as an alarm that will fire. The system
+    # records the time the app asked for and the time each policy will actually
+    # allow, and reports the latest of them. An alarm deferred by days is
+    # indistinguishable from a healthy one unless that line is read.
+    when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1)
+    policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//')
+    if printf '%s' "$when" | grep -qE '^[0-9]+d'; then
+        fail "an alarm is pending but deferred to +$when" \
+            "It will never fire. $policy"
+    elif [ -n "$when" ]; then
+        pass "an alarm is pending and due in $when"
+    else
+        pass "an alarm is pending"
+    fi
 fi
 
 step "Result"
