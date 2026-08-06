@@ -26,6 +26,11 @@ private const val KEY_THRESHOLD = "threshold"
 private const val KEY_ALERTS_ENABLED = "alerts_enabled"
 private const val KEY_POLL_MINUTES = "poll_minutes"
 private const val KEY_BEFORE_UNLOCK = "alerts_before_unlock"
+private const val KEY_CLOUD_TOLERANCE = "cloud_tolerance"
+private const val KEY_CLOUD_GATE = "cloud_gate_enabled"
+private const val KEY_QUIET_START = "quiet_hours_start"
+private const val KEY_QUIET_END = "quiet_hours_end"
+private const val KEY_QUIET_OVERRIDE = "quiet_hours_override"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -35,6 +40,15 @@ private const val KEY_LAST_PROBABILITY = "last_probability"
 private const val KEY_LAST_ERROR = "last_error"
 
 private const val UNSET = Long.MIN_VALUE
+
+/**
+ * Absent quiet hours, distinct from any real minute of the day.
+ *
+ * Midnight is 0 and a valid start, so zero cannot mean "unset" here - reading
+ * it that way would either lose a period starting at midnight or invent one
+ * that silences the app on its own initiative.
+ */
+private const val NO_MINUTE = -1
 
 /**
  * Preferences in the ordinary, credential-encrypted store: unreadable until the
@@ -57,6 +71,8 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
     override fun read(): UserSettings {
         val latitude = prefs.getLong(KEY_LATITUDE, UNSET)
         val longitude = prefs.getLong(KEY_LONGITUDE, UNSET)
+        val quietStart = prefs.getInt(KEY_QUIET_START, NO_MINUTE)
+        val quietEnd = prefs.getInt(KEY_QUIET_END, NO_MINUTE)
         return UserSettings(
             latitude = if (latitude == UNSET) null else Double.fromBits(latitude),
             longitude = if (longitude == UNSET) null else Double.fromBits(longitude),
@@ -64,6 +80,17 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             alertsEnabled = prefs.getBoolean(KEY_ALERTS_ENABLED, true),
             pollIntervalMinutes = prefs.getInt(KEY_POLL_MINUTES, UserSettings.DEFAULT_POLL_MINUTES),
             alertsBeforeUnlock = prefs.getBoolean(KEY_BEFORE_UNLOCK, false),
+            cloudTolerance = prefs.getInt(
+                KEY_CLOUD_TOLERANCE,
+                UserSettings.DEFAULT_CLOUD_TOLERANCE,
+            ),
+            cloudGateEnabled = prefs.getBoolean(KEY_CLOUD_GATE, true),
+            quietHours = if (quietStart == NO_MINUTE || quietEnd == NO_MINUTE) {
+                null
+            } else {
+                QuietHours(quietStart, quietEnd)
+            },
+            quietHoursOverride = prefs.getBoolean(KEY_QUIET_OVERRIDE, false),
         )
     }
 
@@ -83,6 +110,17 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putBoolean(KEY_ALERTS_ENABLED, settings.alertsEnabled)
             putInt(KEY_POLL_MINUTES, settings.pollIntervalMinutes)
             putBoolean(KEY_BEFORE_UNLOCK, settings.alertsBeforeUnlock)
+            putInt(KEY_CLOUD_TOLERANCE, settings.cloudTolerance)
+            putBoolean(KEY_CLOUD_GATE, settings.cloudGateEnabled)
+            val quietHours = settings.quietHours
+            if (quietHours == null) {
+                remove(KEY_QUIET_START)
+                remove(KEY_QUIET_END)
+            } else {
+                putInt(KEY_QUIET_START, quietHours.startMinute)
+                putInt(KEY_QUIET_END, quietHours.endMinute)
+            }
+            putBoolean(KEY_QUIET_OVERRIDE, settings.quietHoursOverride)
         }.apply()
     }
 

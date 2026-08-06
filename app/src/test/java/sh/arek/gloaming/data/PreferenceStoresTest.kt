@@ -48,11 +48,36 @@ class PreferenceStoresTest {
             alertsEnabled = false,
             pollIntervalMinutes = 30,
             alertsBeforeUnlock = true,
+            cloudTolerance = 55,
+            cloudGateEnabled = false,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+            quietHoursOverride = true,
         )
 
         store.write(settings)
 
         assertEquals(settings, store.read())
+    }
+
+    // Off is the default, and it has to survive being written: a null that read
+    // back as some stored pair would silence the app on its own initiative.
+    @Test
+    fun `clearing quiet hours removes them rather than storing midnight`() {
+        val store = settingsStore()
+        store.write(UserSettings(quietHours = QuietHours(23 * 60, 7 * 60)))
+
+        store.write(UserSettings(quietHours = null))
+
+        assertNull(store.read().quietHours)
+    }
+
+    @Test
+    fun `round-trips quiet hours that begin at midnight`() {
+        val store = settingsStore()
+
+        store.write(UserSettings(quietHours = QuietHours(0, 6 * 60)))
+
+        assertEquals(QuietHours(0, 6 * 60), store.read().quietHours)
     }
 
     @Test
@@ -64,6 +89,10 @@ class PreferenceStoresTest {
         assertEquals(UserSettings.DEFAULT_THRESHOLD, settings.threshold)
         assertTrue(settings.alertsEnabled)
         assertEquals(false, settings.alertsBeforeUnlock)
+        assertEquals(UserSettings.DEFAULT_CLOUD_TOLERANCE, settings.cloudTolerance)
+        assertTrue(settings.cloudGateEnabled)
+        assertNull(settings.quietHours)
+        assertEquals(false, settings.quietHoursOverride)
     }
 
     @Test

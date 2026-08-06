@@ -2,25 +2,44 @@ package sh.arek.gloaming.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.QuietHours
+import sh.arek.gloaming.data.UserSettings
 
 class AlertDecisionTest {
 
     private val hour = 3_600_000L
     private val now = 10 * 24 * hour
 
+    /** Two in the morning: dark, and outside any quiet hours unless one is set. */
+    private val smallHours = 2 * 60
+
     private fun decide(
         probability: Int,
         threshold: Int = 30,
+        isDark: Boolean = true,
+        localMinuteOfDay: Int = smallHours,
+        quietHours: QuietHours? = null,
+        quietHoursOverride: Boolean = false,
         lastAlertAt: Long? = null,
         lastAlertProbability: Int? = null,
         armed: Boolean = true,
         minimumInterval: Long = 6 * hour,
     ) = AlertDecision.evaluate(
         probability = probability,
-        threshold = threshold,
-        lastAlertAt = lastAlertAt,
-        lastAlertProbability = lastAlertProbability,
-        armed = armed,
+        isDark = isDark,
+        localMinuteOfDay = localMinuteOfDay,
+        settings = UserSettings(
+            threshold = threshold,
+            quietHours = quietHours,
+            quietHoursOverride = quietHoursOverride,
+        ),
+        state = AlertState(
+            lastAlertAt = lastAlertAt,
+            lastAlertProbability = lastAlertProbability,
+            armed = armed,
+        ),
         now = now,
         minimumIntervalMillis = minimumInterval,
     )
@@ -110,5 +129,128 @@ class AlertDecisionTest {
         )
 
         assertEquals(AlertDecision.RateLimited, decision)
+    }
+
+    /**
+     * The darkness gate: free, offline, and it eliminates most false alerts on
+     * its own. A 90% probability at noon is not something to wake anyone for.
+     */
+    @Test
+    fun `stays quiet while the sun is up, whatever the probability`() {
+        assertEquals(AlertDecision.TooLight, decide(probability = 95, isDark = false))
+    }
+
+    @Test
+    fun `checks the threshold before the sky`() {
+        // Below threshold in daylight reports the threshold, which is the more
+        // useful of the two true answers - the sky will be dark again tonight.
+        assertEquals(
+            AlertDecision.BelowThreshold,
+            decide(probability = 5, isDark = false),
+        )
+    }
+
+    @Test
+    fun `stays quiet during quiet hours`() {
+        val decision = decide(
+            probability = 60,
+            localMinuteOfDay = 2 * 60,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+        )
+
+        assertEquals(AlertDecision.InQuietHours, decision)
+    }
+
+    @Test
+    fun `alerts outside quiet hours`() {
+        val decision = decide(
+            probability = 60,
+            localMinuteOfDay = 22 * 60,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+        )
+
+        assertEquals(AlertDecision.Notify, decision)
+    }
+
+    /**
+     * The override is opt-in and off by default. The user decides what is worth
+     * being woken for; the app does not decide on their behalf.
+     */
+    @Test
+    fun `stays quiet through an exceptional event unless asked not to`() {
+        val decision = decide(
+            probability = 95,
+            localMinuteOfDay = 2 * 60,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+            quietHoursOverride = false,
+        )
+
+        assertEquals(AlertDecision.InQuietHours, decision)
+    }
+
+    @Test
+    fun `breaks quiet hours for an exceptional event when asked to`() {
+        val decision = decide(
+            probability = AlertDecision.EXCEPTIONAL_PROBABILITY,
+            localMinuteOfDay = 2 * 60,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+            quietHoursOverride = true,
+        )
+
+        assertEquals(AlertDecision.Notify, decision)
+    }
+
+    @Test
+    fun `keeps quiet hours for an ordinary event even with the override on`() {
+        val decision = decide(
+            probability = AlertDecision.EXCEPTIONAL_PROBABILITY - 1,
+            localMinuteOfDay = 2 * 60,
+            quietHours = QuietHours(23 * 60, 7 * 60),
+            quietHoursOverride = true,
+        )
+
+        assertEquals(AlertDecision.InQuietHours, decision)
+    }
+
+    private fun cloudGate(
+        cover: CloudCover?,
+        tolerance: Int = UserSettings.DEFAULT_CLOUD_TOLERANCE,
+        enabled: Boolean = true,
+    ) = AlertDecision.cloudGate(
+        cover,
+        UserSettings(cloudTolerance = tolerance, cloudGateEnabled = enabled),
+    )
+
+    private fun overcast(total: Int) = CloudCover(total, low = total, mid = 0, high = 0)
+
+    @Test
+    fun `stays quiet under cloud thicker than the user will tolerate`() {
+        assertEquals(AlertDecision.TooCloudy, cloudGate(overcast(95), tolerance = 80))
+    }
+
+    @Test
+    fun `alerts under cloud the user will tolerate`() {
+        assertEquals(AlertDecision.Notify, cloudGate(overcast(40), tolerance = 80))
+    }
+
+    @Test
+    fun `treats the tolerance itself as acceptable`() {
+        assertEquals(AlertDecision.Notify, cloudGate(overcast(80), tolerance = 80))
+    }
+
+    /**
+     * The stated rule: if the forecast is unreachable, notify anyway and say
+     * cloud cover is unknown, rather than suppressing silently. An app that
+     * goes quiet when a third party is down is indistinguishable from one that
+     * is broken.
+     */
+    @Test
+    fun `alerts when cloud cover is unknown`() {
+        assertEquals(AlertDecision.Notify, cloudGate(cover = null))
+    }
+
+    @Test
+    fun `alerts under any cloud when the gate is switched off`() {
+        assertEquals(AlertDecision.Notify, cloudGate(overcast(100), enabled = false))
     }
 }

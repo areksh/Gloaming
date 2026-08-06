@@ -51,6 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   timer. Keeps alerts working while the phone sits locked after a reboot, at the
   cost of copying the rounded grid cell - never the precise position - into
   device-protected storage.
+- The darkness and cloud gates, quiet hours, and an opt-in override that lets an
+  exceptional display through them. The gates run cheapest first - threshold,
+  darkness, hysteresis, quiet hours and rate limiting all cost nothing - so only
+  a poll that has already decided to alert pays for a cloud forecast. An
+  unreachable forecast alerts anyway and says the cloud is unknown, rather than
+  going quiet whenever a third party is down.
 - Darkness windows and moon phase, computed on the device with no network at
   all. The polar cases are answered rather than guarded against: Shetland's
   simmer dim reports that no astronomical darkness arrives, and the polar night

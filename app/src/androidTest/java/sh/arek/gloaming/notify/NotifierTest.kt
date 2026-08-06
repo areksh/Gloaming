@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
 
 /**
@@ -29,9 +30,11 @@ class NotifierTest {
         maxProbability = 80,
     )
 
+    private val clear = CloudCover(total = 5, low = 0, mid = 0, high = 5)
+
     @Test
     fun postingCreatesTheAuroraChannel() {
-        AndroidAuroraNotifier(context).notifyAurora(72, status)
+        AndroidAuroraNotifier(context).notifyAurora(72, status, clear)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(NotificationManager::class.java)
@@ -44,16 +47,21 @@ class NotifierTest {
     /**
      * Posting must never throw, whatever the permission state. An alert the
      * user declined is their choice; a crash in a background wake is a bug.
+     *
+     * Unknown cloud is included because it is the path taken whenever
+     * Open-Meteo is unreachable, which is exactly when nobody is watching.
      */
     @Test
     fun postingNeverThrows() {
         val notifier = AndroidAuroraNotifier(context)
 
-        notifier.notifyAurora(0, status)
-        notifier.notifyAurora(100, status)
+        notifier.notifyAurora(0, status, clear)
+        notifier.notifyAurora(100, status, CloudCover(100, 100, 100, 100))
+        notifier.notifyAurora(60, status, null)
         notifier.notifyAurora(
             55,
             status.copy(aurorawatch = null, kp = null, solarWind = null),
+            null,
         )
     }
 }

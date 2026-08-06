@@ -7,8 +7,10 @@ import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSkyCache
+import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.ManifestRepository
+import sh.arek.gloaming.data.OpenMeteoWeather
 import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
@@ -70,6 +72,7 @@ object Graph {
                 manifestUrl = GloamingEndpoints.MANIFEST_URL,
             ),
             sky = SkyRepository(http, FileSkyCache(cacheDirectory(application))),
+            weather = OpenMeteoWeather(http, FileWeatherCache(cacheDirectory(application))),
             // Whichever store is authoritative for polling: the device-protected
             // mirror when before-unlock alerting is on, the normal one otherwise.
             settings = BootAware.pollSettings(application),

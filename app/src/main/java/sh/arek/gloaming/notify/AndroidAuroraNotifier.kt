@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import sh.arek.gloaming.R
+import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
 
@@ -22,11 +23,12 @@ import sh.arek.gloaming.domain.AuroraNotifier
  */
 class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
 
-    override fun notifyAurora(probability: Int, status: SkyStatus) {
+    override fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?) {
         ensureChannel()
 
         val detail = buildString {
             append("Local probability $probability%")
+            append(", ").append(describe(cloud))
             status.kp?.let { append(", Kp ${it.value}") }
             status.solarWind?.let { append(", Bz ${it.bz} nT") }
             status.aurorawatch?.let { append(", AuroraWatch ${it.status}") }
@@ -46,6 +48,26 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
         // may simply have declined, which is their right and not an error.
         runCatching {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /**
+     * What the sky is doing, in words.
+     *
+     * An unreachable forecast says so rather than being left out. Omitting it
+     * would read as a clear sky, and the whole reason the gate notifies on an
+     * unknown reading is that the user should decide whether to go and look.
+     *
+     * Where the cloud is matters as much as how much: high cirrus at 60% still
+     * shows a strong aurora, low stratus at 60% does not.
+     */
+    private fun describe(cloud: CloudCover?): String {
+        if (cloud == null) return "cloud cover unknown"
+        val blocking = cloud.low + cloud.mid
+        return when {
+            cloud.total <= 15 -> "clear"
+            cloud.high >= cloud.total && blocking <= 25 -> "${cloud.total}% cloud, high and thin"
+            else -> "${cloud.total}% cloud"
         }
     }
 

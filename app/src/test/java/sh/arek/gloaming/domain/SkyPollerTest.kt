@@ -13,14 +13,16 @@ import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.CachedGrid
 import sh.arek.gloaming.data.CachedManifest
-import sh.arek.gloaming.data.Manifest
+import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.ManifestStore
+import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.SkyCache
 import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.HttpResult
 
@@ -44,6 +46,21 @@ class SkyPollerTest {
             """"oval":"https://sky.arek.sh/v1/oval.bin",""" +
             """"weather":"https://api.open-meteo.com/v1/forecast"}}"""
         ).toByteArray()
+
+    /**
+     * A manifest from before the forecast endpoint existed, with a real
+     * signature over it - the repository verifies before it parses, so a
+     * hand-edited body would be rejected rather than exercising the case.
+     */
+    private val weatherlessManifestBody = (
+        """{"schema":1,"min_supported_version":1,"message":null,""" +
+            """"endpoints":{"status":"https://sky.arek.sh/v1/status.json",""" +
+            """"oval":"https://sky.arek.sh/v1/oval.bin"}}"""
+        ).toByteArray()
+    private val weatherlessSignature = hex(
+        "15046cc85ad415622f73cbf5f67ceb7259a69ccf3c207a4092fdf21a6fba0a22" +
+            "736fba01420bb504c6976255c6cbf27da1077cb69c51072a07fc9121326efa0a",
+    )
 
     private fun grid(probability: Int, lat: Int = 56, lon: Int = 357): ByteArray {
         val cells = ByteArray(OvalGrid.BYTES)
@@ -76,8 +93,28 @@ class SkyPollerTest {
 
     private class Notifier : AuroraNotifier {
         val notified = mutableListOf<Int>()
-        override fun notifyAurora(probability: Int, status: SkyStatus) {
+        val clouds = mutableListOf<CloudCover?>()
+        override fun notifyAurora(probability: Int, status: SkyStatus, cloud: CloudCover?) {
             notified += probability
+            clouds += cloud
+        }
+    }
+
+    /** Records what was asked, and answers with whatever it was given. */
+    private class Weather(
+        private val cover: CloudCover? = CloudCover(0, 0, 0, 0),
+        private val fails: Boolean = false,
+    ) : WeatherSource {
+        val requested = mutableListOf<Triple<String, Double, Double>>()
+
+        override suspend fun cloudCover(
+            baseUrl: String,
+            latitude: Double,
+            longitude: Double,
+        ): CloudCover? {
+            requested += Triple(baseUrl, latitude, longitude)
+            if (fails) throw java.io.IOException("offline")
+            return cover
         }
     }
 
@@ -100,6 +137,11 @@ class SkyPollerTest {
         state: State,
         notifier: Notifier,
         failing: Set<String> = emptySet(),
+        weather: Weather = Weather(),
+        isDark: Boolean = true,
+        localMinuteOfDay: Int = 2 * 60,
+        manifestBody: ByteArray = this.manifestBody,
+        signature: ByteArray = this.signature,
     ): SkyPoller {
         val http = Fetcher(
             mapOf(
@@ -113,10 +155,17 @@ class SkyPollerTest {
         return SkyPoller(
             manifests = ManifestRepository(http, Manifests(null), publicKey, manifestUrl),
             sky = SkyRepository(http, Cache(), now = { nowMillis }),
+            weather = weather,
             settings = settings,
             state = state,
             notifier = notifier,
             now = { nowMillis },
+            // The ephemeris and the device's time zone are boundaries, and both
+            // are exercised for real elsewhere. Pinning them here keeps every
+            // assertion about the decision rather than about the date the suite
+            // happens to run on.
+            darkness = { _, _, _ -> isDark },
+            localMinuteOfDay = { localMinuteOfDay },
         )
     }
 
@@ -232,6 +281,152 @@ class SkyPollerTest {
         val outcome = poller(72, settingsAt(), state, notifier).poll()
 
         assertEquals(PollOutcome.Quiet(72, AlertDecision.RateLimited), outcome)
+        assertTrue(notifier.notified.isEmpty())
+    }
+
+    @Test
+    fun `stays quiet while the sun is up`() = runTest {
+        val notifier = Notifier()
+
+        val outcome = poller(90, settingsAt(), State(), notifier, isDark = false).poll()
+
+        assertEquals(PollOutcome.Quiet(90, AlertDecision.TooLight), outcome)
+        assertTrue(notifier.notified.isEmpty())
+    }
+
+    /**
+     * The ordering is the point, not an optimisation. Every free gate runs
+     * before the one that costs a radio wake, so a quiet poll - which is nearly
+     * all of them - never touches the forecast at all.
+     */
+    @Test
+    fun `does not fetch cloud cover for a poll that will not notify`() = runTest {
+        val weather = Weather()
+
+        poller(5, settingsAt(), State(), Notifier(), weather = weather).poll()
+
+        assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    @Test
+    fun `does not fetch cloud cover while the sun is up`() = runTest {
+        val weather = Weather()
+
+        poller(90, settingsAt(), State(), Notifier(), weather = weather, isDark = false).poll()
+
+        assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    @Test
+    fun `asks the forecast about the observer, at the endpoint the manifest gives`() = runTest {
+        val weather = Weather()
+
+        poller(70, settingsAt(), State(), Notifier(), weather = weather).poll()
+
+        assertEquals(
+            listOf(Triple("https://api.open-meteo.com/v1/forecast", 55.95, -3.19)),
+            weather.requested,
+        )
+    }
+
+    @Test
+    fun `stays quiet under cloud thicker than the user tolerates`() = runTest {
+        val notifier = Notifier()
+        val weather = Weather(CloudCover(total = 100, low = 100, mid = 0, high = 0))
+
+        val outcome = poller(70, settingsAt(), State(), notifier, weather = weather).poll()
+
+        assertEquals(PollOutcome.Quiet(70, AlertDecision.TooCloudy), outcome)
+        assertTrue(notifier.notified.isEmpty())
+    }
+
+    @Test
+    fun `tells the notification what the cloud was`() = runTest {
+        val notifier = Notifier()
+        val cover = CloudCover(total = 20, low = 5, mid = 0, high = 15)
+
+        poller(70, settingsAt(), State(), notifier, weather = Weather(cover)).poll()
+
+        assertEquals(listOf(cover), notifier.clouds)
+    }
+
+    /**
+     * If Open-Meteo cannot be reached the alert still goes out, saying cloud
+     * cover is unknown. An app that goes silent whenever a third party is down
+     * is indistinguishable from one that is broken.
+     */
+    @Test
+    fun `notifies with cloud unknown when the forecast cannot be reached`() = runTest {
+        val notifier = Notifier()
+
+        val outcome = poller(
+            70,
+            settingsAt(),
+            State(),
+            notifier,
+            weather = Weather(fails = true),
+        ).poll()
+
+        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(listOf(null), notifier.clouds)
+    }
+
+    // The manifest advertises only endpoints that exist, so an older Worker
+    // publishing no weather endpoint must degrade to unknown, not to silence.
+    @Test
+    fun `notifies with cloud unknown when the manifest advertises no forecast`() = runTest {
+        val weather = Weather()
+        val notifier = Notifier()
+
+        val outcome = poller(
+            70,
+            settingsAt(),
+            State(),
+            notifier,
+            weather = weather,
+            manifestBody = weatherlessManifestBody,
+            signature = weatherlessSignature,
+        ).poll()
+
+        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+        assertEquals(listOf(null), notifier.clouds)
+    }
+
+    @Test
+    fun `does not consult the forecast when the user has switched the gate off`() = runTest {
+        val weather = Weather(CloudCover(100, 100, 0, 0))
+        val notifier = Notifier()
+        val settings = Settings(
+            UserSettings(latitude = 55.95, longitude = -3.19, cloudGateEnabled = false),
+        )
+
+        val outcome = poller(70, settings, State(), notifier, weather = weather).poll()
+
+        assertEquals(PollOutcome.Notified(70), outcome)
+        assertEquals(emptyList<Triple<String, Double, Double>>(), weather.requested)
+    }
+
+    @Test
+    fun `stays quiet during the user's quiet hours`() = runTest {
+        val notifier = Notifier()
+        val settings = Settings(
+            UserSettings(
+                latitude = 55.95,
+                longitude = -3.19,
+                quietHours = QuietHours(23 * 60, 7 * 60),
+            ),
+        )
+
+        val outcome = poller(
+            70,
+            settings,
+            State(),
+            notifier,
+            localMinuteOfDay = 2 * 60,
+        ).poll()
+
+        assertEquals(PollOutcome.Quiet(70, AlertDecision.InQuietHours), outcome)
         assertTrue(notifier.notified.isEmpty())
     }
 }
