@@ -63,7 +63,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Before-unlock alerting verified end to end on a Pixel 8a running GrapheneOS:
   after a reboot the boot receiver re-armed the alarm 50 seconds in, and two
   polls fetched, verified and cached the manifest, status and grid while the
-  device was still locked.
+  device was still locked. A subsequent run carried it through to a real
+  notification - `Notified(probability=21)` from the live grid, posted on a
+  phone that had not been unlocked since boot.
+- Alerting verified in forced deep Doze on the same device, with the
+  battery-optimisation exemption granted: three polls in twelve minutes, an
+  alert raised and its notification posted from deep idle. The exemption does
+  what it claims - the alarm carries `ALLOW_WHILE_IDLE_UNRESTRICTED` rather
+  than the throttled compat form, and neither Doze nor app standby constrains
+  it. Hysteresis held on real data across the run: the probability stayed at
+  21% and the following polls returned `NotReArmed` rather than notifying
+  again.
+- Measured the cost of inexact alarms: a two-minute interval is delivered at
+  roughly four, both in Doze and before unlock. `setAndAllowWhileIdle` is
+  inexact by design and the system batches it, so the configured interval is a
+  floor rather than a period. The adaptive-polling design should assume about
+  double what it asks for.
+- Three states stop alerting silently, and all are now checked before a test
+  run: an app in the stopped state receives no broadcasts at all and sits there
+  from installation until first opened; a never-opened app is in the `NEVER`
+  standby bucket; and without the battery-optimisation exemption app standby
+  defers alarms anyway. A deferred alarm still lists as pending.
 - App standby, not Doze, is what stops overnight wakes. `setAndAllowWhileIdle`
   defeats Doze as documented, but app standby deferred the same alarm by 365
   days while it still appeared pending and healthy. The causes are an app in

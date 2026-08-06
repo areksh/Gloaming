@@ -40,6 +40,21 @@ adb() {
     if [ -n "$SERIAL" ]; then command adb -s "$SERIAL" "$@"; else command adb "$@"; fi
 }
 
+DE_PREFS="/data/user_de/0/${PACKAGE}/shared_prefs"
+
+# Runs a command as the app's own uid. The inner `sh -c` matters: without it the
+# shell user expands the glob, and it cannot stat the app's directory.
+as_app() {
+    adb shell "run-as $PACKAGE sh -c '$1'" 2>/dev/null | tr -d '\r' || true
+}
+
+# When the app last decided something was worth interrupting someone for.
+# Durable, so it can be compared across the run.
+last_alert() {
+    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+        | sed -n 's/.*name="last_alert_at" value="\([0-9]*\)".*/\1/p' || true
+}
+
 restore() {
     printf '\nRestoring the device.\n'
     adb shell dumpsys deviceidle unforce >/dev/null 2>&1 || true
@@ -96,6 +111,7 @@ printf '  Ctrl-C stops early and still restores the device.\n\n'
 
 marker="gloaming-doze-$$"
 adb shell log -t GloamingHarness "$marker" >/dev/null 2>&1 || true
+alert_before=$(last_alert)
 
 deadline=$(( $(date +%s) + MINUTES * 60 ))
 started=$(date +%s)
@@ -140,3 +156,19 @@ elif [ "$elapsed" -gt 0 ]; then
     printf '  gap is Doze deferring the wakes, which the exemption is there to lift.\n'
 fi
 [ -n "$last_epoch" ] && printf '  last poll at %s\n' "$(date -d "@$last_epoch" '+%H:%M:%S' 2>/dev/null)"
+
+# Waking up is only half of it. Whether a notification can be posted from deep
+# idle is the part that actually reaches the user, so it is checked separately
+# rather than inferred from the poll having run.
+alert_after=$(last_alert)
+if [ -n "$alert_after" ] && [ "$alert_after" != "$alert_before" ]; then
+    printf '  ALERT raised during the run at %s\n' \
+        "$(date -d "@$((alert_after / 1000))" '+%H:%M:%S' 2>/dev/null)"
+    if adb shell dumpsys notification --noredact 2>/dev/null | grep -q "pkg=$PACKAGE"; then
+        printf '  and the notification posted from deep idle\n'
+    else
+        printf '  but NO notification is present - posting was swallowed\n'
+    fi
+else
+    printf '  no alert raised during the run (expected when the sky is quiet)\n'
+fi

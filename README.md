@@ -54,6 +54,26 @@ real overnight run.
 the app's battery-optimisation exemption and its app standby bucket both change
 the answer, so the number worth trusting is the one from the device.
 
+Both can provoke a genuine alert rather than waiting for the sky to oblige.
+Point the observer at the busiest cell in the live grid and set a threshold just
+below its value: the fetch, the grid lookup, the decision and the notification
+are all the real ones, and only the location is chosen.
+
+```sh
+curl -s https://sky.arek.sh/v1/oval.bin | gzip -dc | od -An -tu1 -v   # 65160 bytes,
+# row-major, 181 rows of latitude -90..90, each 360 columns of longitude 0..359
+tools/bfu-check.sh --prepare --seed --latitude -63 --longitude 183 \
+    --threshold 10 --expect-alert
+```
+
+Three things silently stop alerting altogether, and all three are checked before
+a run rather than discovered at three in the morning: an app in the **stopped**
+state receives no broadcasts at all, which is where it sits from installation
+until it is first opened; an app that has never been opened is in the **NEVER**
+standby bucket, where alarms are deferred by a year; and without the
+**battery-optimisation exemption** app standby defers them regardless. A
+deferred alarm still lists as pending and looks entirely healthy.
+
 ### Data Worker
 
 The `worker/` directory holds the Cloudflare cron Worker that fetches upstream
