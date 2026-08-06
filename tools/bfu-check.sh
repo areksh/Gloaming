@@ -26,6 +26,21 @@
 #   --interval N    poll interval in minutes to seed (default 2, so the soak
 #                   sees several wakes; the app default is 15)
 #   --soak N        minutes to leave the device locked (default 6)
+#   --latitude D    observer latitude to seed (default 55.95)
+#   --longitude D   observer longitude to seed (default -3.19)
+#   --threshold N   alert threshold to seed. To provoke a genuine alert from
+#                   real data, point it at the busiest cell in the live grid
+#                   and set this just under that cell's value:
+#                     curl -s https://sky.arek.sh/v1/oval.bin | gzip -dc | \
+#                       od -An -tu1 -v | ...   (65160 bytes, row-major,
+#                     181 rows of latitude -90..90, 360 columns of longitude)
+#   --expect-alert  treat "no alert raised" as a failure. Without it a quiet
+#                   sky reports as a note, which is the honest default.
+#   --prepare       put the device in the state a real install is in: open the
+#                   app once, grant notifications, allow it past battery
+#                   optimisation. A fresh install has none of these, and
+#                   connectedAndroidTest uninstalls the app when it finishes,
+#                   so this is needed more often than it looks.
 #   --resume        skip the reboot and just read the evidence. Use this in the
 #                   morning after a real overnight run.
 #   --serial S      target a specific device
@@ -38,6 +53,11 @@ SEED=0
 RESUME=0
 INTERVAL=2
 SOAK=6
+LATITUDE=""
+LONGITUDE=""
+THRESHOLD=""
+EXPECT_ALERT=0
+PREPARE=0
 RECONNECT_TIMEOUT=600
 
 while [ $# -gt 0 ]; do
@@ -46,6 +66,11 @@ while [ $# -gt 0 ]; do
         --seed) SEED=1; shift ;;
         --interval) INTERVAL="$2"; shift 2 ;;
         --soak) SOAK="$2"; shift 2 ;;
+        --latitude) LATITUDE="$2"; shift 2 ;;
+        --longitude) LONGITUDE="$2"; shift 2 ;;
+        --threshold) THRESHOLD="$2"; shift 2 ;;
+        --expect-alert) EXPECT_ALERT=1; shift ;;
+        --prepare) PREPARE=1; shift ;;
         --resume) RESUME=1; shift ;;
         -h|--help) sed -n '2,30p' "$0" | sed 's/^# \?//'; exit 0 ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -75,6 +100,19 @@ as_app() {
 }
 
 device_present() { adb shell true >/dev/null 2>&1; }
+
+# Whether the app is stopped, and whether it has ever been opened. Both matter:
+# a stopped app receives no broadcasts at all, and an app that has never been
+# opened sits in the NEVER standby bucket.
+#
+# Every pipeline here ends in `|| true`. An early-exiting reader such as
+# `grep -m1` or `head` closes the pipe on whatever is upstream, and under
+# `pipefail` that surfaces as a failed command substitution which `set -e` then
+# treats as fatal - killing the run over a match that in fact succeeded.
+package_state() {
+    adb shell dumpsys package "$PACKAGE" 2>/dev/null | tr -d '\r' \
+        | grep -m1 -oE 'stopped=[a-z]+ notLaunched=[a-z]+' || true
+}
 
 user_state() {
     adb shell dumpsys user 2>/dev/null | grep -m1 'State:' | tr -d '\r' | awk '{print $2}'
@@ -146,11 +184,53 @@ if [ "$RESUME" -eq 0 ]; then
     fi
     pass "a lock screen credential is set"
 
+    # Opening the app is not cosmetic: until the user launches it once it sits
+    # in the NEVER standby bucket, where alarms are deferred by a year, and a
+    # freshly installed app stays in the stopped state, where it receives no
+    # broadcasts at all - including the boot broadcast this whole thing rests on.
+    if [ "$PREPARE" -eq 1 ]; then
+        printf '  preparing: opening the app, granting notifications, exempting it\n'
+        started=$(adb shell am start -n "$PACKAGE/.MainActivity" 2>&1 | tr -d '\r' || true)
+        case "$started" in *Error*) printf '        %s\n' "$started" ;; esac
+
+        # Verified rather than assumed. This launch failed silently once,
+        # straight after an install, and every later check then reported a
+        # fault the app did not have.
+        waited=0
+        while [ "$waited" -lt 20 ]; do
+            case "$(package_state)" in *notLaunched=false*) break ;; esac
+            sleep 2
+            waited=$((waited + 2))
+        done
+
+        adb shell pm grant "$PACKAGE" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
+        adb shell dumpsys deviceidle whitelist "+$PACKAGE" >/dev/null 2>&1 || true
+        adb shell input keyevent KEYCODE_HOME >/dev/null 2>&1 || true
+        sleep 2
+    fi
+
+    # A stopped app receives no broadcasts, so nothing below can possibly work.
+    # An app is stopped from the moment it is installed until it is first
+    # opened, and force-stopping puts it back there.
+    state=$(package_state)
+    case "$state" in
+        *stopped=false*notLaunched=false*) pass "the app has been opened and is not stopped" ;;
+        *) fail "the app is stopped or has never been opened ($state)" \
+               "It will receive no broadcasts, including the boot one. Open it, or pass --prepare." ;;
+    esac
+
     if [ "$SEED" -eq 1 ]; then
-        printf '  seeding: before-unlock alerting on, %s minute interval\n' "$INTERVAL"
+        seed_args="-e interval $INTERVAL"
+        [ -n "$LATITUDE" ] && seed_args="$seed_args -e latitude $LATITUDE"
+        [ -n "$LONGITUDE" ] && seed_args="$seed_args -e longitude $LONGITUDE"
+        [ -n "$THRESHOLD" ] && seed_args="$seed_args -e threshold $THRESHOLD"
+        printf '  seeding: before-unlock alerting on, %s minute interval%s\n' \
+            "$INTERVAL" \
+            "$([ -n "$THRESHOLD" ] && printf ', threshold %s' "$THRESHOLD")"
+        # shellcheck disable=SC2086
         if ! adb shell am instrument -w \
             -e class sh.arek.gloaming.harness.BeforeUnlockFixture \
-            -e interval "$INTERVAL" \
+            $seed_args \
             "${PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner" 2>&1 \
             | tr -d '\r' | grep -qE 'OK \(1 test\)'; then
             fail "could not seed the settings" \
@@ -297,6 +377,39 @@ if [ "${failures:-0}" -gt 0 ]; then
         "$(printf '%s' "$poll_log" | grep 'poll failed' | tail -1)"
 fi
 
+step "Did an alert actually post?"
+
+# Quiet conditions are the normal case and produce no alert, so this only
+# becomes a failure when the run was set up to expect one. Two independent
+# records are checked: the notification the system still holds, and the
+# timestamp the app wrote before it posted.
+alert_at=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+    | sed -n 's/.*name="last_alert_at" value="\([0-9]*\)".*/\1/p')
+posted=$(adb shell dumpsys notification --noredact 2>/dev/null | tr -d '\r' \
+    | grep -c "pkg=$PACKAGE" || true)
+
+if [ -n "$alert_at" ]; then
+    when=$(date -d "@$((alert_at / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$alert_at")
+    pass "an alert was raised at $when"
+elif [ "$EXPECT_ALERT" -eq 1 ]; then
+    fail "no alert was raised" \
+        "The poll ran but the decision never reached Notify."
+else
+    printf '  NOTE  no alert raised; expected when conditions are quiet\n'
+fi
+
+if [ "${posted:-0}" -gt 0 ]; then
+    pass "a notification from $PACKAGE is live in the shade"
+    { adb shell dumpsys notification --noredact 2>/dev/null | tr -d '\r' \
+        | grep -A 3 "pkg=$PACKAGE" | grep -E 'channel|when=|pkg=' | head -4 \
+        | sed 's/^/        /'; } || true
+elif [ -n "$alert_at" ]; then
+    fail "an alert was raised but no notification is present" \
+        "Posting was swallowed - most likely POST_NOTIFICATIONS is denied."
+elif [ "$EXPECT_ALERT" -eq 1 ]; then
+    fail "no notification was posted"
+fi
+
 step "Durable evidence in device-encrypted storage"
 
 # Survives reboots and log rollover, so this is the check that still works after
@@ -331,8 +444,8 @@ else
     # records the time the app asked for and the time each policy will actually
     # allow, and reports the latest of them. An alarm deferred by days is
     # indistinguishable from a healthy one unless that line is read.
-    when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1)
-    policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//')
+    when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1 || true)
+    policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//' || true)
     if printf '%s' "$when" | grep -qE '^[0-9]+d'; then
         fail "an alarm is pending but deferred to +$when" \
             "It will never fire. $policy"

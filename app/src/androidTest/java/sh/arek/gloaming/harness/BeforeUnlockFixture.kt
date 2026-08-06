@@ -7,7 +7,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.devicePreferences
 
@@ -41,12 +43,18 @@ class BeforeUnlockFixture {
         val settings = UserSettings(
             latitude = arguments.getString("latitude")?.toDouble() ?: DEFAULT_LATITUDE,
             longitude = arguments.getString("longitude")?.toDouble() ?: DEFAULT_LONGITUDE,
+            threshold = arguments.getString("threshold")?.toInt() ?: UserSettings.DEFAULT_THRESHOLD,
             alertsEnabled = true,
             alertsBeforeUnlock = true,
             pollIntervalMinutes = arguments.getString("interval")?.toInt() ?: DEFAULT_INTERVAL,
         )
 
         BootAware.saveSettings(context, settings)
+
+        // Alert state is reset so a run starts armed with no rate limit behind
+        // it. Otherwise a previous run's alert silently suppresses this one and
+        // the harness reports a failure the app did not have.
+        PreferencesAlertStateStore(devicePreferences(context)).write(AlertState(armed = true))
 
         // `write` uses `apply`, which reaches disk on a background thread. The
         // harness reboots the device seconds later, so force the map out
