@@ -73,6 +73,7 @@ last_alert() {
 }
 
 restore() {
+    [ -n "${seen_file:-}" ] && rm -f "$seen_file"
     printf '\nRestoring the device.\n'
     adb shell dumpsys deviceidle unforce >/dev/null 2>&1 || true
     adb shell dumpsys battery reset >/dev/null 2>&1 || true
@@ -137,31 +138,47 @@ printf '\n== Watching for %s minutes ==\n' "$MINUTES"
 printf '  Each poll the app manages is printed with the gap since the previous one.\n'
 printf '  Ctrl-C stops early and still restores the device.\n\n'
 
-marker="gloaming-doze-$$"
-adb shell log -t GloamingHarness "$marker" >/dev/null 2>&1 || true
 alert_before=$(last_alert)
 
-deadline=$(( $(date +%s) + MINUTES * 60 ))
+# Polls are kept in a file rather than counted out of the log each pass.
+#
+# The log is a ring buffer, and on a busy phone it holds only minutes: an
+# 84,000-line buffer here covered about twelve. Anything that reads the whole
+# buffer each time and trusts the count to grow is wrong the moment it wraps -
+# the earlier run of this script anchored on a marker line it had written, and
+# once that marker aged out it matched nothing and reported one poll for a
+# thirty-five minute run in which four had actually fired. Recording each poll
+# as it is seen means a wrap can no longer un-count anything.
+seen_file=$(mktemp)
 started=$(date +%s)
-seen=0
-last_epoch=""
+deadline=$(( started + MINUTES * 60 ))
+
+# The device clock, not this machine's: `logcat -v epoch` stamps lines with it,
+# and a phone a few seconds adrift would otherwise hide the first poll.
+start_epoch=$(adb shell date +%s 2>/dev/null | tr -d '\r')
+[ -n "$start_epoch" ] || start_epoch="$started"
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
-    lines=$(adb logcat -d -b all -v epoch 2>/dev/null | tr -d '\r' \
-        | sed -n "/$marker/,\$p" | grep -E 'PollReceiver.*(poll outcome|skipping|poll failed)' || true)
-
-    count=$(printf '%s' "$lines" | grep -c . || true)
-    if [ "${count:-0}" -gt "$seen" ]; then
-        printf '%s\n' "$lines" | tail -n +$((seen + 1)) | while IFS= read -r line; do
+    adb logcat -d -b all -v epoch 2>/dev/null | tr -d '\r' \
+        | grep -E 'PollReceiver.*(poll outcome|skipping|poll failed)' \
+        | awk -v since="$start_epoch" 'int($1) >= since' \
+        | while IFS= read -r line; do
             [ -z "$line" ] && continue
+            has -Fx -- "$line" "$seen_file" && continue
+            printf '%s\n' "$line" >> "$seen_file"
+
             epoch=$(printf '%s' "$line" | awk '{print $1}' | cut -d. -f1)
             when=$(date -d "@$epoch" '+%H:%M:%S' 2>/dev/null || printf '%s' "$epoch")
-            printf '  %s  %s\n' "$when" "$(printf '%s' "$line" | sed 's/.*PollReceiver[^:]*: //')"
+            # The gap this script promises to report, which it never printed.
+            previous=$(tail -2 "$seen_file" | head -1 | awk '{print $1}' | cut -d. -f1)
+            gap=""
+            if [ -n "$previous" ] && [ "$previous" != "$epoch" ]; then
+                gap=$(printf '  (+%dm%02ds)' $(( (epoch - previous) / 60 )) \
+                    $(( (epoch - previous) % 60 )))
+            fi
+            printf '  %s  %s%s\n' "$when" \
+                "$(printf '%s' "$line" | sed 's/.*PollReceiver[^:]*: //')" "$gap"
         done
-        # Recomputed outside the subshell, which cannot write back to it.
-        last_epoch=$(printf '%s' "$lines" | tail -1 | awk '{print $1}' | cut -d. -f1)
-        seen="$count"
-    fi
 
     # force-idle can lapse; re-assert it so a long watch stays in deep Doze.
     if [ "$(adb shell dumpsys deviceidle get deep 2>/dev/null | tr -d '\r')" != "IDLE" ]; then
@@ -172,6 +189,8 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 
 elapsed=$(( ($(date +%s) - started) / 60 ))
+seen=$(grep -c . "$seen_file" 2>/dev/null || printf '0')
+last_epoch=$(tail -1 "$seen_file" 2>/dev/null | awk '{print $1}' | cut -d. -f1)
 
 printf '\n== Result ==\n'
 printf '  %s minutes in forced deep Doze, %s polls\n' "$elapsed" "$seen"
@@ -180,8 +199,10 @@ if [ "${seen:-0}" -eq 0 ]; then
     printf '  every one. Check: adb shell dumpsys alarm | grep %s\n' "$PACKAGE"
 elif [ "$elapsed" -gt 0 ]; then
     printf '  average one poll every %s minutes\n' "$(( elapsed / seen ))"
-    printf '  Compare that against the interval configured in the app. A much larger\n'
-    printf '  gap is Doze deferring the wakes, which the exemption is there to lift.\n'
+    printf '  Compare that against the interval configured in the app. Some of any\n'
+    printf '  excess is the batching window the system attaches to an inexact alarm\n'
+    printf '  rather than Doze: check `window=` and `maxWhenElapsed=` in\n'
+    printf '  `adb shell dumpsys alarm` before concluding the exemption is failing.\n'
 fi
 [ -n "$last_epoch" ] && printf '  last poll at %s\n' "$(date -d "@$last_epoch" '+%H:%M:%S' 2>/dev/null)"
 
