@@ -16,7 +16,8 @@ identifier of any kind. Nothing this project runs ever learns where you are.
 
 **Status: pre-release.** Everything in the v1.0 aurora scope is built - cloud
 cover, darkness windows, the full decision rules, adaptive polling, storm mode,
-the AuroraWatch UK layer, a home-screen widget and a night-vision mode - on top
+the AuroraWatch UK layer, a home-screen widget, a watch-now mode for nights the
+background schedule cannot be trusted, and a night-vision mode - on top
 of alerting already verified on a real phone in deep Doze and before first
 unlock. What remains before release is the part no test suite can do for you: a
 season of real nights, to calibrate the thresholds and confirm the app is worth
@@ -83,6 +84,16 @@ until it is first opened; an app that has never been opened is in the **NEVER**
 standby bucket, where alarms are deferred by a year; and without the
 **battery-optimisation exemption** app standby defers them regardless. A
 deferred alarm still lists as pending and looks entirely healthy.
+
+**Battery saver** is a fourth, and behaves differently from the other three: it
+cannot engage at all while the phone is charging, so it will not reproduce on a
+device plugged into a test rig. With the exemption granted it did not defer
+Gloaming's alarm or firewall its network when measured on a Pixel 10a
+(`dumpsys netpolicy` reported `effective=NONE` for the app's uid), but the
+exemption is not honoured on every OEM build, and a long stretch in a low
+standby bucket has not been measured under it. The **watch now** switch is the
+escape hatch: a foreground service runs its own clock, and nothing the system
+does to alarms reaches it.
 
 ### Data Worker
 

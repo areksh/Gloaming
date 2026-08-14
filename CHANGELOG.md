@@ -103,6 +103,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tools/bfu-check.sh` reboots a device and reports whether alerting survived
   the locked state, and `tools/doze-check.sh` forces deep Doze and measures how
   far apart the polls actually land. Both turn an overnight wait into minutes.
+- A "watch now" switch, which starts the same foreground service storm mode
+  uses and keeps it running until the user stops it or its four-hour cap does.
+  Everything else in the app is scheduled through `AlarmManager`, which the
+  system is free to defer; a foreground service runs its own clock and is the
+  only thing Android will not delay. It is a button rather than a default
+  because it costs a wake lock and a notification that will not go away.
+- The status card now says why the app is not checking - "sun is up, nothing to
+  see until it gets dark, around 22:40", or that this time of year has no
+  darkness in it at all. The adaptive schedule sleeps for up to twelve hours at
+  a stretch, and without this a correct long gap is indistinguishable from a
+  background service the system has killed.
+- A notice while battery saver is on, next to the watch switch that is immune
+  to it. Raised only while the saver is actually on, so it does not become
+  another standing warning to scroll past.
+
+### Changed
+
+- astronomy-engine is vendored (MIT, tag `v2.1.19`) rather than resolved as a
+  dependency. It is not published to Maven Central at all - only to JitPack,
+  which builds it on demand - and a third-party build service in the supply
+  chain is a poor trade for one dependency-free file. See ADR-0006.
+- Scheduling uses AlarmManager with Direct Boot aware receivers rather than
+  WorkManager, which cannot run before first unlock - precisely the state a
+  scheduled reboot leaves the device in.
+
+- Base application theme no longer depends on the Material Components view
+  library; a pure-Compose app themes at runtime, so the platform theme only
+  supplies a no-action-bar window.
+- Corrected the recorded SWPC solar wind endpoints: the paths under
+  `/products/solar-wind/` now return 404, and the summary products are used
+  instead.
+
+### Fixed
+
+- "Check now" now actually checks, and the screen shows that it did. It went
+  through `AlarmManager`, which is inexact - a "one second" alarm can be batched
+  up to two minutes out - and the screen only re-read the poll result when the
+  app was resumed, so the button appeared to do nothing at all. A check the user
+  asked for is run directly, reports itself as busy while it runs, and re-arms
+  the schedule from the plan it produces. That last part matters after a
+  location change: the pending wake was worked out for the old position, and
+  dusk somewhere else is at a different time.
+- Tapping an aurora alert opens the app. It carried no content intent, so the
+  tap did nothing whatever - the notification did not even dismiss, because
+  `setAutoCancel` only takes effect once there is somewhere to go. Storm mode's
+  notification had one from the start; the alert that actually wakes people did
+  not.
 
 ### Notes
 
@@ -149,36 +196,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence afterwards instead - from `last_poll_at` in device-encrypted storage,
   the cache file timestamps, and the `unlocked=false` the app logs at the moment
   of each poll - rather than requiring a live connection that cannot exist.
-
-### Fixed
-
-- "Check now" now actually checks, and the screen shows that it did. It went
-  through `AlarmManager`, which is inexact - a "one second" alarm can be batched
-  up to two minutes out - and the screen only re-read the poll result when the
-  app was resumed, so the button appeared to do nothing at all. A check the user
-  asked for is run directly, reports itself as busy while it runs, and re-arms
-  the schedule from the plan it produces. That last part matters after a
-  location change: the pending wake was worked out for the old position, and
-  dusk somewhere else is at a different time.
-
-### Changed
-
-- astronomy-engine is vendored (MIT, tag `v2.1.19`) rather than resolved as a
-  dependency. It is not published to Maven Central at all - only to JitPack,
-  which builds it on demand - and a third-party build service in the supply
-  chain is a poor trade for one dependency-free file. See ADR-0006.
-- Scheduling uses AlarmManager with Direct Boot aware receivers rather than
-  WorkManager, which cannot run before first unlock - precisely the state a
-  scheduled reboot leaves the device in.
-
-- Base application theme no longer depends on the Material Components view
-  library; a pure-Compose app themes at runtime, so the platform theme only
-  supplies a no-action-bar window.
-- Corrected the recorded SWPC solar wind endpoints: the paths under
-  `/products/solar-wind/` now return 404, and the summary products are used
-  instead.
-
-### Notes
 
 - Measured the packed aurora grid against live data: 1.6 KB gzipped in quiet
   conditions and about 2.5 KB under a simulated severe storm, comfortably inside
