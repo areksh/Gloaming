@@ -23,9 +23,9 @@ import sh.arek.gloaming.work.PollAlarm
  * activity. It is half the feature: red on black still floods a dark-adapted
  * eye if the backlight is at full.
  *
- * Reads the window rather than the pixels, deliberately. The Compose test
- * harness does not currently produce a semantics tree in this project, so
- * anything asserted through the composition would be asserting nothing.
+ * Reads the window rather than the pixels, deliberately: brightness is set on
+ * the window and never reaches the composition, so there is nothing for a
+ * semantics assertion to find.
  */
 @RunWith(AndroidJUnit4::class)
 class NightVisionWindowTest {
