@@ -28,12 +28,18 @@ import sh.arek.gloaming.domain.PollOutcome
 import sh.arek.gloaming.domain.StormMode
 
 /**
- * Watches an active display minute by minute.
+ * Watches the sky minute by minute.
  *
  * The one thing in the app that costs a persistent notification and a service
  * that keeps running, and it is justified by the situation it exists for: the
  * user is standing in a field looking north, and wants to know the moment the
  * display strengthens or fades.
+ *
+ * Entered two ways. Automatically, when [StormMode] says a display is large
+ * enough to stand outside for - in which case a poll that finds the display
+ * over ends it. Or because the user asked, from the "watch now" switch, in
+ * which case only they or the cap end it: the schedule is the thing they are
+ * working around, so nothing on the schedule may cancel it.
  *
  * It drives its own loop under a wake lock rather than leaning on alarms.
  * Alarms are inexact by design and a two-minute request lands nearer four, which
@@ -60,6 +66,10 @@ class StormService : Service() {
             return START_NOT_STICKY
         }
 
+        // Sticky for the life of the service: a watch the user started stays
+        // theirs even when a later automatic poll would have ended it.
+        if (intent?.getBooleanExtra(EXTRA_MANUAL, false) == true) manual = true
+
         ensureChannel()
         startInForeground()
 
@@ -78,6 +88,7 @@ class StormService : Service() {
 
     override fun onDestroy() {
         running = false
+        manual = false
         runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         scope.cancel()
         super.onDestroy()
@@ -107,7 +118,10 @@ class StormService : Service() {
             if (result != null) {
                 Log.i(TAG, "storm poll: ${result.outcome} (storm=${result.storm})")
                 updateNotification(result.outcome)
-                if (!result.storm) {
+                // A watch the user started runs until they end it or the cap
+                // does. They are outside looking at a sky the model has not
+                // caught up with, which is the whole reason to ask for it.
+                if (!result.storm && !manual) {
                     Log.i(TAG, "display is over; leaving storm mode")
                     break
                 }
@@ -163,7 +177,9 @@ class StormService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_STORM)
             .setSmallIcon(R.drawable.ic_notification_aurora)
-            .setContentTitle("Aurora overhead")
+            // "Aurora overhead" would be a claim the app has not made when the
+            // user started this themselves on a quiet reading.
+            .setContentTitle(if (manual) "Watching the sky" else "Aurora overhead")
             .setContentText(text)
             .setContentIntent(open)
             .addAction(0, "Stop watching", stop)
@@ -208,6 +224,7 @@ class StormService : Service() {
         private const val TAG = "StormService"
         private const val WAKE_LOCK_TAG = "gloaming:storm"
         private const val ACTION_STOP = "sh.arek.gloaming.STOP_STORM"
+        private const val EXTRA_MANUAL = "sh.arek.gloaming.MANUAL_WATCH"
 
         /** A safety net, not a feature. Long enough to outlast any real display. */
         private const val MAX_RUN_MILLIS = 4 * 60 * 60 * 1000L
@@ -225,6 +242,14 @@ class StormService : Service() {
             private set
 
         /**
+         * Whether this run was asked for by the user rather than entered
+         * automatically, in which case only they end it.
+         */
+        @Volatile
+        var manual: Boolean = false
+            private set
+
+        /**
          * Starts or stops storm mode to match [wanted].
          *
          * Never throws. Background foreground-service starts are restricted from
@@ -233,17 +258,41 @@ class StormService : Service() {
          * ordinary schedule down with it.
          */
         fun apply(context: Context, wanted: Boolean) {
+            // A quiet poll must not cancel a watch the user is standing
+            // outside using. Only they, or the cap, end that one.
+            if (!wanted && manual) return
+            start(context, wanted, manual = false)
+        }
+
+        /**
+         * Starts watching because the user asked, whatever the sky says.
+         *
+         * The reliable path when the schedule is not: a foreground service runs
+         * its own clock, so nothing the system does to alarms - Doze, app
+         * standby, battery saver, or an OEM's own process killer - can defer
+         * it. That costs a wake lock and a persistent notification, which is
+         * why it is a button and not the default.
+         */
+        fun watchNow(context: Context) = start(context, wanted = true, manual = true)
+
+        /** Ends a watch, whoever started it. */
+        fun stop(context: Context) = start(context, wanted = false, manual = false)
+
+        private fun start(context: Context, wanted: Boolean, manual: Boolean) {
             val intent = Intent(context, StormService::class.java)
+                .putExtra(EXTRA_MANUAL, manual)
             runCatching {
                 when {
-                    wanted && !running ->
+                    // Started again when already running so a manual request
+                    // can upgrade a run that began automatically.
+                    wanted ->
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             context.startForegroundService(intent)
                         } else {
                             context.startService(intent)
                         }
 
-                    !wanted && running -> context.stopService(intent)
+                    running -> context.stopService(intent)
                 }
             }.onFailure { Log.w(TAG, "could not change storm mode", it) }
         }

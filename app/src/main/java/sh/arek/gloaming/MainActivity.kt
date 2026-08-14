@@ -39,9 +39,12 @@ import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
+import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.work.PollAlarm
+import sh.arek.gloaming.work.StormService
 
 /** What the switch offers when quiet hours are first turned on. */
 private const val DEFAULT_QUIET_FROM = 23 * 60
@@ -130,11 +133,32 @@ private fun GloamingApp() {
     fun notificationsAllowed(): Boolean =
         NotificationManagerCompat.from(context).areNotificationsEnabled()
 
+    fun powerSaveMode(): Boolean =
+        context.getSystemService(PowerManager::class.java)?.isPowerSaveMode ?: false
+
+    /**
+     * How dark it is here, so the screen can explain a gap between checks.
+     *
+     * Computed on every composition rather than stored: it needs no network,
+     * takes a fraction of a millisecond, and a cached answer would go stale at
+     * exactly the moment it matters - dusk.
+     */
+    fun darknessHere(): Darkness? {
+        val latitude = settings.latitude ?: return null
+        val longitude = settings.longitude ?: return null
+        return runCatching {
+            Twilight.darkness(latitude, longitude, System.currentTimeMillis())
+        }.getOrNull()
+    }
+
     // Captured when the screen is shown, so the displayed age is the age as of
     // the last time the user actually looked.
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryOk by remember { mutableStateOf(batteryExempt()) }
     var notificationsOk by remember { mutableStateOf(notificationsAllowed()) }
+    var saverOn by remember { mutableStateOf(powerSaveMode()) }
+    var watching by remember { mutableStateOf(StormService.running) }
+    var darkness by remember { mutableStateOf(darknessHere()) }
 
     // Permission and exemption state changes outside the app, so re-read it
     // whenever the user comes back rather than trusting a stale snapshot.
@@ -146,6 +170,9 @@ private fun GloamingApp() {
                 alertState = stateStore.read()
                 batteryOk = batteryExempt()
                 notificationsOk = notificationsAllowed()
+                saverOn = powerSaveMode()
+                watching = StormService.running
+                darkness = darknessHere()
                 shownAt = System.currentTimeMillis()
             }
         }
@@ -202,6 +229,9 @@ private fun GloamingApp() {
                     notificationsAllowed = notificationsOk,
                     nowMillis = shownAt,
                     checking = checking,
+                    darkness = darkness,
+                    powerSaveMode = saverOn,
+                    watching = watching,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -255,6 +285,13 @@ private fun GloamingApp() {
                 onNightVisionChange = {
                     settings = settings.copy(nightVision = it)
                     BootAware.saveSettings(context, settings)
+                },
+                // Optimistic, then corrected. The service reports itself
+                // running from its own thread a moment later, and a switch that
+                // did not move until then would read as ignoring the tap.
+                onWatchingChange = { wanted ->
+                    if (wanted) StormService.watchNow(context) else StormService.stop(context)
+                    watching = wanted
                 },
                 onSave = {
                     val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }

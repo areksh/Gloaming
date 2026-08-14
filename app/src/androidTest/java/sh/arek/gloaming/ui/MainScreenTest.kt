@@ -3,12 +3,14 @@ package sh.arek.gloaming.ui
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
 
@@ -37,10 +39,16 @@ class MainScreenTest {
 
     private var polled = 0
 
+    /** The last value the watch switch asked for, or null if it was never moved. */
+    private var watchRequest: Boolean? = null
+
     private fun show(
         settings: UserSettings = located,
         alertState: AlertState = AlertState(),
         checking: Boolean = false,
+        darkness: Darkness? = null,
+        powerSaveMode: Boolean = false,
+        watching: Boolean = false,
     ) {
         compose.setContent {
             MainScreen(
@@ -55,6 +63,9 @@ class MainScreenTest {
                     notificationsAllowed = true,
                     nowMillis = now,
                     checking = checking,
+                    darkness = darkness,
+                    powerSaveMode = powerSaveMode,
+                    watching = watching,
                 ),
                 onLatitudeChange = {},
                 onLongitudeChange = {},
@@ -68,6 +79,7 @@ class MainScreenTest {
                 onQuietUntilChange = {},
                 onQuietHoursOverrideChange = {},
                 onNightVisionChange = {},
+                onWatchingChange = { watchRequest = it },
                 onSave = {},
                 onPollNow = { polled++ },
                 onRequestBatteryExemption = {},
@@ -148,5 +160,76 @@ class MainScreenTest {
         show(settings = located.copy(cloudGateEnabled = true))
 
         compose.onNodeWithText("Weather data by Open-Meteo.com").assertExists()
+    }
+
+    /**
+     * The schedule sleeps through daylight, which is most of a summer day at
+     * the latitudes this app is for. Left unexplained, a twelve-hour gap
+     * between checks is indistinguishable from a background service the system
+     * has killed.
+     */
+    @Test
+    fun explainsALongGapBetweenChecksRatherThanLeavingItLookingBroken() {
+        val duskAt = now + 6 * 60 * 60_000L
+
+        show(
+            alertState = AlertState(lastPollAt = now - 11 * 60 * 60_000L),
+            darkness = Darkness.Later(startsAt = duskAt, endsAt = null),
+        )
+
+        compose.onNodeWithText("Checked 11 hours ago").assertExists()
+        compose.onNodeWithText(
+            "Sun is up. Nothing to see until it gets dark, around",
+            substring = true,
+        ).assertExists()
+    }
+
+    /** No location means no darkness to describe, and no half-sentence about it. */
+    @Test
+    fun saysNothingAboutTheScheduleWithoutALocation() {
+        show(settings = UserSettings(), darkness = null)
+
+        compose.onNodeWithText("Sun is up.", substring = true).assertDoesNotExist()
+    }
+
+    /**
+     * The one control in the app that is not a setting but an action, so it is
+     * worth proving the tap reaches the caller - this is the same shape of bug
+     * as the "check now" button that ran nothing.
+     */
+    @Test
+    fun theWatchSwitchAsksForAWatch() {
+        show(watching = false)
+
+        compose.onNodeWithTag(WATCH_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(true, watchRequest)
+    }
+
+    @Test
+    fun theWatchSwitchAsksToStopOneAlreadyRunning() {
+        show(watching = true)
+
+        compose.onNodeWithTag(WATCH_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(false, watchRequest)
+    }
+
+    /**
+     * The saver notice is raised only when the saver is actually on. A standing
+     * warning about a mode nobody has enabled trains people to ignore the
+     * warnings that matter.
+     */
+    @Test
+    fun mentionsBatterySaverOnlyWhileItIsOn() {
+        show(powerSaveMode = false)
+        compose.onNodeWithText("Battery saver is on.", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun warnsAboutBatterySaverWhenItIsOn() {
+        show(powerSaveMode = true)
+
+        compose.onNodeWithText("Battery saver is on.", substring = true).assertExists()
     }
 }

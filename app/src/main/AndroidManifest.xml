@@ -27,11 +27,14 @@
     -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!--
-      Storm mode only: while a display is actually overhead the app follows it
-      minute by minute, which needs a foreground service. `specialUse` is the
-      honest type - this is not media, location or data sync - and off-Play it
-      can be declared without a reviewer deciding an astronomy app does not
-      qualify. It runs for the duration of an event and not otherwise.
+      Watching minute by minute, which needs a foreground service: either
+      automatically while a display is overhead, or because the user asked for
+      it - the one path the system will not defer, and so the answer when Doze,
+      battery saver or an OEM process killer has been eating the schedule.
+      `specialUse` is the honest type - this is not media, location or data sync
+      - and off-Play it can be declared without a reviewer deciding an astronomy
+      app does not qualify. It runs for the duration of an event, or of a watch
+      the user started, and not otherwise.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -77,7 +80,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Follows an aurora that is overhead now, polling every couple of minutes so the user standing outside sees it strengthen or fade. Starts only when the display is large, the sky is dark and the forecast is clear, and stops when any of those ends." />
+                android:value="Follows an aurora that is overhead now, polling every couple of minutes so the user standing outside sees it strengthen or fade. Starts either automatically - only when the display is large, the sky is dark and the forecast is clear, stopping when any of those ends - or because the user asked for it, in which case it runs until they stop it. Capped at four hours either way." />
         </service>
 
         <!--

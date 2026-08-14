@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,10 +27,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
+import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
+import sh.arek.gloaming.domain.StormMode
+import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
+
+/**
+ * The watch switch, which is an action rather than a setting and so is the one
+ * control worth reaching by tag: every other switch is identifiable by the
+ * setting it sits beside.
+ */
+const val WATCH_SWITCH_TAG = "watch-switch"
 
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
@@ -44,6 +55,15 @@ data class MainUiState(
     val nowMillis: Long,
     /** True while a check the user asked for is in flight. */
     val checking: Boolean = false,
+    /**
+     * How dark it is where the observer is, or null when no location is set.
+     * Drives the sentence explaining why the app may not have checked recently.
+     */
+    val darkness: Darkness? = null,
+    /** Whether the system is in battery saver right now. */
+    val powerSaveMode: Boolean = false,
+    /** Whether the foreground watch is running. */
+    val watching: Boolean = false,
 )
 
 @Composable
@@ -61,6 +81,7 @@ fun MainScreen(
     onQuietUntilChange: (String) -> Unit,
     onQuietHoursOverrideChange: (Boolean) -> Unit,
     onNightVisionChange: (Boolean) -> Unit,
+    onWatchingChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -109,6 +130,7 @@ fun MainScreen(
             onQuietUntilChange,
             onQuietHoursOverrideChange,
         )
+        WatchNowCard(state, onWatchingChange)
         BeforeUnlockCard(state, onBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
 
@@ -153,6 +175,15 @@ private fun StatusCard(state: MainUiState) {
                 text = describeAge(state.alertState.lastPollAt, state.nowMillis),
                 style = MaterialTheme.typography.bodyMedium,
             )
+
+            // Immediately under the age, because the two are read together: a
+            // long gap is only alarming until the next line explains it.
+            state.darkness?.let {
+                Text(
+                    text = describeSchedule(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
 
             state.alertState.lastError?.let {
                 Text(
@@ -405,6 +436,62 @@ private fun QuietHoursCard(
 }
 
 /**
+ * The escape hatch from the scheduler, for when the schedule is not trusted.
+ *
+ * Everything else in the app is scheduled through `AlarmManager`, which the
+ * system is free to defer - Doze, app standby, battery saver, and on several
+ * OEM builds a process killer of the vendor's own that no exemption reaches. A
+ * foreground service is the one thing Android will not defer, because it runs
+ * its own clock, and its persistent notification is the price of that.
+ *
+ * So it is a button rather than a default: the cost is a wake lock and a
+ * notification that will not go away, which is worth paying on the night
+ * somebody actually cares about and not on the other three hundred.
+ */
+@Composable
+private fun WatchNowCard(state: MainUiState, onWatchingChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Watch now", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.watching,
+                    onCheckedChange = onWatchingChange,
+                    modifier = Modifier.testTag(WATCH_SWITCH_TAG),
+                )
+            }
+            Text(
+                "Checks every ${StormMode.POLL_MINUTES} minutes and keeps a notification " +
+                    "up while it does. Nothing Android does to background apps can delay " +
+                    "it, so this is the one to use on a night that matters - or if you " +
+                    "have missed alerts you expected. It stops on its own after four " +
+                    "hours.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            // Only raised when the saver is actually on. A standing warning
+            // about a mode nobody has enabled is noise, and noise is what gets
+            // the useful warnings above ignored.
+            if (state.powerSaveMode) {
+                Text(
+                    "Battery saver is on. Gloaming is allowed to run in the background " +
+                        "anyway" +
+                        (if (state.batteryExempt) "" else " only once you allow it above") +
+                        ", but battery saver is the first thing to suspect if " +
+                        "checks stop landing overnight. Watching now is not affected by it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+/**
  * The before-unlock option, with the trade stated rather than buried.
  *
  * A phone set to reboot on a timer sits at the lock screen afterwards, and an
@@ -478,6 +565,33 @@ private fun NightVisionCard(state: MainUiState, onNightVisionChange: (Boolean) -
             )
         }
     }
+}
+
+/**
+ * Why the app is or is not checking at the moment.
+ *
+ * The schedule follows the sky, which means it deliberately does nothing for up
+ * to twelve hours at a stretch. Without this sentence the screen says only
+ * "checked 11 hours ago", and correct behaviour is indistinguishable from a
+ * background service the system has killed - which is the reading that gets an
+ * app uninstalled.
+ *
+ * @param localMinuteOfDay injected so the wording can be tested without
+ *   depending on the machine's time zone.
+ */
+fun describeSchedule(
+    darkness: Darkness,
+    localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
+): String = when (darkness) {
+    is Darkness.Now -> "Dark now, so Gloaming is watching."
+
+    is Darkness.Later ->
+        "Sun is up. Nothing to see until it gets dark, around " +
+            "${formatTimeOfDay(localMinuteOfDay(darkness.startsAt))}."
+
+    Darkness.None ->
+        "It does not get dark here at this time of year. " +
+            "Gloaming checks twice a day until that changes."
 }
 
 /**

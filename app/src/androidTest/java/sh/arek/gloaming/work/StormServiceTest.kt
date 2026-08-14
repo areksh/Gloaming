@@ -137,4 +137,57 @@ class StormServiceTest {
 
         assertTrue(!StormService.running)
     }
+
+    /**
+     * A watch the user started themselves is theirs to end.
+     *
+     * Every scheduled poll on a quiet sky calls `apply(false)`, so without this
+     * the button would start a service that the next poll - minutes later, or
+     * immediately - silently took away again. That is the same class of bug as
+     * a "check now" button that does not check: the app appears to ignore the
+     * user.
+     */
+    @Test
+    fun aWatchTheUserStartedSurvivesAQuietSky() {
+        StormService.watchNow(context)
+        assertTrue("the watch never started", waitUntil { StormService.running })
+
+        // Exactly what PollReceiver does after any poll that is not a storm.
+        StormService.apply(context, wanted = false)
+        Thread.sleep(1_500)
+
+        assertTrue(
+            "a watch the user asked for was cancelled by the ordinary schedule",
+            StormService.running,
+        )
+    }
+
+    @Test
+    fun theUserCanStopTheWatchTheyStarted() {
+        StormService.watchNow(context)
+        waitUntil { StormService.running }
+
+        StormService.stop(context)
+
+        assertTrue("the watch could not be stopped", waitUntil { !StormService.running })
+    }
+
+    /**
+     * The flag has to be cleared on the way out, or the first manual watch
+     * would make every later automatic storm unstoppable for the rest of the
+     * process's life.
+     */
+    @Test
+    fun aStoppedManualWatchLeavesNoStickyState() {
+        StormService.watchNow(context)
+        waitUntil { StormService.running }
+        StormService.stop(context)
+        waitUntil { !StormService.running }
+
+        StormService.apply(context, wanted = true)
+        waitUntil { StormService.running }
+        StormService.apply(context, wanted = false)
+
+        assertTrue("automatic storm mode was left unstoppable", waitUntil { !StormService.running })
+    }
 }
