@@ -83,6 +83,18 @@ adb() {
     if [ -n "$SERIAL" ]; then command adb -s "$SERIAL" "$@"; else command adb "$@"; fi
 }
 
+# Matches without stopping early. `grep -q` exits at the first match and closes
+# the pipe, which kills whatever is still writing upstream with SIGPIPE - and
+# under `set -o pipefail` that turns a successful match into a failed pipeline,
+# so a match reads as "not found". Counting reads the stream to the end.
+#
+# This bit for real: the install check below reported the app missing on a phone
+# with 306 packages, because the match came at line 104 and `pm` was still
+# writing the other 202.
+has() {
+    grep -c "$@" >/dev/null
+}
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -182,9 +194,9 @@ if [ "$RESUME" -eq 0 ]; then
     fi
     printf '  device: %s (GrapheneOS: %s)\n' \
         "$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r')" \
-        "$(adb shell pm list packages 2>/dev/null | grep -qi graphene && echo yes || echo no)"
+        "$(adb shell pm list packages 2>/dev/null | has -i graphene && echo yes || echo no)"
 
-    if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${PACKAGE}$"; then
+    if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | has "^package:${PACKAGE}$"; then
         echo "  FAIL  $PACKAGE is not installed: ./gradlew :app:installDebug" >&2
         exit 1
     fi
@@ -250,7 +262,7 @@ if [ "$RESUME" -eq 0 ]; then
             -e class sh.arek.gloaming.harness.BeforeUnlockFixture \
             $seed_args \
             "${PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner" 2>&1 \
-            | tr -d '\r' | grep -qE 'OK \(1 test\)'; then
+            | tr -d '\r' | has -E 'OK \(1 test\)'; then
             fail "could not seed the settings" \
                 "Install the test APK: ./gradlew :app:installDebugAndroidTest"
         fi
@@ -260,7 +272,7 @@ if [ "$RESUME" -eq 0 ]; then
     if [ -z "$mirror" ]; then
         fail "device-encrypted settings are empty" \
             "Run again with --seed, or switch the option on in the app."
-    elif printf '%s' "$mirror" | grep -q 'name="alerts_before_unlock" value="true"'; then
+    elif printf '%s' "$mirror" | has 'name="alerts_before_unlock" value="true"'; then
         pass "before-unlock alerting is on in device-encrypted storage"
     else
         fail "before-unlock alerting is off in device-encrypted storage" \
@@ -270,7 +282,7 @@ if [ "$RESUME" -eq 0 ]; then
     # The exemption is what lifts app-standby deferral, and app standby - not
     # Doze - is what actually stops the overnight wakes. Without it an alarm can
     # be pushed a year out while still looking perfectly healthy in dumpsys.
-    if adb shell dumpsys deviceidle whitelist 2>/dev/null | grep -q "$PACKAGE"; then
+    if adb shell dumpsys deviceidle whitelist 2>/dev/null | has "$PACKAGE"; then
         pass "exempt from battery optimisation"
     else
         fail "not exempt from battery optimisation" \
@@ -281,7 +293,7 @@ if [ "$RESUME" -eq 0 ]; then
     # or non-numeric value with `-ge` errors, and an errored test is false - so
     # the unreadable case used to report the precondition as satisfied.
     bucket=$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')
-    if ! printf '%s' "$bucket" | grep -qE '^[0-9]+$'; then
+    if ! printf '%s' "$bucket" | has -E '^[0-9]+$'; then
         fail "could not read the app standby bucket (got '$bucket')" \
             "Without it the deferral that silences overnight wakes goes unchecked."
     elif [ "$bucket" -ge 45 ]; then
@@ -292,7 +304,7 @@ if [ "$RESUME" -eq 0 ]; then
     fi
 
     if adb shell dumpsys package "$PACKAGE" 2>/dev/null \
-        | grep -q 'POST_NOTIFICATIONS: granted=true'; then
+        | has 'POST_NOTIFICATIONS: granted=true'; then
         pass "notification permission is granted"
     else
         fail "notification permission is not granted" \
@@ -365,7 +377,7 @@ step "Did the boot receiver re-arm the alarm before unlock?"
 # platform's lines by subject matter left enough of them behind that the
 # "buffer rolled over" branch below could never be reached.
 boot_log=$(our_log BootReceiver | grep -E 'reschedul' || true)
-if printf '%s' "$boot_log" | grep -q 'LOCKED_BOOT_COMPLETED'; then
+if printf '%s' "$boot_log" | has 'LOCKED_BOOT_COMPLETED'; then
     pass "BootReceiver ran on LOCKED_BOOT_COMPLETED"
     printf '%s\n' "$boot_log" | grep 'LOCKED_BOOT_COMPLETED' | tail -2 | sed 's/^/        /'
 elif [ -z "$boot_log" ]; then
@@ -498,7 +510,7 @@ else
     # indistinguishable from a healthy one unless that line is read.
     when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1 || true)
     policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//' || true)
-    if printf '%s' "$when" | grep -qE '^[0-9]+d'; then
+    if printf '%s' "$when" | has -E '^[0-9]+d'; then
         fail "an alarm is pending but deferred to +$when" \
             "It will never fire. $policy"
     elif [ -n "$when" ]; then

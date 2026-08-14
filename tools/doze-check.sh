@@ -45,6 +45,18 @@ adb() {
     if [ -n "$SERIAL" ]; then command adb -s "$SERIAL" "$@"; else command adb "$@"; fi
 }
 
+# Matches without stopping early. `grep -q` exits at the first match and closes
+# the pipe, which kills whatever is still writing upstream with SIGPIPE - and
+# under `set -o pipefail` that turns a successful match into a failed pipeline,
+# so a match reads as "not found". Counting reads the stream to the end.
+#
+# This bit for real: the install check below reported the app missing on a phone
+# with 306 packages, because the match came at line 104 and `pm` was still
+# writing the other 202.
+has() {
+    grep -c "$@" >/dev/null
+}
+
 DE_PREFS="/data/user_de/0/${PACKAGE}/shared_prefs"
 
 # Runs a command as the app's own uid. The inner `sh -c` matters: without it the
@@ -84,14 +96,14 @@ if ! adb shell true >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | grep -q "^package:${PACKAGE}$"; then
+if ! adb shell pm list packages 2>/dev/null | tr -d '\r' | has "^package:${PACKAGE}$"; then
     echo "$PACKAGE is not installed: ./gradlew :app:installDebug" >&2
     exit 1
 fi
 
 printf '== Setting up ==\n'
 
-if adb shell dumpsys deviceidle whitelist 2>/dev/null | grep -q "$PACKAGE"; then
+if adb shell dumpsys deviceidle whitelist 2>/dev/null | has "$PACKAGE"; then
     printf '  exempt from battery optimisation: alarms should fire on the app schedule\n'
 else
     printf '  NOT exempt from battery optimisation: expect Doze to defer the wakes\n'
@@ -180,7 +192,7 @@ alert_after=$(last_alert)
 if [ -n "$alert_after" ] && [ "$alert_after" != "$alert_before" ]; then
     printf '  ALERT raised during the run at %s\n' \
         "$(date -d "@$((alert_after / 1000))" '+%H:%M:%S' 2>/dev/null)"
-    if adb shell dumpsys notification --noredact 2>/dev/null | grep -q "pkg=$PACKAGE"; then
+    if adb shell dumpsys notification --noredact 2>/dev/null | has "pkg=$PACKAGE"; then
         printf '  and the notification posted from deep idle\n'
     else
         printf '  but NO notification is present - posting was swallowed\n'
