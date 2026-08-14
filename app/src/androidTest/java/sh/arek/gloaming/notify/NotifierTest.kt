@@ -4,8 +4,11 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import sh.arek.gloaming.aurora.Likelihood
@@ -39,12 +42,66 @@ class NotifierTest {
     private fun uk(probability: Int) =
         Likelihood(probability, Likelihood.Source.AURORAWATCH)
 
+    private val manager = context.getSystemService(NotificationManager::class.java)
+
+    /**
+     * Reading a notification back needs it to have actually been posted, which
+     * needs the runtime permission a fresh install has never been asked for.
+     */
+    @Before
+    fun grantNotifications() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(
+                context.packageName,
+                android.Manifest.permission.POST_NOTIFICATIONS,
+            )
+        }
+        manager.cancelAll()
+    }
+
+    @After
+    fun clearNotifications() {
+        manager.cancelAll()
+    }
+
+    /**
+     * Posting is asynchronous, so the notification is not necessarily readable
+     * back the instant [AndroidAuroraNotifier] returns.
+     */
+    private fun postedAlert(): android.service.notification.StatusBarNotification? {
+        val deadline = System.currentTimeMillis() + 5_000L
+        while (System.currentTimeMillis() < deadline) {
+            manager.activeNotifications.firstOrNull()?.let { return it }
+            Thread.sleep(50)
+        }
+        return null
+    }
+
+    /**
+     * The whole point of the alert is to get someone outside, and the first
+     * thing they do is tap it. Without a content intent the tap does nothing at
+     * all: the notification does not even dismiss, because `setAutoCancel` only
+     * takes effect when there is somewhere to go.
+     */
+    @Test
+    fun tappingTheAlertOpensTheApp() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+        assertNotNull(
+            "tapping the alert goes nowhere: it has no content intent",
+            posted!!.notification.contentIntent,
+        )
+        assertTrue("tapping the alert should dismiss it", posted.notification.flags and
+            android.app.Notification.FLAG_AUTO_CANCEL != 0)
+    }
+
     @Test
     fun postingCreatesTheAuroraChannel() {
         AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = context.getSystemService(NotificationManager::class.java)
             val channel = manager.getNotificationChannel(AndroidAuroraNotifier.CHANNEL_AURORA)
             assertNotNull("aurora channel was not created", channel)
             assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)

@@ -2,10 +2,13 @@ package sh.arek.gloaming.notify
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
@@ -48,6 +51,7 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(detail))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setContentIntent(openApp())
             .setAutoCancel(true)
             .build()
 
@@ -57,6 +61,26 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
         }
     }
+
+    /**
+     * Where the alert goes when it is tapped.
+     *
+     * Without this the tap does nothing whatever - the notification does not
+     * even dismiss, because `setAutoCancel` only applies once there is
+     * somewhere to go. Someone woken at two in the morning taps the alert
+     * first, and the app is the only place that can tell them whether it is
+     * worth getting dressed.
+     *
+     * `FLAG_IMMUTABLE` because nothing is passed and the system must not be
+     * able to rewrite the target; required outright from Android 12.
+     */
+    private fun openApp(): PendingIntent = PendingIntent.getActivity(
+        context,
+        REQUEST_OPEN,
+        Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     /**
      * What the sky is doing, in words.
@@ -100,5 +124,8 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
     companion object {
         const val CHANNEL_AURORA = "aurora"
         private const val NOTIFICATION_ID = 1
+
+        /** Distinct from storm mode's, so the two do not overwrite each other. */
+        private const val REQUEST_OPEN = 2
     }
 }
