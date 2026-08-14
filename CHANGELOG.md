@@ -202,3 +202,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the budgeted 5-10 KB. This closes an open question in the sourcing document.
 - Flagged a free-plan risk: Cloudflare allows 10 ms CPU per cron invocation, and
   the OVATION refresh straddles it. Needs measuring on the deployed Worker.
+- Battery saver measured on a Pixel 10a, and it costs nothing detectable. In
+  forced deep Doze with the exemption granted, a five-minute interval was
+  delivered every 9-10 minutes with the saver on and every 9-10 minutes with it
+  off. That confirms the fixed-overhead reading taken on the 8a, which
+  predicted about eight minutes for a five-minute request. The delay is the
+  batching window rather than Doze: `device_idle` was recorded as not applying
+  on every sample, and the alarm runs past its requested time to fire at
+  `maxWhenElapsed`. Networking was never restricted either, even in deep Doze
+  with the saver on - `blocked=BATTERY_SAVER|DOZE|APP_BACKGROUND`,
+  `allowed=POWER_SAVE_ALLOWLIST`, `effective=NONE`.
+- The restricted standby bucket cannot be reached while the exemption is
+  granted: `am set-standby-bucket restricted` reports success and the bucket
+  stays ACTIVE. The worst case an exempt app can land in is better than
+  assumed, and worth remembering before designing around a bucket it cannot
+  occupy.
+- One caution about how the above was measured. An earlier run reported a
+  sevenfold deferral that was not happening, because `tools/doze-check.sh`
+  anchored on a marker line in `logcat` and the ring buffer - about twelve
+  minutes, 84,351 lines, on this phone - wrapped past it mid-run. The harness
+  then matched nothing and reported the single poll it had seen before going
+  blind. Both the alarm dump and `logcat` contradicted it at the time. A
+  measurement tool that invents a failure is worse than one that measures
+  nothing, so the tool now records each poll as it sees it and selects by
+  device-clock epoch instead.

@@ -86,14 +86,35 @@ standby bucket, where alarms are deferred by a year; and without the
 deferred alarm still lists as pending and looks entirely healthy.
 
 **Battery saver** is a fourth, and behaves differently from the other three: it
-cannot engage at all while the phone is charging, so it will not reproduce on a
-device plugged into a test rig. With the exemption granted it did not defer
-Gloaming's alarm or firewall its network when measured on a Pixel 10a
-(`dumpsys netpolicy` reported `effective=NONE` for the app's uid), but the
-exemption is not honoured on every OEM build, and a long stretch in a low
-standby bucket has not been measured under it. The **watch now** switch is the
-escape hatch: a foreground service runs its own clock, and nothing the system
-does to alarms reaches it.
+cannot engage while the phone is charging, so it will not reproduce on a device
+plugged into a test rig.
+
+Measured on a Pixel 10a in forced deep Doze, 22-35 minutes per run, with the
+exemption granted and a 5-minute interval configured:
+
+- Polls landed every **9-10 minutes**, the same with battery saver on as off.
+- That gap is **not** Doze. `device_idle` was recorded as not applying on every
+  sample; the alarm counts down past its requested time and fires at
+  `maxWhenElapsed`, the far end of the roughly 4-minute batching window the
+  system attaches to an inexact alarm. Expect a request of *n* minutes to land
+  around *n* + 4.
+- The network was never blocked, even in deep Doze with the saver on:
+  `dumpsys netpolicy` gave `blocked=BATTERY_SAVER|DOZE|APP_BACKGROUND,
+  allowed=POWER_SAVE_ALLOWLIST, effective=NONE`.
+- The **restricted standby bucket is unreachable** while the exemption is
+  granted - `am set-standby-bucket restricted` reports success and the readback
+  stays at 5 (ACTIVE). The worst-case bucket cannot happen to an exempt app.
+
+So on this hardware the exemption does its job and battery saver costs nothing
+measurable. That is one AOSP-derived device; the exemption is not honoured on
+every OEM build, which is what dontkillmyapp.com exists to catalogue. The
+**watch now** switch is the escape hatch when it is not: a foreground service
+runs its own clock, so no alarm policy or batching window reaches it.
+
+Beware of measuring this through `logcat` alone - the ring buffer here holds
+about twelve minutes, and anything that reads back further silently sees
+nothing. That bug lived in `tools/doze-check.sh` and invented a sevenfold
+deferral that was not happening.
 
 ### Data Worker
 
