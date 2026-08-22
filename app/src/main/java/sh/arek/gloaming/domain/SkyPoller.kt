@@ -97,7 +97,7 @@ class SkyPoller(
         val attempt = runCatching { pollOnce(user, previous, at) }
             .getOrElse { Attempt(PollOutcome.Failed(it.message ?: it::class.java.simpleName)) }
 
-        record(attempt.outcome, previous)
+        record(attempt, previous)
         return PollResult(
             outcome = attempt.outcome,
             next = nextPoll(user, at, attempt.status),
@@ -110,6 +110,8 @@ class SkyPoller(
         val outcome: PollOutcome,
         val status: SkyStatus? = null,
         val probability: Int? = null,
+        /** Which reading produced the probability, or null when none was taken. */
+        val source: Likelihood.Source? = null,
     )
 
     private suspend fun pollOnce(user: UserSettings, previous: AlertState, at: Long): Attempt {
@@ -147,7 +149,9 @@ class SkyPoller(
             minimumIntervalMillis = minimumAlertIntervalMillis,
         )
         if (decision != AlertDecision.Notify) {
-            return Attempt(PollOutcome.Quiet(probability, decision), status, probability)
+            return Attempt(
+                PollOutcome.Quiet(probability, decision), status, probability, likelihood.source,
+            )
         }
 
         // Only now, with everything free already satisfied, is a radio wake
@@ -155,11 +159,13 @@ class SkyPoller(
         val cloud = cloudCover(manifest.endpoints[ENDPOINT_WEATHER], user, latitude, longitude)
         val gated = AlertDecision.cloudGate(cloud, user)
         if (gated != AlertDecision.Notify) {
-            return Attempt(PollOutcome.Quiet(probability, gated), status, probability)
+            return Attempt(
+                PollOutcome.Quiet(probability, gated), status, probability, likelihood.source,
+            )
         }
 
         notifier.notifyAurora(likelihood, status, cloud)
-        return Attempt(PollOutcome.Notified(probability), status, probability)
+        return Attempt(PollOutcome.Notified(probability), status, probability, likelihood.source)
     }
 
     /**
@@ -236,9 +242,11 @@ class SkyPoller(
      * Re-arming is evaluated on every poll that produced a reading, not only on
      * quiet ones, so activity falling away between wakes still clears the latch.
      */
-    private fun record(outcome: PollOutcome, previous: AlertState) {
+    private fun record(attempt: Attempt, previous: AlertState) {
+        val outcome = attempt.outcome
         val timestamp = now()
         val threshold = settings.read().threshold
+        val fromAuroraWatch = attempt.source == Likelihood.Source.AURORAWATCH
 
         val next = when (outcome) {
             is PollOutcome.Notified -> previous.copy(
@@ -248,6 +256,7 @@ class SkyPoller(
                 lastPollAt = timestamp,
                 lastProbability = outcome.probability,
                 lastError = null,
+                lastFromAuroraWatch = fromAuroraWatch,
             )
 
             is PollOutcome.Quiet -> previous.copy(
@@ -256,6 +265,7 @@ class SkyPoller(
                 lastPollAt = timestamp,
                 lastProbability = outcome.probability,
                 lastError = null,
+                lastFromAuroraWatch = fromAuroraWatch,
             )
 
             is PollOutcome.Failed -> previous.copy(

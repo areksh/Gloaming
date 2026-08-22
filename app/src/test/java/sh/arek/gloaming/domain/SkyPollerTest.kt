@@ -544,6 +544,49 @@ class SkyPollerTest {
         assertEquals(PollOutcome.Quiet(10, AlertDecision.BelowThreshold), result.outcome)
     }
 
+    /**
+     * The notification is not enough on its own to discharge AuroraWatch's
+     * attribution requirement. Most polls are quiet and post nothing, and the
+     * number they produced still sits on the screen until the next one - so the
+     * screen has to know where it came from.
+     */
+    @Test
+    fun `records that a reading came from the UK layer`() = runTest {
+        val state = State()
+        val amber = """{"schema":1,"generated":"g","global_activity":"low",""" +
+            """"max_probability":10,"oval_etag":"e1",""" +
+            """"aurorawatch":{"status":"amber","updated":"u","site_id":"AWN"}}"""
+
+        // Threshold above the amber reading, so this is the quiet path - the
+        // one the notification does not cover.
+        poller(10, settingsAt(threshold = 90), state, Notifier(), statusBody = amber).poll()
+
+        assertTrue(state.value.lastFromAuroraWatch)
+    }
+
+    @Test
+    fun `records a global grid reading as not from the UK layer`() = runTest {
+        val state = State()
+
+        poller(10, settingsAt(threshold = 90), state, Notifier()).poll()
+
+        assertFalse(state.value.lastFromAuroraWatch)
+    }
+
+    /**
+     * A failed poll keeps the last reading on the screen, so it has to keep the
+     * credit that goes with it too. Clearing the flag alone would leave an
+     * AuroraWatch number displayed with no attribution at all.
+     */
+    @Test
+    fun `leaves the recorded source alone when the poll fails`() = runTest {
+        val state = State(AlertState(lastProbability = 55, lastFromAuroraWatch = true))
+
+        poller(10, settingsAt(), state, Notifier(), failing = setOf(statusUrl)).poll()
+
+        assertTrue(state.value.lastFromAuroraWatch)
+    }
+
     @Test
     fun `calls for storm mode when a big display is overhead on a clear night`() = runTest {
         val weather = Weather(known = CloudCover(5, 0, 0, 5))

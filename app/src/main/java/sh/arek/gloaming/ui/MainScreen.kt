@@ -17,6 +17,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -151,6 +155,76 @@ fun MainScreen(
                 "decision is made here.",
             style = MaterialTheme.typography.bodySmall,
         )
+
+        CreditsCard(state)
+    }
+}
+
+/**
+ * Who the data came from, and under what terms the app may show it.
+ *
+ * These are conditions of use rather than politeness. AuroraWatch UK require
+ * attribution beside their data, Open-Meteo publish under CC BY 4.0, and the
+ * vendored astronomy code is MIT - which requires its notice to travel with
+ * every copy of the software, so it has to be readable on the phone and not
+ * merely present in the repository.
+ */
+@Composable
+private fun CreditsCard(state: MainUiState) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Credits and licences", style = MaterialTheme.typography.titleMedium)
+
+            for (credit in credits(state.alertState.lastFromAuroraWatch)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(credit.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(credit.body, style = MaterialTheme.typography.bodySmall)
+                    if (credit.links.isNotEmpty()) {
+                        Text(
+                            buildAnnotatedString {
+                                credit.links.forEachIndexed { index, link ->
+                                    if (index > 0) append("  -  ")
+                                    withLink(LinkAnnotation.Url(link.url)) { append(link.label) }
+                                }
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    credit.licence?.let { LicenceText(it) }
+                }
+            }
+
+            Text(
+                buildAnnotatedString {
+                    append("Gloaming itself is free software under the GPL-3.0, with no ")
+                    append("advertising and nothing to buy. The source is at ")
+                    withLink(LinkAnnotation.Url(SOURCE_URL)) { append(SOURCE_URL) }
+                    append(".")
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/** Where the GPL says the corresponding source can be had. */
+private const val SOURCE_URL = "https://codeberg.org/arek/Gloaming"
+
+/**
+ * A licence behind a tap.
+ *
+ * Twenty lines of legal boilerplate inlined into a settings screen is read by
+ * nobody and pushes everything useful off the bottom. Behind one tap it is
+ * still shipped and still reachable, which is what MIT actually asks for.
+ */
+@Composable
+private fun LicenceText(licence: String) {
+    var shown by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { shown = !shown }) {
+        Text(if (shown) "Hide licence" else "Show licence")
+    }
+    if (shown) {
+        Text(licence, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -182,6 +256,18 @@ private fun StatusCard(state: MainUiState) {
                 Text(
                     text = describeSchedule(it),
                     style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            // Beside the number, not at the foot of the screen. AuroraWatch's
+            // conditions tie the credit to their data, and a reader deciding
+            // whether to trust 55% should be able to see where it came from
+            // without scrolling. The attribution they specify is carried in
+            // full by the credits card below.
+            if (state.alertState.lastFromAuroraWatch) {
+                Text(
+                    "This reading came from AuroraWatch UK.",
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
 

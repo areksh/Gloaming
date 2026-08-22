@@ -39,6 +39,7 @@ private const val KEY_ARMED = "armed"
 private const val KEY_LAST_POLL_AT = "last_poll_at"
 private const val KEY_LAST_PROBABILITY = "last_probability"
 private const val KEY_LAST_ERROR = "last_error"
+private const val KEY_LAST_FROM_AURORAWATCH = "last_from_aurorawatch"
 
 private const val UNSET = Long.MIN_VALUE
 
@@ -147,6 +148,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             lastPollAt = if (lastPollAt == UNSET) null else lastPollAt,
             lastProbability = lastProbability.takeIf { it >= 0 },
             lastError = prefs.getString(KEY_LAST_ERROR, null),
+            lastFromAuroraWatch = prefs.getBoolean(KEY_LAST_FROM_AURORAWATCH, false),
         )
     }
 
@@ -160,6 +162,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             state.lastProbability?.let { putInt(KEY_LAST_PROBABILITY, it) }
                 ?: remove(KEY_LAST_PROBABILITY)
             state.lastError?.let { putString(KEY_LAST_ERROR, it) } ?: remove(KEY_LAST_ERROR)
+            putBoolean(KEY_LAST_FROM_AURORAWATCH, state.lastFromAuroraWatch)
         }.apply()
     }
 }

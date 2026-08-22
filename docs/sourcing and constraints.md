@@ -1125,6 +1125,18 @@ Next to the displayed data, not buried under the donation link:
   AuroraWatch UK, Lancaster University, SAMNET and AuroraWatchNet. Prefer the attribution
   strings the v0.2 API serves per-site over hardcoding, so they track the source actually in
   use. Not "official". No implied endorsement. **Shown only when the UK layer is active.**
+  - As built, the sentence is hardcoded and only AuroraWatch UK and Lancaster University are
+    linked. The per-site attribution would have to be carried through `status.json`, which is
+    a schema change and a Worker deploy, and the pages the API advertises for the two
+    magnetometer networks (`/project-info/samnet/`, `/project-info/aurorawatchnet/`) both 404
+    - so both networks are named in the required sentence but not linked, because a link to a
+    404 credits nobody. Checked 2026-08-22.
+  - The per-site documents also declare a licence the table above does not record:
+    **CC BY-NC-SA 3.0**. Non-commercial is already the project's posture, but ShareAlike on
+    the data is a term worth a conscious decision rather than an assumption, and it should be
+    confirmed with Lancaster rather than inferred from an XML element.
+  - Their conditions of use additionally require a robot to publish a way to report problems.
+    The User-Agent carries the repository URL, which satisfies it.
 - **Open-Meteo (CC BY 4.0):** a link next to displayed weather data, e.g.
   `<a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>`.
 - **NOAA SWPC:** public domain, no obligation - credited anyway; OVATION is the backbone of

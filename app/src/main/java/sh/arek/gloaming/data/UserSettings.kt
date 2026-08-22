@@ -141,6 +141,14 @@ data class AlertState(
     val lastPollAt: Long? = null,
     val lastProbability: Int? = null,
     val lastError: String? = null,
+    /**
+     * Whether the last reading came from the UK magnetometer layer rather than
+     * the global grid. Kept so the screen can attribute it: AuroraWatch's terms
+     * require their credit beside their data, and the notification alone does
+     * not discharge that - a quiet poll posts nothing, yet its number sits on
+     * the screen until the next one replaces it.
+     */
+    val lastFromAuroraWatch: Boolean = false,
 )
 
 interface AlertStateStore {

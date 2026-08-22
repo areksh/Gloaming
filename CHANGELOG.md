@@ -117,6 +117,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A notice while battery saver is on, next to the watch switch that is immune
   to it. Raised only while the saver is actually on, so it does not become
   another standing warning to scroll past.
+- Credits and licences on the screen itself. AuroraWatch UK's conditions
+  require their attribution beside their data, Open-Meteo publish under CC BY
+  4.0, and the vendored astronomy code is MIT - which requires its notice in
+  every copy of the software, and an installed APK is a copy. Until now that
+  notice existed only in the repository, which nobody who installs the app ever
+  sees. The AuroraWatch credit follows their reading rather than standing
+  permanently: crediting them for a global-grid number would misattribute one
+  they had no part in. A unit test compares the shipped MIT notice against the
+  vendored licence file, so an upgrade cannot quietly leave a stale one behind.
+- The screen says when a reading came from AuroraWatch rather than the global
+  grid. The notification already did, but most polls are quiet and post
+  nothing, and the number they produced stays on the screen until the next one.
 
 ### Changed
 

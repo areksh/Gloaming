@@ -118,6 +118,7 @@ class PreferenceStoresTest {
             lastPollAt = 1_700_000_100_000,
             lastProbability = 41,
             lastError = "offline",
+            lastFromAuroraWatch = true,
         )
 
         store.write(state)

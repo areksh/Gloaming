@@ -1,8 +1,10 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -41,6 +43,7 @@ class MainScreenTest {
 
     /** The last value the watch switch asked for, or null if it was never moved. */
     private var watchRequest: Boolean? = null
+
 
     private fun show(
         settings: UserSettings = located,
@@ -231,5 +234,43 @@ class MainScreenTest {
         show(powerSaveMode = true)
 
         compose.onNodeWithText("Battery saver is on.", substring = true).assertExists()
+    }
+
+    /**
+     * The MIT notice has to be reachable on the device, not merely present in
+     * the repository, and the credits card is where it lives. A card that
+     * silently stopped rendering would be a licence breach no other test would
+     * notice.
+     */
+    @Test
+    fun showsTheCreditsAndTheAppsOwnLicence() {
+        show()
+
+        compose.onNodeWithText("Credits and licences").performScrollTo().assertExists()
+        compose.onNodeWithText("Cloud forecasts, under CC BY 4.0.").assertExists()
+        compose.onNodeWithText("GPL-3.0", substring = true).assertExists()
+    }
+
+    /**
+     * Their credit follows their data. It appears beside an AuroraWatch reading
+     * and stays away from a global-grid one, which is what their conditions ask
+     * for and the only honest way to present either number.
+     */
+    @Test
+    fun creditsAuroraWatchBesideAReadingOfTheirs() {
+        show(alertState = AlertState(lastProbability = 55, lastFromAuroraWatch = true))
+
+        compose.onNodeWithText("This reading came from AuroraWatch UK.").assertExists()
+        compose.onNodeWithText(
+            "AuroraWatch UK alerts data is provided by Lancaster University",
+            substring = true,
+        ).performScrollTo().assertExists()
+    }
+
+    @Test
+    fun leavesAuroraWatchUncreditedForAGlobalGridReading() {
+        show(alertState = AlertState(lastProbability = 55, lastFromAuroraWatch = false))
+
+        compose.onAllNodesWithText("AuroraWatch", substring = true).assertCountEquals(0)
     }
 }

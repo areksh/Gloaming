@@ -25,9 +25,15 @@ Vendored rather than depended on because it is not published to Maven Central -
 only to JitPack, which builds it on demand from the GitHub tag. See
 [ADR-0006](../../../../docs/adr/0006-vendored-astronomy-engine.md).
 
+The MIT licence requires its notice in every copy of the software, and an
+installed APK is a copy - so the notice also travels in the app itself, as
+`ASTRONOMY_ENGINE_LICENCE` in `sh.arek.gloaming.ui.Credits`. A unit test
+compares the two, so the pair cannot drift apart unnoticed.
+
 To upgrade, replace the file from the new tag, update the version, tag and
-checksum above, and run the suite. It has no dependencies beyond `kotlin.math`,
-so nothing else moves with it.
+checksum above, copy the new `LICENSE` into `ASTRONOMY_ENGINE_LICENCE`, and run
+the suite. It has no dependencies beyond `kotlin.math`, so nothing else moves
+with it.
 
 ```sh
 curl -sL -o app/src/main/vendor/io/github/cosinekitty/astronomy/astronomy.kt \
