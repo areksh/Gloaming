@@ -368,9 +368,18 @@ errors; the sourcing document is strong.
    `status.json` composition buffer in KV would approach the cap from the 3- and
    5-minute crons alone. Use R2 for the partials and reserve KV for the
    rarely-written breaker flag (Sec. 3 above).
-9. **`health.json` is world-readable** under the public domain, exposing
-   per-source error codes and timestamps. Low sensitivity (all upstreams are
-   public), but worth a conscious keep-public-or-gate decision.
+9. **`health.json` and the `internal/` partials are world-readable** under the
+   public domain. An R2 custom domain serves a whole bucket and cannot be
+   path-restricted without putting a Worker in the read path, which is the one
+   thing the topology exists to avoid.
+
+   **Decided 2026-08-22: accepted.** Everything exposed is derived from public
+   upstreams - per-source error codes, timestamps, and the same space-weather
+   values `status.json` already publishes - so there is nothing here that is
+   secret anywhere else. If that stops being true, the fix is a second R2
+   bucket with no custom domain bound to it, holding `internal/` and the health
+   objects, reached through a second binding. That is provisioning rather than
+   code, and nothing in the pipelines assumes one bucket.
 
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
