@@ -205,6 +205,37 @@ describe("ensureManifest", () => {
     expect(parsed.endpoints.weather).toBe(e.OPEN_METEO_URL);
   });
 
+  /**
+   * The manifest already deployed has no stamp at all, and it has to acquire
+   * one without anybody touching it.
+   *
+   * This is the case the stamp was introduced into, and the one it silently
+   * failed: an absent `issued_at` reads as undefined, `JSON.stringify` drops
+   * an undefined value, and the rebuilt document therefore came out
+   * byte-identical to the unstamped one already published. It compared equal,
+   * returned early, and would have done so for ever - a rollback guard that
+   * never armed itself, on the only manifest that exists.
+   */
+  it("stamps a manifest that was published before stamps existed", async () => {
+    const { env: e } = await envWithKey();
+    const unstamped = {
+      schema: 1,
+      min_supported_version: e.MIN_SUPPORTED_VERSION,
+      message: null,
+      endpoints: {
+        status: `${e.PUBLIC_BASE_URL}/status.json`,
+        oval: `${e.PUBLIC_BASE_URL}/oval.bin`,
+        weather: e.OPEN_METEO_URL,
+      },
+    };
+    await e.DATA.put("v1/index.json", JSON.stringify(unstamped));
+
+    await ensureManifest(e, () => new Date("2026-08-22T09:00:00Z"));
+
+    const parsed = JSON.parse(await (await e.DATA.get("v1/index.json"))!.text());
+    expect(parsed.issued_at).toBe(Math.floor(new Date("2026-08-22T09:00:00Z").getTime() / 1000));
+  });
+
   // Ed25519 is deterministic, but republishing on every cron would still churn
   // the object and reset its cache age for no reason.
   it("leaves an unchanged manifest alone", async () => {

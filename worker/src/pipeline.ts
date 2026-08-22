@@ -99,9 +99,20 @@ export async function ensureManifest(env: Env, now: () => Date = () => new Date(
 
   // The stamp is excluded from the comparison, or every run would look like a
   // change and republish - which is the churn this check exists to avoid.
+  //
+  // A manifest published before stamps existed has none, and must be treated as
+  // changed so it acquires one. Comparing against it directly does not work:
+  // rebuilding with an undefined stamp drops the key entirely on the way
+  // through JSON.stringify, so the result comes out byte-identical to the
+  // unstamped document and the guard would never arm itself.
   const current = await env.DATA.get(MANIFEST_KEY);
   const published = current === null ? null : (JSON.parse(await current.text()) as Manifest);
-  if (published !== null && serialiseManifest(build(published.issued_at)) === serialiseManifest(published)) {
+  const publishedAt = typeof published?.issued_at === "number" ? published.issued_at : null;
+  if (
+    published !== null &&
+    publishedAt !== null &&
+    serialiseManifest(build(publishedAt)) === serialiseManifest(published)
+  ) {
     return;
   }
 
