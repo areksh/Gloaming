@@ -410,6 +410,46 @@ errors; the sourcing document is strong.
    objects, reached through a second binding. That is provisioning rather than
    code, and nothing in the pipelines assumes one bucket.
 
+10. **CelesTrak answers a Worker with 522 while answering a home connection
+    normally. Unresolved, found 2026-08-22.** The first live run of the
+    satellites pipeline got `HTTP 522` from
+    `celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV` after
+    roughly 24 seconds, and so did a second attempt three minutes later. The
+    same URL answered a domestic connection in 0.7 seconds, repeatedly, at the
+    same time.
+
+    522 is Cloudflare-generated and means its egress could not open a
+    connection to the origin. CelesTrak is not itself behind Cloudflare -
+    responses come from `Microsoft-IIS/10.0` with no Cloudflare headers - so
+    the 522 is Cloudflare's own network failing to reach them. Two timeouts
+    rather than two refusals is what a silent packet drop looks like, and the
+    obvious candidate is CelesTrak firewalling Cloudflare Workers' shared
+    egress ranges. Their usage policy is explicit that shared-egress users get
+    blocked by each other's behaviour, and Workers share egress across every
+    customer on the platform.
+
+    If that is what this is, it is a problem for the architecture rather than a
+    bug in it: the Worker-as-single-fetcher design is what CelesTrak's own
+    policy asks for, and per-device fetching is forbidden outright. Options, in
+    the order worth trying: ask Kelso directly, since he is reachable and the
+    policy invites contact; fetch from somewhere with a stable dedicated IP and
+    push to R2; or serve elements from a different mirror of the same GP data.
+
+    One caveat before acting on any of that: both attempts were made through
+    `wrangler dev --remote`, which runs a *preview* deployment. Whether preview
+    and production Workers egress from the same addresses is not documented, so
+    it is possible the deployed cron would succeed where these did not.
+    Settling that costs exactly one request - clear the breaker and let one
+    two-hourly cron run - which is within the policy's own cadence, but it is a
+    decision for whoever owns the relationship with CelesTrak rather than one
+    to take automatically.
+
+    **No further requests were made after the second attempt.** Probing a
+    source that may already have blocked the range is precisely the behaviour
+    the policy warns about, and the breaker is doing its job by staying
+    tripped. Nothing else in the app is affected: `sats.json` is simply absent,
+    and the pass planner treats that as "no passes known" and stays dormant.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
