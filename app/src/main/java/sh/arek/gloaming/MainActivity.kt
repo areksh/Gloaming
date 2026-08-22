@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,11 +29,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.DisposableEffect
 import sh.arek.gloaming.ui.MainScreen
 import sh.arek.gloaming.ui.MainUiState
@@ -45,6 +48,14 @@ import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.work.PollAlarm
 import sh.arek.gloaming.work.StormService
+
+/**
+ * How often the screen re-reads its clock while it is in front.
+ *
+ * A minute, because that is the finest unit anything displayed uses: the age
+ * counts in whole minutes and the darkness sentence names a time to the minute.
+ */
+private const val TICK_MILLIS = 60_000L
 
 /** What the switch offers when quiet hours are first turned on. */
 private const val DEFAULT_QUIET_FROM = 23 * 60
@@ -139,9 +150,10 @@ private fun GloamingApp() {
     /**
      * How dark it is here, so the screen can explain a gap between checks.
      *
-     * Computed on every composition rather than stored: it needs no network,
-     * takes a fraction of a millisecond, and a cached answer would go stale at
-     * exactly the moment it matters - dusk.
+     * Needs no network and costs a fraction of a millisecond, so it is
+     * recomputed on the tick below rather than held from when the screen
+     * opened. A held answer goes stale at exactly the moment it matters -
+     * dusk, which is the transition the sentence exists to describe.
      */
     fun darknessHere(): Darkness? {
         val latitude = settings.latitude ?: return null
@@ -151,8 +163,10 @@ private fun GloamingApp() {
         }.getOrNull()
     }
 
-    // Captured when the screen is shown, so the displayed age is the age as of
-    // the last time the user actually looked.
+    // The clock the screen reads. Advanced on the tick below rather than only
+    // when the screen is opened: an age frozen at "checked 3 minutes ago" while
+    // somebody watches it is a small lie, and the same freeze is what would
+    // leave "nothing to see until it gets dark" up after dark.
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryOk by remember { mutableStateOf(batteryExempt()) }
     var notificationsOk by remember { mutableStateOf(notificationsAllowed()) }
@@ -178,6 +192,19 @@ private fun GloamingApp() {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Only while the screen is actually in front. Both of the things this
+    // refreshes are read off a clock, and neither is worth a wake when nobody
+    // is looking at them.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(TICK_MILLIS)
+                shownAt = System.currentTimeMillis()
+                darkness = darknessHere()
+            }
+        }
     }
 
     val notificationPermission = rememberLauncherForActivityResult(
