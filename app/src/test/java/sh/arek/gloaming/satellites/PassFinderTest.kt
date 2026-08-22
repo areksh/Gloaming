@@ -5,6 +5,7 @@ import com.rtbishop.look4sat.core.domain.predict.RAD2DEG
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -177,6 +178,41 @@ class PassFinderTest {
         assertTrue(at > entering.risesAt && at < entering.setsAt)
         assertTrue("sunlit before", !eclipsedAt(at - 2000L))
         assertTrue("eclipsed after", eclipsedAt(at + 2000L))
+        assertNull("entering and leaving at once", entering.leavesShadowAt)
+    }
+
+    /**
+     * The mirror case, and the reason it is worth tracking rather than
+     * discarding: a satellite that rises in shadow and lights up part-way
+     * across is a pre-dawn pass, which is visible for its second half. Reading
+     * only the eclipse state at the highest point would call that one dark.
+     *
+     * Wellington rather than Edinburgh, because the pass cluster over Edinburgh
+     * falls in the evening for the whole fortnight after this element set, and
+     * a shadow exit only happens before dawn.
+     */
+    @Test
+    fun `finds the moment a pass leaves the shadow`() {
+        val morning = 1637712000000L // 2021-11-24T00:00:00Z
+        val wellingtonLatitude = -41.29
+        val wellingtonLongitude = 174.78
+        val passes = PassFinder.passes(
+            iss,
+            wellingtonLatitude,
+            wellingtonLongitude,
+            morning,
+            morning + 24 * 60 * 60 * 1000L,
+            minimumPeakElevation = 0.0,
+        )
+
+        val leaving = passes.firstOrNull { it.leavesShadowAt != null }
+        assertNotNull("no pass in this window left the shadow", leaving)
+
+        val at = leaving!!.leavesShadowAt!!
+        assertTrue(at > leaving.risesAt && at < leaving.setsAt)
+        assertTrue("eclipsed before", eclipsedAt(at - 2000L, wellingtonLatitude, wellingtonLongitude))
+        assertTrue("sunlit after", !eclipsedAt(at + 2000L, wellingtonLatitude, wellingtonLongitude))
+        assertNull("leaving and entering at once", leaving.entersShadowAt)
     }
 
     /** A pass that is in shadow throughout has no entry to report. */
@@ -184,12 +220,17 @@ class PassFinderTest {
     fun `reports no shadow entry for a pass that is dark throughout`() {
         val passes = PassFinder.passes(iss, latitude, longitude, from, until, minimumPeakElevation = 0.0)
 
-        passes.filter { it.entersShadowAt == null && !it.sunlitAtPeak }.forEach {
+        passes.filter {
+            it.entersShadowAt == null && it.leavesShadowAt == null && !it.sunlitAtPeak
+        }.forEach {
             assertTrue(eclipsedAt(it.risesAt) || eclipsedAt(it.peaksAt))
         }
     }
 
-    private fun eclipsedAt(millis: Long): Boolean =
-        iss.toOrbitalData().getObject()
-            .getPosition(GeoPos(latitude, longitude, 0.0), millis).eclipsed
+    private fun eclipsedAt(
+        millis: Long,
+        atLatitude: Double = latitude,
+        atLongitude: Double = longitude,
+    ): Boolean = iss.toOrbitalData().getObject()
+        .getPosition(GeoPos(atLatitude, atLongitude, 0.0), millis).eclipsed
 }

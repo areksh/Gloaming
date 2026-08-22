@@ -32,6 +32,14 @@ data class SatellitePass(
      * surprises people who were told to look at a particular time.
      */
     val entersShadowAt: Long?,
+    /**
+     * When it crosses back out into sunlight mid-pass, if it does.
+     *
+     * The pre-dawn mirror of the above: the pass is dark for its first half and
+     * visible for its second. Tracked because reading the eclipse state at the
+     * highest point alone would call such a pass dark throughout.
+     */
+    val leavesShadowAt: Long?,
 ) {
     val durationMillis: Long get() = setsAt - risesAt
 }
@@ -209,6 +217,7 @@ object PassFinder {
         val rise = orbital.getPosition(observer, risesAt)
         val peak = orbital.getPosition(observer, peaksAt)
         val set = orbital.getPosition(observer, setsAt)
+        val shadow = shadowCrossing(orbital, observer, risesAt, setsAt)
 
         return SatellitePass(
             catalogue = elements.catalogue,
@@ -222,33 +231,35 @@ object PassFinder {
             setAzimuth = set.azimuth * RAD2DEG,
             rangeAtPeakKm = peak.distance,
             sunlitAtPeak = !peak.eclipsed,
-            entersShadowAt = shadowEntry(orbital, observer, risesAt, setsAt),
+            entersShadowAt = shadow?.takeIf { !it.second }?.first,
+            leavesShadowAt = shadow?.takeIf { it.second }?.first,
         )
     }
 
     /**
-     * When the satellite goes into the Earth's shadow during the pass.
+     * When the satellite crosses the edge of the Earth's shadow, and which way.
      *
-     * Only an entry, never an exit: a satellite that rises already dark and
-     * lights up later is a morning pass, and nobody is standing outside waiting
-     * for one. Eclipse state changes at most once across a few minutes of low
-     * orbit, so the same bisection works on it.
+     * Returns the instant and whether it was coming *out* of shadow. A few
+     * minutes of low orbit crosses that edge at most once, so bisecting on the
+     * eclipse flag finds it the same way bisecting on elevation finds the
+     * horizon.
      */
-    private fun shadowEntry(
+    private fun shadowCrossing(
         orbital: OrbitalObject,
         observer: GeoPos,
         risesAt: Long,
         setsAt: Long,
-    ): Long? {
+    ): Pair<Long, Boolean>? {
         val eclipsed = { at: Long -> orbital.getPosition(observer, at).eclipsed }
-        if (eclipsed(risesAt) || !eclipsed(setsAt)) return null
+        val atRise = eclipsed(risesAt)
+        if (atRise == eclipsed(setsAt)) return null
 
         var low = risesAt
         var high = setsAt
         while (high - low > PRECISION_MILLIS) {
             val middle = low + (high - low) / 2
-            if (eclipsed(middle)) high = middle else low = middle
+            if (eclipsed(middle) == atRise) low = middle else high = middle
         }
-        return low + (high - low) / 2
+        return (low + (high - low) / 2) to atRise
     }
 }
