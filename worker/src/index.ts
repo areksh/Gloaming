@@ -20,8 +20,19 @@ import {
 /** Which cron expression drives which source. Matches `triggers.crons`. */
 const AURORAWATCH_CRON = "*/3 * * * *";
 const SWPC_CRON = "*/5 * * * *";
-/** CelesTrak's data updates two-hourly and their policy forbids polling faster. */
-const CELESTRAK_CRON = "0 */2 * * *";
+/**
+ * CelesTrak's data updates two-hourly and their policy forbids polling faster.
+ *
+ * Spelled out hour by hour rather than with a step in the hours field. The
+ * step form is documented syntax and registered without complaint, and then
+ * never fired - observed across two scheduled times with a continuous tail
+ * running, while the two step-in-minutes schedules beside it fired every time.
+ *
+ * This must stay byte-identical to the entry in `wrangler.jsonc`, or the
+ * lookup below throws before any source runs and the failure leaves no trace
+ * in `health.json` at all.
+ */
+const CELESTRAK_CRON = "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *";
 
 /**
  * Every source that appears in `health.json`.

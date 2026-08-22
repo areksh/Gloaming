@@ -410,58 +410,51 @@ errors; the sourcing document is strong.
    objects, reached through a second binding. That is provisioning rather than
    code, and nothing in the pipelines assumes one bucket.
 
-10. **The satellites pipeline has never completed a live run. Cause not
-    established, 2026-08-22.** Two attempts, both `HTTP 522` from
-    `celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV` after
-    roughly 24 seconds each, at 12:06:33 and 12:09:15 UTC.
+10. **The two-hourly Cron Trigger did not fire. Confirmed 2026-08-22, worked
+    around.** The satellites pipeline never ran in production. `0 */2 * * *`
+    was registered - the API listed it, created 11:14:34Z - and then fired at
+    neither 12:00 nor 14:00, while `*/3 * * * *` and `*/5 * * * *` on the same
+    Worker fired every time, including at 14:00:21. Established with a
+    continuous `wrangler tail` from 12:42 to 15:57 (100 invocations, none of
+    them the two-hourly one) and confirmed independently by `health.json`,
+    which recorded no CelesTrak outcome at all in that window.
 
-    The tempting reading is that Cloudflare's egress is blocked - 522 is
-    Cloudflare-generated and means it could not open a connection to the
-    origin, CelesTrak is not itself behind Cloudflare (`Microsoft-IIS/10.0`,
-    no Cloudflare headers), and two timeouts rather than two refusals is what a
-    silent packet drop looks like. Their usage policy is explicit that
-    shared-egress users get blocked by each other's behaviour, and Workers
-    share egress across every customer on the platform.
+    Not a syntax error: Cloudflare documents `/` as supported in the hours
+    field. Not the account trigger limit either - this is the only Worker on
+    the account and it has three of the five.
 
-    **The timeline does not support that reading yet.** `celestrak.org` was
-    also unreachable from an ordinary domestic connection for most of that
-    morning - refused or timed out from about 10:20 UTC - and only began
-    answering at about 12:08, between the two attempts. So the first attempt is
-    fully explained by CelesTrak's own outage, and the second is a single
-    sample taken roughly a minute after they came back, when an origin that has
-    just recovered may still be flapping. One sample is not a firewall.
+    Worked around by spelling the schedule out,
+    `0 0,2,4,6,8,10,12,14,16,18,20,22 * * *`. Whether the step form is at
+    fault or something else is, this removes the only part of the expression
+    that differs from the two schedules that do work. **The expression must
+    stay byte-identical in `wrangler.jsonc` and in `index.ts`**, because the
+    handler looks the schedule up before doing anything and throws on a miss -
+    and that throw happens before any source is recorded, so a mismatch would
+    look exactly like this same silence.
 
-    What would settle it is one request: clear the breaker and let a single
-    two-hourly cron run now that they are demonstrably healthy. That is within
-    the policy's own cadence. If it succeeds, this entry is an outage that
-    happened to land on the first run. If it fails again while a domestic
-    connection is fine, the block hypothesis is real - and it would be a
-    problem for the architecture rather than a bug in it, since the
-    Worker-as-single-fetcher design is what CelesTrak's policy asks for and
-    per-device fetching is forbidden outright.
+11. **CelesTrak answered a Cloudflare Worker with 522 twice. Unresolved, and
+    now known to be a smaller claim than it looked, 2026-08-22.** Two preview
+    invocations, at 12:06:33 and 12:09:15 UTC, each got `HTTP 522` after
+    roughly 24 seconds. 522 is Cloudflare-generated and means its egress could
+    not open a connection to the origin; CelesTrak is not itself behind
+    Cloudflare (`Microsoft-IIS/10.0`, no Cloudflare headers).
 
-    In that case, note that **the egress address of a Worker cannot be chosen**
-    on any plan, so the options are: ask Kelso, since he is reachable and the
-    policy invites contact; move the fetch to a host with a stable dedicated IP
-    and have it write to R2, keeping the fan-out where it is; or take the same
-    GP data from Space-Track, which identifies the caller by account rather
-    than by IP but restricts redistribution in a way CelesTrak's policy
-    notably does not.
+    Two things keep this from being a conclusion. `celestrak.org` was itself
+    unreachable from an ordinary domestic connection for most of that morning,
+    from about 10:20 UTC until about 12:08, so the first attempt is explained
+    by their outage and the second is a single sample taken a minute after
+    recovery. And both were `wrangler dev --remote` preview runs; because of
+    issue 10 above, **no production invocation has ever attempted the fetch**,
+    so the deployed path is still untested.
 
-    One caveat before acting on any of that: both attempts were made through
-    `wrangler dev --remote`, which runs a *preview* deployment. Whether preview
-    and production Workers egress from the same addresses is not documented, so
-    it is possible the deployed cron would succeed where these did not.
-    Settling that costs exactly one request - clear the breaker and let one
-    two-hourly cron run - which is within the policy's own cadence, but it is a
-    decision for whoever owns the relationship with CelesTrak rather than one
-    to take automatically.
-
-    **No further requests were made after the second attempt.** Probing a
-    source that may already have blocked the range is precisely the behaviour
-    the policy warns about, and the breaker is doing its job by staying
-    tripped. Nothing else in the app is affected: `sats.json` is simply absent,
-    and the pass planner treats that as "no passes known" and stays dormant.
+    If it does turn out that Cloudflare's egress is blocked, note that **a
+    Worker's egress address cannot be chosen** on any plan. The options are:
+    ask Kelso, since he is reachable and the policy invites contact; move the
+    fetch to a host with a stable dedicated IP and have it write to R2, keeping
+    the fan-out where it is - the parser is pure TypeScript and would run
+    unchanged under Node; or take the same GP data from Space-Track, which
+    identifies the caller by account rather than by IP but restricts
+    redistribution in a way CelesTrak's policy notably does not.
 
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,

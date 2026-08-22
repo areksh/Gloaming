@@ -98,7 +98,7 @@ describe("cron routing", () => {
       NTFY_TOPIC: "",
     } as unknown as Env;
     const controller = {
-      cron: "0 */2 * * *",
+      cron: "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *",
       scheduledTime: Date.now(),
       noRetry: () => {},
     } as ScheduledController;

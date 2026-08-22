@@ -14,10 +14,13 @@
   // event.cron, so adding a source is a new entry here plus a new branch.
   //   */3 - AuroraWatch UK, their documented minimum interval
   //   */5 - SWPC (OVATION grid, Kp, solar wind), which updates every 5 minutes
-  //   0 */2 - CelesTrak, whose usage policy caps polling at once every 2 hours
+  //   0 0,2,4,... - CelesTrak, whose usage policy caps polling at once every
+  //   2 hours. Written as an explicit hour list rather than "0 */2 * * *":
+  //   the step form registered correctly and then never fired, twice running,
+  //   while the two step-in-minutes schedules beside it fired every time.
   // MPC (weekly) arrives in Phase 5.
   "triggers": {
-    "crons": ["*/3 * * * *", "*/5 * * * *", "0 */2 * * *"]
+    "crons": ["*/3 * * * *", "*/5 * * * *", "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *"]
   },
 
   "r2_buckets": [
