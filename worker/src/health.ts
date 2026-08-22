@@ -20,27 +20,18 @@
  * maintainer to ignore them.
  */
 
+import {
+  HEALTH_SCHEMA,
+  type Health,
+  type SourceHealth,
+  type Transition,
+} from "./contracts";
 import type { Deps } from "./pipeline";
 import { CACHE_CONTROL, publish } from "./storage";
 
-export const HEALTH_SCHEMA = 1;
-
-export type Transition = "none" | "failed" | "recovered";
-
-export interface SourceHealth {
-  source: string;
-  state: "ok" | "failing";
-  last_success: string | null;
-  last_error: string | null;
-  last_error_at: string | null;
-  consecutive_failures: number;
-}
-
-export interface Health {
-  schema: number;
-  generated: string;
-  sources: Record<string, SourceHealth>;
-}
+// Re-exported so existing callers are unaffected by the shapes moving out.
+export { HEALTH_SCHEMA };
+export type { Health, SourceHealth, Transition } from "./contracts";
 
 export type Outcome = { ok: true } | { ok: false; error: string };
 

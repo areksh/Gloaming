@@ -8,12 +8,16 @@
  * against R2 on every poll.
  */
 
-/** The documented caching contract, one entry per published object. */
+/**
+ * The documented caching contract, one entry per object *this* publishes.
+ *
+ * `sats.json` is absent because the Worker no longer writes it; the same
+ * contract for that object lives with the fetcher that does. See ADR-0008.
+ */
 export const CACHE_CONTROL = {
   "index.json": "public, max-age=3600",
   "status.json": "public, max-age=60, stale-while-revalidate=120",
   "oval.bin": "public, max-age=120, stale-while-revalidate=180",
-  "sats.json": "public, max-age=1800",
   "comets.json": "public, max-age=21600",
   // Short: whoever is reading this is debugging something right now.
   "health.json": "public, max-age=60",

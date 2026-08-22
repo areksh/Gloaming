@@ -1,36 +1,27 @@
+import { notifyMaintainer, type Alerting } from "./health";
+import type { ObjectStore } from "./store";
+
 /**
- * The CelesTrak circuit breaker.
+ * The CelesTrak circuit breaker, moved to wherever the fetching now happens.
  *
- * CelesTrak's usage policy is emphatic that machine-to-machine software must
- * stop querying on *any* non-200 response and report to a human, and Kelso
- * states that this one step is what keeps an IP off the firewall even as the
- * limits tighten. Not per-code handling, not backoff: stop.
+ * CelesTrak's usage policy makes stopping on any non-200 its single most
+ * important requirement, and Kelso states it is what keeps an IP off the
+ * firewall. The state stays in R2 at the same key the Worker used, so the
+ * documented manual reset is unchanged and the flag is visible from both
+ * sides.
  *
- * A cron Worker is stateless per invocation, so the trip has to be persisted or
- * the next run would cheerfully retry - the exact behaviour the policy warns
- * about. State lives in R2 beside the health objects.
- *
- * **Reset is manual.** Automatic recovery would defeat the purpose: a human is
- * supposed to find out why the response was not a 200 before another request
- * leaves. `sats.json` keeps serving its last good copy meanwhile, and elements
- * stay usable for days, so a tripped breaker degrades pass prediction rather
- * than breaking it.
+ * **Reset is manual.** Automatic recovery defeats the purpose: a human is
+ * meant to find out why the response was not a 200 before another request
+ * leaves. `sats.json` keeps serving its last good copy meanwhile.
  */
-
-import { notifyMaintainer } from "./health";
-import type { Deps } from "./pipeline";
-
 export interface BreakerState {
   source: string;
-  /** The non-200 that tripped it. */
   status: number;
   url: string;
-  /** What CelesTrak documents that code as meaning. */
   note: string;
   tripped_at: string;
 }
 
-/** Raised instead of querying, and by the query that trips the breaker. */
 export class BreakerTrippedError extends Error {
   constructor(readonly state: BreakerState) {
     super(
@@ -61,13 +52,12 @@ function explain(status: number): string {
   return "an undocumented response code";
 }
 
-/** The stored trip, or null while the breaker is closed. */
-export async function readBreaker(env: Env, source: string): Promise<BreakerState | null> {
-  const stored = await env.DATA.get(breakerKey(source));
-  if (stored === null) {
-    return null;
-  }
-  return JSON.parse(await stored.text()) as BreakerState;
+export async function readBreaker(
+  store: ObjectStore,
+  source: string,
+): Promise<BreakerState | null> {
+  const stored = await store.get(breakerKey(source));
+  return stored === null ? null : (JSON.parse(stored) as BreakerState);
 }
 
 /**
@@ -75,16 +65,16 @@ export async function readBreaker(env: Env, source: string): Promise<BreakerStat
  *
  * A trip on an already-tripped breaker keeps the original: the first non-200 is
  * the one that explains what happened, and re-alerting would train the
- * maintainer to ignore the channel. Nothing should reach here in that state
- * anyway, since the check comes before the query.
+ * maintainer to ignore the channel.
  */
 export async function trip(
-  env: Env,
-  deps: Deps,
+  store: ObjectStore,
+  alerting: Alerting,
   source: string,
   failure: { status: number; url: string },
+  now: Date,
 ): Promise<BreakerState> {
-  const existing = await readBreaker(env, source);
+  const existing = await readBreaker(store, source);
   if (existing !== null) {
     return existing;
   }
@@ -94,11 +84,13 @@ export async function trip(
     status: failure.status,
     url: failure.url,
     note: explain(failure.status),
-    tripped_at: deps.now().toISOString(),
+    tripped_at: now.toISOString(),
   };
-  await env.DATA.put(breakerKey(source), JSON.stringify(state));
+  await store.put(breakerKey(source), JSON.stringify(state), {
+    contentType: "application/json",
+  });
 
-  await notifyMaintainer(env, deps, {
+  await notifyMaintainer(alerting, {
     title: `Gloaming: ${source} breaker tripped`,
     body:
       `HTTP ${state.status} from ${state.url} - ${state.note}.\n\n` +
@@ -119,33 +111,34 @@ export interface BreakerQuery {
  * it on any non-200.
  *
  * Redirects are deliberately not followed. A followed 301 would arrive as a 200
- * from wherever it pointed, and the one code that means "this URL is legacy and
- * will stop working" would never be seen.
+ * from wherever it pointed, and 301 is the one code that means "this URL is
+ * legacy and will stop working".
  *
  * A connection that fails outright is left alone: no response arrived, so it is
  * not the signal the policy is about, and a transient network fault must not
- * demand a human before elements can refresh again. It still fails the source,
- * which is what `health.json` and its alert exist for.
+ * demand a human before elements can refresh again. It still fails the run,
+ * which is what the health record and its alert exist for.
  */
 export async function fetchThroughBreaker(
-  env: Env,
-  deps: Deps,
+  store: ObjectStore,
+  alerting: Alerting,
   source: string,
   query: BreakerQuery,
+  now: Date,
 ): Promise<Response> {
-  const tripped = await readBreaker(env, source);
+  const tripped = await readBreaker(store, source);
   if (tripped !== null) {
     throw new BreakerTrippedError(tripped);
   }
 
-  const response = await deps.fetch(query.url, {
+  const response = await alerting.fetch(query.url, {
     headers: { "User-Agent": query.userAgent },
     redirect: "manual",
   });
 
   if (!response.ok) {
     throw new BreakerTrippedError(
-      await trip(env, deps, source, { status: response.status, url: query.url }),
+      await trip(store, alerting, source, { status: response.status, url: query.url }, now),
     );
   }
   return response;

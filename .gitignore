@@ -22,3 +22,6 @@ node_modules/
 
 # Regenerated offline by `npm run types`; half a megabyte of runtime types
 worker-configuration.d.ts
+
+# Built artefact; rebuilt from source with `npm run build`.
+fetcher/dist/

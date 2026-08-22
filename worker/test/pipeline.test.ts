@@ -1,10 +1,8 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { breakerKey, readBreaker, trip } from "../src/breaker";
 import { toPem } from "../src/manifest";
 import { GRID_LONGITUDES } from "../src/oval";
-import { ensureManifest, refreshSatellites, refreshSpaceWeather, refreshUk } from "../src/pipeline";
-import type { SatellitesDocument } from "../src/sources/celestrak";
+import { ensureManifest, refreshSpaceWeather, refreshUk } from "../src/pipeline";
 import type { Status } from "../src/status";
 
 function ovationBody(peak: number) {
@@ -316,97 +314,5 @@ describe("ensureManifest", () => {
     await ensureManifest(e);
 
     expect(await e.DATA.get("v1/index.json")).not.toBeNull();
-  });
-});
-
-describe("refreshSatellites", () => {
-  const HEADER =
-    "OBJECT_NAME,OBJECT_ID,EPOCH,MEAN_MOTION,ECCENTRICITY,INCLINATION,RA_OF_ASC_NODE," +
-    "ARG_OF_PERICENTER,MEAN_ANOMALY,EPHEMERIS_TYPE,CLASSIFICATION_TYPE,NORAD_CAT_ID," +
-    "ELEMENT_SET_NO,REV_AT_EPOCH,BSTAR,MEAN_MOTION_DOT,MEAN_MOTION_DDOT";
-
-  const row = (name: string, catalogue: number) =>
-    `${name},1998-067A,2026-08-04T12:28:09.322176,15.48582035,.0004694,51.6447,309.4881,` +
-    `203.6966,299.8876,0,U,${catalogue},999,31220,.31985E-4,.1288E-4,0`;
-
-  const celestrakRoutes = () => ({
-    "GROUP=stations": () => new Response(`${HEADER}\n${row("ISS (ZARYA)", 25544)}\n`),
-    "GROUP=visual": () =>
-      new Response(`${HEADER}\n${row("ISS (ZARYA)", 25544)}\n${row("COSMOS 1220", 12345)}\n`),
-  });
-
-  /** The breaker is persistent by design, so each test starts from closed. */
-  async function closeBreaker() {
-    await env.DATA.delete(breakerKey("celestrak"));
-  }
-
-  async function readSatellites(): Promise<SatellitesDocument> {
-    const stored = await env.DATA.get("v1/sats.json");
-    if (stored === null) {
-      throw new Error("sats.json was not published");
-    }
-    return JSON.parse(await stored.text()) as SatellitesDocument;
-  }
-
-  it("publishes both groups as one deduplicated document", async () => {
-    await closeBreaker();
-    const { fetcher, seen } = stubFetch(celestrakRoutes());
-
-    await refreshSatellites(env, { fetch: fetcher, now });
-
-    const document = await readSatellites();
-    expect(document.satellites.map((s) => s.catalogue)).toEqual([12345, 25544]);
-    expect(document.updated).toBe("2026-08-04T21:40:00.000Z");
-    expect(seen.filter((url) => url.includes("celestrak"))).toHaveLength(2);
-
-    const stored = await env.DATA.get("v1/sats.json");
-    expect(stored?.httpMetadata?.cacheControl).toBe("public, max-age=1800");
-    expect(stored?.httpMetadata?.contentType).toBe("application/json");
-  });
-
-  /**
-   * The policy's one hard requirement: stop on a non-200. Requesting the second
-   * group in parallel would put a request on the wire that the first response
-   * had already forbidden.
-   */
-  it("does not fetch the second group once the first trips the breaker", async () => {
-    await closeBreaker();
-    const { fetcher, seen } = stubFetch({
-      "GROUP=stations": () => new Response("gone", { status: 404 }),
-      "GROUP=visual": () => new Response(`${HEADER}\n${row("ISS (ZARYA)", 25544)}\n`),
-    });
-
-    await expect(refreshSatellites(env, { fetch: fetcher, now })).rejects.toThrow(/404/);
-
-    expect(seen.filter((url) => url.includes("celestrak"))).toHaveLength(1);
-    expect((await readBreaker(env, "celestrak"))?.status).toBe(404);
-  });
-
-  // Elements stay usable for days, so a tripped breaker degrades pass
-  // prediction rather than breaking it.
-  it("leaves the last good document in place when the breaker trips", async () => {
-    await closeBreaker();
-    const good = stubFetch(celestrakRoutes());
-    await refreshSatellites(env, { fetch: good.fetcher, now });
-
-    const later = stubFetch({ "GROUP=": () => new Response("no", { status: 500 }) });
-    await expect(refreshSatellites(env, { fetch: later.fetcher, now })).rejects.toThrow();
-
-    expect((await readSatellites()).satellites).toHaveLength(2);
-  });
-
-  it("makes no request at all while the breaker is tripped", async () => {
-    await closeBreaker();
-    const quiet = { ...env, NTFY_TOPIC: "" } as unknown as Env;
-    const { fetcher, seen } = stubFetch(celestrakRoutes());
-    await trip(quiet, { fetch: fetcher, now }, "celestrak", {
-      status: 403,
-      url: "https://celestrak.org/NORAD/elements/gp.php",
-    });
-
-    await expect(refreshSatellites(env, { fetch: fetcher, now })).rejects.toThrow(/403/);
-
-    expect(seen).toHaveLength(0);
-    await closeBreaker();
   });
 });

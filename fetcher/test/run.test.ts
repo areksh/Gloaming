@@ -1,0 +1,238 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { breakerKey, readBreaker } from "../src/breaker";
+import type { SourceHealth } from "../src/health";
+import { CELESTRAK_SOURCE, run } from "../src/run";
+import type { ObjectStore, PutOptions } from "../src/store";
+
+/**
+ * The run, against an in-memory bucket.
+ *
+ * This is the same contract the Worker's pipeline had, verified again because
+ * the storage underneath it changed from a binding to signed HTTP. The parser
+ * itself is shared source and is tested once, in the Worker's suite.
+ */
+class MemoryStore implements ObjectStore {
+  readonly objects = new Map<string, { body: string; options: PutOptions }>();
+
+  async get(key: string): Promise<string | null> {
+    return this.objects.get(key)?.body ?? null;
+  }
+
+  async put(key: string, body: string, options: PutOptions = {}): Promise<void> {
+    this.objects.set(key, { body, options });
+  }
+}
+
+const HEADER =
+  "OBJECT_NAME,OBJECT_ID,EPOCH,MEAN_MOTION,ECCENTRICITY,INCLINATION,RA_OF_ASC_NODE," +
+  "ARG_OF_PERICENTER,MEAN_ANOMALY,EPHEMERIS_TYPE,CLASSIFICATION_TYPE,NORAD_CAT_ID," +
+  "ELEMENT_SET_NO,REV_AT_EPOCH,BSTAR,MEAN_MOTION_DOT,MEAN_MOTION_DDOT";
+
+const row = (name: string, catalogue: number) =>
+  `${name},1998-067A,2026-08-22T01:10:41.579040,15.49562116,.00076901,51.6330,334.1166,` +
+  `71.1509,289.0313,0,U,${catalogue},999,58196,.16914294E-3,.9068E-4,0`;
+
+const config = {
+  stationsUrl: "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV",
+  visualUrl: "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
+  userAgent: "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
+};
+
+const now = () => new Date("2026-08-22T18:00:00Z");
+
+/** Answers CelesTrak with `status`, and records everything asked for. */
+function network(status: number, bodies?: Record<string, string>) {
+  const requests: { url: string; redirect?: RequestInit["redirect"]; agent?: string }[] = [];
+  const pushes: { url: string; title: string; body: string }[] = [];
+
+  const fetcher = (async (url: RequestInfo | URL, init?: RequestInit) => {
+    const target = String(url);
+    if (target.includes("ntfy")) {
+      pushes.push({
+        url: target,
+        title: new Headers(init?.headers).get("Title") ?? "",
+        body: String(init?.body ?? ""),
+      });
+      return new Response("ok");
+    }
+    requests.push({
+      url: target,
+      redirect: init?.redirect,
+      agent: new Headers(init?.headers).get("User-Agent") ?? undefined,
+    });
+    const group = target.includes("stations") ? "stations" : "visual";
+    return new Response(bodies?.[group] ?? "", { status });
+  }) as unknown as typeof fetch;
+
+  return {
+    requests,
+    pushes,
+    alerting: { baseUrl: "https://ntfy.example", topic: "secret-topic", fetch: fetcher },
+  };
+}
+
+const groups = {
+  stations: `${HEADER}\n${row("ISS (ZARYA)", 25544)}\n`,
+  visual: `${HEADER}\n${row("ISS (ZARYA)", 25544)}\n${row("COSMOS 1220", 12345)}\n`,
+};
+
+const health = async (store: MemoryStore): Promise<SourceHealth> =>
+  JSON.parse((await store.get(`internal/health/${CELESTRAK_SOURCE}.json`))!) as SourceHealth;
+
+describe("run", () => {
+  let store: MemoryStore;
+
+  beforeEach(() => {
+    store = new MemoryStore();
+  });
+
+  it("publishes both groups as one deduplicated document", async () => {
+    const net = network(200, groups);
+
+    const result = await run(store, net.alerting, config, now);
+
+    expect(result).toEqual({ published: true, satellites: 2 });
+    const published = JSON.parse(store.objects.get("v1/sats.json")!.body);
+    expect(published.satellites.map((s: { catalogue: number }) => s.catalogue)).toEqual([
+      12345, 25544,
+    ]);
+    expect(published.updated).toBe("2026-08-22T18:00:00.000Z");
+  });
+
+  /**
+   * The Worker is never in the read path, so the CDN only caches what was set
+   * at PUT time. Losing this header would put every device's poll back on R2.
+   */
+  it("sets the published caching contract at PUT time", async () => {
+    const net = network(200, groups);
+
+    await run(store, net.alerting, config, now);
+
+    expect(store.objects.get("v1/sats.json")!.options).toEqual({
+      contentType: "application/json",
+      cacheControl: "public, max-age=1800",
+    });
+  });
+
+  it("names the app in the User-Agent and does not follow redirects", async () => {
+    const net = network(200, groups);
+
+    await run(store, net.alerting, config, now);
+
+    expect(net.requests).toHaveLength(2);
+    expect(net.requests.every((r) => r.agent === config.userAgent)).toBe(true);
+    expect(net.requests.every((r) => r.redirect === "manual")).toBe(true);
+  });
+
+  it("records a success where the Worker composes health from", async () => {
+    const net = network(200, groups);
+
+    await run(store, net.alerting, config, now);
+
+    const recorded = await health(store);
+    expect(recorded.state).toBe("ok");
+    expect(recorded.last_success).toBe("2026-08-22T18:00:00.000Z");
+    expect(recorded.consecutive_failures).toBe(0);
+  });
+
+  /**
+   * The policy's one hard requirement. Requesting the second group in parallel
+   * would put a request on the wire that the first response had already
+   * forbidden.
+   */
+  it("does not fetch the second group once the first trips the breaker", async () => {
+    const net = network(522);
+
+    const result = await run(store, net.alerting, config, now);
+
+    expect(result.published).toBe(false);
+    expect(result.error).toContain("522");
+    expect(net.requests).toHaveLength(1);
+    expect((await readBreaker(store, CELESTRAK_SOURCE))?.status).toBe(522);
+  });
+
+  it("makes no request at all while the breaker is tripped", async () => {
+    await store.put(
+      breakerKey(CELESTRAK_SOURCE),
+      JSON.stringify({
+        source: CELESTRAK_SOURCE,
+        status: 403,
+        url: config.stationsUrl,
+        note: "the data has not updated since the last successful download",
+        tripped_at: "2026-08-22T12:00:00.000Z",
+      }),
+    );
+    const net = network(200, groups);
+
+    const result = await run(store, net.alerting, config, now);
+
+    expect(result.published).toBe(false);
+    expect(net.requests).toHaveLength(0);
+    expect(net.pushes).toHaveLength(1); // the source failing, not a second trip
+  });
+
+  // Elements stay usable for days, so a tripped breaker degrades pass
+  // prediction rather than breaking it.
+  it("leaves the last good document in place when a run fails", async () => {
+    await run(store, network(200, groups).alerting, config, now);
+    const before = store.objects.get("v1/sats.json")!.body;
+
+    await run(store, network(500).alerting, config, now);
+
+    expect(store.objects.get("v1/sats.json")!.body).toBe(before);
+  });
+
+  /**
+   * Two pushes at the moment of a trip, saying different things: what CelesTrak
+   * returned, and that the source has gone down. Nothing after that, however
+   * long it stays down.
+   */
+  it("alerts on the edge into failure and not again", async () => {
+    const first = network(500);
+    await run(store, first.alerting, config, now);
+    expect(first.pushes.map((p) => p.title)).toEqual([
+      "Gloaming: celestrak breaker tripped",
+      "Gloaming: celestrak is failing",
+    ]);
+
+    const second = network(500);
+    await run(store, second.alerting, config, now);
+
+    expect(second.pushes).toHaveLength(0);
+    expect((await health(store)).consecutive_failures).toBe(2);
+  });
+
+  it("says so when a failing source starts publishing again", async () => {
+    await run(store, network(500).alerting, config, now);
+    store.objects.delete(breakerKey(CELESTRAK_SOURCE)); // the manual reset
+
+    const net = network(200, groups);
+    await run(store, net.alerting, config, now);
+
+    expect(net.pushes.map((p) => p.title)).toEqual(["Gloaming: celestrak recovered"]);
+    expect((await health(store)).state).toBe("ok");
+  });
+
+  /**
+   * A refused connection is not a response, so it is not the signal the policy
+   * is about. A transient network fault must not need a human before elements
+   * can refresh again.
+   */
+  it("leaves the breaker closed when the connection fails outright", async () => {
+    const fetcher = (async (url: RequestInfo | URL) => {
+      if (String(url).includes("ntfy")) return new Response("ok");
+      throw new Error("ECONNREFUSED");
+    }) as unknown as typeof fetch;
+
+    const result = await run(
+      store,
+      { baseUrl: "https://ntfy.example", topic: "t", fetch: fetcher },
+      config,
+      now,
+    );
+
+    expect(result.error).toContain("ECONNREFUSED");
+    expect(await readBreaker(store, CELESTRAK_SOURCE)).toBeNull();
+    expect((await health(store)).state).toBe("failing");
+  });
+});

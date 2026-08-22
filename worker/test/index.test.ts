@@ -34,8 +34,6 @@ describe("scheduled", () => {
     SWPC_SOLAR_WIND_MAG_URL: "http://127.0.0.1:1/mag",
     SWPC_SOLAR_WIND_SPEED_URL: "http://127.0.0.1:1/speed",
     AURORAWATCH_STATUS_URL: "http://127.0.0.1:1/status.xml",
-    CELESTRAK_STATIONS_URL: "http://127.0.0.1:1/gp.php?GROUP=stations",
-    CELESTRAK_VISUAL_URL: "http://127.0.0.1:1/gp.php?GROUP=visual",
     NTFY_TOPIC: "",
   };
 
@@ -82,33 +80,14 @@ describe("scheduled", () => {
 /**
  * Each cron drives one source, and the mapping lives in a switch that the
  * configuration cannot see. A schedule added to `wrangler.jsonc` without a
- * branch here would fire every two hours and do nothing at all.
+ * branch here would fire on time and do nothing at all - worse, it would throw
+ * before any source ran and leave no trace in `health.json`.
  */
 describe("cron routing", () => {
   const context = {
     waitUntil: () => {},
     passThroughOnException: () => {},
   } as unknown as ExecutionContext;
-
-  it("routes the two-hourly schedule to CelesTrak", async () => {
-    const offline = {
-      ...env,
-      CELESTRAK_STATIONS_URL: "http://127.0.0.1:1/gp.php?GROUP=stations",
-      CELESTRAK_VISUAL_URL: "http://127.0.0.1:1/gp.php?GROUP=visual",
-      NTFY_TOPIC: "",
-    } as unknown as Env;
-    const controller = {
-      cron: "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *",
-      scheduledTime: Date.now(),
-      noRetry: () => {},
-    } as ScheduledController;
-
-    await expect(worker.scheduled(controller, offline, context)).rejects.toThrow();
-
-    const stored = await offline.DATA.get("v1/health.json");
-    const health = JSON.parse(await stored!.text()) as Health;
-    expect(health.sources.celestrak?.state).toBe("failing");
-  });
 
   it("refuses a schedule it has no handler for", async () => {
     const controller = {

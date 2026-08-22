@@ -1,0 +1,22 @@
+{
+  "name": "gloaming-elements-fetcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fetches CelesTrak orbital elements from a host with a stable IP and publishes sats.json to R2. Exists because Cloudflare's egress cannot reach CelesTrak.",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.0"
+  }
+}

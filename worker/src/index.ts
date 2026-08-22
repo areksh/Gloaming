@@ -8,31 +8,11 @@
  */
 
 import { notifyMaintainer, publishHealth, recordOutcome, type Outcome } from "./health";
-import {
-  CELESTRAK_SOURCE,
-  ensureManifest,
-  refreshSatellites,
-  refreshSpaceWeather,
-  refreshUk,
-  type Deps,
-} from "./pipeline";
+import { ensureManifest, refreshSpaceWeather, refreshUk, type Deps } from "./pipeline";
 
 /** Which cron expression drives which source. Matches `triggers.crons`. */
 const AURORAWATCH_CRON = "*/3 * * * *";
 const SWPC_CRON = "*/5 * * * *";
-/**
- * CelesTrak's data updates two-hourly and their policy forbids polling faster.
- *
- * Spelled out hour by hour rather than with a step in the hours field. The
- * step form is documented syntax and registered without complaint, and then
- * never fired - observed across two scheduled times with a continuous tail
- * running, while the two step-in-minutes schedules beside it fired every time.
- *
- * This must stay byte-identical to the entry in `wrangler.jsonc`, or the
- * lookup below throws before any source runs and the failure leaves no trace
- * in `health.json` at all.
- */
-const CELESTRAK_CRON = "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *";
 
 /**
  * Every source that appears in `health.json`.
@@ -41,8 +21,12 @@ const CELESTRAK_CRON = "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *";
  * same way and matters more: it used to run outside all of this, so a bad key
  * aborted the invocation before anything was recorded and the one channel built
  * to report a silent failure was itself silent.
+ *
+ * `celestrak` is listed but has no cron here: it is fetched from outside
+ * Cloudflare entirely (ADR-0008) and writes its own record into the same
+ * bucket, which this composes without needing to know where it came from.
  */
-const SOURCES = ["manifest", "swpc", "aurorawatch", CELESTRAK_SOURCE];
+const SOURCES = ["manifest", "swpc", "aurorawatch", "celestrak"];
 
 /**
  * Runs one source's refresh, records the outcome, and alerts on a change of
@@ -106,9 +90,7 @@ export default {
         ? { name: "aurorawatch", refresh: () => refreshUk(env, deps) }
         : controller.cron === SWPC_CRON
           ? { name: "swpc", refresh: () => refreshSpaceWeather(env, deps) }
-          : controller.cron === CELESTRAK_CRON
-            ? { name: CELESTRAK_SOURCE, refresh: () => refreshSatellites(env, deps) }
-            : null;
+          : null;
     if (source === null) {
       throw new Error(`No handler for cron schedule "${controller.cron}"`);
     }

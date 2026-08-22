@@ -11,7 +11,6 @@ describe("CACHE_CONTROL", () => {
       "index.json": "public, max-age=3600",
       "status.json": "public, max-age=60, stale-while-revalidate=120",
       "oval.bin": "public, max-age=120, stale-while-revalidate=180",
-      "sats.json": "public, max-age=1800",
       "comets.json": "public, max-age=21600",
       "health.json": "public, max-age=60",
     });
