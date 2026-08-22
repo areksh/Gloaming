@@ -410,8 +410,8 @@ errors; the sourcing document is strong.
    objects, reached through a second binding. That is provisioning rather than
    code, and nothing in the pipelines assumes one bucket.
 
-10. **The two-hourly Cron Trigger did not fire. Confirmed 2026-08-22, worked
-    around.** The satellites pipeline never ran in production. `0 */2 * * *`
+10. **The two-hourly Cron Trigger did not fire with a step in the hours field.
+    Confirmed and fixed, 2026-08-22.** The satellites pipeline never ran in production. `0 */2 * * *`
     was registered - the API listed it, created 11:14:34Z - and then fired at
     neither 12:00 nor 14:00, while `*/3 * * * *` and `*/5 * * * *` on the same
     Worker fired every time, including at 14:00:21. Established with a
@@ -423,32 +423,52 @@ errors; the sourcing document is strong.
     field. Not the account trigger limit either - this is the only Worker on
     the account and it has three of the five.
 
-    Worked around by spelling the schedule out,
-    `0 0,2,4,6,8,10,12,14,16,18,20,22 * * *`. Whether the step form is at
-    fault or something else is, this removes the only part of the expression
-    that differs from the two schedules that do work. **The expression must
+    Fixed by spelling the schedule out,
+    `0 0,2,4,6,8,10,12,14,16,18,20,22 * * *`, which removed the only part of
+    the expression that differed from the two schedules that did work. **It
+    fired at the next scheduled time**, 18:00:45Z, first time of asking. So the
+    step form in the hours field is the cause, whatever the mechanism, and it
+    should be avoided here regardless of what the syntax table says. **The expression must
     stay byte-identical in `wrangler.jsonc` and in `index.ts`**, because the
     handler looks the schedule up before doing anything and throws on a miss -
     and that throw happens before any source is recorded, so a mismatch would
     look exactly like this same silence.
 
-11. **CelesTrak answered a Cloudflare Worker with 522 twice. Unresolved, and
-    now known to be a smaller claim than it looked, 2026-08-22.** Two preview
-    invocations, at 12:06:33 and 12:09:15 UTC, each got `HTTP 522` after
-    roughly 24 seconds. 522 is Cloudflare-generated and means its egress could
-    not open a connection to the origin; CelesTrak is not itself behind
-    Cloudflare (`Microsoft-IIS/10.0`, no Cloudflare headers).
+11. **Cloudflare's network cannot reach CelesTrak. Unresolved and blocking,
+    2026-08-22.** Three fetch attempts from Cloudflare, three `HTTP 522`, each
+    after roughly 24 seconds: 12:06:33 and 12:09:15 from `wrangler dev
+    --remote` previews, and 18:01:09 from the deployed Worker on its own cron.
+    522 is Cloudflare-generated and means its egress could not open a
+    connection to the origin; CelesTrak is not itself behind Cloudflare
+    (`Microsoft-IIS/10.0`, no Cloudflare headers).
 
-    Two things keep this from being a conclusion. `celestrak.org` was itself
-    unreachable from an ordinary domestic connection for most of that morning,
-    from about 10:20 UTC until about 12:08, so the first attempt is explained
-    by their outage and the second is a single sample taken a minute after
-    recovery. And both were `wrangler dev --remote` preview runs; because of
-    issue 10 above, **no production invocation has ever attempted the fetch**,
-    so the deployed path is still untested.
+    The controlled comparison is the 18:00 run. The same URL, with the same
+    User-Agent, was requested from an ordinary domestic connection **in the
+    same minute**: `HTTP 200` in 1.96 seconds. Worker: 522 after 24 seconds.
+    That pairing is what the earlier attempts lacked - `celestrak.org` was
+    genuinely unreachable from everywhere for much of that morning, which
+    confounded them - and it removes the two obvious alternative explanations
+    at once. Production and preview fail identically, so it is not an artefact
+    of preview egress; and the origin was demonstrably healthy at that instant,
+    so it is not an outage.
 
-    If it does turn out that Cloudflare's egress is blocked, note that **a
-    Worker's egress address cannot be chosen** on any plan. The options are:
+    A 24-second timeout rather than a refusal means packets are being dropped
+    rather than rejected. Whether that is CelesTrak firewalling Cloudflare
+    Workers' shared egress ranges - their policy is explicit that shared-egress
+    users get blocked by each other's behaviour, and Workers share egress
+    across every customer on the platform - or a routing problem between
+    Cloudflare and their host, cannot be told apart from this side. The
+    practical consequence is the same either way.
+
+    **No further attempts should be made.** Three is enough to establish it,
+    and repeatedly probing a source that may already have blocked the range is
+    precisely the behaviour the usage policy warns about. The breaker is
+    tripped and should stay tripped until the cause is addressed. Nothing else
+    in the app is affected: `sats.json` is simply absent, and the pass planner
+    treats that as "no passes known" and stays dormant.
+
+    **A Worker's egress address cannot be chosen** on any plan, so there is
+    nothing to configure and the fetch has to move. The options are:
     ask Kelso, since he is reachable and the policy invites contact; move the
     fetch to a host with a stable dedicated IP and have it write to R2, keeping
     the fan-out where it is - the parser is pure TypeScript and would run
