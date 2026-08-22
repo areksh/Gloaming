@@ -101,6 +101,21 @@ class CreditsTest {
     }
 
     /**
+     * GPL-3 to GPL-3 vendoring needs no permission, only compliance: keep the
+     * copyright notices and licence headers in the files, and credit the
+     * project. Unlike MIT it does not require its text in every copy - it
+     * requires the corresponding source, which the repository link provides.
+     */
+    @Test
+    fun `credits Look4Sat for the vendored propagator`() {
+        val credit = named("Look4Sat")!!
+
+        assertTrue(credit.body.contains("GPL-3"))
+        assertEquals(null, credit.licence)
+        assertTrue(credit.links.any { it.url == "https://github.com/rt-bishop/Look4Sat" })
+    }
+
+    /**
      * The vendored file is replaced wholesale on an upgrade, and its licence
      * could change with it. Comparing the two catches a notice that has quietly
      * stopped describing the code it covers.

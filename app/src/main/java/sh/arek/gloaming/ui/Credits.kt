@@ -105,4 +105,19 @@ fun credits(fromAuroraWatch: Boolean): List<Credit> = buildList {
             licence = ASTRONOMY_ENGINE_LICENCE,
         ),
     )
+
+    add(
+        Credit(
+            name = "Look4Sat",
+            body = "Arty Bishop's satellite tracker, whose SGP4/SDP4 propagator computes " +
+                "every pass this app predicts. Vendored under the GPL-3.0, the same " +
+                "licence this app carries.",
+            // No licence text here, unlike the MIT credit above: GPL-3 asks for
+            // the corresponding source rather than a notice in every copy, and
+            // the source link on this screen is what provides it.
+            links = listOf(
+                CreditLink("Look4Sat", "https://github.com/rt-bishop/Look4Sat"),
+            ),
+        ),
+    )
 }
