@@ -180,6 +180,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written it also made every wake up to a quarter later than asked for, on top
   of the batching window the system already attaches to an inexact alarm - in
   an app whose one recurring complaint is that checks arrive late.
+- The aurora grid stops inflating past the size a grid can be. Capping the
+  download does not bound this - compression is exactly where the two sizes are
+  unrelated, and a couple of kilobytes of gzipped zeros expand to gigabytes -
+  and the size check ran only after the whole thing was in memory.
 - Responses are refused past a size cap, and the HTTP client has a whole-call
   deadline. The manifest is verified only once its bytes are in memory, so the
   signature is no defence against a body that never ends; the poll that would

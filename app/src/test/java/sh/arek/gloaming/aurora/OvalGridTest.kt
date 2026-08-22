@@ -112,6 +112,29 @@ class OvalGridTest {
         }
     }
 
+    /**
+     * The size check happens after inflating, which is too late: a couple of
+     * kilobytes of gzipped zeros expand to gigabytes, and the process that
+     * would run out of memory is a background poll at three in the morning.
+     * Capping the download does not help - the whole point of compression is
+     * that the two sizes are unrelated - so inflation has to stop by itself.
+     */
+    @Test
+    fun `refuses a small payload that inflates to an enormous one`() {
+        val bomb = gzip(ByteArray(64 * 1024 * 1024))
+        assertTrue("fixture is not small enough to be a bomb", bomb.size < 100_000)
+
+        val error = assertThrows(IllegalArgumentException::class.java) { OvalGrid.fromGzip(bomb) }
+
+        // The message distinguishes the two ways this can be rejected. Being
+        // told the size after the fact means the whole thing was inflated
+        // first, which is the failure rather than the check.
+        assertTrue(
+            "rejected only after inflating it: ${error.message}",
+            error.message.orEmpty().contains("stopped inflating"),
+        )
+    }
+
     @Test
     fun `rejects bytes that are not gzip at all`() {
         assertThrows(IllegalArgumentException::class.java) {

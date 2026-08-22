@@ -61,10 +61,26 @@ class OvalGrid private constructor(private val cells: ByteArray) {
          * The payload is gzip at the application layer, not an HTTP transfer
          * encoding: declaring `Content-Encoding` let the CDN inflate the object
          * and serve forty times the bytes, so the client inflates it instead.
+         *
+         * It stops at one byte past the size a grid can be. Capping the
+         * download does not bound this - compression is precisely the case
+         * where the two sizes are unrelated, and a couple of kilobytes of
+         * gzipped zeros expand to gigabytes - and the process that would run
+         * out of memory is a background poll at three in the morning.
          */
         fun fromGzip(gzipped: ByteArray): OvalGrid {
             val inflated = try {
-                GZIPInputStream(ByteArrayInputStream(gzipped)).use { it.readBytes() }
+                GZIPInputStream(ByteArrayInputStream(gzipped)).use { stream ->
+                    val buffer = ByteArray(BYTES + 1)
+                    var filled = 0
+                    while (filled < buffer.size) {
+                        val read = stream.read(buffer, filled, buffer.size - filled)
+                        if (read < 0) break
+                        filled += read
+                    }
+                    require(filled <= BYTES) { "Aurora grid stopped inflating past $BYTES bytes" }
+                    buffer.copyOf(filled)
+                }
             } catch (cause: ZipException) {
                 throw IllegalArgumentException("Aurora grid was not valid gzip", cause)
             } catch (cause: java.io.EOFException) {
