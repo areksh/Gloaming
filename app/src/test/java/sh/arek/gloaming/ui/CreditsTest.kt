@@ -100,6 +100,14 @@ class CreditsTest {
         assertTrue(licence.contains("shall be included in all"))
     }
 
+    /** Their usage policy asks for credit, and the elements are now in use. */
+    @Test
+    fun `credits CelesTrak for the orbital elements`() {
+        val credit = named("CelesTrak")!!
+
+        assertTrue(credit.links.any { it.url.startsWith("https://celestrak.org") })
+    }
+
     /**
      * GPL-3 to GPL-3 vendoring needs no permission, only compliance: keep the
      * copyright notices and licence headers in the files, and credit the

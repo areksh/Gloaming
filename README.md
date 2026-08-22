@@ -8,6 +8,10 @@ Your location is never sent to us. All the astronomy is computed on-device, all
 alert decisions are made on-device, and nothing can contact the app - it reaches
 out on its own schedule and nothing reaches in.
 
+Satellite passes follow the same rule: the orbital elements are published once,
+for everybody, and every prediction happens on your phone. CelesTrak never sees
+an install, and could not tell where one was if it did.
+
 The one thing that does leave the phone is a rounded position, at most once an
 hour, to Open-Meteo for the cloud forecast - a question about a place cannot be
 asked without naming one. It is rounded to about a kilometre, which is the
@@ -19,9 +23,11 @@ cover, darkness windows, the full decision rules, adaptive polling, storm mode,
 the AuroraWatch UK layer, a home-screen widget, a watch-now mode for nights the
 background schedule cannot be trusted, and a night-vision mode - on top
 of alerting already verified on a real phone in deep Doze and before first
-unlock. What remains before release is the part no test suite can do for you: a
-season of real nights, to calibrate the thresholds and confirm the app is worth
-keeping installed.
+unlock. Satellite passes are now built on top of that: the app predicts when the
+ISS and other bright satellites cross your sky and tells you half an hour
+before, with which way to look and how high it gets. What remains before release
+is the part no test suite can do for you: a season of real nights, to calibrate
+the thresholds and confirm the app is worth keeping installed.
 
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system
@@ -214,6 +220,8 @@ Aurora forecasts from [NOAA SWPC](https://www.swpc.noaa.gov/); UK aurora data
 from [AuroraWatch UK](https://aurorawatch.lancs.ac.uk/) at Lancaster University;
 weather from [Open-Meteo](https://open-meteo.com/); orbital elements from
 [CelesTrak](https://celestrak.org/); comet elements from the
-[Minor Planet Center](https://www.minorplanetcenter.net/). Full attribution
+[Minor Planet Center](https://www.minorplanetcenter.net/). The SGP4/SDP4
+propagator behind every pass prediction is vendored from
+[Look4Sat](https://github.com/rt-bishop/Look4Sat) under the GPL-3.0. Full attribution
 requirements are recorded in the sourcing document and are surfaced in-app next
 to the data they cover.

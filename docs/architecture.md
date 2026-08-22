@@ -77,12 +77,36 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 - **`oval.bin` packer.** The SWPC OVATION 360x181 grid is packed to one byte per
   cell (probability 0-100), row-major, then gzipped at PUT. The pack/unpack pair
   is covered by a round-trip unit test.
-- **Circuit breaker (Phase 3, CelesTrak).** Any non-200 from CelesTrak writes a
-  tripped flag plus the response code and timestamp to KV; every invocation
-  checks the flag first and does not query while it is set; **reset is manual**.
+- **OMM normalisation.** CelesTrak publishes GP data as OMM in CSV, never TLE
+  for the 6-digit catalogue numbers issued since July 2026. The Worker parses it
+  and publishes `sats.json` with fields mapping one-for-one onto the app's
+  element type, including the epoch already converted from ISO-8601 to the
+  packed `YYDDD.dddddd` every SGP4 implementation takes. Done here rather than
+  on the device because the column mapping and the epoch conversion are the two
+  things most likely to be wrong, and because `minSdk 24` predates `java.time`.
+  Columns are read **by name from the header row**, never by position: reading a
+  reordered document by index would not fail, it would publish plausible
+  elements for the wrong orbit.
+- **Circuit breaker (CelesTrak).** Any non-200 from CelesTrak writes a tripped
+  flag plus the response code and timestamp to R2 at
+  `internal/breaker/celestrak.json`; every invocation checks the flag first and
+  does not query while it is set; **reset is manual**, by deleting that object.
   `sats.json` keeps serving its last-good copy meanwhile. Tripping POSTs the
   maintainer ntfy topic. This is the single most important CelesTrak requirement
   (Sec. 3): stop on any non-200, do not back off, do not retry.
+
+  Two details settled in the building, both worth keeping:
+
+  - **Redirects are not followed** (`redirect: "manual"`). A followed 301 would
+    arrive as a 200 from wherever it pointed, and 301 is precisely the code that
+    means "this URL is legacy and will stop being honoured".
+  - **A connection that fails outright leaves the breaker closed.** No response
+    arrived, so it is not the signal the policy is about, and a transient
+    network fault must not need a human before elements can refresh again. It
+    still fails the source, which is what `health.json` and its alert are for.
+
+  The two groups are fetched **sequentially**. In parallel, the second request
+  would be on the wire before the first response could forbid it.
 - **Config, not hardcode.** The AuroraWatch base URL lives in Worker
   configuration and the Open-Meteo base URL lives in the manifest, never baked
   into a fetch or the APK, so a source URL swap is a config change (Sec. 1,
@@ -104,9 +128,12 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   appears in the design. It is not how users are notified - see ADR-0003 and the
   distinction drawn in Sec. 5 below.
 
-State stores: use **R2 for the `status.json` partials** (1M Class A writes/month
-free, ample headroom) and **KV only for the rarely-written breaker flag**, to
-stay clear of the KV 1,000-writes/day/namespace ceiling (issue #7).
+State stores: **R2 throughout** - the `status.json` partials, the per-source
+health records, and the CelesTrak breaker flag (1M Class A writes/month free,
+ample headroom). KV was planned for the breaker to stay clear of its
+1,000-writes/day/namespace ceiling (issue #7), but a flag written a few times a
+year does not justify provisioning a second store when the bucket is already
+bound and already holds the internal objects.
 
 ## 4. Read side: R2 and the custom domain
 
@@ -129,7 +156,7 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `index.json.sig` | 64 B | on change | `public, max-age=3600` | Ed25519 detached signature over `index.json`. |
 | `status.json` | ~0.5 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `max_probability` + `oval_etag`. Latency-critical. |
 | `oval.bin` | 1.6-2.5 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major by latitude, 360x181, gzipped. Fetched conditionally on `oval_etag` change (Sec. 4). Sizes measured against live data, quiet to simulated severe storm. |
-| `sats.json` | ~20 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. Phase 3. |
+| `sats.json` | ~20-40 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. |
 | `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
 | `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
 | `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
@@ -171,24 +198,21 @@ top-level `kotlin { }` block and `jvmTarget` defaults to
 
 Proportionate to start, growing with the phases:
 
-- **`:app`** - Compose UI, notification channels, scheduling, DI wiring.
-- **`:core:astronomy`** - the astronomy-engine wrapper and the comet Kepler
-  solver (Phase 5).
-- **`:core:predict`** - the vendored Look4Sat SGP4/SDP4 code (GPL-3), added in
-  Phase 3 and kept in its own module to isolate the vendored source and preserve
-  its licence headers.
-
-Package-based separation inside `:app` is enough for Phases 1-2; the
-`:core:predict` module is extracted when the propagator lands.
+- **`:app`** - everything: Compose UI, notification channels, scheduling,
+  wiring, and the domain code, separated by package.
+- **`:core:astronomy`**, **`:core:predict`** - planned, and not built. Both were
+  to isolate vendored source; the vendor source directory does that already.
+  See ADR-0007.
 
 Vendored third-party source lives in a separate source directory,
 `app/src/main/vendor`, declared in `app/build.gradle.kts` and documented in
 `app/src/main/vendor/README.md`. That is what isolates vendored code and its
-licence headers today - astronomy-engine (ADR-0006), and Look4Sat's SGP4 when
-Phase 3 arrives. A module is the heavier version of the same separation, worth
-extracting when one directory stops being enough rather than in advance. Nothing
-vendored is ever edited: the app wraps it instead, so an upgrade is a file
-replacement.
+licence headers: astronomy-engine (ADR-0006) and Look4Sat's SGP4/SDP4
+(ADR-0007). A module is the heavier version of the same separation, worth
+extracting when one directory stops being enough rather than in advance.
+Nothing vendored is ever edited: the app wraps it instead - `astronomy.Twilight`
+over the ephemeris, `satellites.PassFinder` over the propagator - so an upgrade
+is a file replacement.
 
 ### Layers
 
@@ -197,6 +221,11 @@ replacement.
   and computed events; DataStore (Preferences) for settings. A `WeatherSource`
   interface is defined from the start (Open-Meteo the only shipped
   implementation) to leave room for BYO keys without a later refactor (Sec. 15).
+- **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
+  horizon-crossing search over the vendored propagator, which offers no search
+  of its own), and `PassDescription` (qualitative buckets - never a magnitude).
+  Pure and clock-free; the propagator itself is gated on Vallado's verification
+  vectors.
 - **domain:** the packed-grid lookup; one internal likelihood model (OVATION
   cell, or AuroraWatch inside the UK bounding box) so the UI never branches on
   which source is in play; the decision engine (hysteresis `T_on`/`T_off`,

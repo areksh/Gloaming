@@ -270,9 +270,13 @@ since May 2020 using CCSDS 502.0-B-3 Table 4-1 keywords; CSV is roughly 10% smal
 TLE and simpler to parse. Their usage policy is explicit: "Users need to update their
 software to use the CSV formats."
 
-This has a direct cost in Sec. 7: **Look4Sat's `OrbitalData` parses TLEs.** SGP4 itself is
-unaffected - a TLE is only a container for mean elements - so the propagator is kept and an
-OMM->elements constructor is written. This is budgeted work in Phase 3, not a surprise.
+This was recorded as a direct cost in Sec. 7, on the understanding that Look4Sat's
+`OrbitalData` parses TLEs. **Checked against v4.4.6, 2026-08-22: it does not.** It is a
+plain data class of mean elements; the TLE and CSV parsers live in `utility/DataParser.kt`,
+which is not vendored. The real work was a field mapping plus one format conversion, since
+`OrbitalData.epoch` is the TLE's packed `YYDDD.dddddd` while OMM gives ISO-8601 - and even
+that happens in the Worker, so the app never parses a date. **As built, the app deserialises
+numbers and nothing else.**
 
 ### Which objects are affected, concretely
 
@@ -694,7 +698,7 @@ wants.
 | Library | Coordinates | Licence | minSdk impact |
 |---|---|---|---|
 | **astronomy-engine** | **vendored** at `app/src/main/vendor/`, from tag `v2.1.19` | MIT | **None.** The 10,674-line Kotlin source imports `kotlin.math.*` and nothing else - zero `java.*` imports, no `java.time`, no `Calendar`. `Time.fromMillisecondsSince1970(Long)`. No desugaring. |
-| **SGP4/SDP4** | vendor `core/domain/.../predict/` from Look4Sat | **GPL-3** | None - pure `kotlin.math`. Needs an OMM constructor adding (Sec. 3). |
+| **SGP4/SDP4** | vendored at `app/src/main/vendor/com/rtbishop/look4sat/`, from tag `v4.4.6` | **GPL-3** | None - pure `kotlin.math`. Eleven files: the ten in `predict/` plus `utility/GeoConverter.kt`, which they import two extension functions from. |
 | OkHttp, Room, Compose, coroutines, kotlinx-serialization | | | Standard. |
 
 No push, messaging or distributor library is required. See Sec. 9.3.
@@ -704,6 +708,14 @@ needing external data files - disproportionate). Fused location provider (Play S
 `EncryptedSharedPreferences` (Jetpack Security is effectively unmaintained; plain
 `SharedPreferences` is adequate for a user's own key on their own device).
 
+**The vendored package contains no pass search.** Checked 2026-08-22: it offers
+`getPosition`, `getElevation`, `willBeSeen` and the eclipse state for a single instant, and
+Look4Sat's own AOS/LOS hunt lives in its app layer rather than in the code vendored here.
+Finding when a pass begins, ends and peaks is therefore this project's code -
+`sh.arek.gloaming.satellites.PassFinder` - and is the one substantial piece of new astronomy
+in Phase 3. See ADR-0007 for where the vendored files sit and why no `:core:predict` module
+was built.
+
 **predict4java** (`uk.me.g4dpz:predict4java:1.2.2`) is the alternative to vendoring:
 maintained (1.2.2, Feb 2026) and **relicensed to MIT** in 2026 - older sources saying GPL
 are out of date. It pulls in `commons-lang3`, `slf4j-api` and **`joda-time`** for what is
@@ -711,10 +723,14 @@ pure maths, and it is TLE-oriented, so adopting it means adding OMM support to s
 else's library rather than to a local fork. Vendoring Look4Sat's Kotlin port is cleaner;
 the cost is GPL-3.
 
-**Validation:** the vendored propagator plus a new element constructor is exactly the
-change that produces passes 40 seconds out. Vallado's SGP4 verification test vectors are
-run in CI against the vendored code before Phase 3 ships. This is a checklist item, not an
-aspiration.
+**Validation:** the vendored propagator plus a new element mapping is exactly the change
+that produces passes 40 seconds out. Vallado's SGP4 verification test vectors run against
+the vendored code as a JVM unit test (there is no CI; see Sec. 12). Scoped to where the app
+predicts - near-Earth, perigee above 156 km - because this port descends from the original
+Spacetrack Report #3 and Vallado's 2006 revision differs from it precisely in the deep-space
+Lyddane fix and the sub-156 km drag modification. In scope, measured 2026-08-22: 20 m for
+objects in normal flight, 320 m for those in decay, against a 500 m bound. 320 m is 40
+milliseconds of pass time.
 
 ### astronomy-engine: dormancy, and why it is vendored
 

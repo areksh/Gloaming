@@ -108,6 +108,16 @@ fun credits(fromAuroraWatch: Boolean): List<Credit> = buildList {
 
     add(
         Credit(
+            name = "CelesTrak",
+            body = "Dr T.S. Kelso's orbital elements, which every satellite pass in this " +
+                "app is computed from. A non-profit, funded by nobody and charging " +
+                "nothing.",
+            links = listOf(CreditLink("CelesTrak", "https://celestrak.org/")),
+        ),
+    )
+
+    add(
+        Credit(
             name = "Look4Sat",
             body = "Arty Bishop's satellite tracker, whose SGP4/SDP4 propagator computes " +
                 "every pass this app predicts. Vendored under the GPL-3.0, the same " +

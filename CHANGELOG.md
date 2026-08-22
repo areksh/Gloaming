@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Satellite passes. The app predicts when the ISS and other bright satellites
+  cross the sky where you are, and tells you half an hour before one is
+  highest: which way to look, how high it gets, and whether it will go into the
+  Earth's shadow part-way across. Two notification channels, `iss-passes` and
+  `bright-satellites`, so the station can be kept and the rest silenced.
+- Orbital elements published as `sats.json`, refreshed two-hourly by the Worker
+  from CelesTrak's `stations` and `visual` groups. **OMM, never TLE**: the
+  public catalogue passed 100000 in July 2026 and GP data is not published in
+  TLE format for those objects, which include the brightest satellites now
+  going up.
+- A circuit breaker on the CelesTrak source. Any non-200 response stops all
+  further querying until a human clears it by hand, as their usage policy
+  requires; `sats.json` keeps serving its last-good copy meanwhile, and the
+  maintainer gets one push saying what the response was.
+- The `sats` endpoint in the signed manifest, so the elements can move without
+  stranding installs.
+- Look4Sat's SGP4/SDP4 propagator, vendored under the GPL-3.0 and credited in
+  the app. Its agreement with Vallado's verification vectors is now a unit test
+  and a release gate.
+
 - Architecture documentation (`docs/architecture.md`), decision records under
   `docs/adr/`, and the pre-development checklist (`docs/prerequisites.md`).
 - Jetpack Compose application scaffold (replacing the initial Views/AppCompat
