@@ -898,6 +898,11 @@ It costs nothing the rest of the time because it does not run.
   network restrictions; without it, polls are deferred into maintenance windows hours
   apart, precisely overnight, when the aurora happens and the phone is on a bedside table.
   GrapheneOS users will grant it given a reason.
+  - **The exemption is a requirement, not a refinement**, and running without it is out of
+    scope: the app says so plainly rather than degrading quietly, and the non-exempt
+    schedule is deliberately neither measured nor accommodated. Decided 2026-08-22. The
+    watch-now switch is the answer for a night that matters, since a foreground service
+    runs its own clock and no alarm policy reaches it.
 - **OEM caveat:** the exemption is sufficient on AOSP-derived and GrapheneOS builds. It is
   not sufficient on several major OEM skins, which apply their own process killers. Link
   dontkillmyapp.com from the FAQ and detect the common cases where possible.

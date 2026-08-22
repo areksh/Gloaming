@@ -48,6 +48,7 @@ class MainScreenTest {
     private fun show(
         settings: UserSettings = located,
         alertState: AlertState = AlertState(),
+        batteryExempt: Boolean = true,
         checking: Boolean = false,
         darkness: Darkness? = null,
         powerSaveMode: Boolean = false,
@@ -62,7 +63,7 @@ class MainScreenTest {
                     longitudeInput = "-3.19",
                     quietFromInput = "23:00",
                     quietUntilInput = "07:00",
-                    batteryExempt = true,
+                    batteryExempt = batteryExempt,
                     notificationsAllowed = true,
                     nowMillis = now,
                     checking = checking,
@@ -272,5 +273,18 @@ class MainScreenTest {
         show(alertState = AlertState(lastProbability = 55, lastFromAuroraWatch = false))
 
         compose.onAllNodesWithText("AuroraWatch", substring = true).assertCountEquals(0)
+    }
+
+    /**
+     * The exemption is a requirement rather than a refinement - a Gloaming
+     * without it cannot alert anyone overnight, which is the whole app - so the
+     * screen has to say so and offer the way to grant it.
+     */
+    @Test
+    fun demandsTheBatteryExemptionRatherThanWorkingAroundIt() {
+        show(batteryExempt = false)
+
+        compose.onNodeWithText("Gloaming cannot alert you yet").assertExists()
+        compose.onNodeWithText("Allow background checks").assertExists()
     }
 }

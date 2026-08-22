@@ -104,11 +104,12 @@ fun MainScreen(
 
         if (!state.batteryExempt) {
             WarningCard(
-                title = "Alerts will be delayed",
-                body = "Android's battery saving holds background checks until the phone " +
-                    "wakes, which overnight can mean hours - exactly when the aurora " +
-                    "happens and the phone is on a bedside table. Gloaming needs an " +
-                    "exemption to check on its own schedule.",
+                title = "Gloaming cannot alert you yet",
+                body = "Android holds background checks until the phone next wakes, which " +
+                    "overnight means hours - exactly when the aurora happens and the " +
+                    "phone is on a bedside table. This exemption is required, not a " +
+                    "refinement: without it Gloaming cannot do the one thing it is for, " +
+                    "and no other setting here works around it.",
                 action = "Allow background checks",
                 onAction = onRequestBatteryExemption,
             )

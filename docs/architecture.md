@@ -270,10 +270,13 @@ Greenfield, held to the full TDD bar (ADR-0001).
   because it has not been opened yet, and no battery-optimisation exemption. A
   deferred alarm is still listed as pending and looks healthy; only the
   `policyWhenElapsed` line distinguishes it, which is why the harness reads it.
-  The exemption request flow is therefore load-bearing, not a nicety.
-- **CI:** Codeberg CI (Woodpecker or Forgejo Actions) builds and tests the app
-  and deploys the Worker via Wrangler. Reproducible builds for the F-Droid main
-  repo are a post-v1 concern (Sec. 12).
+  The exemption request flow is therefore load-bearing, not a nicety - and the
+  exemption is a requirement rather than a refinement, so the app states it
+  plainly and the non-exempt schedule is deliberately not accommodated.
+- **CI:** none yet. Codeberg CI was the plan, and is not available to this
+  project; an alternative host has still to be chosen, so the suites are run
+  locally in the meantime. Reproducible builds for the F-Droid main repo are a
+  post-v1 concern (Sec. 12).
 
 ## 8. Build order
 

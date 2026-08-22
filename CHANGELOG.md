@@ -132,6 +132,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The battery-optimisation exemption is stated as a requirement rather than a
+  refinement. The screen said alerts would be "delayed" without it, which
+  undersold it: an aurora app that cannot check overnight is not doing
+  anything, and no other setting works around it. Running without the exemption
+  is out of scope, and the non-exempt schedule is deliberately neither measured
+  nor accommodated.
 - astronomy-engine is vendored (MIT, tag `v2.1.19`) rather than resolved as a
   dependency. It is not published to Maven Central at all - only to JitPack,
   which builds it on demand - and a third-party build service in the supply
