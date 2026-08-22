@@ -249,7 +249,12 @@ class MainScreenTest {
 
         compose.onNodeWithText("Credits and licences").performScrollTo().assertExists()
         compose.onNodeWithText("Cloud forecasts, under CC BY 4.0.").assertExists()
-        compose.onNodeWithText("GPL-3.0", substring = true).assertExists()
+        // Named specifically: the vendored propagator's credit says GPL-3.0
+        // too, so a substring match on the licence alone no longer identifies
+        // the app's own statement of it.
+        compose.onNodeWithText("Gloaming itself is free software under the GPL-3.0", substring = true)
+            .assertExists()
+        compose.onNodeWithText("Vendored under the GPL-3.0", substring = true).assertExists()
     }
 
     /**
