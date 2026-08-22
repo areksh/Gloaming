@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -132,5 +133,73 @@ class StoragePartitionTest {
 
         assertEquals("{}", String(store.read()!!.body))
         directory.deleteRecursively()
+    }
+
+    /**
+     * The cloud reading records where the user was, at the rounded position the
+     * request carried - two decimal places, about a kilometre. That is far
+     * finer than the whole degree the settings mirror is reduced to, and
+     * device-encrypted storage is readable before anyone has unlocked the
+     * phone, which is the situation the split exists for.
+     *
+     * So it follows the settings it derives from. With before-unlock alerting
+     * off, polls read the precise position and the reading goes to
+     * credential-encrypted storage. With it on, polls read the whole-degree
+     * mirror, the request carries no more than that, and the reading may sit in
+     * device-encrypted storage beside it.
+     */
+    @Test
+    fun theCloudReadingFollowsThePrecisionItWasTakenAt() {
+        val deviceRoot = BootAware.deviceContext(context).filesDir.absolutePath
+
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = false),
+        )
+        assertNotEquals(
+            "a kilometre-precise reading was left where a locked phone can read it",
+            deviceRoot,
+            BootAware.weatherCacheContext(context).filesDir.absolutePath,
+        )
+
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = true),
+        )
+        assertEquals(
+            deviceRoot,
+            BootAware.weatherCacheContext(context).filesDir.absolutePath,
+        )
+    }
+    /**
+     * Turning the option off takes the reading with it. It was taken at the
+     * mirror's whole degree, so leaving it behind would keep a position in the
+     * weaker store after the user opted out of having one there - which is the
+     * same reason the settings mirror itself is cleared rather than left.
+     */
+    @Test
+    fun optingOutOfBeforeUnlockTakesTheCloudReadingWithIt() {
+        val deviceCache = java.io.File(
+            BootAware.deviceContext(context).filesDir,
+            BootAware.CACHE_DIRECTORY,
+        )
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = true),
+        )
+        FileWeatherCache(deviceCache).write(
+            CachedCloud(CloudCover(10, 0, 0, 10), latitude = 56.0, longitude = -3.0, fetchedAt = 1),
+        )
+        assertNotNull(FileWeatherCache(deviceCache).read())
+
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = false),
+        )
+
+        assertNull(
+            "a position was left where a locked phone can read it",
+            FileWeatherCache(deviceCache).read(),
+        )
     }
 }

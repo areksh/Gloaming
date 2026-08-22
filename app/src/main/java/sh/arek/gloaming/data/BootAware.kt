@@ -2,6 +2,7 @@ package sh.arek.gloaming.data
 
 import android.content.Context
 import android.os.UserManager
+import java.io.File
 import kotlin.math.roundToInt
 
 /**
@@ -26,7 +27,8 @@ import kotlin.math.roundToInt
  * - **Settings used by the poll** live in device-encrypted storage only when
  *   before-unlock alerting is switched on, and then carry the observer's
  *   *grid cell* rather than the position typed in.
- * - **The precise position** never leaves credential-encrypted storage.
+ * - **The precise position** never leaves credential-encrypted storage, and
+ *   nor does the cloud reading taken at it - see [weatherCacheContext].
  */
 object BootAware {
 
@@ -72,6 +74,11 @@ object BootAware {
         val toMirror = mirrorOf(settings)
         if (toMirror == null) {
             mirror.clear()
+            // The cloud reading goes with it. It was taken at the mirror's
+            // whole degree, so leaving it would keep a position in the weaker
+            // store after the user opted out of having one there - the same
+            // reason the mirror itself is cleared rather than left stale.
+            FileWeatherCache(File(deviceContext(context).filesDir, CACHE_DIRECTORY)).clear()
             // The flag itself must survive, or the next locked wake cannot tell
             // that the user turned the option off rather than never set it.
             mirror.write(UserSettings(alertsBeforeUnlock = false))
@@ -104,6 +111,31 @@ object BootAware {
         )
     }
 
+    /**
+     * Where the cloud reading may be kept.
+     *
+     * The reading records where the user was, at the rounded position the
+     * request carried - two decimal places, about a kilometre. That is far
+     * finer than the whole degree the settings mirror is reduced to, so it
+     * cannot simply sit in device-encrypted storage with the caches: doing so
+     * would put a kilometre-precise position where a phone that has not been
+     * unlocked since boot will hand it over, which is exactly what the split
+     * exists to prevent.
+     *
+     * So it follows the settings it was taken from. With before-unlock alerting
+     * off, the poll reads the precise position and the reading belongs in
+     * credential-encrypted storage; a locked poll does not run in that
+     * configuration anyway. With it on, the poll reads the whole-degree mirror,
+     * the request carries no more than that, and the reading is no more
+     * revealing than the mirror already beside it.
+     */
+    fun weatherCacheContext(context: Context): Context =
+        if (beforeUnlockEnabled(context)) {
+            deviceContext(context)
+        } else {
+            context.applicationContext
+        }
+
     /** Settings for the polling path, from whichever store is authoritative. */
     fun pollSettings(context: Context): SettingsStore =
         if (beforeUnlockEnabled(context)) {
@@ -111,4 +143,6 @@ object BootAware {
         } else {
             PreferencesSettingsStore(credentialPreferences(context))
         }
+    /** Where the cached documents live under whichever store holds them. */
+    const val CACHE_DIRECTORY = "sky"
 }

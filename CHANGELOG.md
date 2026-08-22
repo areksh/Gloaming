@@ -168,6 +168,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The cached cloud reading no longer sits in device-encrypted storage
+  unconditionally. It records where the user was at about a kilometre - the
+  rounded position the request carried - which is far finer than the whole
+  degree the settings mirror is reduced to, and device-encrypted storage is
+  readable before anyone has unlocked the phone. It now follows the settings it
+  was taken from, and is deleted from the weaker store when the user turns
+  before-unlock alerting off.
 - Backup is switched off, and device-to-device transfer is excluded separately,
   because `allowBackup` does not cover it. Both rule files were still the
   unedited template, which means include-everything - so the precise position

@@ -45,7 +45,16 @@ object Graph {
      * protecting.
      */
     private fun cacheDirectory(context: Context): File =
-        File(BootAware.deviceContext(context).filesDir, "sky")
+        File(BootAware.deviceContext(context).filesDir, BootAware.CACHE_DIRECTORY)
+
+    /**
+     * The cloud reading is the one cached thing that says where the user was,
+     * and at about a kilometre rather than the whole degree the settings mirror
+     * keeps - so it does not live with the rest unconditionally. See
+     * [BootAware.weatherCacheContext].
+     */
+    private fun weatherDirectory(context: Context): File =
+        File(BootAware.weatherCacheContext(context).filesDir, BootAware.CACHE_DIRECTORY)
 
     /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =
@@ -72,7 +81,7 @@ object Graph {
                 manifestUrl = GloamingEndpoints.MANIFEST_URL,
             ),
             sky = SkyRepository(http, FileSkyCache(cacheDirectory(application))),
-            weather = OpenMeteoWeather(http, FileWeatherCache(cacheDirectory(application))),
+            weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
             // Whichever store is authoritative for polling: the device-protected
             // mirror when before-unlock alerting is on, the normal one otherwise.
             settings = BootAware.pollSettings(application),

@@ -18,7 +18,7 @@ import kotlinx.serialization.json.Json
  */
 class FileWeatherCache(directory: File) : WeatherCache {
 
-    private val file = File(directory, "weather.json")
+    private val file = File(directory, FILE_NAME)
     private val json = Json { ignoreUnknownKeys = true }
 
     init {
@@ -36,6 +36,11 @@ class FileWeatherCache(directory: File) : WeatherCache {
                 fetchedAt = stored.fetchedAt,
             )
         }.getOrNull()
+    }
+
+    /** Removes the reading, used when it should no longer be where it is. */
+    fun clear() {
+        runCatching { file.delete() }
     }
 
     override fun write(cached: CachedCloud) {
@@ -67,4 +72,9 @@ class FileWeatherCache(directory: File) : WeatherCache {
         val longitude: Double,
         val fetchedAt: Long,
     )
+
+    companion object {
+        /** Named here so whoever has to delete it does not spell the path again. */
+        const val FILE_NAME = "weather.json"
+    }
 }
