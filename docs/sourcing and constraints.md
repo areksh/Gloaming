@@ -1008,6 +1008,7 @@ Only the manifest URL ships in the APK:
 {
   "schema": 1,
   "min_supported_version": 3,
+  "issued_at": 1755853200,
   "message": null,
   "endpoints": {
     "status":  "https://sky.example.tld/v1/status.json",
@@ -1021,6 +1022,13 @@ Only the manifest URL ships in the APK:
 
 `min_supported_version` is the kill switch; `message` is the broadcast channel. One request
 per day.
+
+`issued_at` is unix seconds at which those contents were first published, and the app
+refuses any manifest older than the one it already holds. A signature does not expire, so
+verification alone leaves a replay open: whoever could answer for the domain could serve a
+correctly signed older copy to move the endpoints back or restore a withdrawn `message`. A
+wall clock rather than a counter, so deleting the object or rebuilding the bucket does not
+restart the sequence and lock every existing install out of every future manifest.
 
 Note that `weather` is in here. Hardcoding it into the APK would reproduce exactly the
 problem the manifest exists to solve.

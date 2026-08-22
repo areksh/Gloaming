@@ -2,6 +2,7 @@ package sh.arek.gloaming.data
 
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
@@ -182,5 +183,122 @@ class ManifestRepositoryTest {
 
         assertTrue(http.requested.contains(manifestUrl))
         assertTrue(http.requested.contains("$manifestUrl.sig"))
+    }
+
+    /**
+     * A real keypair, generated for the test.
+     *
+     * The app signs nothing, so the production code has no way to produce the
+     * pair of manifests these cases need. The JVM has had Ed25519 since 15,
+     * which the unit tests run on; the app does not, which is why it carries its
+     * own verifier.
+     */
+    private class Signer {
+        private val pair = java.security.KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+
+        /** The raw 32 bytes, which is what the verifier takes: the tail of the X.509 form. */
+        val publicKey: ByteArray = pair.public.encoded.let { it.copyOfRange(it.size - 32, it.size) }
+
+        fun sign(body: ByteArray): ByteArray =
+            java.security.Signature.getInstance("Ed25519").run {
+                initSign(pair.private)
+                update(body)
+                sign()
+            }
+    }
+
+    private fun manifestBody(issuedAt: Long, status: String): ByteArray =
+        ("""{"schema":1,"min_supported_version":1,"issued_at":$issuedAt,"message":null,""" +
+            """"endpoints":{"status":"$status"}}""").toByteArray(Charsets.UTF_8)
+
+    /**
+     * A signature stays valid for ever, so signing alone does not stop an
+     * attacker who can answer for the domain from replaying an older manifest -
+     * moving the endpoints back to ones they have since taken over, or
+     * restoring a `message` that was withdrawn. Refusing anything older than
+     * what is already held is what closes that.
+     */
+    @Test
+    fun `refuses a correctly signed manifest older than the one it holds`() = runTest {
+        val signer = Signer()
+        val current = manifestBody(2_000, "https://sky.arek.sh/v1/status.json")
+        val replayed = manifestBody(1_000, "https://attacker.example/status.json")
+        val store = FakeStore(CachedManifest(current, signer.sign(current)))
+        val http = FakeFetcher(
+            mapOf(
+                manifestUrl to Result.success(replayed),
+                "$manifestUrl.sig" to Result.success(signer.sign(replayed)),
+            ),
+        )
+
+        val manifest = ManifestRepository(http, store, signer.publicKey, manifestUrl).refresh()
+
+        assertEquals("https://sky.arek.sh/v1/status.json", manifest.endpoints["status"])
+        assertArrayEquals(current, store.stored!!.body)
+    }
+
+    @Test
+    fun `accepts a manifest newer than the one it holds`() = runTest {
+        val signer = Signer()
+        val current = manifestBody(1_000, "https://sky.arek.sh/v1/status.json")
+        val newer = manifestBody(2_000, "https://sky.arek.sh/v2/status.json")
+        val store = FakeStore(CachedManifest(current, signer.sign(current)))
+        val http = FakeFetcher(
+            mapOf(
+                manifestUrl to Result.success(newer),
+                "$manifestUrl.sig" to Result.success(signer.sign(newer)),
+            ),
+        )
+
+        val manifest = ManifestRepository(http, store, signer.publicKey, manifestUrl).refresh()
+
+        assertEquals("https://sky.arek.sh/v2/status.json", manifest.endpoints["status"])
+    }
+
+    /**
+     * Republished unchanged, which the Worker does whenever its contents
+     * genuinely change and never otherwise. Equal is not a rollback.
+     */
+    @Test
+    fun `accepts a manifest issued at the same moment as the one it holds`() = runTest {
+        val signer = Signer()
+        val current = manifestBody(1_000, "https://sky.arek.sh/v1/status.json")
+        val store = FakeStore(CachedManifest(current, signer.sign(current)))
+        val http = FakeFetcher(
+            mapOf(
+                manifestUrl to Result.success(current),
+                "$manifestUrl.sig" to Result.success(signer.sign(current)),
+            ),
+        )
+
+        val manifest = ManifestRepository(http, store, signer.publicKey, manifestUrl).refresh()
+
+        assertEquals("https://sky.arek.sh/v1/status.json", manifest.endpoints["status"])
+    }
+
+    /**
+     * The manifest deployed before stamps existed carries no `issued_at` and
+     * reads as zero. An install holding one must still accept the first stamped
+     * manifest it sees, or the change would strand it on the old copy for good.
+     */
+    @Test
+    fun `accepts the first stamped manifest over an unstamped one`() = runTest {
+        val signer = Signer()
+        val unstamped = (
+            """{"schema":1,"min_supported_version":1,"message":null,""" +
+                """"endpoints":{"status":"https://sky.arek.sh/v1/status.json"}}"""
+            ).toByteArray(Charsets.UTF_8)
+        val stamped = manifestBody(1_000, "https://sky.arek.sh/v2/status.json")
+        val store = FakeStore(CachedManifest(unstamped, signer.sign(unstamped)))
+        val http = FakeFetcher(
+            mapOf(
+                manifestUrl to Result.success(stamped),
+                "$manifestUrl.sig" to Result.success(signer.sign(stamped)),
+            ),
+        )
+
+        val manifest = ManifestRepository(http, store, signer.publicKey, manifestUrl).refresh()
+
+        assertEquals("https://sky.arek.sh/v2/status.json", manifest.endpoints["status"])
     }
 }

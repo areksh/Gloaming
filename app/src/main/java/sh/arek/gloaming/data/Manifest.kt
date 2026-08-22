@@ -20,6 +20,17 @@ data class Manifest(
      */
     @SerialName("min_supported_version") val minSupportedVersion: Int,
     /**
+     * Unix seconds at which these contents were first published, and the app's
+     * defence against a replayed manifest.
+     *
+     * A signature does not expire, so a correctly signed older copy stays
+     * acceptable for ever unless something refuses it - which would let anyone
+     * who could answer for the domain move the endpoints back or restore a
+     * withdrawn [message]. Zero for a manifest published before stamps existed,
+     * which every later one therefore beats.
+     */
+    @SerialName("issued_at") val issuedAt: Long = 0,
+    /**
      * Broadcast channel into a notification on every install. Rendered as inert
      * plain text with no clickable links, whatever it contains - it is the
      * reason the manifest is signed at all.

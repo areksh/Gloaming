@@ -135,9 +135,15 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
 
 The manifest is the only URL in the APK. It carries `schema`,
-`min_supported_version` (the kill switch), `message` (a broadcast channel
-rendered as inert plain text) and the `endpoints` map including the Open-Meteo
-`weather` URL (Sec. 10).
+`min_supported_version` (the kill switch), `issued_at` (unix seconds, the
+rollback guard), `message` (a broadcast channel rendered as inert plain text)
+and the `endpoints` map including the Open-Meteo `weather` URL (Sec. 10).
+
+`issued_at` exists because a signature never expires: without it a correctly
+signed older manifest stays acceptable for ever, and anyone able to answer for
+the domain could replay one. The app refuses anything older than the copy it
+holds; the Worker stamps the wall clock at which the contents last changed, and
+excludes the stamp when deciding whether they changed.
 
 It advertises only endpoints that exist. `sats` and `comets` arrive with Phases
 3 and 5; because the manifest is re-fetched daily, adding a key then costs

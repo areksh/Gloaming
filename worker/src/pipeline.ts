@@ -10,7 +10,13 @@
  * outbound traffic.
  */
 
-import { buildManifest, importSigningKey, serialiseManifest, signManifest } from "./manifest";
+import {
+  buildManifest,
+  importSigningKey,
+  serialiseManifest,
+  signManifest,
+  type Manifest,
+} from "./manifest";
 import { packOvalGrid } from "./oval";
 import { parseAuroraWatchStatus } from "./sources/aurorawatch";
 import { parseKp, parseOvation, parseSolarWindMagField, parseSolarWindSpeed } from "./sources/swpc";
@@ -81,19 +87,25 @@ async function republishStatus(env: Env, now: Date): Promise<void> {
  * never written comes back within one cycle without anyone intervening.
  * Rewriting it unchanged would reset the object's cache age for no reason.
  */
-export async function ensureManifest(env: Env): Promise<void> {
-  const manifest = buildManifest({
-    minSupportedVersion: env.MIN_SUPPORTED_VERSION,
-    message: env.MANIFEST_MESSAGE === "" ? null : env.MANIFEST_MESSAGE,
-    baseUrl: env.PUBLIC_BASE_URL,
-    weatherUrl: env.OPEN_METEO_URL,
-  });
-  const body = serialiseManifest(manifest);
+export async function ensureManifest(env: Env, now: () => Date = () => new Date()): Promise<void> {
+  const build = (issuedAt: number) =>
+    buildManifest({
+      minSupportedVersion: env.MIN_SUPPORTED_VERSION,
+      issuedAt,
+      message: env.MANIFEST_MESSAGE === "" ? null : env.MANIFEST_MESSAGE,
+      baseUrl: env.PUBLIC_BASE_URL,
+      weatherUrl: env.OPEN_METEO_URL,
+    });
 
+  // The stamp is excluded from the comparison, or every run would look like a
+  // change and republish - which is the churn this check exists to avoid.
   const current = await env.DATA.get(MANIFEST_KEY);
-  if (current !== null && (await current.text()) === body) {
+  const published = current === null ? null : (JSON.parse(await current.text()) as Manifest);
+  if (published !== null && serialiseManifest(build(published.issued_at)) === serialiseManifest(published)) {
     return;
   }
+
+  const body = serialiseManifest(build(Math.floor(now().getTime() / 1000)));
 
   const key = await importSigningKey(env.MANIFEST_SIGNING_KEY);
   const signature = await signManifest(key, body);

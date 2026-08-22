@@ -10,6 +10,7 @@ import {
 
 const INPUT = {
   minSupportedVersion: 1,
+  issuedAt: 1_755_853_200,
   message: null,
   baseUrl: "https://sky.arek.sh/v1",
   weatherUrl: "https://api.open-meteo.com/v1/forecast",

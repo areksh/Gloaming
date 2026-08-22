@@ -31,17 +31,36 @@ class ManifestRepository(
     /**
      * Returns the freshest manifest that can be trusted.
      *
+     * The cached copy is verified on every refresh rather than only when the
+     * network fails, because its stamp is what a fetched manifest has to beat.
+     * That costs one signature check per poll, which is minutes apart.
+     *
      * @throws ManifestUnavailableException when neither the fetched nor the
      *   cached manifest verifies.
      */
     suspend fun refresh(): Manifest {
+        val cached = lastKnownGood()
         val fetched = runCatching { fetchAndVerify() }.getOrNull()
-        if (fetched != null) {
+
+        if (fetched != null && !isRollback(fetched.manifest, cached)) {
             store.write(fetched.cached)
             return fetched.manifest
         }
-        return cachedOrThrow()
+        return cached ?: cachedOrThrow()
     }
+
+    /**
+     * Whether a verified manifest is older than the one already held.
+     *
+     * Signatures do not expire, so verification alone leaves a replay open: an
+     * attacker who could answer for the domain could serve a correctly signed
+     * older copy and move the endpoints back to ones they had since taken over,
+     * or restore a `message` that had been withdrawn. Refusing to go backwards
+     * is what closes it. Equal is not a rollback - the same document is
+     * republished whenever it legitimately changes and never otherwise.
+     */
+    private fun isRollback(fetched: Manifest, cached: Manifest?): Boolean =
+        cached != null && fetched.issuedAt < cached.issuedAt
 
     /** The cached manifest, if one is present and still verifies. */
     fun lastKnownGood(): Manifest? = runCatching { verifyCached() }.getOrNull()

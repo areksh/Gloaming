@@ -230,6 +230,51 @@ describe("ensureManifest", () => {
     expect(JSON.parse(await manifest!.text()).message).toBe("Maintenance tonight");
   });
 
+  /**
+   * The app refuses a manifest older than the one it already holds, so a
+   * hijacked domain cannot replay an old signed copy to move the endpoints
+   * back. That only works if this stamps each publication.
+   */
+  it("stamps the manifest with the time its contents last changed", async () => {
+    const { env: e } = await envWithKey();
+    const at = new Date("2026-08-22T09:00:00Z");
+
+    await ensureManifest(e, () => at);
+
+    const parsed = JSON.parse(await (await e.DATA.get("v1/index.json"))!.text());
+    expect(parsed.issued_at).toBe(Math.floor(at.getTime() / 1000));
+  });
+
+  it("advances the stamp when the contents change", async () => {
+    const { env: e } = await envWithKey();
+
+    await ensureManifest(e, () => new Date("2026-08-22T09:00:00Z"));
+    await ensureManifest(
+      { ...e, MANIFEST_MESSAGE: "Maintenance tonight" } as unknown as Env,
+      () => new Date("2026-08-22T10:00:00Z"),
+    );
+
+    const parsed = JSON.parse(await (await e.DATA.get("v1/index.json"))!.text());
+    expect(parsed.issued_at).toBe(Math.floor(new Date("2026-08-22T10:00:00Z").getTime() / 1000));
+  });
+
+  /**
+   * A wall clock rather than a counter, precisely so that this case is safe: a
+   * counter restarting from one after the object was deleted would look like a
+   * rollback to every install that had already seen a higher number, and they
+   * would refuse the replacement for good.
+   */
+  it("keeps moving forward after the manifest is deleted", async () => {
+    const { env: e } = await envWithKey();
+    await ensureManifest(e, () => new Date("2026-08-22T09:00:00Z"));
+    await e.DATA.delete("v1/index.json");
+
+    await ensureManifest(e, () => new Date("2026-08-22T11:00:00Z"));
+
+    const parsed = JSON.parse(await (await e.DATA.get("v1/index.json"))!.text());
+    expect(parsed.issued_at).toBe(Math.floor(new Date("2026-08-22T11:00:00Z").getTime() / 1000));
+  });
+
   it("restores the manifest if it is deleted", async () => {
     const { env: e } = await envWithKey();
     await ensureManifest(e);

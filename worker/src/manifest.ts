@@ -18,12 +18,26 @@ export const MANIFEST_SCHEMA = 1;
 export interface Manifest {
   schema: number;
   min_supported_version: number;
+  /**
+   * Unix seconds at which these contents were first published.
+   *
+   * The app refuses a manifest older than the one it already holds, so an
+   * attacker who can answer for the domain cannot replay a correctly signed
+   * older copy to move the endpoints back or restore a withdrawn `message`.
+   * Signing alone does not stop that: an old signature stays valid forever.
+   *
+   * A wall clock rather than a counter, so that deleting the object - or
+   * rebuilding the bucket - does not restart the sequence and lock every
+   * existing install out of every future manifest.
+   */
+  issued_at: number;
   message: string | null;
   endpoints: Record<string, string>;
 }
 
 export interface ManifestInput {
   minSupportedVersion: number;
+  issuedAt: number;
   message: string | null;
   baseUrl: string;
   weatherUrl: string;
@@ -38,6 +52,7 @@ export function buildManifest(input: ManifestInput): Manifest {
   return {
     schema: MANIFEST_SCHEMA,
     min_supported_version: input.minSupportedVersion,
+    issued_at: input.issuedAt,
     message: input.message,
     endpoints: {
       status: `${input.baseUrl}/status.json`,

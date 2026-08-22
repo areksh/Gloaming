@@ -132,6 +132,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The signed manifest carries `issued_at`, and the app refuses any manifest
+  older than the one it already holds. A signature does not expire, so
+  verification alone left a replay open: whoever could answer for the domain
+  could serve a correctly signed older copy and move the endpoints back, or
+  restore a `message` that had been withdrawn. A wall clock rather than a
+  counter, so deleting the object cannot restart the sequence and lock every
+  install out of every future manifest.
 - The battery-optimisation exemption is stated as a requirement rather than a
   refinement. The screen said alerts would be "delayed" without it, which
   undersold it: an aurora app that cannot check overnight is not doing
