@@ -221,7 +221,22 @@ systemctl enable --now gloaming-elements.timer
 
 Check the `ExecStart` path matches what `command -v node` printed in step 1.
 
-## 8. Verify
+## 8. Clear the breaker
+
+**The breaker is currently tripped**, from the Cloudflare attempts that led to
+all this. Until it is cleared the fetcher will refuse to query - correctly, and
+by design - and the first run will report `did not publish: celestrak breaker
+tripped at ...`.
+
+Do this only once step 0 has succeeded on the host, since that is the
+investigation the manual reset is supposed to follow. From a machine with
+`wrangler` authenticated:
+
+```sh
+npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --remote
+```
+
+## 9. Verify
 
 Run it once by hand rather than waiting for the timer:
 
