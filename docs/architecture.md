@@ -61,7 +61,7 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   |---|---|---|
   | `*/3 * * * *` | AuroraWatch UK (UK layer) | UK fields of `status.json` |
   | `*/5 * * * *` | SWPC OVATION grid + Kp + solar wind | `oval.bin`, space-weather fields of `status.json` |
-  | `0 */2 * * *` | CelesTrak OMM CSV (Phase 3) | `sats.json` |
+  | `0 0,2,4,...,22 * * *` | CelesTrak OMM CSV | `sats.json`. Spelled out rather than stepped; see issue 10. |
   | `0 3 * * 1` | MPC comet elements (Phase 5) | `comets.json` |
 
 - **`status.json` composition.** Two crons contribute to `status.json` on
