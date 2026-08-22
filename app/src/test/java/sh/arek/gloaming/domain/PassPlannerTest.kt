@@ -1,0 +1,259 @@
+package sh.arek.gloaming.domain
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.QuietHours
+import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.satellites.SatellitePass
+
+/**
+ * When to speak about a pass, and when to come back.
+ *
+ * Passes are known in advance, so none of this is a poll cadence - it is a list
+ * of moments. Getting it wrong is the difference between being told at 22:14
+ * that something is overhead now and being told at 22:44 that it was.
+ */
+class PassPlannerTest {
+
+    private val hour = 3_600_000L
+    private val peak = 100L * hour
+
+    private fun pass(
+        peaksAt: Long = peak,
+        catalogue: Int = 25544,
+        sunlitAtPeak: Boolean = true,
+        entersShadowAt: Long? = null,
+        leavesShadowAt: Long? = null,
+    ) = SatellitePass(
+        catalogue = catalogue,
+        name = "ISS (ZARYA)",
+        risesAt = peaksAt - 4 * 60_000L,
+        riseAzimuth = 225.0,
+        peaksAt = peaksAt,
+        peakElevation = 60.0,
+        peakAzimuth = 180.0,
+        setsAt = peaksAt + 4 * 60_000L,
+        setAzimuth = 45.0,
+        rangeAtPeakKm = 450.0,
+        sunlitAtPeak = sunlitAtPeak,
+        entersShadowAt = entersShadowAt,
+        leavesShadowAt = leavesShadowAt,
+    )
+
+    private val settings = UserSettings(latitude = 55.95, longitude = -3.19)
+    private val clear = CloudCover(total = 5, low = 0, mid = 0, high = 5)
+
+    @Test
+    fun `sends the station and everything else to their own channels`() {
+        assertEquals(PassChannel.Iss, PassChannel.of(25544))
+        assertEquals(PassChannel.Bright, PassChannel.of(20580))
+    }
+
+    // --- freshening -----------------------------------------------------
+
+    @Test
+    fun `fetches elements when it holds none`() {
+        assertTrue(PassPlanner.shouldFreshen(ageMillis = null, millisToNextPass = null))
+    }
+
+    /**
+     * Reboosts and debris avoidance move a pass by tens of seconds to minutes.
+     * Having told somebody 22:14, the prediction is worth re-deriving from
+     * fresh elements rather than from a two-hourly cron that landed badly.
+     */
+    @Test
+    fun `refreshes elements in the last few hours before a pass`() {
+        assertTrue(PassPlanner.shouldFreshen(ageMillis = 2 * hour, millisToNextPass = 2 * hour))
+    }
+
+    /** But not on every wake through those hours, which would be a fetch each. */
+    @Test
+    fun `leaves recently fetched elements alone`() {
+        assertFalse(PassPlanner.shouldFreshen(ageMillis = 10 * 60_000L, millisToNextPass = hour))
+    }
+
+    /** Nothing coming means no reason to spend a radio wake. */
+    @Test
+    fun `does not fetch for a night with no passes`() {
+        assertFalse(PassPlanner.shouldFreshen(ageMillis = 5 * hour, millisToNextPass = null))
+    }
+
+    @Test
+    fun `replaces elements that have gone properly stale`() {
+        assertTrue(PassPlanner.shouldFreshen(ageMillis = 30 * hour, millisToNextPass = null))
+    }
+
+    // --- what is worth seeing -------------------------------------------
+
+    /** A satellite in shadow reflects nothing, however good the geometry. */
+    @Test
+    fun `leaves out a pass that never catches the sun`() {
+        val dark = pass(sunlitAtPeak = false)
+
+        assertTrue(PassPlanner.visible(listOf(dark)) { true }.isEmpty())
+    }
+
+    /** The pre-dawn case: dark on the way up, lit before it sets. */
+    @Test
+    fun `keeps a pass that lights up part-way across`() {
+        val morning = pass(sunlitAtPeak = false, leavesShadowAt = peak + 60_000L)
+
+        assertEquals(1, PassPlanner.visible(listOf(morning)) { true }.size)
+    }
+
+    /** Daylight is the other free gate, and it ends most passes. */
+    @Test
+    fun `leaves out a pass through a light sky`() {
+        assertTrue(PassPlanner.visible(listOf(pass())) { false }.isEmpty())
+    }
+
+    @Test
+    fun `takes the soonest pass still ahead`() {
+        val passes = listOf(pass(peaksAt = peak + hour), pass(peaksAt = peak), pass(peaksAt = peak - hour))
+
+        assertEquals(peak, PassPlanner.next(passes, now = peak - 60_000L)?.peaksAt)
+    }
+
+    // --- speaking --------------------------------------------------------
+
+    @Test
+    fun `announces a pass half an hour before it is highest`() {
+        val decision = PassPlanner.decide(pass(), peak - 29 * 60_000L, settings, AlertState(), 0, clear)
+
+        assertTrue(decision is PassPlanner.Decision.Announce)
+    }
+
+    @Test
+    fun `holds its tongue until the pass is close`() {
+        val decision = PassPlanner.decide(pass(), peak - 3 * hour, settings, AlertState(), 0, clear)
+
+        assertTrue(decision is PassPlanner.Decision.TooSoon)
+    }
+
+    /** A pass is one event and gets one notification. */
+    @Test
+    fun `says nothing about a pass it has already announced`() {
+        val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
+
+        val decision = PassPlanner.decide(pass(), peak - 10 * 60_000L, settings, told, 0, clear)
+
+        assertTrue(decision is PassPlanner.Decision.AlreadyTold)
+    }
+
+    /**
+     * Freshened elements move a pass by up to minutes. That is the same pass,
+     * not a new one, and re-announcing it is exactly what the record is for.
+     */
+    @Test
+    fun `recognises an already announced pass that has shifted`() {
+        val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
+        val shifted = pass(peaksAt = peak + 90_000L)
+
+        val decision = PassPlanner.decide(shifted, peak - 60_000L, settings, told, 0, clear)
+
+        assertTrue(decision is PassPlanner.Decision.AlreadyTold)
+    }
+
+    /** A different object peaking at a similar time is a different event. */
+    @Test
+    fun `announces another satellite passing at a similar time`() {
+        val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
+        val other = pass(peaksAt = peak + 60_000L, catalogue = 20580)
+
+        val decision = PassPlanner.decide(other, peak - 60_000L, settings, told, 0, clear)
+
+        assertTrue(decision is PassPlanner.Decision.Announce)
+    }
+
+    @Test
+    fun `stays silent during quiet hours`() {
+        val quiet = settings.copy(quietHours = QuietHours(23 * 60, 7 * 60))
+
+        val decision = PassPlanner.decide(
+            pass(), peak - 10 * 60_000L, quiet, AlertState(), localMinuteOfDay = 2 * 60, cloud = clear,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.InQuietHours)
+    }
+
+    @Test
+    fun `holds back under more cloud than the user will go out in`() {
+        val overcast = CloudCover(total = 95, low = 90, mid = 10, high = 5)
+
+        val decision = PassPlanner.decide(
+            pass(), peak - 10 * 60_000L, settings, AlertState(), 0, overcast,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.TooCloudy)
+    }
+
+    /**
+     * An unreachable forecast notifies and says so. An app that goes quiet
+     * whenever a third party is down is indistinguishable from a broken one.
+     */
+    @Test
+    fun `announces anyway when the forecast could not be reached`() {
+        val decision = PassPlanner.decide(
+            pass(), peak - 10 * 60_000L, settings, AlertState(), 0, cloud = null,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.Announce)
+    }
+
+    @Test
+    fun `ignores cloud entirely for a user who turned the gate off`() {
+        val overcast = CloudCover(total = 99, low = 99, mid = 0, high = 0)
+        val ungated = settings.copy(cloudGateEnabled = false)
+
+        val decision = PassPlanner.decide(
+            pass(), peak - 10 * 60_000L, ungated, AlertState(), 0, overcast,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.Announce)
+    }
+
+    // --- when to come back ------------------------------------------------
+
+    @Test
+    fun `comes back when the alert is due`() {
+        val now = peak - 2 * hour
+
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(pass()), now)
+
+        assertEquals(peak - PassPlanner.LEAD_MILLIS, wake)
+    }
+
+    /** Far enough out, the elements want freshening before the alert is due. */
+    @Test
+    fun `comes back to freshen elements before a distant pass`() {
+        val subject = pass()
+        val now = peak - 8 * hour
+
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(subject), now)
+
+        assertEquals(subject.risesAt - PassPlanner.FRESHEN_BEFORE_MILLIS, wake)
+    }
+
+    /** Once a pass is dealt with, nothing about it changes: wait it out. */
+    @Test
+    fun `waits until a pass is over before considering the next`() {
+        val subject = pass()
+
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.Announce(subject), peak - 60_000L)
+
+        assertTrue(wake > subject.setsAt)
+    }
+
+    @Test
+    fun `looks again in a few hours when there is nothing coming`() {
+        val now = peak
+
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.Nothing, now)
+
+        assertEquals(now + PassPlanner.DORMANT_INTERVAL_MILLIS, wake)
+    }
+}

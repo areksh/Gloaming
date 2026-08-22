@@ -63,6 +63,16 @@ class PollReceiver : BroadcastReceiver() {
                     // Only once unlocked: a foreground service cannot be
                     // started before then, and the attempt would throw.
                     if (unlocked) StormService.apply(application, result.storm)
+
+                    // Passes share this wake rather than owning an alarm.
+                    // Most of the time the planner has nothing to do and says
+                    // so immediately; the work only happens at the moments it
+                    // asked for. Its failure must not cost the aurora poll its
+                    // next wake, which is already queued below.
+                    runCatching {
+                        val passes = Graph.passPoller(application).poll()
+                        Log.i(TAG, "pass check: ${passes.decision}")
+                    }.onFailure { Log.w(TAG, "pass check failed", it) }
                     // The widget is redrawn by the poll rather than on a
                     // schedule of its own, so it is exactly as fresh as the
                     // data behind it and costs no wakes.

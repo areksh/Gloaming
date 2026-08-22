@@ -82,6 +82,15 @@ data class UserSettings(
      * minutes of dark adaptation to it.
      */
     val nightVision: Boolean = false,
+    /**
+     * Whether to be told about satellite passes.
+     *
+     * Separate from [alertsEnabled], which covers aurora: the two are different
+     * kinds of event and somebody may well want one without the other. The
+     * notification channels split them again, so either can be silenced from
+     * the system settings without coming back into the app.
+     */
+    val passAlertsEnabled: Boolean = true,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -149,6 +158,32 @@ data class AlertState(
      * the screen until the next one replaces it.
      */
     val lastFromAuroraWatch: Boolean = false,
+    /**
+     * Roughly when the pass last announced was highest, with the object it
+     * belonged to.
+     *
+     * Together these identify a pass well enough to avoid announcing it twice.
+     * Only roughly, and deliberately: the peak is re-derived on each wake from
+     * a different search origin and, once the elements are freshened, from
+     * different elements - which moves it by milliseconds in the first case and
+     * by up to minutes in the second. Matching on the exact instant would
+     * announce the same pass again every time it shifted.
+     */
+    val lastPassPeakAt: Long? = null,
+    val lastPassCatalogue: Int? = null,
+    /** When a pass was last announced, for the UI to show. */
+    val lastPassAlertAt: Long? = null,
+    /**
+     * When the pass planner next wants to be asked.
+     *
+     * Passes are deterministic, so there is nothing to poll for: the planner
+     * names the next moment that matters and every wake before it skips the
+     * work entirely. That matters because working out a night of passes for the
+     * whole bright catalogue is seconds of arithmetic, not a network call, and
+     * doing it on an aurora poll every five minutes would be a battery
+     * complaint rather than a feature.
+     */
+    val nextPassCheckAt: Long? = null,
 )
 
 interface AlertStateStore {

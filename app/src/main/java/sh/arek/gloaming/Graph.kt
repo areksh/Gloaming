@@ -15,10 +15,14 @@ import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SettingsStore
+import sh.arek.gloaming.data.FileSatelliteCache
+import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.OkHttpFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
+import sh.arek.gloaming.notify.AndroidPassNotifier
 import sh.arek.gloaming.work.StormService
 
 /**
@@ -88,6 +92,36 @@ object Graph {
             state = alertState(application),
             notifier = AndroidAuroraNotifier(application),
             stormRunning = { StormService.running },
+        )
+    }
+
+    /**
+     * The pass planner, sharing the aurora poll's wake rather than owning an
+     * alarm of its own.
+     *
+     * Passes are deterministic, so there is nothing to poll for: it keeps its
+     * own next-interesting-moment in the same alert state and does nothing at
+     * all on the wakes in between.
+     */
+    fun passPoller(context: Context): PassPoller {
+        val application = context.applicationContext
+        val http = OkHttpFetcher(httpClient)
+
+        return PassPoller(
+            manifests = ManifestRepository(
+                http = http,
+                store = FileManifestStore(cacheDirectory(application)),
+                publicKey = GloamingEndpoints.MANIFEST_PUBLIC_KEY,
+                manifestUrl = GloamingEndpoints.MANIFEST_URL,
+            ),
+            satellites = SatelliteRepository(
+                http,
+                FileSatelliteCache(cacheDirectory(application)),
+            ),
+            weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
+            settings = BootAware.pollSettings(application),
+            state = alertState(application),
+            notifier = AndroidPassNotifier(application),
         )
     }
 }

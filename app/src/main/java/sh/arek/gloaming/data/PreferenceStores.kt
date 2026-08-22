@@ -32,6 +32,7 @@ private const val KEY_QUIET_START = "quiet_hours_start"
 private const val KEY_QUIET_END = "quiet_hours_end"
 private const val KEY_QUIET_OVERRIDE = "quiet_hours_override"
 private const val KEY_NIGHT_VISION = "night_vision"
+private const val KEY_PASS_ALERTS = "pass_alerts_enabled"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -40,6 +41,10 @@ private const val KEY_LAST_POLL_AT = "last_poll_at"
 private const val KEY_LAST_PROBABILITY = "last_probability"
 private const val KEY_LAST_ERROR = "last_error"
 private const val KEY_LAST_FROM_AURORAWATCH = "last_from_aurorawatch"
+private const val KEY_LAST_PASS_PEAK_AT = "last_pass_peak_at"
+private const val KEY_LAST_PASS_ALERT_AT = "last_pass_alert_at"
+private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
+private const val KEY_LAST_PASS_CATALOGUE = "last_pass_catalogue"
 
 private const val UNSET = Long.MIN_VALUE
 
@@ -94,6 +99,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             },
             quietHoursOverride = prefs.getBoolean(KEY_QUIET_OVERRIDE, false),
             nightVision = prefs.getBoolean(KEY_NIGHT_VISION, false),
+            passAlertsEnabled = prefs.getBoolean(KEY_PASS_ALERTS, true),
         )
     }
 
@@ -125,6 +131,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             }
             putBoolean(KEY_QUIET_OVERRIDE, settings.quietHoursOverride)
             putBoolean(KEY_NIGHT_VISION, settings.nightVision)
+            putBoolean(KEY_PASS_ALERTS, settings.passAlertsEnabled)
         }.apply()
     }
 
@@ -149,6 +156,10 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             lastProbability = lastProbability.takeIf { it >= 0 },
             lastError = prefs.getString(KEY_LAST_ERROR, null),
             lastFromAuroraWatch = prefs.getBoolean(KEY_LAST_FROM_AURORAWATCH, false),
+            lastPassPeakAt = prefs.getLong(KEY_LAST_PASS_PEAK_AT, UNSET).takeIf { it != UNSET },
+            lastPassAlertAt = prefs.getLong(KEY_LAST_PASS_ALERT_AT, UNSET).takeIf { it != UNSET },
+            nextPassCheckAt = prefs.getLong(KEY_NEXT_PASS_CHECK_AT, UNSET).takeIf { it != UNSET },
+            lastPassCatalogue = prefs.getInt(KEY_LAST_PASS_CATALOGUE, -1).takeIf { it >= 0 },
         )
     }
 
@@ -163,6 +174,14 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
                 ?: remove(KEY_LAST_PROBABILITY)
             state.lastError?.let { putString(KEY_LAST_ERROR, it) } ?: remove(KEY_LAST_ERROR)
             putBoolean(KEY_LAST_FROM_AURORAWATCH, state.lastFromAuroraWatch)
+            state.lastPassPeakAt?.let { putLong(KEY_LAST_PASS_PEAK_AT, it) }
+                ?: remove(KEY_LAST_PASS_PEAK_AT)
+            state.lastPassAlertAt?.let { putLong(KEY_LAST_PASS_ALERT_AT, it) }
+                ?: remove(KEY_LAST_PASS_ALERT_AT)
+            state.nextPassCheckAt?.let { putLong(KEY_NEXT_PASS_CHECK_AT, it) }
+                ?: remove(KEY_NEXT_PASS_CHECK_AT)
+            state.lastPassCatalogue?.let { putInt(KEY_LAST_PASS_CATALOGUE, it) }
+                ?: remove(KEY_LAST_PASS_CATALOGUE)
         }.apply()
     }
 }
