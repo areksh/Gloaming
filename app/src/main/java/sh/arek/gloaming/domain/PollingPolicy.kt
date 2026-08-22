@@ -49,13 +49,16 @@ object PollingPolicy {
     /**
      * Delivered slower than requested, and it is worth knowing by how much.
      *
-     * Measured on a Pixel 8a: a two-minute interval landed at about four. That
-     * is not a doubling but a roughly fixed cost - `setAndAllowWhileIdle` is
-     * inexact and the system attached a batching window just under two minutes,
-     * on top of the jitter the scheduler adds itself. At the rates below the
-     * overhead is therefore a couple of minutes rather than a multiplier, so
-     * nothing here compensates for it: asking for half of what is wanted would
-     * double the cost on any device that delivers punctually.
+     * Measured on a Pixel 8a: a two-minute interval landed at about four, and
+     * on a Pixel 10a a five-minute one at nine to ten. That is not a multiplier
+     * but a roughly fixed cost - `setAndAllowWhileIdle` is inexact and the
+     * system attaches a batching window of a few minutes. Both measurements
+     * also carried a jitter that was added to the interval rather than spread
+     * around it, which has since been corrected, so the overhead should now be
+     * the batching window alone.
+     *
+     * Nothing here compensates for it either way: asking for half of what is
+     * wanted would double the cost on any device that delivers punctually.
      */
     const val ELEVATED_MINUTES = 5
 

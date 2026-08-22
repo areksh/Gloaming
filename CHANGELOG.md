@@ -162,6 +162,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   going around the whole reason it is kept in credential-encrypted storage. On
   GrapheneOS that is a live path rather than a theoretical one, because
   Seedvault honours these declarations.
+- Jitter is spread either side of the requested interval rather than added to
+  it. It exists to stop every install waking on the same boundary, but as
+  written it also made every wake up to a quarter later than asked for, on top
+  of the batching window the system already attaches to an inexact alarm - in
+  an app whose one recurring complaint is that checks arrive late.
 - "Check now" now actually checks, and the screen shows that it did. It went
   through `AlarmManager`, which is inexact - a "one second" alarm can be batched
   up to two minutes out - and the screen only re-read the poll result when the

@@ -199,7 +199,9 @@ replacement.
   adaptive-polling scheduler policy.
 - **scheduling:** `AlarmManager.setWindow()` or chained `OneTimeWorkRequest`s
   (WorkManager's 15-minute floor is too coarse in both directions, Sec. 9.3);
-  every scheduled wake is jittered (Sec. 2); the battery-optimisation-exemption
+  every scheduled wake is jittered - spread either side of the requested time
+  rather than added to it, so de-aliasing installs does not double as a delay
+  (Sec. 2); the battery-optimisation-exemption
   request flow; and storm-mode as a `specialUse` foreground service that runs
   only for the duration of an event.
 - **notification:** one channel per category - `aurora`, `iss-passes`,

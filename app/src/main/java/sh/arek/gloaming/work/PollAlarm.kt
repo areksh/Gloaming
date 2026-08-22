@@ -25,23 +25,47 @@ object PollAlarm {
 
     private const val REQUEST_CODE = 1
 
+    /** How far either side of the requested interval a wake may land. */
+    private const val SPREAD_DIVISOR = 8
+
+    /** However short the request, the wake is still in the future. */
+    private const val MINIMUM_DELAY_MILLIS = 30_000L
+
     /**
      * Queues the next poll.
      *
      * Uses elapsed-realtime rather than wall-clock so a timezone change or an
-     * NTP correction cannot push the next wake hours away, and jitters every
-     * wake so installs do not align on the same boundaries.
+     * NTP correction cannot push the next wake hours away.
      */
     fun schedule(context: Context, intervalMinutes: Int) {
-        val period = intervalMinutes.coerceAtLeast(1) * 60_000L
-        val jitter = Random.nextLong(0, (period / 4).coerceAtLeast(1))
-        val triggerAt = SystemClock.elapsedRealtime() + period + jitter
+        val triggerAt = SystemClock.elapsedRealtime() + delayMillis(intervalMinutes)
 
         alarmManager(context)?.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             triggerAt,
             pendingIntent(context),
         )
+    }
+
+    /**
+     * How long until the next wake, jittered.
+     *
+     * Jitter is here to stop every install waking on the same boundary and
+     * arriving at the CDN together, and that is all it is for. It used to be
+     * added to the interval rather than spread around it, which quietly made
+     * every wake up to a quarter later than asked for - on top of the batching
+     * window the system already attaches to an inexact alarm, and in an app
+     * whose one complaint is that checks arrive late. Spreading either side
+     * de-aliases installs just as well and leaves the average where the policy
+     * put it.
+     *
+     * @param random injected so the spread can be exercised without waiting for
+     *   a distribution to show itself.
+     */
+    fun delayMillis(intervalMinutes: Int, random: Random = Random): Long {
+        val period = intervalMinutes.coerceAtLeast(1) * 60_000L
+        val spread = (period / SPREAD_DIVISOR).coerceAtLeast(1)
+        return (period + random.nextLong(-spread, spread + 1)).coerceAtLeast(MINIMUM_DELAY_MILLIS)
     }
 
     fun cancel(context: Context) {
