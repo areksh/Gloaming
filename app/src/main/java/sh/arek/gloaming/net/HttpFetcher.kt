@@ -1,10 +1,12 @@
 package sh.arek.gloaming.net
 
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 
 /** The outcome of a conditional GET. */
 sealed interface HttpResult {
@@ -52,7 +54,7 @@ suspend fun HttpFetcher.getBytes(url: String): ByteArray =
  * is good manners towards every other source.
  */
 class OkHttpFetcher(
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = defaultClient(),
     private val userAgent: String = DEFAULT_USER_AGENT,
 ) : HttpFetcher {
 
@@ -66,14 +68,61 @@ class OkHttpFetcher(
         client.newCall(request).execute().use { response ->
             when {
                 response.code == HTTP_NOT_MODIFIED -> HttpResult.NotModified
-                response.isSuccessful -> HttpResult.Ok(response.body.bytes(), response.header("ETag"))
+                response.isSuccessful ->
+                    HttpResult.Ok(bounded(url, response), response.header("ETag"))
                 else -> throw IOException("GET $url returned ${response.code}")
             }
         }
     }
 
+    /**
+     * The body, refusing to buffer more than a published object could be.
+     *
+     * `bytes()` reads whatever arrives, and the manifest's signature is checked
+     * only once the bytes are already in memory - so a body that never ends
+     * exhausts the heap before anything can reject it, on a background poll
+     * with a wake lock held. Reading one byte past the cap is enough to tell
+     * the difference without buffering the rest.
+     */
+    private fun bounded(url: String, response: Response): ByteArray {
+        val source = response.body.source()
+        source.request(MAX_BODY_BYTES + 1)
+        val buffered = source.buffer.size
+        if (buffered > MAX_BODY_BYTES) {
+            throw IOException("GET $url returned more than $MAX_BODY_BYTES bytes")
+        }
+        return source.buffer.readByteArray()
+    }
+
     companion object {
         const val DEFAULT_USER_AGENT: String = "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"
         private const val HTTP_NOT_MODIFIED = 304
+
+        /**
+         * The largest body worth accepting.
+         *
+         * Every published object is kilobytes - the packed grid is 65 KB before
+         * compression and the rest are smaller - so this is generous by three
+         * orders of magnitude. It is a bound on the damage, not a size check.
+         */
+        const val MAX_BODY_BYTES: Long = 2L * 1024 * 1024
+
+        /**
+         * A client with a whole-call deadline, not just per-stage timeouts.
+         *
+         * OkHttp's connect and read timeouts each restart whenever a byte
+         * moves, so a server dribbling data can hold a call open indefinitely.
+         * The poll that would hang is a background one holding a wake lock with
+         * a timeout of its own, and losing that wake outright is worse than
+         * failing and retrying at the next.
+         */
+        fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
+            .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
+
+        /** Comfortably inside the receiver's own poll timeout. */
+        private const val CALL_TIMEOUT_SECONDS = 20L
+        private const val CONNECT_TIMEOUT_SECONDS = 10L
     }
 }

@@ -158,4 +158,49 @@ class OkHttpFetcherTest {
 
         assertTrue("expected an IOException, got $failure", failure is IOException)
     }
+
+    /**
+     * The signature does not help here.
+     *
+     * The manifest is verified only after its bytes are in memory, so a body
+     * that never ends exhausts the heap before anything gets to reject it - and
+     * the poll that would OOM is a background one at three in the morning. The
+     * published objects are kilobytes; the cap is generous by three orders of
+     * magnitude and still bounds the damage.
+     */
+    @Test
+    fun `refuses a body larger than any published object`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(200)
+                .setBody("x".repeat(OkHttpFetcher.MAX_BODY_BYTES.toInt() + 1)),
+        )
+
+        val error = runCatching { fetcher.get(url()) }.exceptionOrNull()
+
+        assertTrue("expected an IOException, got $error", error is IOException)
+    }
+
+    @Test
+    fun `accepts a body at the limit`() = runTest {
+        val body = "x".repeat(OkHttpFetcher.MAX_BODY_BYTES.toInt())
+        server.enqueue(MockResponse().setResponseCode(200).setBody(body))
+
+        val result = fetcher.get(url()) as HttpResult.Ok
+
+        assertEquals(OkHttpFetcher.MAX_BODY_BYTES, result.body.size.toLong())
+    }
+
+    /**
+     * A poll runs inside a receiver holding a wake lock with a timeout of its
+     * own, so a stalled connection has to fail rather than hang: without a call
+     * timeout, OkHttp's per-stage timeouts can be reset indefinitely by a
+     * trickle of bytes.
+     */
+    @Test
+    fun `gives up on a call that never finishes`() {
+        assertTrue(
+            "no call timeout is set",
+            OkHttpFetcher.defaultClient().callTimeoutMillis > 0,
+        )
+    }
 }

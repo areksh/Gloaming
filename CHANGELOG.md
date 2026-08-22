@@ -167,6 +167,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written it also made every wake up to a quarter later than asked for, on top
   of the batching window the system already attaches to an inexact alarm - in
   an app whose one recurring complaint is that checks arrive late.
+- Responses are refused past a size cap, and the HTTP client has a whole-call
+  deadline. The manifest is verified only once its bytes are in memory, so the
+  signature is no defence against a body that never ends; the poll that would
+  have run out of memory is a background one at three in the morning.
 - "Check now" now actually checks, and the screen shows that it did. It went
   through `AlarmManager`, which is inexact - a "one second" alarm can be batched
   up to two minutes out - and the screen only re-read the poll result when the

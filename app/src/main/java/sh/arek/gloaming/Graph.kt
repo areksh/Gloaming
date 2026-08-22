@@ -2,7 +2,6 @@ package sh.arek.gloaming
 
 import android.content.Context
 import java.io.File
-import okhttp3.OkHttpClient
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.FileManifestStore
@@ -37,7 +36,7 @@ import sh.arek.gloaming.work.StormService
 object Graph {
 
     /** One client, so connections and the thread pool are reused across wakes. */
-    private val httpClient by lazy { OkHttpClient() }
+    private val httpClient by lazy { OkHttpFetcher.defaultClient() }
 
     /**
      * Caches live in device-protected storage unconditionally. They hold the
