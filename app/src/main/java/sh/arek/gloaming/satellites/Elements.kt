@@ -1,0 +1,88 @@
+package sh.arek.gloaming.satellites
+
+import com.rtbishop.look4sat.core.domain.predict.OrbitalData
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/**
+ * One satellite's mean elements, exactly as the Worker publishes them.
+ *
+ * CelesTrak's usage policy forbids per-device fetching, so no install ever
+ * talks to them: the Worker fetches once every two hours and fans the result
+ * out through R2. It also does the normalising, which is why nothing here has
+ * to parse a CSV or an ISO-8601 timestamp - [epoch] arrives already packed into
+ * the form the propagator wants.
+ */
+@Serializable
+data class SatelliteElements(
+    val name: String,
+    /** NORAD catalogue number. Six digits for anything catalogued since 2026-07. */
+    val catalogue: Int,
+    /** Packed `YYDDD.dddddd`: 2-digit year, day of year from 1, fraction of day. */
+    val epoch: Double,
+    /** The same instant in unix milliseconds, for ageing the elements. */
+    @SerialName("epoch_millis") val epochMillis: Long,
+    /** Revolutions per day. */
+    @SerialName("mean_motion") val meanMotion: Double,
+    val eccentricity: Double,
+    /** Degrees. */
+    val inclination: Double,
+    /** Right ascension of the ascending node, degrees. */
+    val raan: Double,
+    /** Argument of pericentre, degrees. */
+    @SerialName("arg_perigee") val argPerigee: Double,
+    /** Degrees. */
+    @SerialName("mean_anomaly") val meanAnomaly: Double,
+    /** Drag term, inverse Earth radii. */
+    val bstar: Double,
+    /** First derivative of mean motion, revolutions per day squared. */
+    @SerialName("mean_motion_dot") val meanMotionDot: Double = 0.0,
+    /**
+     * Standard magnitude where one can be stood behind, otherwise null.
+     *
+     * Almost always null, and deliberately so: the app describes passes by
+     * their geometry and never prints a number it guessed.
+     */
+    val magnitude: Double? = null,
+) {
+
+    /**
+     * The vendored propagator's own element type.
+     *
+     * A rename and nothing more - every unit already matches, which is the
+     * point of normalising Worker-side. See `app/src/main/vendor/README.md`.
+     */
+    fun toOrbitalData(): OrbitalData = OrbitalData(
+        name = name,
+        epoch = epoch,
+        meanmo = meanMotion,
+        eccn = eccentricity,
+        incl = inclination,
+        raan = raan,
+        argper = argPerigee,
+        meanan = meanAnomaly,
+        catnum = catalogue,
+        bstar = bstar,
+        ndot = meanMotionDot,
+    )
+}
+
+/** `sats.json`: the elements the Worker last fetched, and when. */
+@Serializable
+data class SatellitesDocument(
+    val schema: Int,
+    /** When the Worker published these elements, ISO-8601. */
+    val updated: String,
+    val satellites: List<SatelliteElements> = emptyList(),
+)
+
+/** Reads `sats.json`. */
+object Elements {
+
+    // Unknown keys are ignored so a later Worker can add a field without
+    // breaking installs that will never be updated again.
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun parse(body: String): SatellitesDocument = json.decodeFromString(body)
+}
