@@ -14,9 +14,10 @@
   // event.cron, so adding a source is a new entry here plus a new branch.
   //   */3 - AuroraWatch UK, their documented minimum interval
   //   */5 - SWPC (OVATION grid, Kp, solar wind), which updates every 5 minutes
-  // CelesTrak (2-hourly) and MPC (weekly) arrive in Phases 3 and 5.
+  //   0 */2 - CelesTrak, whose usage policy caps polling at once every 2 hours
+  // MPC (weekly) arrives in Phase 5.
   "triggers": {
-    "crons": ["*/3 * * * *", "*/5 * * * *"]
+    "crons": ["*/3 * * * *", "*/5 * * * *", "0 */2 * * *"]
   },
 
   "r2_buckets": [
@@ -38,6 +39,12 @@
     "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
     "SWPC_SOLAR_WIND_SPEED_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
     "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
+    // GP elements as OMM in CSV, never TLE: the public catalogue passed 100000
+    // in July 2026 and TLE cannot express a 6-digit number. HTTPS and
+    // celestrak.org exactly - a .com or .net answers with a redirect, which
+    // trips the breaker.
+    "CELESTRAK_STATIONS_URL": "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV",
+    "CELESTRAK_VISUAL_URL": "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
     "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
 
     // Manifest contents. The app bakes in only the manifest URL, so every other

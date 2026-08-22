@@ -36,6 +36,7 @@ describe("buildManifest", () => {
     expect(manifest.endpoints).toEqual({
       status: "https://sky.arek.sh/v1/status.json",
       oval: "https://sky.arek.sh/v1/oval.bin",
+      sats: "https://sky.arek.sh/v1/sats.json",
       weather: "https://api.open-meteo.com/v1/forecast",
     });
   });

@@ -10,6 +10,7 @@
  * outbound traffic.
  */
 
+import { fetchThroughBreaker } from "./breaker";
 import {
   buildManifest,
   importSigningKey,
@@ -19,6 +20,7 @@ import {
 } from "./manifest";
 import { packOvalGrid } from "./oval";
 import { parseAuroraWatchStatus } from "./sources/aurorawatch";
+import { buildSatellites, parseOmmCsv, type SatelliteElements } from "./sources/celestrak";
 import { parseKp, parseOvation, parseSolarWindMagField, parseSolarWindSpeed } from "./sources/swpc";
 import {
   composeStatus,
@@ -36,9 +38,13 @@ export interface Deps {
 const SPACE_PARTIAL_KEY = "internal/space.json";
 const UK_PARTIAL_KEY = "internal/uk.json";
 const STATUS_KEY = "v1/status.json";
+const SATS_KEY = "v1/sats.json";
 const OVAL_KEY = "v1/oval.bin";
 const MANIFEST_KEY = "v1/index.json";
 const MANIFEST_SIG_KEY = "v1/index.json.sig";
+
+/** The breaker's name in R2, and the source's name in `health.json`. */
+export const CELESTRAK_SOURCE = "celestrak";
 
 /**
  * Fetches an upstream, naming the app in the User-Agent as AuroraWatch's terms
@@ -193,4 +199,42 @@ export async function refreshUk(env: Env, deps: Deps): Promise<void> {
 
   await env.DATA.put(UK_PARTIAL_KEY, JSON.stringify(partial));
   await republishStatus(env, deps.now());
+}
+
+/**
+ * CelesTrak: the orbital elements every pass prediction is derived from.
+ *
+ * Runs two-hourly, which is CelesTrak's documented update cadence and their
+ * hard floor on polling. Every request goes through the circuit breaker, and
+ * the groups are fetched **sequentially on purpose**: requesting them in
+ * parallel would put the second request on the wire before the first response
+ * could forbid it, which is precisely the behaviour the policy warns gets an IP
+ * firewalled.
+ *
+ * A trip fails the source, so `health.json` records it and the maintainer gets
+ * told twice - once by the breaker saying what CelesTrak returned, once by the
+ * source going into failure. They say different things and only fire on the
+ * edge, so both are worth having.
+ *
+ * Nothing is deleted on failure: `sats.json` keeps serving its last good copy,
+ * and elements stay usable for days, so a tripped breaker degrades pass
+ * prediction gracefully rather than breaking it.
+ */
+export async function refreshSatellites(env: Env, deps: Deps): Promise<void> {
+  const parsed: SatelliteElements[] = [];
+
+  for (const url of [env.CELESTRAK_STATIONS_URL, env.CELESTRAK_VISUAL_URL]) {
+    const response = await fetchThroughBreaker(env, deps, CELESTRAK_SOURCE, {
+      url,
+      userAgent: env.USER_AGENT,
+    });
+    parsed.push(...parseOmmCsv(await response.text()));
+  }
+
+  const document = buildSatellites(parsed, deps.now());
+
+  await publish(env.DATA, SATS_KEY, JSON.stringify(document), {
+    cacheControl: CACHE_CONTROL["sats.json"],
+    contentType: "application/json",
+  });
 }

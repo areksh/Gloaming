@@ -45,8 +45,8 @@ export interface ManifestInput {
 
 /**
  * Only endpoints that exist are advertised. Later phases add their own
- * (`sats`, `comets`); since the manifest is re-fetched daily, adding a key then
- * costs nothing, whereas advertising a URL that 404s today does.
+ * (`comets`); since the manifest is re-fetched daily, adding a key then costs
+ * nothing, whereas advertising a URL that 404s today does.
  */
 export function buildManifest(input: ManifestInput): Manifest {
   return {
@@ -57,6 +57,7 @@ export function buildManifest(input: ManifestInput): Manifest {
     endpoints: {
       status: `${input.baseUrl}/status.json`,
       oval: `${input.baseUrl}/oval.bin`,
+      sats: `${input.baseUrl}/sats.json`,
       weather: input.weatherUrl,
     },
   };

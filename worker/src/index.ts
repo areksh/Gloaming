@@ -8,11 +8,20 @@
  */
 
 import { notifyMaintainer, publishHealth, recordOutcome, type Outcome } from "./health";
-import { ensureManifest, refreshSpaceWeather, refreshUk, type Deps } from "./pipeline";
+import {
+  CELESTRAK_SOURCE,
+  ensureManifest,
+  refreshSatellites,
+  refreshSpaceWeather,
+  refreshUk,
+  type Deps,
+} from "./pipeline";
 
 /** Which cron expression drives which source. Matches `triggers.crons`. */
 const AURORAWATCH_CRON = "*/3 * * * *";
 const SWPC_CRON = "*/5 * * * *";
+/** CelesTrak's data updates two-hourly and their policy forbids polling faster. */
+const CELESTRAK_CRON = "0 */2 * * *";
 
 /**
  * Every source that appears in `health.json`.
@@ -22,7 +31,7 @@ const SWPC_CRON = "*/5 * * * *";
  * aborted the invocation before anything was recorded and the one channel built
  * to report a silent failure was itself silent.
  */
-const SOURCES = ["manifest", "swpc", "aurorawatch"];
+const SOURCES = ["manifest", "swpc", "aurorawatch", CELESTRAK_SOURCE];
 
 /**
  * Runs one source's refresh, records the outcome, and alerts on a change of
@@ -86,7 +95,9 @@ export default {
         ? { name: "aurorawatch", refresh: () => refreshUk(env, deps) }
         : controller.cron === SWPC_CRON
           ? { name: "swpc", refresh: () => refreshSpaceWeather(env, deps) }
-          : null;
+          : controller.cron === CELESTRAK_CRON
+            ? { name: CELESTRAK_SOURCE, refresh: () => refreshSatellites(env, deps) }
+            : null;
     if (source === null) {
       throw new Error(`No handler for cron schedule "${controller.cron}"`);
     }
