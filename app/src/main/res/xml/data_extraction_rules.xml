@@ -1,19 +1,41 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing leaves this app through the backup system.
+
+  The storage design turns on one promise: the position the user typed stays in
+  credential-encrypted storage, and the device-encrypted mirror that a poll
+  before first unlock reads holds a rounded grid cell instead - a region rather
+  than an address. Backup goes around that entirely, copying application data
+  wholesale, and with no rules declared it includes everything. On GrapheneOS
+  that is a live path rather than a theoretical one, because Seedvault honours
+  these declarations.
+
+  Cloud backup and device-to-device transfer are separate switches and
+  `android:allowBackup="false"` only closes the first, so both are excluded
+  here. There is nothing worth restoring anyway: the settings are two numbers
+  and a threshold, and every cache re-fetches on the next poll.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="root" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_database" path="." />
+        <exclude domain="device_sharedpref" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>

@@ -39,8 +39,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!--
+      Backup is off, and device-to-device transfer is excluded separately in
+      `data_extraction_rules.xml` because `allowBackup` does not cover it. The
+      settings hold the precise position the user typed, and the point of
+      keeping that in credential-encrypted storage is lost if the backup system
+      copies it off the phone regardless.
+    -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"

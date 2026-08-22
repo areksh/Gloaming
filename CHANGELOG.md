@@ -155,6 +155,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Backup is switched off, and device-to-device transfer is excluded separately,
+  because `allowBackup` does not cover it. Both rule files were still the
+  unedited template, which means include-everything - so the precise position
+  the user typed was eligible to be copied off the phone by the backup system,
+  going around the whole reason it is kept in credential-encrypted storage. On
+  GrapheneOS that is a live path rather than a theoretical one, because
+  Seedvault honours these declarations.
 - "Check now" now actually checks, and the screen shows that it did. It went
   through `AlarmManager`, which is inexact - a "one second" alarm can be batched
   up to two minutes out - and the screen only re-read the poll result when the
