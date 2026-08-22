@@ -23,6 +23,15 @@ unlock. What remains before release is the part no test suite can do for you: a
 season of real nights, to calibrate the thresholds and confirm the app is worth
 keeping installed.
 
+Gloaming needs Android's battery-optimisation exemption, and asks for it on
+first run. That is a requirement rather than a refinement: without it the system
+holds background checks until the phone next wakes, which overnight means hours,
+and an aurora app that cannot alert overnight is not doing anything. Running
+without the exemption is out of scope - the app says so plainly rather than
+degrading quietly, and there is no setting that works around it. The **watch
+now** switch is the answer for a night that matters, since a foreground service
+runs its own clock and no alarm policy reaches it.
+
 ## Quick start
 
 ### Android app
@@ -39,7 +48,12 @@ The instrumented tests cover the seams a JVM test cannot reach: that the
 credential- and device-encrypted preference stores really are separate, that the
 manifest declares every permission the code uses and nothing more, and that
 notifications post without throwing. They need a device connected over adb with
-USB debugging enabled.
+USB debugging enabled, and **awake and unlocked**: an activity launched behind
+the keyguard reaches resumed and pauses again without ever drawing, so the
+Compose harness finds no semantics tree and every assertion fails with "No
+compose hierarchies found in the app" - which reads like a broken test setup and
+is not. `adb shell input keyevent KEYCODE_WAKEUP` before a run, and
+`settings put global stay_on_while_plugged_in 7` to keep it that way.
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
@@ -70,10 +84,18 @@ Point the observer at the busiest cell in the live grid and set a threshold just
 below its value: the fetch, the grid lookup, the decision and the notification
 are all the real ones, and only the location is chosen.
 
+Two gates still stand in the way, and a cell chosen on probability alone will
+usually fail one of them. The place has to be dark *now* - the darkness gate
+cannot be switched off - and its cloud cover has to be within the tolerance,
+because the seeded settings leave the cloud gate on. So pick the busiest cell on
+the night side. Longitude goes in the way the app takes it, -180 to 180, not the
+0-359 the grid is indexed by.
+
 ```sh
 curl -s https://sky.arek.sh/v1/oval.bin | gzip -dc | od -An -tu1 -v   # 65160 bytes,
 # row-major, 181 rows of latitude -90..90, each 360 columns of longitude 0..359
-tools/bfu-check.sh --prepare --seed --latitude -63 --longitude 183 \
+# Column 183 is 183 degrees east, which the app is given as -177.
+tools/bfu-check.sh --prepare --seed --latitude -63 --longitude -177 \
     --threshold 10 --expect-alert
 ```
 

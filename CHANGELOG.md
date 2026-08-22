@@ -171,6 +171,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
+- The worked example for provoking a real alert was stale in two ways: it gave
+  a longitude in the grid's 0-359 form rather than the -180 to 180 the app
+  takes, and it predated the darkness and cloud gates, so following it produced
+  no alert and looked like a broken harness. It now says to pick a cell on the
+  night side and why.
+- The instrumented suite needs the device awake and unlocked. Behind the
+  keyguard an activity resumes and pauses without drawing, and every Compose
+  assertion fails with "No compose hierarchies found in the app".
 - Instrumented tests verified on a Pixel 8a running GrapheneOS: storage
   partitioning, permission declarations, scheduling and notifications.
 - Before-unlock alerting verified end to end on a Pixel 8a running GrapheneOS:
