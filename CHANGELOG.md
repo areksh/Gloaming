@@ -176,6 +176,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the screen opened, so "nothing to see until it gets dark, around 22:40" would
   still be there at midnight - and dusk is the transition that sentence exists
   to describe.
+- Storm mode stands down with the start id it was given, so an automatic watch
+  ending at the moment the user asks for one of their own no longer takes their
+  request with it.
 - "Check now" now actually checks, and the screen shows that it did. It went
   through `AlarmManager`, which is inexact - a "one second" alarm can be batched
   up to two minutes out - and the screen only re-read the poll result when the

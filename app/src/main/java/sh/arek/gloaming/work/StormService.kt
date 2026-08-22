@@ -58,10 +58,24 @@ class StormService : Service() {
     private var watching: Job? = null
     private var wakeLock: PowerManager.WakeLock? = null
 
+    /**
+     * The most recent start, so the watch loop can stand down without taking a
+     * newer request with it.
+     *
+     * Volatile because the loop runs on the IO dispatcher and this is written
+     * from the main thread.
+     */
+    @Volatile
+    private var latestStartId: Int = 0
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
+
         if (intent?.action == ACTION_STOP) {
+            // Unconditional: the user asked for it to stop, so it stops even if
+            // something else started it a moment ago.
             stopSelf()
             return START_NOT_STICKY
         }
@@ -133,7 +147,12 @@ class StormService : Service() {
             }
         }
 
-        stopSelf()
+        // With the start id rather than without: an automatic watch ending at
+        // the moment the user taps "watch now" would otherwise take their
+        // request down with it, and the switch would flick back to off for no
+        // reason they could see. Passing the id makes the stop a no-op if a
+        // newer start has arrived since this loop began.
+        stopSelf(latestStartId)
     }
 
     private fun startInForeground() {
