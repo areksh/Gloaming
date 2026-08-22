@@ -129,8 +129,19 @@ object PassFinder {
             if (previous <= 0.0 && current > 0.0) {
                 val risesAt = crossing(elevation, previousTime, time)
                 val setsAt = descent(elevation, time, risesAt)
-                val pass = describe(orbital, observer, elements, risesAt, setsAt)
 
+                if (setsAt == null) {
+                    // Still up half an hour later, so this is not a pass over a
+                    // horizon: it is something high enough to sit in the sky,
+                    // and there is no moment to tell anyone about. Skip past
+                    // rather than invent an ending.
+                    previousTime = risesAt + OVERRUN_MILLIS
+                    previous = elevation(previousTime)
+                    time = previousTime + COARSE_STEP_MILLIS
+                    continue
+                }
+
+                val pass = describe(orbital, observer, elements, risesAt, setsAt)
                 if (pass.peakElevation >= minimumPeakElevation) found += pass
 
                 // Resume past the pass rather than walking back through it.
@@ -147,8 +158,15 @@ object PassFinder {
         return found
     }
 
-    /** Follows a pass already begun at [after] down to the horizon. */
-    private fun descent(elevation: (Long) -> Double, after: Long, risesAt: Long): Long {
+    /**
+     * Follows a pass already begun at [after] down to the horizon.
+     *
+     * Null when it does not come back down inside [OVERRUN_MILLIS]. Nothing in
+     * low orbit stays up that long, so the answer is that this is not a pass -
+     * it is an object high enough to hang in the sky, which has no moment worth
+     * announcing.
+     */
+    private fun descent(elevation: (Long) -> Double, after: Long, risesAt: Long): Long? {
         var previousTime = after
         var time = after + COARSE_STEP_MILLIS
         val limit = risesAt + OVERRUN_MILLIS
@@ -158,10 +176,7 @@ object PassFinder {
             previousTime = time
             time += COARSE_STEP_MILLIS
         }
-        // Nothing in low orbit stays up this long. Rather than loop for ever,
-        // treat the horizon as reached: the caller's elevation bar will throw
-        // out anything nonsensical that results.
-        return limit
+        return null
     }
 
     /**

@@ -151,6 +151,34 @@ class PassFinderTest {
     }
 
     /**
+     * A satellite that simply sits in the sky has no pass to announce.
+     *
+     * Not something the `visual` or `stations` groups contain, but the search
+     * has to answer sensibly rather than inventing a horizon crossing half an
+     * hour after the one it found - which is what a naive loop does, and it
+     * would read as a real pass.
+     */
+    @Test
+    fun `reports no pass for a satellite that never sets`() {
+        val geostationary = iss.copy(
+            name = "PARKED",
+            catalogue = 99998,
+            meanMotion = 1.0027,
+            eccentricity = 0.0002,
+            inclination = 0.05,
+            raan = 0.0,
+            argPerigee = 0.0,
+            meanAnomaly = 0.0,
+        )
+
+        val passes = PassFinder.passes(
+            geostationary, 0.0, longitude, from, until, minimumPeakElevation = 0.0,
+        )
+
+        assertTrue(passes.map { it.durationMillis }.toString(), passes.isEmpty())
+    }
+
+    /**
      * Entering the Earth's shadow is the moment a satellite visibly goes out,
      * mid-sky, which is worth telling someone standing outside.
      *
