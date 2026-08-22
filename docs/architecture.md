@@ -410,30 +410,43 @@ errors; the sourcing document is strong.
    objects, reached through a second binding. That is provisioning rather than
    code, and nothing in the pipelines assumes one bucket.
 
-10. **CelesTrak answers a Worker with 522 while answering a home connection
-    normally. Unresolved, found 2026-08-22.** The first live run of the
-    satellites pipeline got `HTTP 522` from
+10. **The satellites pipeline has never completed a live run. Cause not
+    established, 2026-08-22.** Two attempts, both `HTTP 522` from
     `celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV` after
-    roughly 24 seconds, and so did a second attempt three minutes later. The
-    same URL answered a domestic connection in 0.7 seconds, repeatedly, at the
-    same time.
+    roughly 24 seconds each, at 12:06:33 and 12:09:15 UTC.
 
-    522 is Cloudflare-generated and means its egress could not open a
-    connection to the origin. CelesTrak is not itself behind Cloudflare -
-    responses come from `Microsoft-IIS/10.0` with no Cloudflare headers - so
-    the 522 is Cloudflare's own network failing to reach them. Two timeouts
-    rather than two refusals is what a silent packet drop looks like, and the
-    obvious candidate is CelesTrak firewalling Cloudflare Workers' shared
-    egress ranges. Their usage policy is explicit that shared-egress users get
-    blocked by each other's behaviour, and Workers share egress across every
-    customer on the platform.
+    The tempting reading is that Cloudflare's egress is blocked - 522 is
+    Cloudflare-generated and means it could not open a connection to the
+    origin, CelesTrak is not itself behind Cloudflare (`Microsoft-IIS/10.0`,
+    no Cloudflare headers), and two timeouts rather than two refusals is what a
+    silent packet drop looks like. Their usage policy is explicit that
+    shared-egress users get blocked by each other's behaviour, and Workers
+    share egress across every customer on the platform.
 
-    If that is what this is, it is a problem for the architecture rather than a
-    bug in it: the Worker-as-single-fetcher design is what CelesTrak's own
-    policy asks for, and per-device fetching is forbidden outright. Options, in
-    the order worth trying: ask Kelso directly, since he is reachable and the
-    policy invites contact; fetch from somewhere with a stable dedicated IP and
-    push to R2; or serve elements from a different mirror of the same GP data.
+    **The timeline does not support that reading yet.** `celestrak.org` was
+    also unreachable from an ordinary domestic connection for most of that
+    morning - refused or timed out from about 10:20 UTC - and only began
+    answering at about 12:08, between the two attempts. So the first attempt is
+    fully explained by CelesTrak's own outage, and the second is a single
+    sample taken roughly a minute after they came back, when an origin that has
+    just recovered may still be flapping. One sample is not a firewall.
+
+    What would settle it is one request: clear the breaker and let a single
+    two-hourly cron run now that they are demonstrably healthy. That is within
+    the policy's own cadence. If it succeeds, this entry is an outage that
+    happened to land on the first run. If it fails again while a domestic
+    connection is fine, the block hypothesis is real - and it would be a
+    problem for the architecture rather than a bug in it, since the
+    Worker-as-single-fetcher design is what CelesTrak's policy asks for and
+    per-device fetching is forbidden outright.
+
+    In that case, note that **the egress address of a Worker cannot be chosen**
+    on any plan, so the options are: ask Kelso, since he is reachable and the
+    policy invites contact; move the fetch to a host with a stable dedicated IP
+    and have it write to R2, keeping the fan-out where it is; or take the same
+    GP data from Space-Track, which identifies the caller by account rather
+    than by IP but restricts redistribution in a way CelesTrak's policy
+    notably does not.
 
     One caveat before acting on any of that: both attempts were made through
     `wrangler dev --remote`, which runs a *preview* deployment. Whether preview
