@@ -28,15 +28,20 @@ Two independently deployable pieces plus one direct-from-device dependency:
 
 ```
   Cloudflare cron Worker  --PUT-->  R2 + public custom domain (sky.<domain>/v1/)
-   (write side only)                  (read side, CDN serves objects directly)
-                                             ^
-                                             | HTTPS conditional GET (mostly 304)
-                                             | outbound only, device-initiated
+   (write side)                    ^   (read side, CDN serves objects directly)
+                                   |         ^
+  elements fetcher  --PUT----------+         | HTTPS conditional GET (mostly 304)
+   (one host, own IP)                        | outbound only, device-initiated
                                         Android app  --direct-->  Open-Meteo
 ```
 
 - The **cron Worker** is never in the read path. It fetches upstreams on a
   schedule and writes derived objects to R2.
+- The **elements fetcher** is a second writer, and exists only because
+  Cloudflare's egress cannot reach CelesTrak (issue 11, ADR-0008). It is a
+  single bundled Node file on a host with an address of its own, run by a
+  systemd timer every two hours, writing `sats.json` and its own health record
+  to the same bucket. It holds no local state. See `fetcher/README.md`.
 - **R2 + a public custom domain** serves those objects through the CDN with
   `Cache-Control` and ETags. No Worker invocation per read.
 - The **Android app** does all location maths and all alert decisions on-device
@@ -61,7 +66,6 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   |---|---|---|
   | `*/3 * * * *` | AuroraWatch UK (UK layer) | UK fields of `status.json` |
   | `*/5 * * * *` | SWPC OVATION grid + Kp + solar wind | `oval.bin`, space-weather fields of `status.json` |
-  | `0 0,2,4,...,22 * * *` | CelesTrak OMM CSV | `sats.json`. Spelled out rather than stepped; see issue 10. |
   | `0 3 * * 1` | MPC comet elements (Phase 5) | `comets.json` |
 
 - **`status.json` composition.** Two crons contribute to `status.json` on
@@ -77,7 +81,12 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 - **`oval.bin` packer.** The SWPC OVATION 360x181 grid is packed to one byte per
   cell (probability 0-100), row-major, then gzipped at PUT. The pack/unpack pair
   is covered by a round-trip unit test.
-- **OMM normalisation.** CelesTrak publishes GP data as OMM in CSV, never TLE
+- **Not CelesTrak.** That source moved out of the Worker entirely; see ADR-0008
+  and the note on OMM normalisation below, which now happens in `fetcher/`.
+  `celestrak` is still listed among the Worker's sources so that the health
+  record the fetcher writes keeps appearing in `health.json`.
+- **OMM normalisation** (in the fetcher, not the Worker). CelesTrak publishes GP
+  data as OMM in CSV, never TLE
   for the 6-digit catalogue numbers issued since July 2026. The Worker parses it
   and publishes `sats.json` with fields mapping one-for-one onto the app's
   element type, including the epoch already converted from ISO-8601 to the
@@ -87,8 +96,8 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   Columns are read **by name from the header row**, never by position: reading a
   reordered document by index would not fail, it would publish plausible
   elements for the wrong orbit.
-- **Circuit breaker (CelesTrak).** Any non-200 from CelesTrak writes a tripped
-  flag plus the response code and timestamp to R2 at
+- **Circuit breaker (CelesTrak, now in the fetcher).** Any non-200 from CelesTrak
+  writes a tripped flag plus the response code and timestamp to R2 at
   `internal/breaker/celestrak.json`; every invocation checks the flag first and
   does not query while it is set; **reset is manual**, by deleting that object.
   `sats.json` keeps serving its last-good copy meanwhile. Tripping POSTs the
@@ -156,7 +165,7 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `index.json.sig` | 64 B | on change | `public, max-age=3600` | Ed25519 detached signature over `index.json`. |
 | `status.json` | ~0.5 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `max_probability` + `oval_etag`. Latency-critical. |
 | `oval.bin` | 1.6-2.5 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major by latitude, 360x181, gzipped. Fetched conditionally on `oval_etag` change (Sec. 4). Sizes measured against live data, quiet to simulated severe storm. |
-| `sats.json` | ~20-40 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. |
+| `sats.json` | ~20-40 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. **Written by the fetcher, not the Worker** (ADR-0008). |
 | `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
 | `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
 | `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
@@ -460,12 +469,14 @@ errors; the sourcing document is strong.
     Cloudflare and their host, cannot be told apart from this side. The
     practical consequence is the same either way.
 
-    **No further attempts should be made.** Three is enough to establish it,
-    and repeatedly probing a source that may already have blocked the range is
-    precisely the behaviour the usage policy warns about. The breaker is
-    tripped and should stay tripped until the cause is addressed. Nothing else
-    in the app is affected: `sats.json` is simply absent, and the pass planner
-    treats that as "no passes known" and stays dormant.
+    **No further attempts were made.** Three is enough to establish it, and
+    repeatedly probing a source that may already have blocked the range is
+    precisely the behaviour the usage policy warns about.
+
+    **Resolved by moving the fetch off Cloudflare** - see ADR-0008 and
+    `fetcher/README.md`. Asking Kelso is still worth doing, and is the only
+    route to knowing whether the block is deliberate, but the app no longer
+    waits on the answer.
 
     **A Worker's egress address cannot be chosen** on any plan, so there is
     nothing to configure and the fetch has to move. The options are:

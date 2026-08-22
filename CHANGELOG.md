@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   further querying until a human clears it by hand, as their usage policy
   requires; `sats.json` keeps serving its last-good copy meanwhile, and the
   maintainer gets one push saying what the response was.
+- A standalone elements fetcher (`fetcher/`) that runs on a host outside
+  Cloudflare, because Cloudflare's egress cannot reach CelesTrak - three
+  attempts, three 522s, against a domestic connection getting 200 in under two
+  seconds at the same moment. It bundles to a single file, keeps no local
+  state, and writes to the same bucket, so nothing about the read path or the
+  app changes. See ADR-0008 and `fetcher/README.md`.
 - The `sats` endpoint in the signed manifest, so the elements can move without
   stranding installs.
 - Look4Sat's SGP4/SDP4 propagator, vendored under the GPL-3.0 and credited in

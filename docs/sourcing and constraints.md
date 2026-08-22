@@ -318,6 +318,14 @@ an egress IP, it says it is up to them to set up a proxy to cache the queries in
 does not get all their devices blocked. One server fetch fanned out to many clients is the
 behaviour being asked for.
 
+**The one server is not the Worker.** Checked 2026-08-22: Cloudflare's egress cannot reach
+`celestrak.org` at all - three attempts, three `HTTP 522` after 24-second timeouts, while a
+domestic connection got `200` in under two seconds in the same minute. The fetch therefore
+runs on a host with an address of its own and writes to the same bucket; R2 is still the
+fan-out and nothing about the read path changes. See ADR-0008. The irony is not lost: the
+policy warns that shared-egress users get blocked by each other's behaviour, and Workers
+share egress across every customer on the platform.
+
 Hard requirements:
 
 - **Data updates once every two hours.** Never poll faster. This applies to SupGP too, even

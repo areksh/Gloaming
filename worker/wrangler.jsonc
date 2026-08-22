@@ -14,13 +14,14 @@
   // event.cron, so adding a source is a new entry here plus a new branch.
   //   */3 - AuroraWatch UK, their documented minimum interval
   //   */5 - SWPC (OVATION grid, Kp, solar wind), which updates every 5 minutes
-  //   0 0,2,4,... - CelesTrak, whose usage policy caps polling at once every
-  //   2 hours. Written as an explicit hour list rather than "0 */2 * * *":
-  //   the step form registered correctly and then never fired, twice running,
-  //   while the two step-in-minutes schedules beside it fired every time.
-  // MPC (weekly) arrives in Phase 5.
+  // CelesTrak is deliberately absent: Cloudflare's egress cannot reach them, so
+  // that fetch runs on a host outside Cloudflare and writes to the same bucket.
+  // See ADR-0008 and fetcher/README.md. MPC (weekly) arrives in Phase 5.
+  //
+  // Avoid a step in the hours field when adding one. "0 */2 * * *" is
+  // documented syntax, registered without complaint, and never fired.
   "triggers": {
-    "crons": ["*/3 * * * *", "*/5 * * * *", "0 0,2,4,6,8,10,12,14,16,18,20,22 * * *"]
+    "crons": ["*/3 * * * *", "*/5 * * * *"]
   },
 
   "r2_buckets": [
@@ -42,12 +43,6 @@
     "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
     "SWPC_SOLAR_WIND_SPEED_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
     "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
-    // GP elements as OMM in CSV, never TLE: the public catalogue passed 100000
-    // in July 2026 and TLE cannot express a 6-digit number. HTTPS and
-    // celestrak.org exactly - a .com or .net answers with a redirect, which
-    // trips the breaker.
-    "CELESTRAK_STATIONS_URL": "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV",
-    "CELESTRAK_VISUAL_URL": "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
     "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
 
     // Manifest contents. The app bakes in only the manifest URL, so every other

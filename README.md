@@ -144,6 +144,19 @@ about twelve minutes, and anything that reads back further silently sees
 nothing. That bug lived in `tools/doze-check.sh` and invented a sevenfold
 deferral that was not happening.
 
+### Elements fetcher
+
+Fetches CelesTrak orbital elements and publishes `sats.json` to R2. It runs on
+a host outside Cloudflare because Cloudflare's egress cannot reach CelesTrak
+(ADR-0008); `fetcher/README.md` covers the build and the whole server setup.
+
+```sh
+cd fetcher
+npm install
+npm test && npm run typecheck
+npm run build     # one self-contained file for the host to run
+```
+
 ### Data Worker
 
 The `worker/` directory holds the Cloudflare cron Worker that fetches upstream
