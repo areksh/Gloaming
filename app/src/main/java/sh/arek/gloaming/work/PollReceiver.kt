@@ -46,6 +46,9 @@ class PollReceiver : BroadcastReceiver() {
             // Set by a poll that got far enough to work one out. Anything else
             // falls back to the flat interval below.
             var next: PollPlan? = null
+            // When the pass planner wants to be woken, in minutes from now.
+            // Null when it has nothing to ask for.
+            var passWake: Int? = null
             try {
                 if (BootAware.canPollNow(application)) {
                     val result = withTimeout(POLL_TIMEOUT_MILLIS) {
@@ -71,7 +74,8 @@ class PollReceiver : BroadcastReceiver() {
                     // next wake, which is already queued below.
                     runCatching {
                         val passes = Graph.passPoller(application).poll()
-                        Log.i(TAG, "pass check: ${passes.decision}")
+                        passWake = minutesUntil(passes.nextWakeAtMillis)
+                        Log.i(TAG, "pass check: ${passes.decision} (next in ${passWake}m)")
                     }.onFailure { Log.w(TAG, "pass check failed", it) }
                     // The widget is redrawn by the poll rather than on a
                     // schedule of its own, so it is exactly as fresh as the
@@ -88,16 +92,30 @@ class PollReceiver : BroadcastReceiver() {
                 // Always queue the next wake, whatever happened. A poll that
                 // throws must not end the schedule and leave the app asleep.
                 runCatching {
-                    PollAlarm.schedule(
-                        application,
-                        next?.delayMinutes
-                            ?: BootAware.pollSettings(application).read().pollIntervalMinutes,
-                    )
+                    val aurora = next?.delayMinutes
+                        ?: BootAware.pollSettings(application).read().pollIntervalMinutes
+                    // The sooner of the two. A pass alert goes out half an hour
+                    // before the satellite is highest, and the aurora schedule
+                    // is happy to sleep for an hour on a quiet overcast night -
+                    // so taking only the aurora interval would deliver a pass
+                    // alert after the pass.
+                    PollAlarm.schedule(application, minOf(aurora, passWake ?: aurora))
                 }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
                 pending.finish()
             }
         }
+    }
+
+    /**
+     * Whole minutes until [millis], never less than one.
+     *
+     * Rounded down, so a wake lands at or before the moment asked for rather
+     * than after it - the alarm is inexact and already runs late.
+     */
+    private fun minutesUntil(millis: Long): Int {
+        val delay = millis - System.currentTimeMillis()
+        return (delay / 60_000L).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
     }
 
     private companion object {
