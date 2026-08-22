@@ -139,6 +139,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore a `message` that had been withdrawn. A wall clock rather than a
   counter, so deleting the object cannot restart the sequence and lock every
   install out of every future manifest.
+- Signing the manifest is tracked as a source in `health.json` and can fail on
+  its own. It used to run before and outside all of them, so a bad key aborted
+  the whole invocation before anything was recorded - the one failure most
+  likely to go unnoticed, because the channel built to report it never ran. A
+  failure is now recorded, pushed to the maintainer, and does not stop the data
+  refresh.
 - The battery-optimisation exemption is stated as a requirement rather than a
   refinement. The screen said alerts would be "delayed" without it, which
   undersold it: an aurora app that cannot check overnight is not doing
