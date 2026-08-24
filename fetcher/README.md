@@ -209,12 +209,23 @@ cat > /etc/systemd/system/gloaming-elements.timer <<'EOF'
 Description=Fetch CelesTrak orbital elements every two hours
 
 [Timer]
-# CelesTrak publish every two hours and their policy forbids polling faster.
-OnCalendar=*-*-* 00/2:00:00
-# Politeness, and it keeps every deployment of this off the same second.
+# Two hours since the last run *finished starting*, not two hours past the
+# hour. CelesTrak's policy caps polling at once per two hours, and this makes
+# that a property of the timer rather than something the operator has to keep
+# track of: a run you trigger by hand pushes the next scheduled one out, so the
+# two can never land close together.
+#
+# OnCalendar was the obvious choice and is wrong here twice over. It is
+# reckoned in *local* time, so at the autumn clock change the interval between
+# two consecutive fires is one real hour, which breaks the cap on precisely the
+# night nobody is watching. And it takes no account of manual runs at all.
+OnUnitActiveSec=2h
+# Seeds the cycle: without this, a timer whose service has never run has
+# nothing to count from and would sit there for ever.
+OnActiveSec=2h
+# Only ever adds to the interval, so it cannot undercut the cap. Keeps every
+# deployment of this off the same instant.
 RandomizedDelaySec=300
-# Catch up once after downtime rather than waiting for the next even hour.
-Persistent=true
 Unit=gloaming-elements.service
 
 [Install]
@@ -222,8 +233,11 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now gloaming-elements.timer
+systemctl enable gloaming-elements.timer
 ```
+
+Enabled but **not started** - that happens in step 10, after the verification
+run, so the first scheduled fetch is a clean two hours after it.
 
 Check the `ExecStart` path matches what `command -v node` printed in step 1.
 
@@ -244,7 +258,9 @@ npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --re
 
 ## 9. Verify
 
-Run it once by hand rather than waiting for the timer:
+Run it once by hand rather than waiting for the timer. This counts as one of
+CelesTrak's two-hourly downloads, which is why the timer is started afterwards
+rather than before:
 
 ```sh
 systemctl start gloaming-elements.service
@@ -275,17 +291,27 @@ npx wrangler r2 object get gloaming-data/v1/health.json --pipe --remote |
   python3 -c 'import json,sys; print(json.load(sys.stdin)["sources"]["celestrak"])'
 ```
 
-When is the next run?
+## 10. Start the timer
 
 ```sh
+systemctl start gloaming-elements.timer
 systemctl list-timers gloaming-elements.timer
 ```
+
+`NEXT` should be about two hours away, and never less - both the seed and the
+repeat are reckoned from the last time the service actually ran, so the
+verification run in step 9 has already pushed it out.
 
 ## Operations
 
 **Reading the logs.** `journalctl -u gloaming-elements.service --since today`.
 Each run is two lines at most; there is nothing to rotate and no log file to
 manage.
+
+**Running one by hand.** `systemctl start gloaming-elements.service`. Safe to
+do whenever: the timer counts two hours from the last run whatever triggered
+it, so an ad-hoc run pushes the next scheduled one out rather than doubling up
+against it. Confirm with `systemctl list-timers gloaming-elements.timer`.
 
 **The breaker has tripped.** Any non-200 from CelesTrak stops all further
 querying until a human clears it. That is their policy's single most important
