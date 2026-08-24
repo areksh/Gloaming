@@ -329,6 +329,32 @@ class MainScreenTest {
     }
 
     /**
+     * A user the station cannot reach is told so.
+     *
+     * There is no pass list to show empty - the app speaks only through
+     * notifications - so without this sentence an unreachable station and a
+     * broken app look identical from the outside.
+     */
+    @Test
+    fun explainsWhyTheStationNeverAppearsAtHighLatitude() {
+        show(settings = UserSettings(latitude = 69.6, longitude = 18.96))
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("never comes above your horizon", substring = true)
+            .assertExists()
+    }
+
+    /** And a user it does reach is not told anything of the sort. */
+    @Test
+    fun saysNothingAboutCoverageWhereTheStationPasses() {
+        show(settings = UserSettings(latitude = 55.95, longitude = -3.19))
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("The station's orbit reaches", substring = true)
+            .assertDoesNotExist()
+    }
+
+    /**
      * Silencing passes hides their intervals rather than leaving two controls
      * that do nothing.
      */

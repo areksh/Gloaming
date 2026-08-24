@@ -38,6 +38,7 @@ import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
 import sh.arek.gloaming.domain.StormMode
 import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
+import sh.arek.gloaming.satellites.IssCoverage
 
 /**
  * The watch switch, which is an action rather than a setting and so is the one
@@ -223,6 +224,13 @@ private fun InterruptionCard(
                     state.settings.issPassAlertIntervalMinutes,
                     onIssIntervalChange,
                 )
+                // Only where the orbit does not reach, which is nowhere most
+                // people live. The control stays whatever the answer is: the
+                // point is to explain the silence, not to remove a setting.
+                val coverage = state.settings.latitude?.let(::describeIssCoverage)
+                if (coverage != null) {
+                    Text(coverage, style = MaterialTheme.typography.bodySmall)
+                }
                 IntervalRow(
                     "Other bright satellites",
                     state.settings.brightPassAlertIntervalMinutes,
@@ -800,3 +808,39 @@ fun describeAge(lastPollAt: Long?, now: Long): String {
 }
 
 private fun plural(value: Long) = if (value == 1L) "" else "s"
+
+/**
+ * Why the station never appears, for a user it cannot reach.
+ *
+ * Null wherever the station does pass, which is most places anyone lives. The
+ * app has no pass list that could show up empty - it speaks only through
+ * notifications - so without this sentence a user in Tromso sees exactly what
+ * they would see if the feature were broken, and reasonably concludes it is.
+ *
+ * Quotes the orbit's limit and their own latitude rather than asserting a
+ * conclusion, so the claim can be checked against any other source.
+ */
+fun describeIssCoverage(latitude: Double): String? {
+    val here = "The station's orbit reaches ${degrees(IssCoverage.INCLINATION_DEGREES)} " +
+        "degrees north and south, and you are at ${degrees(latitude)}, so "
+    return when (IssCoverage.of(latitude)) {
+        IssCoverage.Covered -> null
+
+        IssCoverage.Marginal -> here + "its passes here are low, brief and occasional."
+
+        IssCoverage.None -> here + "it never comes above your horizon. Other bright " +
+            "satellites are unaffected - many of them are in polar orbits."
+    }
+}
+
+/**
+ * One decimal place, without a locale's decimal separator.
+ *
+ * `String.format` would render "69,7" on a machine set to a decimal-comma
+ * locale, in the middle of an English sentence. Sign is dropped because the
+ * hemisphere does not change the answer.
+ */
+private fun degrees(value: Double): String {
+    val tenths = kotlin.math.round(kotlin.math.abs(value) * 10).toInt()
+    return "${tenths / 10}.${tenths % 10}"
+}
