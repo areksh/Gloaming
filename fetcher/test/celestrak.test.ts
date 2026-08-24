@@ -159,6 +159,31 @@ describe("buildSatellites", () => {
   });
 
   /**
+   * The newest Starlinks arrive with operator-assigned placeholder numbers -
+   * 799501484 and up in the live document, against real NORAD numbers around
+   * 100000 - because 18 SDS has not catalogued them yet. They work as document
+   * keys, but the app's field is a 32-bit signed integer, and one value past
+   * that limit would fail to deserialise **the whole document**: every install
+   * would lose the station and the bright catalogue, not just the train. So
+   * anything unreadable is dropped here, where it costs one object.
+   */
+  it("drops a catalogue number the app could not read", () => {
+    const huge = { ...iss, catalogue: 2_147_483_648, name: "PLACEHOLDER" };
+
+    const document = buildSatellites([iss, huge], [], new Date("2026-08-22T12:00:00Z"));
+
+    expect(document.satellites.map((s) => s.catalogue)).toEqual([25544]);
+  });
+
+  it("keeps the largest number the app can read", () => {
+    const edge = { ...iss, catalogue: 2_147_483_647, name: "EDGE" };
+
+    const document = buildSatellites([edge], [], new Date("2026-08-22T12:00:00Z"));
+
+    expect(document.satellites.map((s) => s.catalogue)).toEqual([2_147_483_647]);
+  });
+
+  /**
    * The designator answers one question - which launch a satellite came up on -
    * and it is answered here. Publishing it would put a dozen bytes it has no
    * use for on every install of the app.

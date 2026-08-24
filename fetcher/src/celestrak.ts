@@ -109,6 +109,26 @@ export const STANDARD_MAGNITUDES: Record<number, number> = {
  */
 const OPTIONAL_COLUMNS = ["OBJECT_ID"] as const;
 
+/**
+ * The largest catalogue number the app can read.
+ *
+ * Its field is a 32-bit signed integer, so anything past this fails to
+ * deserialise - and it fails the **whole document**, not the one row, which
+ * would lose every install the station and the bright catalogue at once.
+ *
+ * Not hypothetical. The newest Starlinks arrive with operator-assigned
+ * placeholders rather than NORAD numbers, because 18 SDS has not catalogued
+ * them yet: 799501484 and up in the live supplemental document on 2026-08-24,
+ * against real numbers around 100000. There is headroom, but the scheme belongs
+ * to the operator and nothing about it is promised.
+ */
+const LARGEST_READABLE_CATALOGUE = 2_147_483_647;
+
+/** Whether the app could read a satellite with this catalogue number at all. */
+export function isPublishable(catalogue: number): boolean {
+  return Number.isSafeInteger(catalogue) && catalogue > 0 && catalogue <= LARGEST_READABLE_CATALOGUE;
+}
+
 /** Every column the propagator needs. A document missing one is not usable. */
 const COLUMNS = [
   "OBJECT_NAME",
@@ -285,6 +305,9 @@ export function buildSatellites(
 ): SatellitesDocument {
   const unique = new Map<number, SatelliteElements>();
   for (const satellite of parsed) {
+    // Dropped here, where it costs one object, rather than on the device where
+    // it would cost the whole document. See LARGEST_READABLE_CATALOGUE.
+    if (!isPublishable(satellite.catalogue)) continue;
     if (!unique.has(satellite.catalogue)) {
       // The designator is dropped rather than published: it answered its one
       // question upstream, and every byte here is multiplied by every install.

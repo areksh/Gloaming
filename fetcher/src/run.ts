@@ -52,10 +52,13 @@ export interface RunResult {
  * A non-200 is a different matter entirely and never reaches here: the breaker
  * stops the run, as CelesTrak's policy requires.
  */
-function readTrains(csv: string): { trains: StarlinkTrain[]; members: ParsedSatellite[] } {
+function readTrains(
+  csv: string,
+  atMillis: number,
+): { trains: StarlinkTrain[]; members: ParsedSatellite[] } {
   try {
     const members = parseOmmCsv(csv);
-    return { trains: detectTrains(members), members };
+    return { trains: detectTrains(atMillis, members), members };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.warn(`no trains this run: ${message}`);
@@ -103,7 +106,9 @@ export async function run(
       { url: config.starlinkUrl, userAgent: config.userAgent },
       now(),
     );
-    const trains = readTrains(await starlink.text());
+    // Measured at the moment the document is being written, because each
+    // satellite's elements are stated at an epoch of its own.
+    const trains = readTrains(await starlink.text(), now().getTime());
 
     // Only the two ends of each train, not the launch. Everything the app says
     // about a train comes from when the front rises and when the back is clear,
