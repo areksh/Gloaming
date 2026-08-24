@@ -352,6 +352,22 @@ Hard requirements:
   SupGP. SATCAT, SOCRATES, EOP and space weather are next. The posture is tightening, not
   stable.
 
+**The Starlink list is taken as SupGP rather than GP, decided 2026-08-24 while building
+item 20.** The satellites that make a train are by definition the ones GP serves worst:
+freshly deployed, actively raising orbit, with elements that go stale in hours. SupGP is
+built from the operator's own ephemerides for exactly that case, and CelesTrak put its
+accuracy at roughly an order of magnitude better than GP for these objects. It is the same
+OMM CSV from
+`https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=csv`, so
+the parser is reused unchanged; the two-hourly cap and the breaker cover it identically, and
+the line above already puts it under enforcement. It is fetched last of the three, so a
+breaker tripped by `stations` or `visual` stops it before it goes out.
+
+One caveat that only the live document settles: SupGP is assembled from what an owner
+supplies, and its columns are not guaranteed to match GP's. `OBJECT_ID` is what tells which
+satellites went up together, so the fetcher reads it when present and tolerates its absence
+- a document without it costs that cycle its trains and nothing else.
+
 CelesTrak supports hundreds of thousands of unique IP addresses daily and millions monthly,
 as a 501(c)(3) non-profit, with no paid tier. The stated alternative to voluntary
 compliance is charging for access.
@@ -1013,6 +1029,18 @@ can silence comets and keep aurora:
 `aurora`, `iss-passes`, `bright-satellites`, `comets`, `eclipses`,
 `meteor-showers`, `conjunctions`
 
+**Added 2026-08-24, building item 20: `starlink-trains`.** Not an oversight in the list
+above so much as a consequence of building the thing. A train crowded into
+`bright-satellites` would compete for that channel's interval against an ordinary rocket
+body and usually lose - and a launch is a train for a few nights and then never again,
+which is exactly what a rate limit built for objects that come over every night should not
+be allowed to swallow. It carries its own interval setting for the same reason.
+
+There is also a live channel, `passes-live`, for the tracker that follows a pass while it
+happens (item 19), matching the `aurora-live` precedent storm mode set: wanting to be told
+a pass is coming is not the same as wanting a countdown running through it, and the two
+should be silenceable apart.
+
 ---
 
 ## 10. Hosted files
@@ -1023,11 +1051,26 @@ can silence comets and keep aurora:
 | `index.json.sig` | 64 B | on change | Ed25519 detached signature over `index.json`. |
 | `status.json` | ~1 KB | 3 min | AuroraWatch level (UK) + Kp + solar wind + `global_activity` + `oval_etag`. Latency-critical. |
 | `oval.bin` | ~5-10 KB gz | 5 min | **Packed OVATION grid**: 1 byte/cell, row-major, 360x181. Global aurora probability. Fetched conditionally (Sec. 4). |
-| `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
+| `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes and any Starlink trains. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
 | `comets.json` | ~2 KB | weekly | Curated MPC elements + H/slope. |
 | `showers.json` | ~2 KB | annually | **Shipped in the APK**, remote override optional. |
 
 ~40 KB total. The backend is a cron job and an object store.
+
+**Why `sats.json` carries only two Starlinks per train.** The `starlink` group runs to
+thousands of objects. At the ~290 bytes per satellite the document costs today, publishing
+it whole would be roughly 2.3 MB per device per fetch against 51.6 KB - two orders of
+magnitude, on a file every install pulls two-hourly. So detection happens in the fetcher and
+only the front and back of each train are published, alongside a count:
+
+```json
+"trains": [{"launch": "2026-123", "members": 22, "lead": 100234, "tail": 100255}]
+```
+
+That is everything a description needs - when the front of it rises and when the back of it
+is clear - and nothing between the two ends adds anything a person standing outside can use.
+No new endpoint, no manifest entry, no second fetch on the device. `trains` is a defaulted
+field, so an install that never updates goes on reading a document that has grown it.
 
 ### The manifest
 
@@ -1242,6 +1285,12 @@ Phase 2 also produces the first real battery and Doze data. Nothing in Phase 3's
 should be committed to before reading it.
 
 **Phase 3 - satellites (the largest single lump)**
+
+*All six items built as of 2026-08-24, and not yet fully verified: the end-to-end checks
+that remain are a deliberate breaker trip, a prediction compared against an independent
+source to the second, two unattended fetcher cycles, an overnight Doze run delivering a real
+pass alert, and one pass watched from outside.*
+
 15. Worker: CelesTrak **OMM CSV** -> `sats.json`, 2-hourly, respecting one-per-update.
     **Circuit breaker on any non-200 first, before the parser** (Sec. 3). It is the requirement
     Kelso singles out as the one that keeps an IP off the firewall, and it is easier to
@@ -1256,8 +1305,15 @@ should be committed to before reading it.
     does need all of 14-16: the qualitative approach saves a data file and a permission,
     not the work.
 18. Element freshening at T-3h and cloud re-check at T-30m for notified passes (Sec. 9.4).
-19. Live pass mode - opt-in per pass, never automatic (Sec. 9.4).
-20. Starlink trains - pure geometry, no magnitude data needed.
+19. Live pass mode - opt-in per pass, never automatic (Sec. 9.4). Built with a second
+    opt-in the item does not mention: one setting, the station only, default off. "Never
+    automatic" is the right instinct and the per-pass action is the right default, but
+    somebody who watches the station every clear night should not have to press the same
+    button nightly. It is offered for the station and structurally unavailable for the
+    bright catalogue, which is where the frequency risk actually lives.
+20. Starlink trains - pure geometry, no magnitude data needed. True, and it is not where
+    the work was: see Sec. 3 on taking the Starlink list as SupGP, and Sec. 10 on why only
+    the two ends of each train are published.
 
 **Phase 4 - the sky calendar**
 21. astronomy-engine events: eclipses, moon phases, conjunctions, elongations. Mostly

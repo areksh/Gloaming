@@ -1,7 +1,8 @@
 # Orbital elements fetcher
 
-Fetches CelesTrak's `stations` and `visual` groups every two hours and
-publishes `sats.json` to R2, where the CDN serves it to every install.
+Fetches CelesTrak's `stations` and `visual` groups, plus the supplemental
+Starlink list, every two hours and publishes `sats.json` to R2, where the CDN
+serves it to every install.
 
 It exists because **Cloudflare's network cannot reach CelesTrak**. Three
 attempts from Workers, preview and production alike, each returned `HTTP 522`
@@ -173,6 +174,13 @@ systemd reads it as root and passes the values in *before* dropping to the
 it.
 
 Use the same ntfy topic as the Worker if you want both to reach the same phone.
+
+The three CelesTrak URLs are built in and need no configuration.
+`CELESTRAK_STATIONS_URL`, `CELESTRAK_VISUAL_URL` and `CELESTRAK_STARLINK_URL`
+override them, which exists for testing the breaker against a URL that is not
+CelesTrak's - a deliberate bad request to CelesTrak is precisely what their usage
+policy warns against. Nothing else should set them: they are also how somebody
+quietly points the fetch at the wrong thing.
 It is a secret in the sense that anyone who knows the topic name can read and
 post to it.
 
@@ -286,14 +294,22 @@ systemctl status gloaming-elements.service
 journalctl -u gloaming-elements.service -n 30 --no-pager
 ```
 
-A good run logs `published sats.json with N satellites` and exits 0. N should
-be somewhere around 170 - roughly 20 in `stations` and 155 in `visual`, minus
-the overlap.
+A good run logs `published sats.json with N satellites and M Starlink train(s)`
+and exits 0. N should be somewhere around 170 - roughly 20 in `stations` and 155
+in `visual`, minus the overlap - plus two per train. **M is usually 0**, and that
+is not a fault: a launch is a train for a few nights and then spreads out, so
+most runs find none.
 
 A bad run logs `did not publish: ...` and exits 1, which `systemctl status`
 shows in red. The message says which of the two things went wrong: a non-200
 from CelesTrak (the breaker has tripped and needs a human), or an R2 error
 (check the credentials and the bucket name).
+
+A run may also log `no trains this run: ...` and still exit 0. That means the
+supplemental document answered 200 but could not be parsed, which costs that
+cycle its trains and nothing else - the station and the bright catalogue are
+published as usual. Worth reading if it persists, because it means the
+supplemental format has moved.
 
 Then confirm the object is really there, from your workstation:
 

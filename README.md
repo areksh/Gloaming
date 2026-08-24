@@ -25,7 +25,10 @@ background schedule cannot be trusted, and a night-vision mode - on top
 of alerting already verified on a real phone in deep Doze and before first
 unlock. Satellite passes are now built on top of that: the app predicts when the
 ISS and other bright satellites cross your sky and tells you half an hour
-before, with which way to look and how high it gets. What remains before release
+before, with which way to look and how high it gets. It will also follow a pass
+live while it happens, counting down and saying where to look with no signal
+needed, and it spots the Starlink launches still strung out in a train. What
+remains before release
 is the part no test suite can do for you: a season of real nights, to calibrate
 the thresholds and confirm the app is worth keeping installed.
 

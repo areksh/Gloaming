@@ -520,6 +520,71 @@ errors; the sourcing document is strong.
     elements: offered a 12-degree pass and an 86-degree one, it chose the
     86-degree one.
 
+13. **The latitude ceiling had nowhere to live. Built 2026-08-24.** Sec. 14's
+    item 17 asks that high-latitude users "get no ISS and are told why rather
+    than shown an empty list". The prediction was always right - the vendored
+    `willBeSeen` discards any orbit that cannot reach the observer, so a Tromso
+    user simply gets no station passes - but the app has **no pass list at
+    all**. It speaks only through notifications, so there was no empty list for
+    the explanation to sit above, and without one an unreachable station and a
+    broken app look identical from outside.
+
+    It went under the station's own interval row in the settings card, shown
+    only where the answer is not "covered". The sentence states the orbit's
+    limit *and* the user's latitude, so it is checkable rather than an
+    assertion. The interval control stays visible and the channel stays on: the
+    point is to explain the silence, not to take a setting away.
+
+14. **Live pass mode needs a foreground service Android may refuse to start.
+    Built 2026-08-24; one question only a device settles.** Sec. 9.4's argument
+    for the design holds and is the reason it is shaped this way: a service
+    started ten minutes before a pass **owns its own clock**, so the moment that
+    matters - the satellite clearing the horizon - never depends on the system
+    waking anything precisely, and the exact-alarm permission is never needed.
+
+    What Sec. 9.4 does not mention is that from Android 12 a foreground service
+    generally cannot be *started* from the background, and an **inexact alarm
+    does not grant the exemption** - only an exact one does. Whether this app's
+    battery-optimisation exemption covers the alarm-driven start is not settled
+    by reading the documentation. Two mitigations, both built: the "Follow it"
+    notification action starts the service directly where the lead has already
+    run out, and a notification the user has just pressed *is* one of the
+    exemptions; and a refusal is caught and logged rather than crashing, because
+    the alternative to a tracker is the notification the user already has.
+
+    The service is otherwise storm mode applied twice, so no ADR: same
+    `specialUse` type, same ongoing silent notification, same wake lock under a
+    hard cap. Two deliberate differences. It **touches no network at all**,
+    which is what lets it run in a field with no signal - the elements are on
+    the device before it starts. And it is never automatic across the bright
+    catalogue: `PassPlanner.shouldFollow` takes the channel, so the wrong answer
+    is unrepresentable rather than merely defaulted off.
+
+15. **A train's channel is not a property of its catalogue number. Found while
+    building item 20, 2026-08-24.** `PassChannel.of(catalogue)` worked as long as
+    what a satellite *is* could be read off its number. It cannot: a Starlink
+    still bunched into a train is a different thing to announce from the same
+    object a fortnight later, and only the document it arrived in knows which it
+    is. So a pass now **carries** its channel, set where the pass is built, with
+    the finder taking it as a parameter defaulting to the old derivation. A pure
+    refactor, landed on its own before the feature that needed it.
+
+    Two consequences worth recording. The channel moved from the planner into
+    the satellites package, being a property of a pass rather than of planning;
+    and the notifier's separate channel argument went away, since passing
+    alongside a pass something the pass already knows is one more place for the
+    two to disagree.
+
+    The size problem is the other half, and it is in the sourcing document's
+    Sec. 10 rather than here because it is a data-contract decision: only the
+    two ends of each train are published, because the group is thousands of
+    objects and the document every device pulls two-hourly is fifty kilobytes.
+    The device-side consequence is that the two ends have to be dropped from the
+    ordinary sweep - their elements are published so the train can be worked out,
+    but they are also two Starlinks, and without that the same launch is
+    announced twice: once as a train, and again minutes later as an
+    unremarkable bright satellite.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and

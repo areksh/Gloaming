@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Earth's shadow part-way across. Two notification channels, `iss-passes` and
   `bright-satellites`, so the station can be kept and the rest silenced.
 - Orbital elements published as `sats.json`, refreshed two-hourly by the Worker
-  from CelesTrak's `stations` and `visual` groups. **OMM, never TLE**: the
+  from CelesTrak's `stations` and `visual` groups, and the supplemental Starlink
+  list. **OMM, never TLE**: the
   public catalogue passed 100000 in July 2026 and GP data is not published in
   TLE format for those objects, which include the brightest satellites now
   going up.
@@ -32,11 +33,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `sats` endpoint in the signed manifest, so the elements can move without
   stranding installs.
 - How often Gloaming may interrupt you is now yours to set, per channel:
-  aurora, space station passes and other bright satellites each have their own
-  minimum interval, starting at six hours. The interval is also the window the
+  aurora, space station passes, other bright satellites and Starlink trains each
+  have their own minimum interval, starting at six hours. The interval is also the window the
   best pass is chosen from, so a longer setting means better alerts rather than
   just fewer of them. A clear night has upwards of forty satellite passes worth
   looking at, and without this the app would have mentioned most of them.
+- Live pass mode. Gloaming can follow a pass across the sky while it happens,
+  counting down to the rise and then saying which way to look and how far up,
+  second by second, until it sets. It needs no signal - the elements are already
+  on the phone - and it says when the satellite goes into the Earth's shadow,
+  which is the difference between "it has gone" and "I must be looking in the
+  wrong place". Offered as a "Follow it" action on every pass alert, and as a
+  setting for the space station on its own. Never automatic for the rest of the
+  bright catalogue, which goes over constantly.
+- Starlink trains. For the few nights after a launch, while a batch is still
+  strung out in a line, Gloaming tells you when the front of it rises and when
+  the last one will be clear. It has its own notification channel and its own
+  interval, because a launch is a train for a few nights and then never again,
+  and it should not lose its place to a rocket body that comes over every night.
+  Detected by the fetcher from CelesTrak's supplemental Starlink data - which is
+  built from the operator's own ephemerides, and so far better than the general
+  catalogue for satellites still raising their orbit.
+- An explanation where the space station never rises. Above about 60 degrees
+  north or south its orbit does not reach, and the app now says so and says why
+  rather than simply never mentioning it. Other bright satellites are
+  unaffected; many are in polar orbits.
 - Look4Sat's SGP4/SDP4 propagator, vendored under the GPL-3.0 and credited in
   the app. Its agreement with Vallado's verification vectors is now a unit test
   and a release gate.
