@@ -363,10 +363,21 @@ the parser is reused unchanged; the two-hourly cap and the breaker cover it iden
 the line above already puts it under enforcement. It is fetched last of the three, so a
 breaker tripped by `stations` or `visual` stops it before it goes out.
 
-One caveat that only the live document settles: SupGP is assembled from what an owner
-supplies, and its columns are not guaranteed to match GP's. `OBJECT_ID` is what tells which
-satellites went up together, so the fetcher reads it when present and tolerates its absence
-- a document without it costs that cycle its trains and nothing else.
+The caveats, settled against the live document on 2026-08-24 - 11,051 objects, every one
+`SpaceX-E`:
+
+- **`OBJECT_ID` is present**, alongside every column the parser needs, plus `RMS` and
+  `DATA_SOURCE` which are ignored. The fetcher still reads it as optional, because SupGP is
+  assembled from what an owner supplies and the columns are not guaranteed; a document
+  without it would cost that cycle its trains and nothing else.
+- **Every satellite carries its own epoch**, spanning about a hundred minutes within one
+  launch. This is not a detail - it is roughly a full orbit, so the published mean anomalies
+  are not comparable with each other and a bunching test has to propagate them to a common
+  instant first. See issue 17 in `docs/architecture.md`.
+- **The newest objects have no NORAD number yet.** The 80 most recent carry
+  operator-assigned placeholders in the 799,501,xxx range because 18 SDS has not catalogued
+  them. Fine as document keys; the fetcher drops anything the app's 32-bit field could not
+  read, since that would fail the whole document rather than one row. See issue 18.
 
 CelesTrak supports hundreds of thousands of unique IP addresses daily and millions monthly,
 as a 501(c)(3) non-profit, with no paid tier. The stated alternative to voluntary

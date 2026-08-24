@@ -620,6 +620,51 @@ errors; the sourcing document is strong.
     clock, which is the property that keeps the two-hourly cap, and it had been
     reasoned about twice and corrected twice without ever being watched.
 
+17. **Train detection found nothing, and would have found nothing ever. Fixed
+    2026-08-24, on first contact with the live document.** The unit tests were
+    green and the logic read correctly. Run against the real supplemental
+    Starlink list - 11,051 objects - it returned zero trains, and every launch
+    in the file measured 280 to 330 degrees of mean-anomaly spread, which is
+    the whole orbit.
+
+    **Every satellite in a SupGP document carries its own epoch**, and within
+    one launch they span about a hundred minutes - roughly a full orbit at
+    these altitudes. The published mean anomalies are therefore not comparable
+    with one another at all: two satellites flying side by side are listed half
+    an orbit apart purely because their element sets were produced an hour
+    apart. The bunching test has to propagate each member to a common instant
+    first, which is now what it does.
+
+    The lesson is about the fixtures rather than the arithmetic. Every fixture
+    shared a single epoch - the natural thing to write - and that is precisely
+    the case where the wrong code gives the right answer. A test is now built by
+    staging epochs across an orbit and winding the published anomalies back to
+    match, and the only thing that would have caught it sooner is doing what was
+    done here: running it against the real document before trusting it.
+
+    Propagated properly, the live document resolves cleanly. Launch 2026-193,
+    27 satellites within 21 degrees: a train. The launch before it, 167 degrees.
+    Everything older, 280 to 330. That is the feature expiring on its own as a
+    launch spreads out, which was the design intent and is now observed rather
+    than asserted.
+
+18. **The newest Starlinks have no catalogue number yet. Found the same day.**
+    The 80 most recently launched objects in the supplemental document carry
+    operator-assigned placeholders - 799501484 and up - rather than NORAD
+    numbers, because 18 SDS has not catalogued them. They work perfectly well as
+    keys within the document, which is all the app uses them for.
+
+    The risk is the ceiling. The app's `catalogue` is a 32-bit signed integer,
+    and kotlinx.serialization fails **the whole document** on a value past it -
+    so one oversized placeholder would cost every install the station and the
+    bright catalogue, not merely the train. There is headroom today and the
+    numbering scheme belongs to the operator, so nothing about it is promised.
+    The fetcher now drops anything unreadable, where it costs one object.
+
+    This is the same shape of failure as the one above and worth naming as a
+    pattern: the data is supplied by a third party, the format is documented but
+    the *values* are not, and the failure mode is total rather than partial.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
