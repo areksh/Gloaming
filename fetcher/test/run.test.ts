@@ -235,6 +235,12 @@ describe("run", () => {
     expect(result.published).toBe(false);
     expect(result.error).toContain("R2 GET returned 400");
     expect(result.error).toContain("could not be written either");
+    // And it got nowhere near CelesTrak. The breaker flag is read before
+    // anything leaves for them, so a run that cannot reach R2 - or cannot even
+    // sign the request - has spent none of the two-hourly allowance and can be
+    // retried straight away. That property is the difference between "fix it
+    // and run again" and "fix it and wait two hours".
+    expect(net.requests).toHaveLength(0);
   });
 
   /**
