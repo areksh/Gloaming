@@ -1,3 +1,4 @@
+import { ensureRuntime } from "./runtime";
 import { run } from "./run";
 import { R2Store } from "./store";
 
@@ -41,6 +42,8 @@ function optional(name: string, fallback: string): string {
 }
 
 async function main(): Promise<number> {
+  ensureRuntime();
+
   const store = new R2Store({
     accountId: accountId(),
     accessKeyId: required("R2_ACCESS_KEY_ID"),

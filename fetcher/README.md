@@ -69,16 +69,23 @@ run suggests someone else on the same address has been asking.
 
 ## 1. Node
 
-Version 20 or newer.
+**Version 18 or newer**, and check rather than assume - a host that is not
+yours to reinstall is exactly the one with an unexpected version.
 
 ```sh
-node --version || apt-get update && apt-get install -y nodejs
+node --version           # v18.x or later
 command -v node          # note the absolute path; the unit file needs it
 ```
 
-If the distribution's Node is older than 20, install a current one from
-NodeSource rather than reaching for `nvm` - the service account below has no
-login shell, so a per-user version manager would not be on its path anyway.
+18 is the floor because that is when `fetch` arrived. 20 or newer is worth
+having if the choice is yours, being the oldest release still supported
+upstream, but nothing here needs it: on 18 the programme supplies its own Web
+Crypto, which only became a global in Node 19.
+
+If there is no Node at all, `apt-get install -y nodejs` is the quickest route
+and its version is whatever the distribution ships. Reach for NodeSource only
+if that turns out to be older than 18. Not `nvm`: the service account below has
+no login shell, so a per-user version manager would never be on its path.
 
 ## 2. A user that owns nothing
 
