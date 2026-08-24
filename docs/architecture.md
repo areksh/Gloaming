@@ -166,7 +166,7 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `index.json.sig` | 64 B | on change | `public, max-age=3600` | Ed25519 detached signature over `index.json`. |
 | `status.json` | ~0.5 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `max_probability` + `oval_etag`. Latency-critical. |
 | `oval.bin` | 1.6-2.5 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major by latitude, 360x181, gzipped. Fetched conditionally on `oval_etag` change (Sec. 4). Sizes measured against live data, quiet to simulated severe storm. |
-| `sats.json` | ~20-40 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. **Written by the fetcher, not the Worker** (ADR-0008). |
+| `sats.json` | ~50 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. **Written by the fetcher, not the Worker** (ADR-0008). Measured 2026-08-24: 51.6 KB for 176 satellites, against the 20 KB Sec. 10 budgeted. |
 | `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
 | `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
 | `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
@@ -488,8 +488,8 @@ errors; the sourcing document is strong.
     identifies the caller by account rather than by IP but restricts
     redistribution in a way CelesTrak's policy notably does not.
 
-12. **Pass alerts have no rate limit, and the volume is much higher than the
-    design assumed. Found 2026-08-24, unresolved.** Running the first live
+12. **Pass alerts had no rate limit, and the volume is much higher than the
+    design assumed. Found and fixed 2026-08-24.** Running the first live
     `sats.json` through the app for Edinburgh gives **40 visible passes above
     30 degrees in a six-hour window** - all classic bright objects, mostly
     rocket bodies. The planner announces the next visible pass, sleeps until it
@@ -503,10 +503,22 @@ errors; the sourcing document is strong.
     `iss-passes` would keep its own budget, which is the point of their being
     separate channels.
 
-    The interval itself is calibration - six hours is the documented default
-    rather than a measured figure, and this is the sort of number Sec. 15 says
-    wants a season of real nights. The mechanism is not calibration, and should
-    go in before anyone is asked to live with the notifications.
+    **Fixed, and made the user's to set.** All three intervals - aurora, the
+    station, and everything else - are settings with six hours as their
+    starting point, not constants. The aurora one had the same problem in a
+    quieter form: it was a constructor default nobody could reach. How often an
+    app may interrupt someone is their call, the same as quiet hours.
+
+    One thing fell out of building it that is worth keeping. A rate limit
+    applied to "the next pass" announces whichever came first and then falls
+    silent through the far better one twenty minutes later, which is a worse
+    app than one that said nothing. So the interval is also the **selection
+    window**: of the passes a channel could announce before it must go quiet,
+    the planner takes the best. Read together, the setting says "tell me about
+    the best pass, at most this often" - and a longer interval buys better
+    alerts rather than merely fewer. Verified on the phone against live
+    elements: offered a 12-degree pass and an 86-degree one, it chose the
+    86-degree one.
 
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,

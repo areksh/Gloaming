@@ -176,7 +176,10 @@ class PassPollerTest {
         state.value = state.value.copy(nextPassCheckAt = null)
         val second = poller(settings(), state, notifier, cache, now + 60_000L).poll()
 
-        assertTrue(second.decision is PassPlanner.Decision.AlreadyTold)
+        // The interval now stops it before the already-told guard needs to,
+        // which is the stronger protection of the two: one alert per pass, and
+        // no more than one per channel per interval whatever happens.
+        assertTrue(second.decision !is PassPlanner.Decision.Announce)
         assertEquals(1, notifier.announced.size)
     }
 

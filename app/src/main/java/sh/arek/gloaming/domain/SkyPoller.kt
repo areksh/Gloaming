@@ -86,7 +86,6 @@ class SkyPoller(
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
     /** Whether storm mode is running now, which decides which bar it has to clear. */
     private val stormRunning: () -> Boolean = { false },
-    private val minimumAlertIntervalMillis: Long = DEFAULT_MINIMUM_INTERVAL,
 ) {
 
     suspend fun poll(): PollResult {
@@ -146,7 +145,10 @@ class SkyPoller(
             settings = user,
             state = previous,
             now = at,
-            minimumIntervalMillis = minimumAlertIntervalMillis,
+            // The user's own answer to how often this may interrupt them, the
+            // same as quiet hours and for the same reason. It used to be a
+            // constructor default nobody could reach.
+            minimumIntervalMillis = user.auroraAlertIntervalMinutes.coerceAtLeast(1) * 60_000L,
         )
         if (decision != AlertDecision.Notify) {
             return Attempt(
@@ -280,9 +282,6 @@ class SkyPoller(
     }
 
     companion object {
-        /** A storm is one event, not forty. */
-        const val DEFAULT_MINIMUM_INTERVAL: Long = 6 * 60 * 60 * 1000L
-
         /** The manifest key for the cloud forecast, which is never compiled in. */
         const val ENDPOINT_WEATHER = "weather"
     }

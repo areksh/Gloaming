@@ -3,6 +3,8 @@ package sh.arek.gloaming.domain
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.satellites.PassDescription
+import sh.arek.gloaming.satellites.Prominence
 import sh.arek.gloaming.satellites.SatellitePass
 
 /** Which notification channel a pass belongs to, so either can be silenced alone. */
@@ -93,6 +95,15 @@ object PassPlanner {
 
         data class TooCloudy(val pass: SatellitePass) : Decision
 
+        /**
+         * Passes are coming, but this channel has spoken too recently.
+         *
+         * A distinct answer rather than silence, because "nothing is visible
+         * tonight" and "you asked me not to mention it this often" are
+         * different things and the log should not conflate them.
+         */
+        data class RateLimited(val until: Long) : Decision
+
         /** Nothing visible within the horizon. */
         data object Nothing : Decision
 
@@ -136,6 +147,84 @@ object PassPlanner {
     fun next(passes: List<SatellitePass>, now: Long): SatellitePass? =
         passes.filter { it.peaksAt > now }.minByOrNull { it.peaksAt }
 
+    /** The user's own bar for how often this channel may interrupt them. */
+    fun intervalMillis(channel: PassChannel, settings: UserSettings): Long {
+        val minutes = when (channel) {
+            PassChannel.Iss -> settings.issPassAlertIntervalMinutes
+            PassChannel.Bright -> settings.brightPassAlertIntervalMinutes
+        }
+        return minutes.coerceAtLeast(1) * 60_000L
+    }
+
+    private fun lastAlertAt(channel: PassChannel, state: AlertState): Long? = when (channel) {
+        PassChannel.Iss -> state.lastIssAlertAt
+        PassChannel.Bright -> state.lastBrightAlertAt
+    }
+
+    /** When each channel is allowed to speak again. */
+    private fun freeAgain(settings: UserSettings, state: AlertState): List<Long> =
+        PassChannel.entries.mapNotNull { channel ->
+            lastAlertAt(channel, state)?.plus(intervalMillis(channel, settings))
+        }
+
+    /**
+     * The one pass worth speaking about next, across both channels.
+     *
+     * Two things happen here, and the second is the reason the first is safe.
+     *
+     * A channel may only speak once per its interval, which is what stops a
+     * clear night producing forty notifications. But a rate limit applied to
+     * "the next pass" would announce whichever pass happened to come first and
+     * then fall silent through the good one twenty minutes later - which is a
+     * worse app than one that said nothing. So the interval is also the
+     * selection window: of the passes a channel could announce before it must
+     * go quiet again, this takes the **best** one.
+     *
+     * Read together: "tell me about the best pass, at most this often". A pass
+     * is eligible only if the channel will actually be free when its alert
+     * falls due, so a limit in force now does not discard a pass that comes
+     * after it lifts.
+     */
+    fun chooseNext(
+        passes: List<SatellitePass>,
+        now: Long,
+        settings: UserSettings,
+        state: AlertState,
+    ): SatellitePass? = PassChannel.entries
+        .mapNotNull { channel ->
+            val free = lastAlertAt(channel, state)
+                ?.plus(intervalMillis(channel, settings))
+                ?: Long.MIN_VALUE
+            val eligible = passes.filter {
+                PassChannel.of(it.catalogue) == channel &&
+                    it.peaksAt > now &&
+                    it.peaksAt - LEAD_MILLIS >= free
+            }
+            val opens = maxOf(now, free)
+            val window = eligible.filter { it.peaksAt <= opens + intervalMillis(channel, settings) }
+            // Ranked by what a person standing outside would notice, then by
+            // how high it gets. Prominence rather than a second set of
+            // criteria, so "good pass" means one thing in this app.
+            (window.ifEmpty { eligible }).maxWithOrNull(
+                compareBy({ rank(it) }, { it.peakElevation }),
+            )
+        }
+        .minByOrNull { it.peaksAt }
+
+    /**
+     * How much of a show a pass is, as a number that can be sorted.
+     *
+     * Darkness is taken as given: only passes that already cleared [visible]
+     * reach here, and that gate is what establishes it.
+     */
+    private fun rank(pass: SatellitePass): Int =
+        when (PassDescription.of(pass, observerIsDark = true).prominence) {
+            Prominence.Striking -> 3
+            Prominence.Good -> 2
+            Prominence.Modest -> 1
+            Prominence.InShadow, Prominence.TooLight -> 0
+        }
+
     /**
      * Whether to speak about [pass] on this wake.
      *
@@ -149,14 +238,24 @@ object PassPlanner {
      * indistinguishable from one that is broken.
      */
     fun decide(
-        pass: SatellitePass?,
+        passes: List<SatellitePass>,
         now: Long,
         settings: UserSettings,
         state: AlertState,
         localMinuteOfDay: Int,
         cloud: CloudCover?,
     ): Decision {
-        if (pass == null) return Decision.Nothing
+        val pass = chooseNext(passes, now, settings, state)
+        if (pass == null) {
+            // Something is up there, so the silence is the interval's doing
+            // rather than an empty sky. Come back when it lifts.
+            val lifts = freeAgain(settings, state).filter { it > now }.minOrNull()
+            return if (next(passes, now) != null && lifts != null) {
+                Decision.RateLimited(lifts)
+            } else {
+                Decision.Nothing
+            }
+        }
         if (now < pass.peaksAt - LEAD_MILLIS) return Decision.TooSoon(pass)
         if (isAlreadyTold(pass, state)) return Decision.AlreadyTold(pass)
 
@@ -196,6 +295,9 @@ object PassPlanner {
      */
     fun nextWake(decision: Decision, now: Long): Long = when (decision) {
         is Decision.Nothing -> now + DORMANT_INTERVAL_MILLIS
+        // Exactly when the channel is free again; there is nothing to do until
+        // then and nothing to gain from waking earlier.
+        is Decision.RateLimited -> maxOf(decision.until, now + 1)
         // Nothing was decided, so nothing about the plan changes.
         is Decision.Resting -> now
 

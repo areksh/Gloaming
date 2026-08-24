@@ -91,6 +91,30 @@ data class UserSettings(
      * the system settings without coming back into the app.
      */
     val passAlertsEnabled: Boolean = true,
+    /**
+     * The shortest gap between two aurora alerts, in minutes.
+     *
+     * A storm is one event, not forty. Hysteresis stops a reading hovering at
+     * the threshold from firing repeatedly, but a genuine storm that climbs all
+     * night would still qualify over and over without this.
+     */
+    val auroraAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
+    /**
+     * The shortest gap between two space-station alerts, in minutes.
+     *
+     * Separate from the aurora one, and from the bright-satellite one, because
+     * they are different appetites: an aurora is rare and worth waking for, the
+     * station goes over most nights, and the rest go over constantly.
+     */
+    val issPassAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
+    /**
+     * The shortest gap between two bright-satellite alerts, in minutes.
+     *
+     * This is the one that needs it most. A clear night over Edinburgh has
+     * upwards of forty passes above thirty degrees, nearly all rocket bodies,
+     * and an app that mentioned each of them would be muted within the week.
+     */
+    val brightPassAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -124,6 +148,20 @@ data class UserSettings(
          * threshold, this wants a season of real data to calibrate against.
          */
         const val DEFAULT_CLOUD_TOLERANCE = 80
+
+        /**
+         * Six hours between alerts on any one channel, until the user says
+         * otherwise.
+         *
+         * How often an app may interrupt someone is the user's call, not the
+         * app's - the same reasoning as quiet hours. This is only where the
+         * three channels start, and like every other default here it wants a
+         * season of real nights to calibrate against.
+         */
+        const val DEFAULT_ALERT_INTERVAL_MINUTES = 6 * 60
+
+        /** The choices offered, in minutes: hourly through to twice a night. */
+        val ALERT_INTERVAL_CHOICES = listOf(60, 180, 360, 720)
     }
 }
 
@@ -171,8 +209,16 @@ data class AlertState(
      */
     val lastPassPeakAt: Long? = null,
     val lastPassCatalogue: Int? = null,
-    /** When a pass was last announced, for the UI to show. */
-    val lastPassAlertAt: Long? = null,
+    /**
+     * When each pass channel last spoke.
+     *
+     * Kept per channel rather than as one timestamp, because the whole point of
+     * the channels is that somebody may want the station often and the rocket
+     * bodies rarely. A single figure would let either one spend the other's
+     * budget.
+     */
+    val lastIssAlertAt: Long? = null,
+    val lastBrightAlertAt: Long? = null,
     /**
      * When the pass planner next wants to be asked.
      *

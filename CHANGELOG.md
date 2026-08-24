@@ -31,6 +31,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   app changes. See ADR-0008 and `fetcher/README.md`.
 - The `sats` endpoint in the signed manifest, so the elements can move without
   stranding installs.
+- How often Gloaming may interrupt you is now yours to set, per channel:
+  aurora, space station passes and other bright satellites each have their own
+  minimum interval, starting at six hours. The interval is also the window the
+  best pass is chosen from, so a longer setting means better alerts rather than
+  just fewer of them. A clear night has upwards of forty satellite passes worth
+  looking at, and without this the app would have mentioned most of them.
 - Look4Sat's SGP4/SDP4 propagator, vendored under the GPL-3.0 and credited in
   the app. Its agreement with Vallado's verification vectors is now a unit test
   and a release gate.

@@ -85,6 +85,10 @@ fun MainScreen(
     onQuietUntilChange: (String) -> Unit,
     onQuietHoursOverrideChange: (Boolean) -> Unit,
     onNightVisionChange: (Boolean) -> Unit,
+    onAuroraIntervalChange: (Int) -> Unit,
+    onIssIntervalChange: (Int) -> Unit,
+    onBrightIntervalChange: (Int) -> Unit,
+    onPassAlertsChange: (Boolean) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
@@ -135,6 +139,13 @@ fun MainScreen(
             onQuietUntilChange,
             onQuietHoursOverrideChange,
         )
+        InterruptionCard(
+            state,
+            onAuroraIntervalChange,
+            onIssIntervalChange,
+            onBrightIntervalChange,
+            onPassAlertsChange,
+        )
         WatchNowCard(state, onWatchingChange)
         BeforeUnlockCard(state, onBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
@@ -160,6 +171,90 @@ fun MainScreen(
         CreditsCard(state)
     }
 }
+
+/**
+ * How often the app may interrupt, per channel.
+ *
+ * The user's call, not the app's - the same reasoning as quiet hours. Three
+ * separate answers because they are three different appetites: an aurora is
+ * rare and worth waking for, the station goes over most nights, and the rest go
+ * over constantly. A clear night over Edinburgh has upwards of forty passes
+ * worth looking at, and an app that mentioned each of them would be muted
+ * within the week.
+ *
+ * The interval is also how the best pass gets picked: it is the window the
+ * planner chooses from, so a longer setting does not merely mean fewer alerts,
+ * it means better ones.
+ */
+@Composable
+private fun InterruptionCard(
+    state: MainUiState,
+    onAuroraIntervalChange: (Int) -> Unit,
+    onIssIntervalChange: (Int) -> Unit,
+    onBrightIntervalChange: (Int) -> Unit,
+    onPassAlertsChange: (Boolean) -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("How often at most", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Gloaming waits at least this long before interrupting you again on " +
+                    "each channel, and tells you about the best thing in that window " +
+                    "rather than the first.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            IntervalRow("Aurora", state.settings.auroraAlertIntervalMinutes, onAuroraIntervalChange)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Satellite passes", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = state.settings.passAlertsEnabled,
+                    onCheckedChange = onPassAlertsChange,
+                )
+            }
+            if (state.settings.passAlertsEnabled) {
+                IntervalRow(
+                    "Space station",
+                    state.settings.issPassAlertIntervalMinutes,
+                    onIssIntervalChange,
+                )
+                IntervalRow(
+                    "Other bright satellites",
+                    state.settings.brightPassAlertIntervalMinutes,
+                    onBrightIntervalChange,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntervalRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("$label: ${describeInterval(minutes)}", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (option in UserSettings.ALERT_INTERVAL_CHOICES) {
+                OutlinedButton(onClick = { onChange(option) }) { Text(shortInterval(option)) }
+            }
+        }
+    }
+}
+
+/** Hours where they are whole, because "360 minutes" is not how anyone thinks. */
+private fun describeInterval(minutes: Int): String = when {
+    minutes < 60 -> "at most every $minutes minutes"
+    minutes == 60 -> "at most once an hour"
+    minutes % 60 == 0 -> "at most every ${minutes / 60} hours"
+    else -> "at most every $minutes minutes"
+}
+
+private fun shortInterval(minutes: Int): String =
+    if (minutes % 60 == 0) "${minutes / 60}h" else "${minutes}m"
 
 /**
  * Who the data came from, and under what terms the app may show it.

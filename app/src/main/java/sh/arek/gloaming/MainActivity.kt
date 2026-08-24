@@ -313,6 +313,22 @@ private fun GloamingApp() {
                     settings = settings.copy(nightVision = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onAuroraIntervalChange = {
+                    settings = settings.copy(auroraAlertIntervalMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onIssIntervalChange = {
+                    settings = settings.copy(issPassAlertIntervalMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onBrightIntervalChange = {
+                    settings = settings.copy(brightPassAlertIntervalMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onPassAlertsChange = {
+                    settings = settings.copy(passAlertsEnabled = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 // Optimistic, then corrected. The service reports itself
                 // running from its own thread a moment later, and a switch that
                 // did not move until then would read as ignoring the tap.

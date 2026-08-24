@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -43,6 +44,8 @@ class MainScreenTest {
 
     /** The last value the watch switch asked for, or null if it was never moved. */
     private var watchRequest: Boolean? = null
+    private var auroraInterval: Int? = null
+    private var issInterval: Int? = null
 
 
     private fun show(
@@ -83,6 +86,10 @@ class MainScreenTest {
                 onQuietUntilChange = {},
                 onQuietHoursOverrideChange = {},
                 onNightVisionChange = {},
+                onAuroraIntervalChange = { auroraInterval = it },
+                onIssIntervalChange = { issInterval = it },
+                onBrightIntervalChange = {},
+                onPassAlertsChange = {},
                 onWatchingChange = { watchRequest = it },
                 onSave = {},
                 onPollNow = { polled++ },
@@ -291,5 +298,46 @@ class MainScreenTest {
 
         compose.onNodeWithText("Gloaming cannot alert you yet").assertExists()
         compose.onNodeWithText("Allow background checks").assertExists()
+    }
+
+    /**
+     * How often the app may interrupt is the user's answer to give, and a
+     * setting that cannot be reached is not a setting. Three channels, because
+     * an aurora, the space station and a rocket body are three different
+     * appetites.
+     */
+    @Test
+    fun offersAnIntervalForEveryChannel() {
+        show()
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Aurora: at most every 6 hours", substring = true).assertExists()
+        compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
+            .assertExists()
+        compose.onNodeWithText("Other bright satellites: at most every 6 hours", substring = true)
+            .assertExists()
+    }
+
+    @Test
+    fun reportsTheIntervalTheUserPicked() {
+        show()
+
+        compose.onNodeWithText("How often at most").performScrollTo()
+        compose.onAllNodesWithText("1h").onFirst().performScrollTo().performClick()
+
+        assertEquals(60, auroraInterval)
+    }
+
+    /**
+     * Silencing passes hides their intervals rather than leaving two controls
+     * that do nothing.
+     */
+    @Test
+    fun hidesThePassIntervalsWhenPassesAreOff() {
+        show(settings = UserSettings(passAlertsEnabled = false))
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
+            .assertDoesNotExist()
     }
 }

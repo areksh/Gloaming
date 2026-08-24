@@ -28,17 +28,19 @@ class PassPlannerTest {
         sunlitAtPeak: Boolean = true,
         entersShadowAt: Long? = null,
         leavesShadowAt: Long? = null,
+        elevation: Double = 60.0,
+        rangeKm: Double = 450.0,
     ) = SatellitePass(
         catalogue = catalogue,
         name = "ISS (ZARYA)",
         risesAt = peaksAt - 4 * 60_000L,
         riseAzimuth = 225.0,
         peaksAt = peaksAt,
-        peakElevation = 60.0,
+        peakElevation = elevation,
         peakAzimuth = 180.0,
         setsAt = peaksAt + 4 * 60_000L,
         setAzimuth = 45.0,
-        rangeAtPeakKm = 450.0,
+        rangeAtPeakKm = rangeKm,
         sunlitAtPeak = sunlitAtPeak,
         entersShadowAt = entersShadowAt,
         leavesShadowAt = leavesShadowAt,
@@ -122,14 +124,14 @@ class PassPlannerTest {
 
     @Test
     fun `announces a pass half an hour before it is highest`() {
-        val decision = PassPlanner.decide(pass(), peak - 29 * 60_000L, settings, AlertState(), 0, clear)
+        val decision = PassPlanner.decide(listOf(pass()), peak - 29 * 60_000L, settings, AlertState(), 0, clear)
 
         assertTrue(decision is PassPlanner.Decision.Announce)
     }
 
     @Test
     fun `holds its tongue until the pass is close`() {
-        val decision = PassPlanner.decide(pass(), peak - 3 * hour, settings, AlertState(), 0, clear)
+        val decision = PassPlanner.decide(listOf(pass()), peak - 3 * hour, settings, AlertState(), 0, clear)
 
         assertTrue(decision is PassPlanner.Decision.TooSoon)
     }
@@ -139,7 +141,7 @@ class PassPlannerTest {
     fun `says nothing about a pass it has already announced`() {
         val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
 
-        val decision = PassPlanner.decide(pass(), peak - 10 * 60_000L, settings, told, 0, clear)
+        val decision = PassPlanner.decide(listOf(pass()), peak - 10 * 60_000L, settings, told, 0, clear)
 
         assertTrue(decision is PassPlanner.Decision.AlreadyTold)
     }
@@ -153,7 +155,7 @@ class PassPlannerTest {
         val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
         val shifted = pass(peaksAt = peak + 90_000L)
 
-        val decision = PassPlanner.decide(shifted, peak - 60_000L, settings, told, 0, clear)
+        val decision = PassPlanner.decide(listOf(shifted), peak - 60_000L, settings, told, 0, clear)
 
         assertTrue(decision is PassPlanner.Decision.AlreadyTold)
     }
@@ -164,7 +166,7 @@ class PassPlannerTest {
         val told = AlertState(lastPassPeakAt = peak, lastPassCatalogue = 25544)
         val other = pass(peaksAt = peak + 60_000L, catalogue = 20580)
 
-        val decision = PassPlanner.decide(other, peak - 60_000L, settings, told, 0, clear)
+        val decision = PassPlanner.decide(listOf(other), peak - 60_000L, settings, told, 0, clear)
 
         assertTrue(decision is PassPlanner.Decision.Announce)
     }
@@ -174,7 +176,7 @@ class PassPlannerTest {
         val quiet = settings.copy(quietHours = QuietHours(23 * 60, 7 * 60))
 
         val decision = PassPlanner.decide(
-            pass(), peak - 10 * 60_000L, quiet, AlertState(), localMinuteOfDay = 2 * 60, cloud = clear,
+            listOf(pass()), peak - 10 * 60_000L, quiet, AlertState(), localMinuteOfDay = 2 * 60, cloud = clear,
         )
 
         assertTrue(decision is PassPlanner.Decision.InQuietHours)
@@ -185,7 +187,7 @@ class PassPlannerTest {
         val overcast = CloudCover(total = 95, low = 90, mid = 10, high = 5)
 
         val decision = PassPlanner.decide(
-            pass(), peak - 10 * 60_000L, settings, AlertState(), 0, overcast,
+            listOf(pass()), peak - 10 * 60_000L, settings, AlertState(), 0, overcast,
         )
 
         assertTrue(decision is PassPlanner.Decision.TooCloudy)
@@ -198,7 +200,7 @@ class PassPlannerTest {
     @Test
     fun `announces anyway when the forecast could not be reached`() {
         val decision = PassPlanner.decide(
-            pass(), peak - 10 * 60_000L, settings, AlertState(), 0, cloud = null,
+            listOf(pass()), peak - 10 * 60_000L, settings, AlertState(), 0, cloud = null,
         )
 
         assertTrue(decision is PassPlanner.Decision.Announce)
@@ -210,7 +212,109 @@ class PassPlannerTest {
         val ungated = settings.copy(cloudGateEnabled = false)
 
         val decision = PassPlanner.decide(
-            pass(), peak - 10 * 60_000L, ungated, AlertState(), 0, overcast,
+            listOf(pass()), peak - 10 * 60_000L, ungated, AlertState(), 0, overcast,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.Announce)
+    }
+
+    // --- how often, and which one --------------------------------------
+
+    /**
+     * The reason any of this exists: a clear night over Edinburgh has upwards
+     * of forty passes worth looking at, and an app that mentioned each of them
+     * would be muted within the week.
+     */
+    @Test
+    fun `says nothing more on a channel that has just spoken`() {
+        val spoken = AlertState(lastIssAlertAt = peak - 60 * 60_000L)
+
+        val decision = PassPlanner.decide(
+            listOf(pass()), peak - 10 * 60_000L, settings, spoken, 0, clear,
+        )
+
+        assertTrue(decision is PassPlanner.Decision.RateLimited)
+    }
+
+    /** And says when it will speak again, rather than merely going quiet. */
+    @Test
+    fun `comes back exactly when the channel is free`() {
+        val lastAlert = peak - 60 * 60_000L
+        val spoken = AlertState(lastIssAlertAt = lastAlert)
+        val now = peak - 10 * 60_000L
+
+        val decision = PassPlanner.decide(listOf(pass()), now, settings, spoken, 0, clear)
+
+        val interval = settings.issPassAlertIntervalMinutes * 60_000L
+        assertEquals(lastAlert + interval, PassPlanner.nextWake(decision, now))
+    }
+
+    /**
+     * The interval must not cost quality. Announcing whichever pass came first
+     * and then falling silent through a far better one twenty minutes later
+     * would be a worse app than one that said nothing, so the interval is the
+     * window the best pass is chosen from.
+     */
+    @Test
+    fun `picks the best pass in the window, not the first`() {
+        val mediocre = pass(peaksAt = peak, elevation = 12.0, rangeKm = 1900.0)
+        val brilliant = pass(peaksAt = peak + 20 * 60_000L, elevation = 82.0, rangeKm = 430.0)
+
+        val chosen = PassPlanner.chooseNext(
+            listOf(mediocre, brilliant), peak - 2 * hour, settings, AlertState(),
+        )
+
+        assertEquals(brilliant.peaksAt, chosen?.peaksAt)
+    }
+
+    /** But it does not hold out for something better beyond the window. */
+    @Test
+    fun `takes what is in the window over something better outside it`() {
+        val soon = pass(peaksAt = peak, elevation = 30.0, rangeKm = 800.0)
+        val laterAndBetter = pass(peaksAt = peak + 9 * hour, elevation = 85.0, rangeKm = 430.0)
+
+        val chosen = PassPlanner.chooseNext(
+            listOf(soon, laterAndBetter), peak - 2 * hour, settings, AlertState(),
+        )
+
+        assertEquals(soon.peaksAt, chosen?.peaksAt)
+    }
+
+    /**
+     * The channels hold separate budgets, which is the whole point of their
+     * being separate: somebody may want the station often and the rocket bodies
+     * rarely.
+     */
+    @Test
+    fun `one channel speaking does not silence the other`() {
+        val issSpoken = AlertState(lastIssAlertAt = peak - 60 * 60_000L)
+        val rocketBody = pass(catalogue = 20580)
+
+        val chosen = PassPlanner.chooseNext(
+            listOf(pass(), rocketBody), peak - 10 * 60_000L, settings, issSpoken,
+        )
+
+        assertEquals(20580, chosen?.catalogue)
+    }
+
+    /** A pass after the limit lifts is still worth planning for. */
+    @Test
+    fun `keeps a pass that falls due once the interval has run out`() {
+        val spoken = AlertState(lastIssAlertAt = peak - 7 * hour)
+
+        val chosen = PassPlanner.chooseNext(listOf(pass()), peak - hour, settings, spoken)
+
+        assertEquals(peak, chosen?.peaksAt)
+    }
+
+    /** The user's own number, not a constant. */
+    @Test
+    fun `honours the interval the user chose`() {
+        val impatient = settings.copy(issPassAlertIntervalMinutes = 60)
+        val spoken = AlertState(lastIssAlertAt = peak - 90 * 60_000L)
+
+        val decision = PassPlanner.decide(
+            listOf(pass()), peak - 10 * 60_000L, impatient, spoken, 0, clear,
         )
 
         assertTrue(decision is PassPlanner.Decision.Announce)

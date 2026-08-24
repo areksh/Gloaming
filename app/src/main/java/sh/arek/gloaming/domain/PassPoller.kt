@@ -90,7 +90,7 @@ class PassPoller(
             isDarkAt = isDarkAt,
         )
 
-        val next = PassPlanner.next(upcoming, at)
+        val next = PassPlanner.chooseNext(upcoming, at, user, held)
         // The forecast is only worth a radio wake once a pass is close enough
         // to speak about, which is the same reason the aurora poll leaves it
         // until last.
@@ -98,7 +98,7 @@ class PassPoller(
         val cloud = if (closeEnough) cloudCover(user, latitude, longitude) else null
 
         val decision = PassPlanner.decide(
-            pass = next,
+            passes = upcoming,
             now = at,
             settings = user,
             state = held,
@@ -107,6 +107,7 @@ class PassPoller(
         )
 
         val announced = decision as? PassPlanner.Decision.Announce
+        val channel = announced?.let { PassChannel.of(it.pass.catalogue) }
         announced?.let { (pass) ->
             notifier.notifyPass(
                 pass = pass,
@@ -120,7 +121,12 @@ class PassPoller(
             held.copy(
                 lastPassPeakAt = announced?.pass?.peaksAt ?: held.lastPassPeakAt,
                 lastPassCatalogue = announced?.pass?.catalogue ?: held.lastPassCatalogue,
-                lastPassAlertAt = if (announced != null) at else held.lastPassAlertAt,
+                // Only the channel that spoke starts its clock again; the other
+                // keeps whatever budget it had.
+                lastIssAlertAt =
+                    if (channel == PassChannel.Iss) at else held.lastIssAlertAt,
+                lastBrightAlertAt =
+                    if (channel == PassChannel.Bright) at else held.lastBrightAlertAt,
                 nextPassCheckAt = wake,
             ),
         )

@@ -854,7 +854,10 @@ The pipeline:
   falls below `T_off`, where `T_off < T_on`. Kp oscillating around a single threshold
   during a storm is how an app notifies eleven times before dawn.
 - **Minimum re-alert interval.** Per channel, default 6 hours. A storm is one event, not
-  forty.
+  forty. **As built this is a setting rather than a constant**, on the same reasoning as
+  quiet hours: how often an app may interrupt someone is their call. It doubles as the
+  window the best pass is chosen from, so a longer interval buys better alerts and not
+  merely fewer.
 - **Quiet hours.** User-set, defaulting to off. An exceptional-event override (e.g. local
   probability > 80%) is offered as a separate opt-in toggle, defaulting off. The user
   decides what is worth being woken for; the app does not decide on their behalf.
@@ -1020,7 +1023,7 @@ can silence comets and keep aurora:
 | `index.json.sig` | 64 B | on change | Ed25519 detached signature over `index.json`. |
 | `status.json` | ~1 KB | 3 min | AuroraWatch level (UK) + Kp + solar wind + `global_activity` + `oval_etag`. Latency-critical. |
 | `oval.bin` | ~5-10 KB gz | 5 min | **Packed OVATION grid**: 1 byte/cell, row-major, 360x181. Global aurora probability. Fetched conditionally (Sec. 4). |
-| `sats.json` | ~20 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. |
+| `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
 | `comets.json` | ~2 KB | weekly | Curated MPC elements + H/slope. |
 | `showers.json` | ~2 KB | annually | **Shipped in the APK**, remote override optional. |
 
