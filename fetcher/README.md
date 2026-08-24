@@ -47,14 +47,25 @@ here there is no point continuing.
 ```sh
 curl -sS -o /dev/null -w '%{http_code} in %{time_total}s\n' \
   -A 'Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)' \
-  'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV'
+  'https://celestrak.org/'
 ```
 
 Expect `200` in about a second. A `522`, or a timeout of roughly 24 seconds,
-means this host is no better placed than Cloudflare was.
+means this host is no better placed than Cloudflare was and the rest of this is
+pointless.
 
-Note that this counts as one of the two downloads CelesTrak's usage policy
-allows every two hours, so do not run it repeatedly while setting things up.
+**Their front page, deliberately, not the elements themselves.** What failed
+from Cloudflare was the connection, not the query - a 522 means the network
+could not open one - so any URL on that host settles it. Asking for the data
+here would spend one of the downloads their policy allows per two-hour update,
+and step 9 would then be a second download of the same file inside the same
+window, which is what "only once per update" forbids. This way the whole
+install costs exactly one update's worth of data, in step 9, and the timer
+spaces everything after that.
+
+If the host is shared, be aware that the address may not be yours alone: a
+`403` in step 9 means "no new data since your last download", which on a first
+run suggests someone else on the same address has been asking.
 
 ## 1. Node
 
@@ -258,9 +269,9 @@ npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --re
 
 ## 9. Verify
 
-Run it once by hand rather than waiting for the timer. This counts as one of
-CelesTrak's two-hourly downloads, which is why the timer is started afterwards
-rather than before:
+Run it once by hand rather than waiting for the timer. **This is the first and
+only time the install asks CelesTrak for data**, which is why the timer is
+started after it rather than before - two hours are counted from here:
 
 ```sh
 systemctl start gloaming-elements.service
