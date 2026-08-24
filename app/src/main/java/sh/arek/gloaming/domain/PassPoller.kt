@@ -13,6 +13,7 @@ import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.satellites.SatellitesDocument
+import sh.arek.gloaming.satellites.TrainFinder
 
 /** Posts the pass notification. Local, like everything else the app announces. */
 interface PassNotifier {
@@ -145,6 +146,8 @@ class PassPoller(
                     if (channel == PassChannel.Iss) at else held.lastIssAlertAt,
                 lastBrightAlertAt =
                     if (channel == PassChannel.Bright) at else held.lastBrightAlertAt,
+                lastTrainAlertAt =
+                    if (channel == PassChannel.Trains) at else held.lastTrainAlertAt,
                 nextPassCheckAt = wake,
                 // Written as well as scheduled: an alarm does not survive a
                 // reboot, and losing a follow the user has already acted on is
@@ -183,13 +186,29 @@ class PassPoller(
         else predict(fresh, latitude, longitude, at)
     }
 
+    /**
+     * Every pass in the horizon, single objects and trains alike.
+     *
+     * The two ends of a train are dropped from the ordinary sweep. Their
+     * elements are published so the train can be worked out, but they are also
+     * two Starlinks, and without this the same launch would be announced twice
+     * over - once as a train and once as an unremarkable bright satellite a few
+     * minutes later.
+     */
     private fun predict(
         document: SatellitesDocument,
         latitude: Double,
         longitude: Double,
         at: Long,
-    ): List<SatellitePass> = document.satellites.flatMap { satellite ->
-        PassFinder.passes(satellite, latitude, longitude, at, at + PassPlanner.HORIZON_MILLIS)
+    ): List<SatellitePass> {
+        val until = at + PassPlanner.HORIZON_MILLIS
+        val ends = document.trains.flatMap { listOf(it.lead, it.tail) }.toSet()
+
+        val singles = document.satellites
+            .filterNot { it.catalogue in ends }
+            .flatMap { PassFinder.passes(it, latitude, longitude, at, until) }
+
+        return singles + TrainFinder.passes(document, latitude, longitude, at, until)
     }
 
     private suspend fun cloudCover(

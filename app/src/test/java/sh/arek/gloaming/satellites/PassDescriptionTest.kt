@@ -41,6 +41,22 @@ class PassDescriptionTest {
         leavesShadowAt = leavesShadowAt,
     )
 
+    /**
+     * A train is described by its two ends and not by its geometry. What a
+     * person outside needs is when the first light appears and how long the
+     * procession keeps coming; how high it gets is the same for all of them.
+     */
+    @Test
+    fun `describes a train by when it starts and when the last one is clear`() {
+        val described = describeTrain(22, Compass.SouthWest, "22:14", "22:19")
+
+        assertEquals(
+            "A train of about 22 Starlink satellites, rising south-west at 22:14, " +
+                "the last clear by 22:19.",
+            described,
+        )
+    }
+
     @Test
     fun `calls a high close sunlit pass the best it gets`() {
         val described = PassDescription.of(pass(), observerIsDark = true)

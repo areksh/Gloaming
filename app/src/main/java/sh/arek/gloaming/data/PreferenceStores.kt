@@ -36,6 +36,7 @@ private const val KEY_PASS_ALERTS = "pass_alerts_enabled"
 private const val KEY_AURORA_INTERVAL = "aurora_alert_interval_minutes"
 private const val KEY_ISS_INTERVAL = "iss_pass_alert_interval_minutes"
 private const val KEY_BRIGHT_INTERVAL = "bright_pass_alert_interval_minutes"
+private const val KEY_TRAIN_INTERVAL = "train_pass_alert_interval_minutes"
 private const val KEY_FOLLOW_STATION = "follow_station_passes"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
@@ -48,6 +49,7 @@ private const val KEY_LAST_FROM_AURORAWATCH = "last_from_aurorawatch"
 private const val KEY_LAST_PASS_PEAK_AT = "last_pass_peak_at"
 private const val KEY_LAST_ISS_ALERT_AT = "last_iss_alert_at"
 private const val KEY_LAST_BRIGHT_ALERT_AT = "last_bright_alert_at"
+private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
 private const val KEY_LAST_PASS_CATALOGUE = "last_pass_catalogue"
 private const val KEY_FOLLOWING_CATALOGUE = "following_catalogue"
@@ -120,6 +122,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_BRIGHT_INTERVAL,
                 UserSettings.DEFAULT_ALERT_INTERVAL_MINUTES,
             ),
+            trainPassAlertIntervalMinutes = prefs.getInt(
+                KEY_TRAIN_INTERVAL,
+                UserSettings.DEFAULT_ALERT_INTERVAL_MINUTES,
+            ),
             followStationPassesAutomatically = prefs.getBoolean(KEY_FOLLOW_STATION, false),
         )
     }
@@ -156,6 +162,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_AURORA_INTERVAL, settings.auroraAlertIntervalMinutes)
             putInt(KEY_ISS_INTERVAL, settings.issPassAlertIntervalMinutes)
             putInt(KEY_BRIGHT_INTERVAL, settings.brightPassAlertIntervalMinutes)
+            putInt(KEY_TRAIN_INTERVAL, settings.trainPassAlertIntervalMinutes)
             putBoolean(KEY_FOLLOW_STATION, settings.followStationPassesAutomatically)
         }.apply()
     }
@@ -185,6 +192,8 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             lastIssAlertAt = prefs.getLong(KEY_LAST_ISS_ALERT_AT, UNSET).takeIf { it != UNSET },
             lastBrightAlertAt = prefs.getLong(KEY_LAST_BRIGHT_ALERT_AT, UNSET)
                 .takeIf { it != UNSET },
+            lastTrainAlertAt = prefs.getLong(KEY_LAST_TRAIN_ALERT_AT, UNSET)
+                .takeIf { it != UNSET },
             nextPassCheckAt = prefs.getLong(KEY_NEXT_PASS_CHECK_AT, UNSET).takeIf { it != UNSET },
             lastPassCatalogue = prefs.getInt(KEY_LAST_PASS_CATALOGUE, -1).takeIf { it >= 0 },
             followingCatalogue = prefs.getInt(KEY_FOLLOWING_CATALOGUE, -1).takeIf { it >= 0 },
@@ -211,6 +220,8 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
                 ?: remove(KEY_LAST_ISS_ALERT_AT)
             state.lastBrightAlertAt?.let { putLong(KEY_LAST_BRIGHT_ALERT_AT, it) }
                 ?: remove(KEY_LAST_BRIGHT_ALERT_AT)
+            state.lastTrainAlertAt?.let { putLong(KEY_LAST_TRAIN_ALERT_AT, it) }
+                ?: remove(KEY_LAST_TRAIN_ALERT_AT)
             state.nextPassCheckAt?.let { putLong(KEY_NEXT_PASS_CHECK_AT, it) }
                 ?: remove(KEY_NEXT_PASS_CHECK_AT)
             state.lastPassCatalogue?.let { putInt(KEY_LAST_PASS_CATALOGUE, it) }

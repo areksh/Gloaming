@@ -38,6 +38,34 @@ class ElementsTest {
         }
     """.trimIndent()
 
+    /**
+     * Trains arrived after this document's first release, and an install that
+     * is never updated must keep reading a document that has them.
+     */
+    @Test
+    fun `reads the trains beside the elements`() {
+        val withTrain = document.replace(
+            "\"satellites\": [",
+            """
+            "trains": [{"launch": "2026-123", "members": 22, "lead": 100234, "tail": 100255}],
+            "satellites": [
+            """.trimIndent(),
+        )
+
+        val parsed = Elements.parse(withTrain)
+
+        assertEquals(1, parsed.trains.size)
+        assertEquals("2026-123", parsed.trains[0].launch)
+        assertEquals(22, parsed.trains[0].members)
+        assertEquals(100234, parsed.trains[0].lead)
+        assertEquals(100255, parsed.trains[0].tail)
+    }
+
+    @Test
+    fun `reads a document published before trains existed`() {
+        assertTrue(Elements.parse(document).trains.isEmpty())
+    }
+
     @Test
     fun `reads the published document`() {
         val parsed = Elements.parse(document)

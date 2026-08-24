@@ -96,6 +96,7 @@ fun MainScreen(
     onAuroraIntervalChange: (Int) -> Unit,
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
+    onTrainIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
     onFollowStationChange: (Boolean) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
@@ -153,6 +154,7 @@ fun MainScreen(
             onAuroraIntervalChange,
             onIssIntervalChange,
             onBrightIntervalChange,
+            onTrainIntervalChange,
             onPassAlertsChange,
             onFollowStationChange,
         )
@@ -202,6 +204,7 @@ private fun InterruptionCard(
     onAuroraIntervalChange: (Int) -> Unit,
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
+    onTrainIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
     onFollowStationChange: (Boolean) -> Unit,
 ) {
@@ -272,6 +275,20 @@ private fun InterruptionCard(
                     "Other bright satellites",
                     state.settings.brightPassAlertIntervalMinutes,
                     onBrightIntervalChange,
+                )
+                // Its own answer rather than a share of the bright catalogue's.
+                // A launch is a train for a few nights and then never again,
+                // and a limit built for objects that come over every night
+                // would routinely spend itself on one of those instead.
+                IntervalRow(
+                    "Starlink trains",
+                    state.settings.trainPassAlertIntervalMinutes,
+                    onTrainIntervalChange,
+                )
+                Text(
+                    "A string of Starlinks in a line, visible for a few nights after a " +
+                        "launch and then not again as they spread out.",
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }

@@ -116,6 +116,15 @@ data class UserSettings(
      */
     val brightPassAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
     /**
+     * How often at most a Starlink train may interrupt.
+     *
+     * Its own answer rather than a share of the bright catalogue's, because a
+     * train is not a nightly event: a launch is a train for a few nights and
+     * then never again, and a rate limit built for objects that come over every
+     * night would routinely swallow the one that does not.
+     */
+    val trainPassAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
+    /**
      * Whether every station pass is followed live without being asked.
      *
      * The station only. Not an oversight and not a default to be relaxed later:
@@ -232,6 +241,7 @@ data class AlertState(
      */
     val lastIssAlertAt: Long? = null,
     val lastBrightAlertAt: Long? = null,
+    val lastTrainAlertAt: Long? = null,
     /**
      * When the pass planner next wants to be asked.
      *

@@ -16,10 +16,12 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.HttpResult
+import sh.arek.gloaming.satellites.Elements
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatelliteElements
+import sh.arek.gloaming.satellites.TrainFinder
 import sh.arek.gloaming.satellites.SatellitePass
 
 /**
@@ -59,6 +61,34 @@ class PassPollerTest {
            "inclination":51.6447,"raan":309.4881,"arg_perigee":203.6966,"mean_anomaly":299.8876,
            "bstar":0.000031985,"mean_motion_dot":0.00001288,"magnitude":-1.8}]}
     """.trimIndent()
+
+    /**
+     * The same orbit as a launch still bunched together: two Starlinks a couple
+     * of degrees of mean anomaly apart, which is half a minute of sky.
+     */
+    private val trainDocument = """
+        {"schema":1,"updated":"2021-11-24T00:00:00Z",
+         "trains":[{"launch":"2026-123","members":22,"lead":101000,"tail":101007}],
+         "satellites":[
+          {"name":"STARLINK-101000","catalogue":101000,"epoch":21320.51955234,
+           "epoch_millis":1637065689322,"mean_motion":15.48582035,"eccentricity":0.0004694,
+           "inclination":51.6447,"raan":309.4881,"arg_perigee":203.6966,"mean_anomaly":299.8876,
+           "bstar":0.000031985,"mean_motion_dot":0.00001288,"magnitude":null},
+          {"name":"STARLINK-101007","catalogue":101007,"epoch":21320.51955234,
+           "epoch_millis":1637065689322,"mean_motion":15.48582035,"eccentricity":0.0004694,
+           "inclination":51.6447,"raan":309.4881,"arg_perigee":203.6966,"mean_anomaly":297.8876,
+           "bstar":0.000031985,"mean_motion_dot":0.00001288,"magnitude":null}]}
+    """.trimIndent()
+
+    private fun firstVisibleTrain(from: Long): SatellitePass = PassPlanner.visible(
+        TrainFinder.passes(
+            Elements.parse(trainDocument),
+            latitude,
+            longitude,
+            from,
+            from + PassPlanner.HORIZON_MILLIS,
+        ),
+    ) { true }.first()
 
     /** The first pass in the window that is worth announcing at all. */
     private fun firstVisiblePass(from: Long): SatellitePass = PassPlanner.visible(
@@ -269,5 +299,54 @@ class PassPollerTest {
         // The rise as well: the peak says which pass it is, the rise says when
         // the tracker has to start, and putting it back needs both.
         assertEquals(follower.asked.single().risesAt, state.value.followingRisesAt)
+    }
+
+    /**
+     * A train arrives as one thing to look at, on a channel of its own, and it
+     * says how many. The count is the whole of what a train adds over a single
+     * satellite crossing the same piece of sky.
+     */
+    @Test
+    fun `announces a train on its own channel and says how many`() = runTest {
+        val from = 1637712000000L
+        val train = firstVisibleTrain(from)
+        val now = train.peaksAt - 20 * 60_000L
+        val notifier = Notifier()
+        val state = State()
+
+        poller(settings(), state, notifier, Cache(trainDocument, 600_000L), now).poll()
+
+        assertEquals(1, notifier.announced.size)
+        assertEquals(PassChannel.Trains, notifier.channels.single())
+        assertEquals(22, notifier.announced.single().members)
+        assertEquals(now, state.value.lastTrainAlertAt)
+        assertEquals(null, state.value.lastBrightAlertAt)
+    }
+
+    /**
+     * The two ends of a train are published so the train can be worked out, but
+     * they are also two ordinary Starlinks. Without dropping them from the
+     * ordinary sweep the same launch would be announced twice - once as a
+     * train, and again a few minutes later as an unremarkable bright satellite.
+     */
+    @Test
+    fun `never announces the ends of a train as bright satellites too`() = runTest {
+        val from = 1637712000000L
+        val train = firstVisibleTrain(from)
+        val notifier = Notifier()
+        val state = State()
+
+        for (minutesBefore in listOf(25L, 20L, 10L, 0L, -10L)) {
+            poller(
+                settings(),
+                state,
+                notifier,
+                Cache(trainDocument, 600_000L),
+                train.peaksAt - minutesBefore * 60_000L,
+            ).poll()
+        }
+
+        assertTrue(notifier.announced.isNotEmpty())
+        assertTrue(notifier.channels.none { it == PassChannel.Bright })
     }
 }

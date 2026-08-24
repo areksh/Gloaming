@@ -16,6 +16,7 @@ import sh.arek.gloaming.R
 import sh.arek.gloaming.domain.PassNotifier
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
+import sh.arek.gloaming.satellites.describeTrain
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.work.FollowPassReceiver
 import sh.arek.gloaming.work.PassAlarm
@@ -38,16 +39,38 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
         ensureChannel(channel)
 
         val clock = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val detail = buildString {
-            append("Rises ${description.risesTowards.label} at ${clock.format(Date(pass.risesAt))}, ")
-            append("highest at ${clock.format(Date(pass.peaksAt))} ")
-            append("(${pass.peakElevation.toInt()} degrees, ${description.peaksTowards.label}). ")
-            append(description.headline)
+        val members = pass.members
+        val detail = if (channel == PassChannel.Trains && members != null) {
+            // A train is described by its two ends, not by its geometry: the
+            // whole of what makes it worth going outside for is that they keep
+            // coming. The prominence sentence still applies - it is the same
+            // sky and the same shadow - so it is kept.
+            describeTrain(
+                members = members,
+                risesTowards = description.risesTowards,
+                risesAt = clock.format(Date(pass.risesAt)),
+                lastClearAt = clock.format(Date(pass.setsAt)),
+            ) + " " + description.headline
+        } else {
+            buildString {
+                append(
+                    "Rises ${description.risesTowards.label} at ${clock.format(Date(pass.risesAt))}, ",
+                )
+                append("highest at ${clock.format(Date(pass.peaksAt))} ")
+                append("(${pass.peakElevation.toInt()} degrees, ${description.peaksTowards.label}). ")
+                append(description.headline)
+            }
+        }
+
+        val title = if (channel == PassChannel.Trains) {
+            "Starlink train at ${clock.format(Date(pass.risesAt))}"
+        } else {
+            "${pass.name} passes at ${clock.format(Date(pass.peaksAt))}"
         }
 
         val notification = NotificationCompat.Builder(context, channel.id)
             .setSmallIcon(R.drawable.ic_notification_aurora)
-            .setContentTitle("${pass.name} passes at ${clock.format(Date(pass.peaksAt))}")
+            .setContentTitle(title)
             .setContentText(detail)
             .setStyle(NotificationCompat.BigTextStyle().bigText(detail))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -106,6 +129,7 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             when (channel) {
                 PassChannel.Iss -> "Space station passes"
                 PassChannel.Bright -> "Bright satellite passes"
+                PassChannel.Trains -> "Starlink trains"
             },
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
@@ -114,6 +138,9 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
                     "When the International Space Station crosses your sky in sunlight."
                 PassChannel.Bright ->
                     "When another bright satellite crosses your sky in sunlight."
+                PassChannel.Trains ->
+                    "When a freshly launched string of Starlinks crosses your sky. " +
+                        "Only for the few nights after a launch, before they spread out."
             }
         }
         context.getSystemService(NotificationManager::class.java)

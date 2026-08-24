@@ -138,6 +138,7 @@ object PassPlanner {
         val minutes = when (channel) {
             PassChannel.Iss -> settings.issPassAlertIntervalMinutes
             PassChannel.Bright -> settings.brightPassAlertIntervalMinutes
+            PassChannel.Trains -> settings.trainPassAlertIntervalMinutes
         }
         return minutes.coerceAtLeast(1) * 60_000L
     }
@@ -145,6 +146,7 @@ object PassPlanner {
     private fun lastAlertAt(channel: PassChannel, state: AlertState): Long? = when (channel) {
         PassChannel.Iss -> state.lastIssAlertAt
         PassChannel.Bright -> state.lastBrightAlertAt
+        PassChannel.Trains -> state.lastTrainAlertAt
     }
 
     /** When each channel is allowed to speak again. */

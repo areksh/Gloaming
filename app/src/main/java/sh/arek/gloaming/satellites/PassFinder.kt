@@ -49,6 +49,15 @@ data class SatellitePass(
      * highest point alone would call such a pass dark throughout.
      */
     val leavesShadowAt: Long?,
+    /**
+     * How many satellites this is, when it is a train.
+     *
+     * Null for everything else, which is every pass but one kind. Carried here
+     * rather than looked up again where the notification is written, because by
+     * then the launch this came from is no longer in hand and the count is the
+     * one thing about a train that its geometry cannot say.
+     */
+    val members: Int? = null,
 ) {
     val durationMillis: Long get() = setsAt - risesAt
 }

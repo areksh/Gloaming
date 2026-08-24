@@ -326,6 +326,10 @@ private fun GloamingApp() {
                     settings = settings.copy(brightPassAlertIntervalMinutes = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onTrainIntervalChange = {
+                    settings = settings.copy(trainPassAlertIntervalMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onPassAlertsChange = {
                     settings = settings.copy(passAlertsEnabled = it)
                     BootAware.saveSettings(context, settings)

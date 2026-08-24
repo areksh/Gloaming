@@ -51,6 +51,29 @@ enum class Prominence {
 }
 
 /**
+ * A train of Starlinks in words, given times already formatted for the locale.
+ *
+ * Not a [PassDescription], because the questions are different ones. For a
+ * single satellite what matters is how high and how bright; for a train it is
+ * when the first light appears and how long they keep coming, which is the
+ * whole of what makes a train worth walking outside for. The height and the
+ * direction are the same for every member, so saying them once would be saying
+ * nothing about the train at all.
+ *
+ * "About", because [members] counts what went up on that launch and not what
+ * will be visible: the faintest of them will be lost, and a sentence promising
+ * a number nobody can count is the same mistake as promising a magnitude.
+ */
+fun describeTrain(
+    members: Int,
+    risesTowards: Compass,
+    risesAt: String,
+    lastClearAt: String,
+): String =
+    "A train of about $members Starlink satellites, rising ${risesTowards.label} at $risesAt, " +
+        "the last clear by $lastClearAt."
+
+/**
  * A pass in words rather than numbers.
  *
  * The app prints no magnitudes, deliberately. The open datasets are stale,

@@ -68,6 +68,30 @@ data class SatelliteElements(
     )
 }
 
+/**
+ * A Starlink launch still bunched into a visible train.
+ *
+ * Detected upstream rather than here, and for one reason: the Starlink group
+ * runs to thousands of objects, and a device that had to work out for itself
+ * which of them were still a train would have to be sent all of them. Only the
+ * two ends are published, which is all a description needs - when the front of
+ * it rises and when the back of it is clear.
+ *
+ * [lead] and [tail] are catalogue numbers whose elements are published in the
+ * same document.
+ */
+@Serializable
+data class StarlinkTrain(
+    /** The launch, without the piece letter: `2026-123`. */
+    val launch: String,
+    /** How many objects of that launch are still in the train. */
+    val members: Int,
+    /** The satellite in front, which crosses the horizon first. */
+    val lead: Int,
+    /** The one at the back, which is last to go. */
+    val tail: Int,
+)
+
 /** `sats.json`: the elements the Worker last fetched, and when. */
 @Serializable
 data class SatellitesDocument(
@@ -75,6 +99,13 @@ data class SatellitesDocument(
     /** When the Worker published these elements, ISO-8601. */
     val updated: String,
     val satellites: List<SatelliteElements> = emptyList(),
+    /**
+     * The launches still bunched into a train, empty most of the time.
+     *
+     * Defaulted, like [satellites], so an install that never updates goes on
+     * reading a document that has grown a field it knows nothing about.
+     */
+    val trains: List<StarlinkTrain> = emptyList(),
 )
 
 /** Reads `sats.json`. */

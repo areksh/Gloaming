@@ -90,6 +90,7 @@ class MainScreenTest {
                 onAuroraIntervalChange = { auroraInterval = it },
                 onIssIntervalChange = { issInterval = it },
                 onBrightIntervalChange = {},
+                onTrainIntervalChange = {},
                 onPassAlertsChange = {},
                 onFollowStationChange = { followStation = it },
                 onWatchingChange = { watchRequest = it },
@@ -317,6 +318,11 @@ class MainScreenTest {
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertExists()
         compose.onNodeWithText("Other bright satellites: at most every 6 hours", substring = true)
+            .assertExists()
+        // Its own row rather than a share of the bright catalogue's: a launch
+        // is a train for a few nights and then never again.
+        compose.onNodeWithText("Starlink trains: at most every 6 hours", substring = true)
+            .performScrollTo()
             .assertExists()
     }
 
