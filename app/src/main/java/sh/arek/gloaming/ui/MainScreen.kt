@@ -47,6 +47,13 @@ import sh.arek.gloaming.satellites.IssCoverage
  */
 const val WATCH_SWITCH_TAG = "watch-switch"
 
+/**
+ * The live-following switch, reached by tag for the same reason: it sits beside
+ * a sentence rather than a value, so there is no "Space station: 6 hours" style
+ * label to find it by.
+ */
+const val FOLLOW_STATION_SWITCH_TAG = "follow-station-switch"
+
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
     val settings: UserSettings,
@@ -90,6 +97,7 @@ fun MainScreen(
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
+    onFollowStationChange: (Boolean) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
@@ -146,6 +154,7 @@ fun MainScreen(
             onIssIntervalChange,
             onBrightIntervalChange,
             onPassAlertsChange,
+            onFollowStationChange,
         )
         WatchNowCard(state, onWatchingChange)
         BeforeUnlockCard(state, onBeforeUnlockChange)
@@ -194,6 +203,7 @@ private fun InterruptionCard(
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
+    onFollowStationChange: (Boolean) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -231,6 +241,33 @@ private fun InterruptionCard(
                 if (coverage != null) {
                     Text(coverage, style = MaterialTheme.typography.bodySmall)
                 }
+
+                // Beside the station and nowhere else. Not a default waiting to
+                // be relaxed: the station goes over most nights and the bright
+                // catalogue goes over constantly, so the same switch there would
+                // be a live tracker running most of every clear night.
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Follow every station pass live",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Switch(
+                        checked = state.settings.followStationPassesAutomatically,
+                        onCheckedChange = onFollowStationChange,
+                        modifier = Modifier.testTag(FOLLOW_STATION_SWITCH_TAG),
+                    )
+                }
+                Text(
+                    "Ten minutes before it rises, Gloaming counts down and says which " +
+                        "way to look, until the pass ends. It needs no signal. Otherwise " +
+                        "each alert offers to follow that one pass.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
                 IntervalRow(
                     "Other bright satellites",
                     state.settings.brightPassAlertIntervalMinutes,

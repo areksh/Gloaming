@@ -23,6 +23,7 @@ import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.OkHttpFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
 import sh.arek.gloaming.notify.AndroidPassNotifier
+import sh.arek.gloaming.work.AndroidPassFollower
 import sh.arek.gloaming.work.StormService
 
 /**
@@ -96,6 +97,21 @@ object Graph {
     }
 
     /**
+     * The elements as last fetched, for anything that only needs to read them.
+     *
+     * The live tracker takes this rather than the poller's own copy: it works
+     * from what is already on the device and never fetches, which is what lets
+     * it run in a field with no signal.
+     */
+    fun satellites(context: Context): SatelliteRepository {
+        val application = context.applicationContext
+        return SatelliteRepository(
+            OkHttpFetcher(httpClient),
+            FileSatelliteCache(cacheDirectory(application)),
+        )
+    }
+
+    /**
      * The pass planner, sharing the aurora poll's wake rather than owning an
      * alarm of its own.
      *
@@ -122,6 +138,7 @@ object Graph {
             settings = BootAware.pollSettings(application),
             state = alertState(application),
             notifier = AndroidPassNotifier(application),
+            follower = AndroidPassFollower(application),
         )
     }
 }

@@ -46,6 +46,7 @@ class MainScreenTest {
     private var watchRequest: Boolean? = null
     private var auroraInterval: Int? = null
     private var issInterval: Int? = null
+    private var followStation: Boolean? = null
 
 
     private fun show(
@@ -90,6 +91,7 @@ class MainScreenTest {
                 onIssIntervalChange = { issInterval = it },
                 onBrightIntervalChange = {},
                 onPassAlertsChange = {},
+                onFollowStationChange = { followStation = it },
                 onWatchingChange = { watchRequest = it },
                 onSave = {},
                 onPollNow = { polled++ },
@@ -364,6 +366,42 @@ class MainScreenTest {
 
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
+            .assertDoesNotExist()
+    }
+
+    /**
+     * Following every pass live is offered beside the station and nowhere else.
+     *
+     * Not a default waiting to be relaxed: the station goes over most nights,
+     * whereas the bright catalogue goes over constantly, so the same switch on
+     * that channel would be a foreground service most of every clear night.
+     */
+    @Test
+    fun offersAutomaticFollowingForTheStationOnly() {
+        show()
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Follow every station pass", substring = true).assertExists()
+        compose.onNodeWithText("Follow every bright satellite pass", substring = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun reportsTurningAutomaticFollowingOn() {
+        show()
+
+        compose.onNodeWithTag(FOLLOW_STATION_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(true, followStation)
+    }
+
+    /** Off, it goes with the intervals: a switch under a silenced channel does nothing. */
+    @Test
+    fun hidesAutomaticFollowingWhenPassesAreOff() {
+        show(settings = UserSettings(passAlertsEnabled = false))
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Follow every station pass", substring = true)
             .assertDoesNotExist()
     }
 }

@@ -95,6 +95,11 @@ class PassPollerTest {
         }
     }
 
+    private class Follower : PassFollower {
+        val asked = mutableListOf<SatellitePass>()
+        override fun follow(pass: SatellitePass) { asked += pass }
+    }
+
     private object Offline : HttpFetcher {
         override suspend fun get(url: String, etag: String?): HttpResult =
             throw java.io.IOException("no network in this test")
@@ -111,6 +116,7 @@ class PassPollerTest {
         notifier: Notifier,
         cache: Cache,
         now: Long,
+        follower: PassFollower = PassFollower {},
     ) = PassPoller(
         // Never reached: the cache is fresh and the cloud gate is off, so
         // nothing in these tests goes near the network.
@@ -125,6 +131,7 @@ class PassPollerTest {
         settings = settings,
         state = state,
         notifier = notifier,
+        follower = follower,
         now = { now },
         darkness = DarknessAt { _, _, _ -> true },
         localMinuteOfDay = { 2 * 60 },
@@ -225,5 +232,46 @@ class PassPollerTest {
 
         assertEquals(PassPlanner.Decision.Nothing, result.decision)
         assertTrue(result.nextWakeAtMillis > now)
+    }
+
+    /**
+     * The live tracker is opt-in, and the opting-in is a setting the user has
+     * to have found and turned on. An announcement on its own asks for nothing.
+     */
+    @Test
+    fun `does not follow a pass live unless the user asked for that`() = runTest {
+        val from = 1637712000000L
+        val pass = firstVisiblePass(from)
+        val now = pass.peaksAt - 20 * 60_000L
+        val follower = Follower()
+        val state = State()
+
+        poller(settings(), state, Notifier(), Cache(document, 600_000L), now, follower).poll()
+
+        assertTrue(follower.asked.isEmpty())
+        assertEquals(null, state.value.followingCatalogue)
+    }
+
+    @Test
+    fun `asks for a station pass to be followed once the user has said so`() = runTest {
+        val from = 1637712000000L
+        val pass = firstVisiblePass(from)
+        val now = pass.peaksAt - 20 * 60_000L
+        val follower = Follower()
+        val state = State()
+        val settings = settings()
+        settings.value = settings.value.copy(followStationPassesAutomatically = true)
+
+        poller(settings, state, Notifier(), Cache(document, 600_000L), now, follower).poll()
+
+        assertEquals(1, follower.asked.size)
+        assertEquals(PassChannel.ISS_CATALOGUE, follower.asked.single().catalogue)
+        // Recorded as well as scheduled, so a reboot between now and the pass
+        // does not lose a request the user has already acted on.
+        assertEquals(PassChannel.ISS_CATALOGUE, state.value.followingCatalogue)
+        assertEquals(follower.asked.single().peaksAt, state.value.followingPeakAt)
+        // The rise as well: the peak says which pass it is, the rise says when
+        // the tracker has to start, and putting it back needs both.
+        assertEquals(follower.asked.single().risesAt, state.value.followingRisesAt)
     }
 }

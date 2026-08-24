@@ -272,6 +272,21 @@ object PassPlanner {
     }
 
     /**
+     * Whether [channel] should be followed live without the user asking.
+     *
+     * Structural rather than a default: there is one setting and it names the
+     * station, so no combination of switches can turn the bright catalogue into
+     * a foreground service every clear night. Sec. 9.4 calls that frequency
+     * asymmetry the risk that sinks live mode, and the cheapest way to honour
+     * it is to make the wrong answer unrepresentable.
+     *
+     * Following a single pass the user tapped is a separate route and does not
+     * come through here.
+     */
+    fun shouldFollow(channel: PassChannel, settings: UserSettings): Boolean =
+        channel == PassChannel.Iss && settings.followStationPassesAutomatically
+
+    /**
      * Whether this is the pass that was last announced.
      *
      * Matched by object and by an approximate time, because the exact instant

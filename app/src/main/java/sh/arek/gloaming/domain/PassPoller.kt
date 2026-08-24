@@ -18,6 +18,17 @@ interface PassNotifier {
     fun notifyPass(pass: SatellitePass, description: PassDescription, channel: PassChannel)
 }
 
+/**
+ * Asks for a pass to be followed live when it comes round.
+ *
+ * Separate from [PassNotifier] because it is a different promise: the notifier
+ * has spoken by the time it returns, whereas this books something for later and
+ * may be refused by the system when the moment arrives.
+ */
+fun interface PassFollower {
+    fun follow(pass: SatellitePass)
+}
+
 /** Whether the sun is far enough down where the observer stands. */
 fun interface DarknessAt {
     fun isDark(latitude: Double, longitude: Double, atMillis: Long): Boolean
@@ -53,6 +64,7 @@ class PassPoller(
     private val settings: SettingsStore,
     private val state: AlertStateStore,
     private val notifier: PassNotifier,
+    private val follower: PassFollower = PassFollower {},
     private val now: () -> Long = System::currentTimeMillis,
     private val darkness: DarknessAt = DarknessAt(Twilight::isDark),
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
@@ -116,6 +128,12 @@ class PassPoller(
             )
         }
 
+        // Only the station, and only when the user has said so. The bright
+        // catalogue cannot reach here at all - see PassPlanner.shouldFollow.
+        val followed = announced?.pass
+            ?.takeIf { channel != null && PassPlanner.shouldFollow(channel, user) }
+            ?.also { runCatching { follower.follow(it) } }
+
         val wake = PassPlanner.nextWake(decision, at)
         state.write(
             held.copy(
@@ -128,6 +146,12 @@ class PassPoller(
                 lastBrightAlertAt =
                     if (channel == PassChannel.Bright) at else held.lastBrightAlertAt,
                 nextPassCheckAt = wake,
+                // Written as well as scheduled: an alarm does not survive a
+                // reboot, and losing a follow the user has already acted on is
+                // worst at exactly the moment it matters.
+                followingCatalogue = followed?.catalogue ?: held.followingCatalogue,
+                followingPeakAt = followed?.peaksAt ?: held.followingPeakAt,
+                followingRisesAt = followed?.risesAt ?: held.followingRisesAt,
             ),
         )
         return PassPollResult(decision, wake)

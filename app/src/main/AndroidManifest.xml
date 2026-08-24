@@ -91,6 +91,30 @@
         </service>
 
         <!--
+          Not directBootAware, for the same reason as the service it starts.
+        -->
+        <receiver
+            android:name=".work.PassReceiver"
+            android:exported="false" />
+
+        <!--
+          The "Follow it" action on a pass notification. Not exported: only this
+          app's own notification may press it.
+        -->
+        <receiver
+            android:name=".work.FollowPassReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".work.PassService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Follows a single satellite pass across the sky while it happens, showing a live countdown, direction and elevation for a user standing outside. Started shortly before the satellite rises, either because the user asked for that pass or because they asked for every space station pass, and stops when the pass ends. Uses no network at all - the orbital elements are already on the device - and is capped at thirty minutes." />
+        </service>
+
+        <!--
           Direct Boot aware like the rest: a poll before first unlock should be
           able to redraw the widget it just produced a reading for.
         -->

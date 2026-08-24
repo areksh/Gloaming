@@ -17,6 +17,8 @@ import sh.arek.gloaming.domain.PassChannel
 import sh.arek.gloaming.domain.PassNotifier
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.SatellitePass
+import sh.arek.gloaming.work.FollowPassReceiver
+import sh.arek.gloaming.work.PassAlarm
 
 /**
  * Posts a satellite pass notification.
@@ -54,6 +56,7 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
+            .addAction(0, "Follow it", followPass(pass))
             .setAutoCancel(true)
             // Keyed on the pass rather than the channel, so an alert for one
             // object never quietly replaces another still worth reading.
@@ -63,6 +66,28 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             NotificationManagerCompat.from(context).notify(pass.catalogue, notification)
         }
     }
+
+    /**
+     * Offered on every pass, unlike the setting that does this automatically.
+     *
+     * The distinction is between reaching for a tracker once and having one
+     * start on its own: following a bright satellite because you decided to go
+     * outside for it is fine, whereas following every bright satellite would be
+     * a foreground service most of every clear night.
+     *
+     * Keyed on the catalogue number so two alerts up at once each carry their
+     * own object. `FLAG_UPDATE_CURRENT` keeps the times fresh when a pass is
+     * re-derived from newer elements and the alert is reposted.
+     */
+    private fun followPass(pass: SatellitePass): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        pass.catalogue,
+        Intent(context, FollowPassReceiver::class.java)
+            .putExtra(PassAlarm.EXTRA_CATALOGUE, pass.catalogue)
+            .putExtra(PassAlarm.EXTRA_PEAK_AT, pass.peaksAt)
+            .putExtra(FollowPassReceiver.EXTRA_RISES_AT, pass.risesAt),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     private fun openApp(): PendingIntent = PendingIntent.getActivity(
         context,

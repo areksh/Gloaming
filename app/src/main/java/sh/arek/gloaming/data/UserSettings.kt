@@ -115,6 +115,19 @@ data class UserSettings(
      * and an app that mentioned each of them would be muted within the week.
      */
     val brightPassAlertIntervalMinutes: Int = DEFAULT_ALERT_INTERVAL_MINUTES,
+    /**
+     * Whether every station pass is followed live without being asked.
+     *
+     * The station only. Not an oversight and not a default to be relaxed later:
+     * a foreground service per pass is a persistent-notification generator, and
+     * where the station goes over most nights the bright catalogue goes over
+     * constantly. Offering this across `visual` would be offering to run a
+     * foreground service for most of every clear night.
+     *
+     * Off to begin with, so the live tracker is something the user reaches for
+     * from a notification rather than something that starts happening to them.
+     */
+    val followStationPassesAutomatically: Boolean = false,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -230,6 +243,26 @@ data class AlertState(
      * complaint rather than a feature.
      */
     val nextPassCheckAt: Long? = null,
+    /**
+     * The pass the live tracker has been asked to follow, if any.
+     *
+     * Held rather than carried in the alarm alone so that a reboot between
+     * asking and the pass does not silently lose it - which would be the worst
+     * possible moment to drop a request, because the user has already decided
+     * to go outside.
+     *
+     * The peak is what identifies it, for the same reason [lastPassPeakAt]
+     * does: the service re-derives the pass from the freshest elements it
+     * holds, and that moves the moment by up to minutes.
+     */
+    val followingCatalogue: Int? = null,
+    val followingPeakAt: Long? = null,
+    /**
+     * The rise of the same pass, which is a separate question from identifying
+     * it: the peak says *which* pass, the rise says *when to start*. Both are
+     * needed to put the request back after a reboot.
+     */
+    val followingRisesAt: Long? = null,
 )
 
 interface AlertStateStore {

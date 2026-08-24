@@ -360,4 +360,36 @@ class PassPlannerTest {
 
         assertEquals(now + PassPlanner.DORMANT_INTERVAL_MILLIS, wake)
     }
+
+    @Test
+    fun `does not follow anything live unless asked`() {
+        val settings = UserSettings()
+
+        assertTrue(!PassPlanner.shouldFollow(PassChannel.Iss, settings))
+        assertTrue(!PassPlanner.shouldFollow(PassChannel.Bright, settings))
+    }
+
+    @Test
+    fun `follows the station live once asked`() {
+        val settings = UserSettings(followStationPassesAutomatically = true)
+
+        assertTrue(PassPlanner.shouldFollow(PassChannel.Iss, settings))
+    }
+
+    /**
+     * The one setting cannot be made to cover the bright catalogue, whatever
+     * else is switched on. The station goes over most nights; the bright
+     * catalogue goes over constantly, and a foreground service per pass would
+     * be one running for most of every clear night.
+     */
+    @Test
+    fun `never follows a bright satellite live, whatever is switched on`() {
+        val settings = UserSettings(
+            followStationPassesAutomatically = true,
+            passAlertsEnabled = true,
+            alertsEnabled = true,
+        )
+
+        assertTrue(!PassPlanner.shouldFollow(PassChannel.Bright, settings))
+    }
 }

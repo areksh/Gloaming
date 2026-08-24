@@ -46,6 +46,7 @@ import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.QuietHours
+import sh.arek.gloaming.work.PassAlarm
 import sh.arek.gloaming.work.PollAlarm
 import sh.arek.gloaming.work.StormService
 
@@ -328,6 +329,16 @@ private fun GloamingApp() {
                 onPassAlertsChange = {
                     settings = settings.copy(passAlertsEnabled = it)
                     BootAware.saveSettings(context, settings)
+                },
+                // Turning it off drops whatever pass is queued. There is one
+                // slot and it carries no record of how it was filled, so this
+                // also drops a pass followed by hand - which is the right way
+                // round to be wrong: somebody who has just said they do not
+                // want this should not have a tracker start anyway.
+                onFollowStationChange = {
+                    settings = settings.copy(followStationPassesAutomatically = it)
+                    BootAware.saveSettings(context, settings)
+                    if (!it) PassAlarm.cancel(context)
                 },
                 // Optimistic, then corrected. The service reports itself
                 // running from its own thread a moment later, and a switch that

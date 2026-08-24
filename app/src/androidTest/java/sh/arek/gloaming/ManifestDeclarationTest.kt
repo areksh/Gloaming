@@ -106,24 +106,35 @@ class ManifestDeclarationTest {
     }
 
     /**
-     * Both receivers must survive a reboot into the locked state, which is the
-     * entire point of the before-unlock work.
+     * Every receiver is named, so one cannot appear without somebody deciding
+     * whether it needs to survive a locked boot.
+     *
+     * The scheduling receivers must: a poll before first unlock is the entire
+     * point of the before-unlock work. The two pass receivers must not, and the
+     * asymmetry is deliberate rather than an omission - both lead to a
+     * foreground service, which cannot be started before the device has been
+     * unlocked once, so being delivered early would produce a crash where there
+     * is currently nothing at all.
      */
     @Test
-    fun schedulingReceiversAreDirectBootAware() {
-        val receivers = context.packageManager.getPackageInfo(
+    fun everyReceiverHasDecidedAboutALockedBoot() {
+        val ours = context.packageManager.getPackageInfo(
             context.packageName,
             PackageManager.GET_RECEIVERS,
         ).receivers.orEmpty()
+            .filter { it.name.startsWith("sh.arek.gloaming") }
+            .associate { it.name to it.directBootAware }
 
-        // The poll receiver, the boot receiver and the widget. The count is
-        // asserted so a receiver cannot appear without somebody deciding
-        // whether it needs to survive a locked boot.
-        val ours = receivers.filter { it.name.startsWith("sh.arek.gloaming") }
-        assertEquals(3, ours.size)
-        for (receiver in ours) {
-            assertTrue("${receiver.name} is not directBootAware", receiver.directBootAware)
-        }
+        assertEquals(
+            mapOf(
+                "sh.arek.gloaming.work.PollReceiver" to true,
+                "sh.arek.gloaming.work.BootReceiver" to true,
+                "sh.arek.gloaming.widget.AuroraWidget" to true,
+                "sh.arek.gloaming.work.PassReceiver" to false,
+                "sh.arek.gloaming.work.FollowPassReceiver" to false,
+            ),
+            ours,
+        )
     }
 
     /**
