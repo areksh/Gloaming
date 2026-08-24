@@ -117,8 +117,14 @@ In the Cloudflare dashboard: **R2** > **API** > **Manage API tokens** >
 - Scope it to the `gloaming-data` bucket specifically, not the whole account
 - TTL: whatever you are willing to rotate
 
-You get an **Access Key ID**, a **Secret Access Key** (shown once), and your
-account ID is in the R2 endpoint URL it displays. Take all three.
+You get an **Access Key ID**, a **Secret Access Key** (shown once), and an
+endpoint URL of the form `https://<id>.r2.cloudflarestorage.com`.
+
+**`R2_ACCOUNT_ID` is that `<id>` on its own** - the 32 hex characters before
+`.r2`, with no scheme and no trailing path. It is your Cloudflare account ID,
+the same one `wrangler whoami` prints. The endpoint is assembled from it, so
+pasting the whole URL builds a nonsense hostname; the fetcher checks the format
+and says so rather than letting you find out from a DNS error.
 
 The token needs object read and write, not admin: this reads the breaker flag
 and the health record and writes those plus `sats.json`. It cannot create or

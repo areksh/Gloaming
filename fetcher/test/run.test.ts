@@ -214,6 +214,30 @@ describe("run", () => {
   });
 
   /**
+   * A run can fail *because* R2 is unreachable, in which case writing the
+   * health record fails too. The original problem is the one a human needs to
+   * read; losing it behind a complaint about bookkeeping would send them
+   * looking in the wrong place.
+   */
+  it("still reports the original failure when it cannot record it", async () => {
+    const broken: ObjectStore = {
+      get: async () => {
+        throw new Error("R2 GET returned 400");
+      },
+      put: async () => {
+        throw new Error("R2 PUT returned 400");
+      },
+    };
+    const net = network(200, groups);
+
+    const result = await run(broken, net.alerting, config, now);
+
+    expect(result.published).toBe(false);
+    expect(result.error).toContain("R2 GET returned 400");
+    expect(result.error).toContain("could not be written either");
+  });
+
+  /**
    * A refused connection is not a response, so it is not the signal the policy
    * is about. A transient network fault must not need a human before elements
    * can refresh again.

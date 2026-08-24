@@ -76,22 +76,38 @@ export async function run(
     return { published: true, satellites: document.satellites.length };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const transition = await recordOutcome(
-      store,
-      CELESTRAK_SOURCE,
-      { ok: false, error: message },
-      now(),
-    );
-    // Only on the edge into failure. A source down for a day would otherwise
-    // produce twelve identical alerts and train the maintainer to ignore them.
-    // The breaker sends its own push when it trips, which says a different
-    // thing: what CelesTrak actually returned.
-    if (transition === "failed") {
-      await notifyMaintainer(alerting, {
-        title: `Gloaming: ${CELESTRAK_SOURCE} is failing`,
-        body: message,
-      });
+
+    // Recording the failure can itself fail - R2 being unreachable is one way
+    // for the run to have gone wrong in the first place. If it does, the
+    // original problem is still the one worth reporting: it is what a human
+    // needs to read, and losing it behind a complaint about the health record
+    // would send them looking in the wrong place entirely.
+    try {
+      const transition = await recordOutcome(
+        store,
+        CELESTRAK_SOURCE,
+        { ok: false, error: message },
+        now(),
+      );
+      // Only on the edge into failure. A source down for a day would otherwise
+      // produce twelve identical alerts and train the maintainer to ignore
+      // them. The breaker sends its own push when it trips, which says a
+      // different thing: what CelesTrak actually returned.
+      if (transition === "failed") {
+        await notifyMaintainer(alerting, {
+          title: `Gloaming: ${CELESTRAK_SOURCE} is failing`,
+          body: message,
+        });
+      }
+    } catch (recording) {
+      const also = recording instanceof Error ? recording.message : String(recording);
+      return {
+        published: false,
+        satellites: 0,
+        error: `${message} (the health record could not be written either: ${also})`,
+      };
     }
+
     return { published: false, satellites: 0, error: message };
   }
 }

@@ -17,6 +17,24 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * The account ID, checked to be an account ID.
+ *
+ * The dashboard shows it inside an endpoint URL, so the obvious thing to paste
+ * is the whole URL - which would be assembled into a nonsense hostname and fail
+ * somewhere much less obvious than here.
+ */
+function accountId(): string {
+  const value = required("R2_ACCOUNT_ID");
+  if (!/^[0-9a-f]{32}$/.test(value)) {
+    throw new Error(
+      `R2_ACCOUNT_ID should be the 32-character id on its own, not the whole ` +
+        `endpoint URL. From "https://<id>.r2.cloudflarestorage.com" take only <id>. Got: "${value}"`,
+    );
+  }
+  return value;
+}
+
 function optional(name: string, fallback: string): string {
   const value = process.env[name];
   return value === undefined || value === "" ? fallback : value;
@@ -24,7 +42,7 @@ function optional(name: string, fallback: string): string {
 
 async function main(): Promise<number> {
   const store = new R2Store({
-    accountId: required("R2_ACCOUNT_ID"),
+    accountId: accountId(),
     accessKeyId: required("R2_ACCESS_KEY_ID"),
     secretAccessKey: required("R2_SECRET_ACCESS_KEY"),
     bucket: optional("R2_BUCKET", "gloaming-data"),
