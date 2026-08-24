@@ -29,6 +29,7 @@ import sh.arek.gloaming.satellites.LivePass
 import sh.arek.gloaming.satellites.LiveTracker
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
+import sh.arek.gloaming.satellites.TrainFinder
 
 /**
  * Follows one pass, second by second, while it happens.
@@ -121,20 +122,31 @@ class PassService : Service() {
         }
 
         val at = System.currentTimeMillis()
-        val pass = LivePass.chosen(
-            passes = PassFinder.passes(
+        // Back a little, so a pass whose rise has just slipped past is still
+        // found rather than missed by a few seconds.
+        val from = at - SEARCH_BACK_MILLIS
+        val until = at + SEARCH_AHEAD_MILLIS
+
+        // A train is followed as a train. Rebuilt from the lead alone it would
+        // announce itself gone the moment the front of it set, with the rest
+        // still coming - which is the one thing somebody watching a train is
+        // waiting for.
+        val candidates = if (document.trains.any { it.lead == catalogue }) {
+            TrainFinder.passes(document, latitude, longitude, from, until, FOLLOWING_BAR)
+                .filter { it.catalogue == catalogue }
+        } else {
+            PassFinder.passes(
                 elements = elements,
                 latitude = latitude,
                 longitude = longitude,
-                // Back a little, so a pass whose rise has just slipped past is
-                // still found rather than missed by a few seconds.
-                fromMillis = at - SEARCH_BACK_MILLIS,
-                untilMillis = at + SEARCH_AHEAD_MILLIS,
-                // Whatever the user was told about, they are now outside
-                // looking for it. Re-applying the "worth mentioning" bar could
-                // only leave them there with nothing.
-                minimumPeakElevation = 0.0,
-            ),
+                fromMillis = from,
+                untilMillis = until,
+                minimumPeakElevation = FOLLOWING_BAR,
+            )
+        }
+
+        val pass = LivePass.chosen(
+            passes = candidates,
             expectedPeakAt = expectedPeakAt,
             tolerance = PassPlanner.SAME_PASS_TOLERANCE_MILLIS,
         )
@@ -272,6 +284,15 @@ class PassService : Service() {
         private const val TAG = "PassService"
         private const val WAKE_LOCK_TAG = "gloaming:pass"
         private const val ACTION_STOP = "sh.arek.gloaming.STOP_PASS"
+
+        /**
+         * No bar at all once a pass is being followed.
+         *
+         * Whatever the user was told about, they are now outside looking for
+         * it. Re-applying the "worth mentioning" test at this point could only
+         * leave them there with nothing.
+         */
+        private const val FOLLOWING_BAR = 0.0
 
         /** How often the line is rewritten. A countdown that jumps is not a countdown. */
         private const val TICK_MILLIS = 1000L

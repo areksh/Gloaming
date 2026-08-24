@@ -88,6 +88,27 @@ class TrainFinderTest {
         assertEquals(leadPass.riseAzimuth, train.riseAzimuth, 1e-9)
     }
 
+    /**
+     * The live tracker drops the "worth mentioning" bar when it follows a pass:
+     * whatever the user was told about, they are now outside looking for it,
+     * and re-applying the bar could only leave them there with nothing. That
+     * has to reach a train as well as a single satellite.
+     */
+    @Test
+    fun `will find a low train when the caller drops the bar`() {
+        val everything = TrainFinder.passes(
+            document,
+            latitude,
+            longitude,
+            from,
+            until,
+            minimumPeakElevation = 0.0,
+        )
+
+        assertTrue(everything.size > found().size)
+        assertTrue(everything.all { it.channel == PassChannel.Trains })
+    }
+
     @Test
     fun `finds nothing for a document with no trains in it`() {
         assertEquals(emptyList<SatellitePass>(), found(document.copy(trains = emptyList())))

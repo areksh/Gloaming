@@ -27,13 +27,22 @@ object TrainFinder {
      */
     private const val SAME_CROSSING_MILLIS: Long = 15 * 60 * 1000L
 
-    /** The trains in [document] that cross the sky at [latitude], [longitude]. */
+    /**
+     * The trains in [document] that cross the sky at [latitude], [longitude].
+     *
+     * [minimumPeakElevation] is passed straight through, so the live tracker
+     * can drop the bar the way it does for a single satellite: whoever is
+     * following a train is already outside looking for it, and re-applying the
+     * "worth mentioning" test at that point could only leave them there with
+     * nothing.
+     */
     fun passes(
         document: SatellitesDocument,
         latitude: Double,
         longitude: Double,
         fromMillis: Long,
         untilMillis: Long,
+        minimumPeakElevation: Double = PassFinder.MINIMUM_PEAK_ELEVATION_DEGREES,
     ): List<SatellitePass> {
         if (document.trains.isEmpty()) return emptyList()
         val elements = document.satellites.associateBy { it.catalogue }
@@ -46,7 +55,16 @@ object TrainFinder {
             if (lead == null || tail == null) {
                 emptyList()
             } else {
-                join(train, lead, tail, latitude, longitude, fromMillis, untilMillis)
+                join(
+                    train,
+                    lead,
+                    tail,
+                    latitude,
+                    longitude,
+                    fromMillis,
+                    untilMillis,
+                    minimumPeakElevation,
+                )
             }
         }
     }
@@ -59,6 +77,7 @@ object TrainFinder {
         longitude: Double,
         fromMillis: Long,
         untilMillis: Long,
+        minimumPeakElevation: Double,
     ): List<SatellitePass> {
         val find = { elements: SatelliteElements ->
             PassFinder.passes(
@@ -70,6 +89,7 @@ object TrainFinder {
                 // inside it is not cut in half by where the search happened to
                 // stop.
                 untilMillis = untilMillis + SAME_CROSSING_MILLIS,
+                minimumPeakElevation = minimumPeakElevation,
                 channel = PassChannel.Trains,
             )
         }
