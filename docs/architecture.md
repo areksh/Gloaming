@@ -585,6 +585,41 @@ errors; the sourcing document is strong.
     announced twice: once as a train, and again minutes later as an
     unremarkable bright satellite.
 
+16. **The circuit breaker, tripped deliberately and end to end. 2026-08-24.**
+    It had never been fired on purpose - only by CelesTrak's own 522s, which is
+    not the same thing, because a real outage does not let you check what
+    happens on the *second* attempt. Pointed at a 404 that is deliberately not
+    CelesTrak (`sky.arek.sh/v1/deliberately-not-there`) through a `/run` systemd
+    drop-in, which cannot survive a reboot and so cannot quietly disable the
+    fetch if it is forgotten. A deliberate bad request *to* CelesTrak is
+    precisely the behaviour their policy warns about, and the breaker cares
+    about the response code rather than the host, so there was no need for one.
+
+    All five behaviours confirmed. The run exits 1 and logs the code. The
+    breaker object records `status: 404`, the URL and `tripped_at`. `sats.json`
+    goes on serving its last-good copy through the CDN with its original
+    `last-modified` and byte count. `health.json` shows `celestrak` failing
+    while the other three stay `ok`.
+
+    The one that matters most is the second attempt. Started again three
+    minutes later, the service **refused without querying anything**: it quoted
+    the *original* `tripped_at` rather than a new one, and `tripped_at` in R2
+    was unchanged. `consecutive_failures` went 1 to 2 and `last_error_at`
+    moved, so the refusal is recorded without a request going out, and no
+    second push was sent. That is what the policy actually asks for - stop, and
+    tell a human - rather than backoff dressed up as compliance.
+
+    Two pushes arrive on the first trip and this is deliberate rather than a
+    duplicate: the breaker sends one saying what the response was, and the
+    health record sends another when the source crosses into failing. They say
+    different things. Nothing further is sent while it stays tripped.
+
+    One incidental confirmation from the journal: a manual run at 16:24:19Z was
+    followed by an unattended one at 18:27:33Z, two hours and three minutes
+    later. `OnUnitActiveSec` spaces from the last run rather than from the
+    clock, which is the property that keeps the two-hourly cap, and it had been
+    reasoned about twice and corrected twice without ever being watched.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
