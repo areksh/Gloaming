@@ -35,6 +35,8 @@ const row = (name: string, catalogue: number) =>
 const config = {
   stationsUrl: "https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=CSV",
   visualUrl: "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
+  starlinkUrl:
+    "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=csv",
   userAgent: "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
 };
 
@@ -60,7 +62,11 @@ function network(status: number, bodies?: Record<string, string>) {
       redirect: init?.redirect,
       agent: new Headers(init?.headers).get("User-Agent") ?? undefined,
     });
-    const group = target.includes("stations") ? "stations" : "visual";
+    const group = target.includes("supplemental")
+      ? "starlink"
+      : target.includes("stations")
+        ? "stations"
+        : "visual";
     return new Response(bodies?.[group] ?? "", { status });
   }) as unknown as typeof fetch;
 
@@ -71,9 +77,20 @@ function network(status: number, bodies?: Record<string, string>) {
   };
 }
 
+/** One Starlink of a launch: low, and at a stated place along the orbit. */
+const starlinkRow = (catalogue: number, launch: string, meanAnomaly: number, meanMotion = 15.9) =>
+  `STARLINK-${catalogue},${launch},2026-08-22T01:10:41.579040,${meanMotion},.00010000,53.0000,` +
+  `120.0000,90.0000,${meanAnomaly.toFixed(4)},0,U,${catalogue},999,58196,.16914294E-3,.9068E-4,0`;
+
+/** Eight satellites of one launch, bunched along nine degrees of the orbit. */
+const train = Array.from({ length: 8 }, (_, i) =>
+  starlinkRow(101000 + i, `2026-123${String.fromCharCode(65 + i)}`, 100 + i * 1.3),
+).join("\n");
+
 const groups = {
   stations: `${HEADER}\n${row("ISS (ZARYA)", 25544)}\n`,
   visual: `${HEADER}\n${row("ISS (ZARYA)", 25544)}\n${row("COSMOS 1220", 12345)}\n`,
+  starlink: `${HEADER}\n${train}\n`,
 };
 
 const health = async (store: MemoryStore): Promise<SourceHealth> =>
@@ -91,10 +108,11 @@ describe("run", () => {
 
     const result = await run(store, net.alerting, config, now);
 
-    expect(result).toEqual({ published: true, satellites: 2 });
+    expect(result).toEqual({ published: true, satellites: 4, trains: 1 });
     const published = JSON.parse(store.objects.get("v1/sats.json")!.body);
+    // The two groups, plus the two ends of the train and nothing between them.
     expect(published.satellites.map((s: { catalogue: number }) => s.catalogue)).toEqual([
-      12345, 25544,
+      12345, 25544, 101000, 101007,
     ]);
     expect(published.updated).toBe("2026-08-22T18:00:00.000Z");
   });
@@ -119,7 +137,7 @@ describe("run", () => {
 
     await run(store, net.alerting, config, now);
 
-    expect(net.requests).toHaveLength(2);
+    expect(net.requests).toHaveLength(3);
     expect(net.requests.every((r) => r.agent === config.userAgent)).toBe(true);
     expect(net.requests.every((r) => r.redirect === "manual")).toBe(true);
   });
@@ -264,5 +282,51 @@ describe("run", () => {
     expect(result.error).toContain("ECONNREFUSED");
     expect(await readBreaker(store, CELESTRAK_SOURCE)).toBeNull();
     expect((await health(store)).state).toBe("failing");
+  });
+
+  /**
+   * The supplemental list is asked for last, so a breaker already tripped by
+   * one of the core groups stops it before it goes on the wire.
+   */
+  it("does not reach the supplemental list once the breaker has tripped", async () => {
+    const net = network(404, groups);
+
+    await run(store, net.alerting, config, now);
+
+    expect(net.requests.some((r) => r.url.includes("supplemental"))).toBe(false);
+  });
+
+  /**
+   * Trains are an addition; the elements the app needs to work are not. A
+   * supplemental document whose format has moved should cost this cycle its
+   * trains and nothing else - throwing would take the station down with it.
+   */
+  it("still publishes the elements when the supplemental list cannot be read", async () => {
+    const net = network(200, { ...groups, starlink: "nothing like a CSV" });
+
+    const result = await run(store, net.alerting, config, now);
+
+    expect(result).toEqual({ published: true, satellites: 2, trains: 0 });
+    expect((await health(store)).state).toBe("ok");
+  });
+
+  /**
+   * The reason detection happens here at all. The Starlink group runs to
+   * thousands of objects, and publishing it whole would put megabytes on every
+   * device on every fetch; only the two ends of each train are needed to say
+   * when the front rises and the back is clear.
+   */
+  it("publishes the two ends of a train and nothing in between", async () => {
+    const net = network(200, groups);
+
+    await run(store, net.alerting, config, now);
+
+    const published = JSON.parse(store.objects.get("v1/sats.json")!.body);
+    expect(published.trains).toEqual([
+      { launch: "2026-123", members: 8, lead: 101007, tail: 101000 },
+    ]);
+    // The six between the ends are not published, and neither is the rest of
+    // the group. Well inside a few kilobytes for the whole document.
+    expect(store.objects.get("v1/sats.json")!.body.length).toBeLessThan(4096);
   });
 });

@@ -24,6 +24,8 @@
  * plausible elements for the wrong orbit.
  */
 
+import type { StarlinkTrain } from "./trains";
+
 /** `sats.json`'s shape. Bump if a field's meaning changes. */
 export const SATELLITES_SCHEMA = 1;
 
@@ -63,10 +65,25 @@ export interface SatelliteElements {
   magnitude: number | null;
 }
 
+/**
+ * A satellite as read from a CelesTrak document, before publishing.
+ *
+ * Carries the international designator, which `sats.json` does not: it is
+ * needed to tell which satellites went up on the same launch, and that question
+ * is answered here rather than on the device. Publishing it for every satellite
+ * would cost every install bytes it has no use for.
+ */
+export interface ParsedSatellite extends SatelliteElements {
+  /** For example `2026-123A`. Null when the document has no such column. */
+  objectId: string | null;
+}
+
 export interface SatellitesDocument {
   schema: number;
   updated: string;
   satellites: SatelliteElements[];
+  /** The launches still bunched into a visible train. Empty most of the time. */
+  trains: StarlinkTrain[];
 }
 
 /**
@@ -82,6 +99,15 @@ export interface SatellitesDocument {
 export const STANDARD_MAGNITUDES: Record<number, number> = {
   25544: -1.8, // ISS (ZARYA)
 };
+
+/**
+ * Read when present, tolerated when absent.
+ *
+ * `OBJECT_ID` is in every GP document, but SupGP is assembled from what an
+ * owner supplies and its columns are not guaranteed to match. Missing it costs
+ * train detection and nothing else, so it must not cost the elements as well.
+ */
+const OPTIONAL_COLUMNS = ["OBJECT_ID"] as const;
 
 /** Every column the propagator needs. A document missing one is not usable. */
 const COLUMNS = [
@@ -171,7 +197,7 @@ export function packEpoch(iso: string): { epoch: number; millis: number } {
  * to say why. Failing loudly alerts a human while `sats.json` keeps serving its
  * last good copy.
  */
-export function parseOmmCsv(csv: string): SatelliteElements[] {
+export function parseOmmCsv(csv: string): ParsedSatellite[] {
   const lines = csv.split("\n").map((line) => line.replace(/\r$/, "")).filter((line) => line !== "");
   const header = lines.shift();
   if (header === undefined) {
@@ -186,6 +212,11 @@ export function parseOmmCsv(csv: string): SatelliteElements[] {
       throw new Error(`CelesTrak document has no ${column} column`);
     }
     index[column] = position;
+  }
+  const optional: Record<string, number> = {};
+  for (const column of OPTIONAL_COLUMNS) {
+    const position = names.indexOf(column);
+    if (position !== -1) optional[column] = position;
   }
 
   const satellites = lines.map((line, row) => {
@@ -207,10 +238,18 @@ export function parseOmmCsv(csv: string): SatelliteElements[] {
       return parsed;
     };
 
+    const designator = (): string | null => {
+      const position = optional["OBJECT_ID"];
+      if (position === undefined) return null;
+      const raw = fields[position]?.trim();
+      return raw === undefined || raw === "" ? null : raw;
+    };
+
     const { epoch, millis } = packEpoch(value("EPOCH"));
     return {
       name: value("OBJECT_NAME"),
       catalogue: number("NORAD_CAT_ID"),
+      objectId: designator(),
       epoch,
       epoch_millis: millis,
       mean_motion: number("MEAN_MOTION"),
@@ -222,7 +261,7 @@ export function parseOmmCsv(csv: string): SatelliteElements[] {
       bstar: number("BSTAR"),
       mean_motion_dot: number("MEAN_MOTION_DOT"),
       magnitude: null,
-    } satisfies SatelliteElements;
+    } satisfies ParsedSatellite;
   });
 
   if (satellites.length === 0) {
@@ -240,14 +279,18 @@ export function parseOmmCsv(csv: string): SatelliteElements[] {
  * kept. Sorting by catalogue number keeps the published document stable.
  */
 export function buildSatellites(
-  parsed: SatelliteElements[],
+  parsed: ParsedSatellite[],
+  trains: StarlinkTrain[],
   now: Date,
 ): SatellitesDocument {
   const unique = new Map<number, SatelliteElements>();
   for (const satellite of parsed) {
     if (!unique.has(satellite.catalogue)) {
+      // The designator is dropped rather than published: it answered its one
+      // question upstream, and every byte here is multiplied by every install.
+      const { objectId: _designator, ...elements } = satellite;
       unique.set(satellite.catalogue, {
-        ...satellite,
+        ...elements,
         magnitude: STANDARD_MAGNITUDES[satellite.catalogue] ?? null,
       });
     }
@@ -257,5 +300,6 @@ export function buildSatellites(
     schema: SATELLITES_SCHEMA,
     updated: now.toISOString(),
     satellites: [...unique.values()].sort((a, b) => a.catalogue - b.catalogue),
+    trains,
   };
 }

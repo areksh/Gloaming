@@ -66,13 +66,23 @@ async function main(): Promise<number> {
       "CELESTRAK_VISUAL_URL",
       "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
     ),
+    // The supplemental endpoint, not gp.php. Sec. 3 records that the Starlink
+    // list is under enforcement for GP and SupGP alike, so the same two-hourly
+    // cap and the same breaker cover this as cover the other two.
+    starlinkUrl: optional(
+      "CELESTRAK_STARLINK_URL",
+      "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=csv",
+    ),
     userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"),
   };
 
   const result = await run(store, alerting, config);
 
   if (result.published) {
-    console.log(`published sats.json with ${result.satellites} satellites`);
+    console.log(
+      `published sats.json with ${result.satellites} satellites ` +
+        `and ${result.trains} Starlink train(s)`,
+    );
     return 0;
   }
   // stderr and a non-zero exit, so `systemctl status` and journalctl both show

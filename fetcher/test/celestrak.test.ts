@@ -130,20 +130,21 @@ describe("buildSatellites", () => {
     bstar: 0.000031985,
     mean_motion_dot: 0.00001288,
     magnitude: null,
+    objectId: "1998-067A",
   };
-  const other = { ...iss, name: "COSMOS 1220", catalogue: 12345 };
+  const other = { ...iss, name: "COSMOS 1220", catalogue: 12345, objectId: "1980-089A" };
 
   // The ISS is in both `stations` and `visual`, so the two groups always
   // overlap.
   it("keeps one entry per catalogue number", () => {
-    const document = buildSatellites([iss, other, iss], new Date("2026-08-22T12:00:00Z"));
+    const document = buildSatellites([iss, other, iss], [], new Date("2026-08-22T12:00:00Z"));
 
     expect(document.satellites).toHaveLength(2);
     expect(document.updated).toBe("2026-08-22T12:00:00.000Z");
   });
 
   it("orders by catalogue number so the document is stable", () => {
-    const document = buildSatellites([iss, other], new Date("2026-08-22T12:00:00Z"));
+    const document = buildSatellites([iss, other], [], new Date("2026-08-22T12:00:00Z"));
 
     expect(document.satellites.map((s) => s.catalogue)).toEqual([12345, 25544]);
   });
@@ -151,9 +152,20 @@ describe("buildSatellites", () => {
   // A number nobody has stood behind is worse than no number: the app
   // describes passes qualitatively and never prints a magnitude it guessed.
   it("attaches a standard magnitude only where one is known", () => {
-    const document = buildSatellites([iss, other], new Date("2026-08-22T12:00:00Z"));
+    const document = buildSatellites([iss, other], [], new Date("2026-08-22T12:00:00Z"));
 
     expect(document.satellites.find((s) => s.catalogue === 25544)?.magnitude).toBe(-1.8);
     expect(document.satellites.find((s) => s.catalogue === 12345)?.magnitude).toBeNull();
+  });
+
+  /**
+   * The designator answers one question - which launch a satellite came up on -
+   * and it is answered here. Publishing it would put a dozen bytes it has no
+   * use for on every install of the app.
+   */
+  it("does not publish the international designator", () => {
+    const document = buildSatellites([iss], [], new Date("2026-08-22T12:00:00Z"));
+
+    expect(document.satellites[0]).not.toHaveProperty("objectId");
   });
 });
