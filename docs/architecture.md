@@ -487,6 +487,26 @@ errors; the sourcing document is strong.
     identifies the caller by account rather than by IP but restricts
     redistribution in a way CelesTrak's policy notably does not.
 
+12. **Pass alerts have no rate limit, and the volume is much higher than the
+    design assumed. Found 2026-08-24, unresolved.** Running the first live
+    `sats.json` through the app for Edinburgh gives **40 visible passes above
+    30 degrees in a six-hour window** - all classic bright objects, mostly
+    rocket bodies. The planner announces the next visible pass, sleeps until it
+    is over, then considers the one behind it, so on a clear night that is
+    potentially dozens of notifications.
+
+    Sec. 9.2 already has the answer and it was simply not applied to passes: a
+    **minimum re-alert interval, per channel, default six hours**. Quiet hours,
+    the cloud gate and one-alert-per-pass are all implemented; this one gate is
+    not. With it, `bright-satellites` would settle to one or two a night and
+    `iss-passes` would keep its own budget, which is the point of their being
+    separate channels.
+
+    The interval itself is calibration - six hours is the documented default
+    rather than a measured figure, and this is the sort of number Sec. 15 says
+    wants a season of real nights. The mechanism is not calibration, and should
+    go in before anyone is asked to live with the notifications.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and

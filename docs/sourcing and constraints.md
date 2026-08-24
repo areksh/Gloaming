@@ -284,6 +284,12 @@ Confirmed directly by Dr Kelso, 2026-07:
 
 - **The `visual` group is not yet using 6-digit catalog numbers.** Phase 3 pass prediction
   for the classic bright objects is not in immediate jeopardy.
+  - **No longer true, and the open question in Sec. 15 is closed.** The first live fetch,
+    2026-08-24, returned 176 objects of which one - `SOYUZ-MS 29`, catalogue **100057** -
+    carries a 6-digit number. It took seven weeks from the threshold being crossed, not
+    the indefinite lag the group's curation might have implied. A TLE-parsing app would be
+    blind to a crewed Soyuz in the `visual` group; this one is not, because it never
+    parses TLE.
 - **Starlink is**, once 18 SDS releases data for the launches since the threshold was
   crossed. Four launches and nearly 100 satellites went up in the first weeks alone.
 - **AST SpaceMobile is.** This is the one that matters most for this app.
