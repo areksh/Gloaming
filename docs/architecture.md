@@ -86,13 +86,14 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   `celestrak` is still listed among the Worker's sources so that the health
   record the fetcher writes keeps appearing in `health.json`.
 - **OMM normalisation** (in the fetcher, not the Worker). CelesTrak publishes GP
-  data as OMM in CSV, never TLE
-  for the 6-digit catalogue numbers issued since July 2026. The Worker parses it
-  and publishes `sats.json` with fields mapping one-for-one onto the app's
-  element type, including the epoch already converted from ISO-8601 to the
-  packed `YYDDD.dddddd` every SGP4 implementation takes. Done here rather than
-  on the device because the column mapping and the epoch conversion are the two
-  things most likely to be wrong, and because `minSdk 24` predates `java.time`.
+  data as OMM in CSV, never TLE for the 6-digit catalogue numbers issued since
+  July 2026 - and the `visual` group acquired its first one, `SOYUZ-MS 29`, by
+  2026-08-24. The fetcher parses it and publishes `sats.json` with fields
+  mapping one-for-one onto the app's element type, including the epoch already
+  converted from ISO-8601 to the packed `YYDDD.dddddd` every SGP4
+  implementation takes. Done off the device because the column mapping and the
+  epoch conversion are the two things most likely to be wrong, and because
+  `minSdk 24` predates `java.time`.
   Columns are read **by name from the header row**, never by position: reading a
   reordered document by index would not fail, it would publish plausible
   elements for the wrong orbit.
