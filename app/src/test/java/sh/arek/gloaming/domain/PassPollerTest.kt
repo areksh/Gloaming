@@ -16,6 +16,7 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.HttpResult
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatelliteElements
@@ -84,14 +85,9 @@ class PassPollerTest {
 
     private class Notifier : PassNotifier {
         val announced = mutableListOf<SatellitePass>()
-        val channels = mutableListOf<PassChannel>()
-        override fun notifyPass(
-            pass: SatellitePass,
-            description: PassDescription,
-            channel: PassChannel,
-        ) {
+        val channels: List<PassChannel> get() = announced.map { it.channel }
+        override fun notifyPass(pass: SatellitePass, description: PassDescription) {
             announced += pass
-            channels += channel
         }
     }
 

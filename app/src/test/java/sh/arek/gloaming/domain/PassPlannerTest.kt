@@ -8,6 +8,7 @@ import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
 
 /**
@@ -30,9 +31,11 @@ class PassPlannerTest {
         leavesShadowAt: Long? = null,
         elevation: Double = 60.0,
         rangeKm: Double = 450.0,
+        channel: PassChannel = PassChannel.of(catalogue),
     ) = SatellitePass(
         catalogue = catalogue,
         name = "ISS (ZARYA)",
+        channel = channel,
         risesAt = peaksAt - 4 * 60_000L,
         riseAzimuth = 225.0,
         peaksAt = peaksAt,

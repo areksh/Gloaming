@@ -13,8 +13,8 @@ import java.util.Date
 import java.util.Locale
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
-import sh.arek.gloaming.domain.PassChannel
 import sh.arek.gloaming.domain.PassNotifier
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.work.FollowPassReceiver
@@ -33,11 +33,8 @@ import sh.arek.gloaming.work.PassAlarm
  */
 class AndroidPassNotifier(private val context: Context) : PassNotifier {
 
-    override fun notifyPass(
-        pass: SatellitePass,
-        description: PassDescription,
-        channel: PassChannel,
-    ) {
+    override fun notifyPass(pass: SatellitePass, description: PassDescription) {
+        val channel = pass.channel
         ensureChannel(channel)
 
         val clock = SimpleDateFormat("HH:mm", Locale.getDefault())

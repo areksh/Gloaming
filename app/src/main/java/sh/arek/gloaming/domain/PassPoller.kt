@@ -8,6 +8,7 @@ import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
@@ -15,7 +16,7 @@ import sh.arek.gloaming.satellites.SatellitesDocument
 
 /** Posts the pass notification. Local, like everything else the app announces. */
 interface PassNotifier {
-    fun notifyPass(pass: SatellitePass, description: PassDescription, channel: PassChannel)
+    fun notifyPass(pass: SatellitePass, description: PassDescription)
 }
 
 /**
@@ -119,12 +120,11 @@ class PassPoller(
         )
 
         val announced = decision as? PassPlanner.Decision.Announce
-        val channel = announced?.let { PassChannel.of(it.pass.catalogue) }
+        val channel = announced?.pass?.channel
         announced?.let { (pass) ->
             notifier.notifyPass(
                 pass = pass,
                 description = PassDescription.of(pass, observerIsDark = true),
-                channel = PassChannel.of(pass.catalogue),
             )
         }
 

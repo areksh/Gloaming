@@ -27,6 +27,7 @@ class PassDescriptionTest {
     ) = SatellitePass(
         catalogue = 25544,
         name = "ISS (ZARYA)",
+        channel = PassChannel.Iss,
         risesAt = 1_000_000L,
         riseAzimuth = riseAzimuth,
         peaksAt = 1_200_000L,

@@ -255,6 +255,34 @@ class PassFinderTest {
         }
     }
 
+    /**
+     * Every pass says which channel it belongs to, decided once when it is
+     * built rather than re-derived from the catalogue number at each point of
+     * use - which is what lets a caller say something the number cannot.
+     */
+    @Test
+    fun `stamps each pass with its channel`() {
+        val passes = PassFinder.passes(iss, latitude, longitude, from, until)
+
+        assertTrue(passes.isNotEmpty())
+        assertTrue(passes.all { it.channel == PassChannel.Iss })
+    }
+
+    @Test
+    fun `lets the caller say which channel, for what a catalogue number cannot`() {
+        val passes = PassFinder.passes(
+            iss,
+            latitude,
+            longitude,
+            from,
+            until,
+            channel = PassChannel.Bright,
+        )
+
+        assertTrue(passes.isNotEmpty())
+        assertTrue(passes.all { it.channel == PassChannel.Bright })
+    }
+
     private fun eclipsedAt(
         millis: Long,
         atLatitude: Double = latitude,

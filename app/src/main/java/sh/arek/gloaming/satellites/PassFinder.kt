@@ -14,6 +14,15 @@ import com.rtbishop.look4sat.core.domain.predict.RAD2DEG
 data class SatellitePass(
     val catalogue: Int,
     val name: String,
+    /**
+     * Which channel this pass is announced on.
+     *
+     * Carried rather than derived from [catalogue] at the point of use, because
+     * what a satellite is can depend on the document it arrived in: a Starlink
+     * still bunched into a train is a different thing to announce from the same
+     * object a fortnight later, and its catalogue number does not know that.
+     */
+    val channel: PassChannel,
     val risesAt: Long,
     val riseAzimuth: Double,
     val peaksAt: Long,
@@ -111,6 +120,7 @@ object PassFinder {
         fromMillis: Long,
         untilMillis: Long,
         minimumPeakElevation: Double = MINIMUM_PEAK_ELEVATION_DEGREES,
+        channel: PassChannel = PassChannel.of(elements.catalogue),
     ): List<SatellitePass> {
         val observer = GeoPos(latitude, longitude, 0.0)
         val orbital = elements.toOrbitalData().getObject()
@@ -141,7 +151,7 @@ object PassFinder {
                     continue
                 }
 
-                val pass = describe(orbital, observer, elements, risesAt, setsAt)
+                val pass = describe(orbital, observer, elements, channel, risesAt, setsAt)
                 if (pass.peakElevation >= minimumPeakElevation) found += pass
 
                 // Resume past the pass rather than walking back through it.
@@ -223,6 +233,7 @@ object PassFinder {
         orbital: OrbitalObject,
         observer: GeoPos,
         elements: SatelliteElements,
+        channel: PassChannel,
         risesAt: Long,
         setsAt: Long,
     ): SatellitePass {
@@ -237,6 +248,7 @@ object PassFinder {
         return SatellitePass(
             catalogue = elements.catalogue,
             name = elements.name,
+            channel = channel,
             risesAt = risesAt,
             riseAzimuth = rise.azimuth * RAD2DEG,
             peaksAt = peaksAt,

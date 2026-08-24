@@ -3,24 +3,10 @@ package sh.arek.gloaming.domain
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.Prominence
 import sh.arek.gloaming.satellites.SatellitePass
-
-/** Which notification channel a pass belongs to, so either can be silenced alone. */
-enum class PassChannel(val id: String) {
-    Iss("iss-passes"),
-    Bright("bright-satellites"),
-    ;
-
-    companion object {
-        /** The station has its own channel: it is the one most people want. */
-        const val ISS_CATALOGUE = 25544
-
-        fun of(catalogue: Int): PassChannel =
-            if (catalogue == ISS_CATALOGUE) Iss else Bright
-    }
-}
 
 /**
  * When to speak about a pass, and when to come back.
@@ -196,7 +182,7 @@ object PassPlanner {
                 ?.plus(intervalMillis(channel, settings))
                 ?: Long.MIN_VALUE
             val eligible = passes.filter {
-                PassChannel.of(it.catalogue) == channel &&
+                it.channel == channel &&
                     it.peaksAt > now &&
                     it.peaksAt - LEAD_MILLIS >= free
             }
