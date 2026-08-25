@@ -643,7 +643,27 @@ object SkyCalendar {
     /** Sea level throughout, on the same reasoning as [Twilight]. */
     private fun observer(latitude: Double, longitude: Double) = Observer(latitude, longitude, 0.0)
 
+    /**
+     * Where a body is from here, right now.
+     *
+     * Public because the eclipse countdown needs the same answer while it runs,
+     * and having it in two places is how the two come to disagree.
+     */
+    fun positionOf(
+        body: SkyBody,
+        latitude: Double,
+        longitude: Double,
+        atMillis: Long,
+    ): Sighting {
+        val observer = observer(latitude, longitude)
+        val time = Time.fromMillisecondsSince1970(atMillis)
+        val position = equator(bodyOf(body), time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
+        val above = horizon(time, observer, position.ra, position.dec, Refraction.Normal)
+        return Sighting(atMillis, above.altitude, above.azimuth)
+    }
+
     private fun bodyOf(body: SkyBody) = when (body) {
+        SkyBody.Sun -> Body.Sun
         SkyBody.Mercury -> Body.Mercury
         SkyBody.Venus -> Body.Venus
         SkyBody.Mars -> Body.Mars

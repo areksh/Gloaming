@@ -86,6 +86,7 @@ class GloamingTabsTest {
                 onEventAlertsChange = {},
                 onEventHeadsUpChange = {},
                 onEventLeadChange = {},
+                onEclipseFollowMaxChange = {},
                 onWatchingChange = {},
                 onWatchDurationChange = {},
                 onSave = {},

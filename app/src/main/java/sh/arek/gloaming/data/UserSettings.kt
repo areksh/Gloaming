@@ -235,6 +235,16 @@ data class UserSettings(
 
     /** How long before it starts the notice on the day goes out. */
     val eventAlertLeadMinutes: Int = DEFAULT_EVENT_LEAD_MINUTES,
+
+    /**
+     * The cap on the eclipse countdown, separate from the pass one.
+     *
+     * A pass runs under ten minutes and a total lunar eclipse runs for over
+     * three hours, so one number cannot serve both: the pass cap would cut an
+     * eclipse off before the shadow arrived, and the eclipse cap would let a
+     * bug hold a wake lock through a whole night.
+     */
+    val eclipseFollowMaxMinutes: Int = DEFAULT_ECLIPSE_FOLLOW_MAX_MINUTES,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -250,6 +260,8 @@ data class UserSettings(
     val eventHeadsUpMillis: Long get() = eventHeadsUpDays * 24L * 60L * 60L * 1000L
 
     val eventAlertLeadMillis: Long get() = eventAlertLeadMinutes * 60_000L
+
+    val eclipseFollowMaxMillis: Long get() = eclipseFollowMaxMinutes * 60_000L
 
     /** [liveFollowLeadMinutes] as the tracker uses it. */
     val liveFollowLeadMillis: Long get() = liveFollowLeadMinutes * 60_000L
@@ -336,6 +348,11 @@ data class UserSettings(
         const val DEFAULT_EVENT_LEAD_MINUTES = 60
 
         val EVENT_LEAD_CHOICES = listOf(30, 60, 120, 240)
+
+        /** Three hours: past the longest umbral lunar eclipse, short of a night. */
+        const val DEFAULT_ECLIPSE_FOLLOW_MAX_MINUTES = 180
+
+        val ECLIPSE_FOLLOW_MAX_CHOICES = listOf(60, 120, 180, 240)
 
         /**
          * Six hours between alerts on any one channel, until the user says

@@ -146,6 +146,7 @@ class ScreensTest {
                     onEventAlertsChange = { eventAlerts = it },
                     onEventHeadsUpChange = { eventHeadsUp = it },
                     onEventLeadChange = { eventLead = it },
+                    onEclipseFollowMaxChange = {},
                     onSave = {},
                 )
             }

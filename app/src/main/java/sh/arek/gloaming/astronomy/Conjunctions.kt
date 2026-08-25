@@ -268,6 +268,9 @@ object Conjunctions {
     }
 
     private fun bodyOf(body: SkyBody) = when (body) {
+        // Never reached: the sun is not in WATCHED, because two things being
+        // close to it is not a conjunction anybody can look at.
+        SkyBody.Sun -> Body.Sun
         SkyBody.Mercury -> Body.Mercury
         SkyBody.Venus -> Body.Venus
         SkyBody.Mars -> Body.Mars

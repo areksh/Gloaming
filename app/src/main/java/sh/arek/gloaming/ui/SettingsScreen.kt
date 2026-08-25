@@ -73,6 +73,7 @@ fun SettingsContent(
     onEventAlertsChange: (Boolean) -> Unit,
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
+    onEclipseFollowMaxChange: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
     LocationCard(state, onLatitudeChange, onLongitudeChange, onSave)
@@ -97,7 +98,13 @@ fun SettingsContent(
         onMinimumElevationChange,
         onLiveLeadChange,
     )
-    CalendarCard(state, onEventAlertsChange, onEventHeadsUpChange, onEventLeadChange)
+    CalendarCard(
+        state,
+        onEventAlertsChange,
+        onEventHeadsUpChange,
+        onEventLeadChange,
+        onEclipseFollowMaxChange,
+    )
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
     LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
@@ -798,6 +805,7 @@ private fun CalendarCard(
     onEventAlertsChange: (Boolean) -> Unit,
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
+    onEclipseFollowMaxChange: (Int) -> Unit,
 ) {
     Card {
         Column(
@@ -844,6 +852,19 @@ private fun CalendarCard(
                     choices = UserSettings.EVENT_LEAD_CHOICES,
                     render = ::shortInterval,
                     onChange = onEventLeadChange,
+                )
+                Text(
+                    "An eclipse notification carries a Follow it action, which counts down " +
+                        "to each contact in turn and says where to look. It needs no signal " +
+                        "and stops on its own.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ChoiceRow(
+                    label = "Stop following after",
+                    value = describeInterval(state.settings.eclipseFollowMaxMinutes),
+                    choices = UserSettings.ECLIPSE_FOLLOW_MAX_CHOICES,
+                    render = ::shortInterval,
+                    onChange = onEclipseFollowMaxChange,
                 )
             }
         }

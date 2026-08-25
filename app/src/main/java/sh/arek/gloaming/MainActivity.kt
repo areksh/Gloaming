@@ -459,6 +459,10 @@ private fun GloamingApp() {
                     settings = settings.copy(eventAlertLeadMinutes = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onEclipseFollowMaxChange = {
+                    settings = settings.copy(eclipseFollowMaxMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onWatchDurationChange = {
                     settings = settings.copy(watchDuration = it)
                     BootAware.saveSettings(context, settings)

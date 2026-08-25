@@ -115,6 +115,23 @@
         </service>
 
         <!--
+          The "Follow it" action on an eclipse notification. Not exported, on
+          the same reasoning as the pass one.
+        -->
+        <receiver
+            android:name=".work.FollowEclipseReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".work.EclipseService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Counts a solar or lunar eclipse down contact by contact for a user standing outside, showing the time to the next contact and where in the sky to look. Started only when the user presses the action on an eclipse notification, and stops after the last contact. Uses no network at all - an eclipse is computed on the device - and is capped at three hours, which is past the longest umbral lunar eclipse." />
+        </service>
+
+        <!--
           Hands out the exported log, and nothing else - see res/xml/shared_paths.
           Not exported and permission-granting only, so a receiving app gets a
           one-shot read of the copy the user chose to send and no access to

@@ -18,6 +18,8 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.domain.EventNotifier
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.work.EclipseService
+import sh.arek.gloaming.work.FollowEclipseReceiver
 
 /**
  * Posts a sky calendar notification.
@@ -44,6 +46,7 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
+            .apply { followEclipse(event)?.let { addAction(0, "Follow it", it) } }
             .setAutoCancel(true)
             .build()
 
@@ -67,6 +70,28 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
         }
         val day = SimpleDateFormat("EEEE", Locale.getDefault())
         return "${event.title}, ${day.format(Date(event.at))}"
+    }
+
+    /**
+     * Offered on an eclipse and on nothing else.
+     *
+     * Everything else in the calendar is either an instant with nothing to
+     * count to, or a whole night where a clock adds nothing. An eclipse has
+     * contacts that matter to the minute, which is exactly what a countdown is
+     * for - and it is offered per eclipse rather than turned on by a setting,
+     * because a foreground service should never start on its own.
+     */
+    private fun followEclipse(event: SkyEvent): PendingIntent? {
+        if (event.kind != EventKind.SolarEclipse && event.kind != EventKind.LunarEclipse) {
+            return null
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            event.at.hashCode(),
+            Intent(context, FollowEclipseReceiver::class.java)
+                .putExtra(EclipseService.EXTRA_PEAK_AT, event.at),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun openApp(): PendingIntent = PendingIntent.getActivity(

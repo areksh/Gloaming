@@ -57,6 +57,7 @@ sealed interface Visibility {
  * from a garden.
  */
 enum class SkyBody(val label: String) {
+    Sun("the sun"),
     Mercury("Mercury"),
     Venus("Venus"),
     Mars("Mars"),

@@ -67,6 +67,7 @@ fun GloamingTabs(
     onEventAlertsChange: (Boolean) -> Unit,
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
+    onEclipseFollowMaxChange: (Int) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onWatchDurationChange: (WatchDuration) -> Unit,
     onSave: () -> Unit,
@@ -151,6 +152,7 @@ fun GloamingTabs(
                     onEventAlertsChange = onEventAlertsChange,
                     onEventHeadsUpChange = onEventHeadsUpChange,
                     onEventLeadChange = onEventLeadChange,
+                    onEclipseFollowMaxChange = onEclipseFollowMaxChange,
                     onSave = onSave,
                 )
             }
