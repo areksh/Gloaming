@@ -735,7 +735,10 @@ object SkyCalendar {
             "astronomical darkness at all around now."
         "September equinox" -> "Day and night equal. Proper darkness returns from here, and " +
             "with it the observing season."
-        else -> "The longest night of the year, and the most of it worth being outside for."
+        // Not a claim that anything is on. It is the opposite: more hours of
+        // darkness than any other night of the year, whatever you point at.
+        else -> "The longest night of the year - more hours of darkness than any other, " +
+            "whether or not there is anything particular to see."
     }
 
     private fun yearOf(millis: Long): Int {

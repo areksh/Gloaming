@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the equinoxes and solstices, and a note on the full moon when it falls at
   perigee. Nothing that needs a telescope: the app covers what you can see with
   your eyes or a pair of binoculars, and that is now written down as the rule.
+- Starring a marginal event now works, and means "tell me anyway". Those are
+  exactly the events worth an explicit opt-in - a near-total eclipse low in a
+  brightening sky - and the star had no effect on them, which made it a control
+  that did nothing on the events you would most want it for. A star still
+  cannot lift something above the horizon.
 - Events in the calendar can be starred. There is a "tell me about all of
   them" switch in Settings, on by default, so the calendar is useful before
   you have curated anything; turn it off and only your starred events will

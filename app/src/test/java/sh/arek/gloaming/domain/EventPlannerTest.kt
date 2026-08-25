@@ -95,12 +95,49 @@ class EventPlannerTest {
 
     /** A marginal event is worth a line in the calendar and not worth waking for. */
     @Test
-    fun `never announces a marginal event`() {
+    fun `never announces a marginal event uninvited`() {
         val low = conjunction(visibility = Visibility.Marginal("only 7 degrees up"))
 
         assertEquals(
             EventPlanner.Decision.Nothing,
             decide(listOf(low), "2026-11-16T00:50:00Z"),
+        )
+    }
+
+    /**
+     * Unless it was asked for. A star is somebody saying "tell me anyway" about
+     * the one thing the app was going to keep quiet about, and overruling that
+     * would leave the control doing nothing on exactly the events somebody
+     * would most want it for - a near-total eclipse low in a brightening sky.
+     */
+    @Test
+    fun `announces a marginal event that has been starred`() {
+        val low = conjunction(visibility = Visibility.Marginal("only 7 degrees up"))
+
+        val decision = decide(
+            listOf(low),
+            "2026-11-16T01:00:00Z",
+            user = settings.copy(starredEvents = setOf(EventPlanner.starKey(low))),
+        )
+
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.Announce)
+    }
+
+    /**
+     * A star still cannot lift something above the horizon. That is not a
+     * judgement about whether it is worth the trouble - it is the ground.
+     */
+    @Test
+    fun `a star cannot rescue what is below the horizon`() {
+        val hidden = conjunction(visibility = Visibility.NotFromHere("below the horizon"))
+
+        assertEquals(
+            EventPlanner.Decision.Nothing,
+            decide(
+                listOf(hidden),
+                "2026-11-16T00:50:00Z",
+                user = settings.copy(starredEvents = setOf(EventPlanner.starKey(hidden))),
+            ),
         )
     }
 

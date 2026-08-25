@@ -145,7 +145,12 @@ private fun EventRow(event: SkyEvent, starred: Boolean, onToggleStar: () -> Unit
                 // Offered only where it could do something. Starring an event
                 // the ground is in the way of, or one that never interrupts
                 // anyway, would be a control that quietly does nothing.
-                if (event.visibility == Visibility.Good &&
+                // Marginal events can be starred too, and that is the point of
+                // the control: a star is somebody saying "tell me anyway"
+                // about the one thing the app was going to keep quiet about.
+                // What cannot be starred is what cannot be seen from here at
+                // all, and what has no channel to be told on.
+                if (event.visibility !is Visibility.NotFromHere &&
                     EventChannel.of(event.kind) != null &&
                     EventPlanner.canBeStarred(event)
                 ) {

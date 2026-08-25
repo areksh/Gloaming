@@ -1131,9 +1131,12 @@ come back to, so curation is the opt-in rather than the price of entry. Starring
 switch is still on says so on the spot, because a control that silently does nothing is
 worse than no control.
 
-Two rules fall out of it. A star never overrides the visibility verdict - starring an
-eclipse the ground is in the way of cannot conjure it above the horizon - so the star is
-offered only where it could act. And noctilucent conditions are exempt from the filter
+Two rules fall out of it. A star overrides the *marginal* bar and not the impossible one:
+marginal is the app judging something not worth an uninvited interruption, and a star is
+the user overruling that judgement for one event - which is the whole use of the control,
+since a near-total eclipse low in a brightening sky is exactly what somebody would want to
+opt into. `NotFromHere` is not a judgement at all, it is the ground being in the way, so no
+star reaches it and none is offered. And noctilucent conditions are exempt from the filter
 entirely: they never appear in the calendar, so there is nothing to star, and making them
 obey it would silence them for good the moment somebody turned it on, for a reason they
 could never see or undo.

@@ -208,8 +208,26 @@ class GloamingTabsTest {
     }
 
     /**
-     * No star on something the ground is in the way of. It would be a control
-     * that quietly does nothing, since the visibility verdict decides first.
+     * A marginal event can be starred, and that is the point of the control:
+     * the star is somebody saying "tell me anyway" about the one thing the app
+     * was otherwise going to keep quiet about.
+     */
+    @Test
+    fun offersAStarOnAMarginalEvent() {
+        val marginal = eclipse.copy(
+            visibility = Visibility.Marginal("The sun is only 4 degrees up at maximum."),
+        )
+        show(calendar = listOf(marginal))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithTag(starTag(marginal)).performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * No star on something the ground is in the way of. That is not a
+     * judgement about whether it is worth the trouble - a star cannot lift it
+     * above the horizon, so the control would do nothing.
      */
     @Test
     fun offersNoStarOnAnEventThatCannotBeSeen() {

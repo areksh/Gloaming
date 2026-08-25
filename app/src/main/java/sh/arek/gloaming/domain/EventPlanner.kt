@@ -117,19 +117,35 @@ object EventPlanner {
 
     /**
      * The events allowed to interrupt: seeable from here, and on a channel.
-     *
-     * Marginal is the interesting exclusion. A near-total lunar eclipse with the
-     * moon seven degrees up in a brightening sky is worth a line in the calendar
-     * and is not worth waking somebody at half past four for, and the whole
-     * point of having a verdict rather than a boolean is to be able to say so.
      */
     fun announceable(events: List<SkyEvent>, settings: UserSettings): List<SkyEvent> {
         if (!settings.alertsEnabled || !settings.eventAlertsEnabled) return emptyList()
         return events
-            .filter { it.visibility == Visibility.Good && EventChannel.of(it.kind) != null }
+            .filter { EventChannel.of(it.kind) != null }
             .filterNot { isHidden(it, settings) }
+            .filter { worthAnnouncing(it, settings) }
             .filter { settings.notifyAboutEveryEvent || !canBeStarred(it) || isStarred(it, settings) }
     }
+
+    /**
+     * Whether this one is worth an interruption, given what the user has said.
+     *
+     * Marginal is the interesting case, and a star is the answer to it. A
+     * near-total lunar eclipse with the moon seven degrees up in a brightening
+     * sky is not worth waking somebody at half past four for uninvited - but if
+     * they have put a star on it, they have invited it, and overruling that
+     * would make the star a control that does nothing on exactly the events
+     * somebody would most want it for.
+     *
+     * A star never rescues [Visibility.NotFromHere]. That is not a judgement
+     * about whether it is worth the trouble; it is the ground being in the way.
+     */
+    private fun worthAnnouncing(event: SkyEvent, settings: UserSettings): Boolean =
+        when (event.visibility) {
+            Visibility.Good -> true
+            is Visibility.Marginal -> isStarred(event, settings)
+            is Visibility.NotFromHere -> false
+        }
 
     /**
      * Whether the user has filtered this kind out.
