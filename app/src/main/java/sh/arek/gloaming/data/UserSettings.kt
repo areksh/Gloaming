@@ -205,11 +205,26 @@ data class UserSettings(
      * to something sensible.
      */
     val liveFollowMaxMinutes: Int = DEFAULT_LIVE_MAX_MINUTES,
+    /**
+     * How many days of the app's own log to keep. Zero keeps none.
+     *
+     * The log exists because logcat is the system's ring buffer and has usually
+     * rolled away by the time anyone asks what happened overnight - which is
+     * the only window this app works in. How long to keep it is the user's
+     * call; it is their storage and their record.
+     */
+    val logRetentionDays: Int = DEFAULT_LOG_RETENTION_DAYS,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
     /** [passAlertLeadMinutes] as the planner uses it. */
     val passAlertLeadMillis: Long get() = passAlertLeadMinutes * 60_000L
+
+    /** [logRetentionDays] in milliseconds. */
+    val logRetentionMillis: Long get() = logRetentionDays * 24L * 60L * 60L * 1000L
+
+    /** Whether the app should be keeping its own log at all. */
+    val keepsLog: Boolean get() = logRetentionDays > 0
 
     /** [liveFollowLeadMinutes] as the tracker uses it. */
     val liveFollowLeadMillis: Long get() = liveFollowLeadMinutes * 60_000L
@@ -280,6 +295,12 @@ data class UserSettings(
 
         /** What the tracker's lead control offers, in minutes. */
         val LIVE_LEAD_CHOICES = listOf(2, 5, 10, 15, 20)
+
+        /** A week, which outlasts the weekend somebody notices a problem over. */
+        const val DEFAULT_LOG_RETENTION_DAYS = 7
+
+        /** What the retention control offers, in days. Zero means keep none. */
+        val LOG_RETENTION_CHOICES = listOf(0, 1, 3, 7, 14)
 
         /**
          * Six hours between alerts on any one channel, until the user says

@@ -1,5 +1,6 @@
 package sh.arek.gloaming.work
 
+import sh.arek.gloaming.Notes
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -127,7 +128,7 @@ class PassService : Service() {
 
         val elements = document?.satellites?.firstOrNull { it.catalogue == catalogue }
         if (elements == null || latitude == null || longitude == null) {
-            Log.w(TAG, "nothing to follow for $catalogue")
+            Notes.w(applicationContext, TAG, "nothing to follow for $catalogue")
             stopSelf(latestStartId)
             return
         }
@@ -164,12 +165,16 @@ class PassService : Service() {
         )
 
         if (pass == null || !LivePass.isWorthFollowing(pass, at)) {
-            Log.i(TAG, "no pass of $catalogue left to follow")
+            Notes.i(applicationContext, TAG, "no pass of $catalogue left to follow")
             stopSelf(latestStartId)
             return
         }
 
-        Log.i(TAG, "following ${pass.name}, rises ${pass.risesAt}, sets ${pass.setsAt}")
+        Notes.i(
+            applicationContext,
+            TAG,
+            "following ${pass.name}, rises ${pass.risesAt}, sets ${pass.setsAt}",
+        )
         val tracker = LiveTracker(elements, latitude, longitude)
         tick(tracker, pass)
         stopSelf(latestStartId)
@@ -184,7 +189,7 @@ class PassService : Service() {
 
             if (now > pass.setsAt + LINGER_MILLIS) return
             if (now - startedAt > capMillis) {
-                Log.i(TAG, "live pass hit its time limit; stopping")
+                Notes.i(applicationContext, TAG, "live pass hit its time limit; stopping")
                 return
             }
             delay(TICK_MILLIS)

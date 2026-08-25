@@ -61,6 +61,10 @@ const val FOLLOW_STATION_SWITCH_TAG = "follow-station-switch"
 /** The precise-before-unlock switch, which sits beside a sentence rather than a value. */
 const val PRECISE_BEFORE_UNLOCK_TAG = "precise-before-unlock-switch"
 
+/** The log buttons, which are actions rather than settings. */
+const val EXPORT_LOG_TAG = "export-log"
+const val CLEAR_LOG_TAG = "clear-log"
+
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
     val settings: UserSettings,
@@ -83,6 +87,8 @@ data class MainUiState(
     val powerSaveMode: Boolean = false,
     /** Whether the foreground watch is running. */
     val watching: Boolean = false,
+    /** How much of the app's own log is on disk, for the log card. */
+    val logSizeBytes: Long = 0L,
 )
 
 @Composable
@@ -101,6 +107,9 @@ fun MainScreen(
     onQuietUntilChange: (String) -> Unit,
     onQuietHoursOverrideChange: (Boolean) -> Unit,
     onNightVisionChange: (Boolean) -> Unit,
+    onLogRetentionChange: (Int) -> Unit,
+    onExportLog: () -> Unit,
+    onClearLog: () -> Unit,
     onAuroraIntervalChange: (Int) -> Unit,
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
@@ -176,6 +185,7 @@ fun MainScreen(
         WatchNowCard(state, onWatchingChange, onWatchDurationChange)
         BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
+        LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
 
         // Disabled while in flight, and says so. A button that looks idle
         // during the second or two a check takes reads as a broken button, and
@@ -944,6 +954,81 @@ private fun BeforeUnlockCard(
             }
         }
     }
+}
+
+/**
+ * The app's own log: how much to keep, and what to do with it.
+ *
+ * Logcat is the system's ring buffer and it has usually rolled past the
+ * interesting part by the time anyone asks what happened overnight - which is
+ * the only window this app works in. So it keeps its own, and the user owns it:
+ * how long to keep, whether to keep it at all, and the two things anyone
+ * actually wants to do with a log, which are read it elsewhere and get rid of
+ * it.
+ */
+@Composable
+private fun LogCard(
+    state: MainUiState,
+    onLogRetentionChange: (Int) -> Unit,
+    onExportLog: () -> Unit,
+    onClearLog: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Gloaming's own log", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "What the app did and why, kept on this phone. Android's own log is a " +
+                    "buffer the system recycles, and overnight is exactly when it has " +
+                    "already rolled past whatever you wanted to see.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            ChoiceRow(
+                label = "Keep",
+                value = describeRetention(state.settings.logRetentionDays),
+                choices = UserSettings.LOG_RETENTION_CHOICES,
+                render = { if (it == 0) "Off" else "${it}d" },
+                onChange = onLogRetentionChange,
+            )
+
+            Text(
+                "It records decisions - what was checked, what was announced, when the " +
+                    "next wake is - and never where you are.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onExportLog,
+                    enabled = state.logSizeBytes > 0,
+                    modifier = Modifier.testTag(EXPORT_LOG_TAG),
+                ) {
+                    Text("Export")
+                }
+                OutlinedButton(
+                    onClick = onClearLog,
+                    enabled = state.logSizeBytes > 0,
+                    modifier = Modifier.testTag(CLEAR_LOG_TAG),
+                ) {
+                    Text("Clear")
+                }
+            }
+            Text(describeLogSize(state.logSizeBytes), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/** Plain words for the retention setting, including having turned it off. */
+private fun describeRetention(days: Int): String = when {
+    days <= 0 -> "nothing - the log is off"
+    days == 1 -> "1 day"
+    else -> "$days days"
+}
+
+private fun describeLogSize(bytes: Long): String = when {
+    bytes <= 0L -> "Nothing recorded yet."
+    bytes < 1024L -> "$bytes bytes recorded."
+    else -> "${bytes / 1024} KB recorded."
 }
 
 /**

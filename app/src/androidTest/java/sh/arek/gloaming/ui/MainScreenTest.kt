@@ -53,6 +53,9 @@ class MainScreenTest {
     private var passLead: Int? = null
     private var minimumElevation: Int? = null
     private var liveLead: Int? = null
+    private var logRetention: Int? = null
+    private var exported = 0
+    private var cleared = 0
 
 
     private fun show(
@@ -63,6 +66,7 @@ class MainScreenTest {
         darkness: Darkness? = null,
         powerSaveMode: Boolean = false,
         watching: Boolean = false,
+        logSizeBytes: Long = 0L,
     ) {
         compose.setContent {
             MainScreen(
@@ -80,6 +84,7 @@ class MainScreenTest {
                     darkness = darkness,
                     powerSaveMode = powerSaveMode,
                     watching = watching,
+                    logSizeBytes = logSizeBytes,
                 ),
                 onLatitudeChange = {},
                 onLongitudeChange = {},
@@ -94,6 +99,9 @@ class MainScreenTest {
                 onQuietUntilChange = {},
                 onQuietHoursOverrideChange = {},
                 onNightVisionChange = {},
+                onLogRetentionChange = { logRetention = it },
+                onExportLog = { exported++ },
+                onClearLog = { cleared++ },
                 onAuroraIntervalChange = { auroraInterval = it },
                 onIssIntervalChange = { issInterval = it },
                 onBrightIntervalChange = {},
@@ -384,6 +392,60 @@ class MainScreenTest {
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertDoesNotExist()
+    }
+
+    /**
+     * The log the app keeps for itself, because logcat is the system's ring
+     * buffer and has rolled past the interesting part by morning.
+     */
+    @Test
+    fun offersTheLogAndItsRetention() {
+        show(logSizeBytes = 2048)
+
+        compose.onNodeWithText("Gloaming's own log").performScrollTo().assertExists()
+        compose.onNodeWithText("Keep: 7 days", substring = true).assertExists()
+        compose.onNodeWithText("2 KB recorded.").assertExists()
+    }
+
+    @Test
+    fun reportsTheRetentionTheUserPicked() {
+        show(logSizeBytes = 2048)
+
+        compose.onNodeWithText("Gloaming's own log").performScrollTo()
+        compose.onAllNodesWithText("Off").onFirst().performScrollTo().performClick()
+
+        assertEquals(0, logRetention)
+    }
+
+    @Test
+    fun exportsAndClearsOnRequest() {
+        show(logSizeBytes = 2048)
+
+        compose.onNodeWithTag(EXPORT_LOG_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(CLEAR_LOG_TAG).performScrollTo().performClick()
+
+        assertEquals(1, exported)
+        assertEquals(1, cleared)
+    }
+
+    /** Nothing to export or clear when there is nothing recorded. */
+    @Test
+    fun offersNothingToDoWithAnEmptyLog() {
+        show(logSizeBytes = 0)
+
+        compose.onNodeWithText("Gloaming's own log").performScrollTo().assertExists()
+        compose.onNodeWithText("Nothing recorded yet.").assertExists()
+        compose.onNodeWithTag(EXPORT_LOG_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(CLEAR_LOG_TAG).assertIsNotEnabled()
+    }
+
+    /** Turning it off says so, rather than showing "0 days". */
+    @Test
+    fun saysWhenTheLogIsOffRatherThanZeroDays() {
+        show(settings = located.copy(logRetentionDays = 0))
+
+        compose.onNodeWithText("Gloaming's own log").performScrollTo().assertExists()
+        compose.onNodeWithText("Keep: nothing - the log is off", substring = true).assertExists()
     }
 
     /**

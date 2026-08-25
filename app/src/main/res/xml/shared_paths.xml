@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the file provider is allowed to hand out.
+
+  Exactly one directory, holding exactly the exported copy of the log. The
+  journal itself lives in device-protected storage and is never shared from
+  where it is written: the export is a deliberate copy the user asked for, so
+  the thing that leaves the app is a snapshot rather than a live handle to the
+  app's own storage.
+-->
+<paths>
+    <cache-path name="exports" path="exports/" />
+</paths>

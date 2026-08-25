@@ -1,5 +1,6 @@
 package sh.arek.gloaming.work
 
+import sh.arek.gloaming.Notes
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -159,19 +160,19 @@ class StormService : Service() {
                 .getOrNull()
 
             if (result != null) {
-                Log.i(TAG, "storm poll: ${result.outcome} (storm=${result.storm})")
+                Notes.i(applicationContext, TAG, "storm poll: ${result.outcome} (storm=${result.storm})")
                 updateNotification(result.outcome)
                 // A watch the user started runs until they end it or the cap
                 // does. They are outside looking at a sky the model has not
                 // caught up with, which is the whole reason to ask for it.
                 if (!result.storm && !manual) {
-                    Log.i(TAG, "display is over; leaving storm mode")
+                    Notes.i(applicationContext, TAG, "display is over; leaving storm mode")
                     break
                 }
             }
 
             if (System.currentTimeMillis() - startedAt > capMillis) {
-                Log.i(TAG, "storm mode hit its time limit; stopping")
+                Notes.i(applicationContext, TAG, "storm mode hit its time limit; stopping")
                 break
             }
         }

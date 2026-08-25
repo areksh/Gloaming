@@ -8,6 +8,7 @@ import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
+import sh.arek.gloaming.data.Journal
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
 import sh.arek.gloaming.data.PreferencesAlertStateStore
@@ -60,6 +61,16 @@ object Graph {
      */
     private fun weatherDirectory(context: Context): File =
         File(BootAware.weatherCacheContext(context).filesDir, BootAware.CACHE_DIRECTORY)
+
+    /**
+     * The app's own log.
+     *
+     * Beside the caches in device-protected storage, so a poll before first
+     * unlock can record what it did - which is exactly the run hardest to find
+     * out about afterwards.
+     */
+    fun journal(context: Context): Journal =
+        Journal(File(cacheDirectory(context.applicationContext), Journal.FILE_NAME))
 
     /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =

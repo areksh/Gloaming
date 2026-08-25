@@ -115,6 +115,22 @@
         </service>
 
         <!--
+          Hands out the exported log, and nothing else - see res/xml/shared_paths.
+          Not exported and permission-granting only, so a receiving app gets a
+          one-shot read of the copy the user chose to send and no access to
+          anything the app stores.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.exports"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/shared_paths" />
+        </provider>
+
+        <!--
           Direct Boot aware like the rest: a poll before first unlock should be
           able to redraw the widget it just produced a reading for.
         -->

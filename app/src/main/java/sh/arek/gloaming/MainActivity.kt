@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.FileProvider
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -110,6 +112,30 @@ private const val NIGHT_BRIGHTNESS = 0.01f
 /** The sentinel that hands brightness back to the system. */
 private const val SYSTEM_BRIGHTNESS = -1f
 
+/**
+ * Hands the log to whatever the user picks to receive it.
+ *
+ * A copy rather than the file itself. The journal lives in device-protected
+ * storage and goes on being written to; sharing a live handle to it would give
+ * another app a moving target and a foothold in this one's storage, where a
+ * snapshot in the share directory is exactly what was asked for and nothing
+ * more.
+ */
+private fun shareLog(context: Context) {
+    val exports = File(context.cacheDir, "exports").apply { mkdirs() }
+    val copy = File(exports, "gloaming-log.txt")
+    copy.writeText(Graph.journal(context).read())
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", copy)
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .putExtra(Intent.EXTRA_SUBJECT, "Gloaming log")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    context.startActivity(Intent.createChooser(send, "Send Gloaming's log").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
@@ -174,6 +200,7 @@ private fun GloamingApp() {
     var saverOn by remember { mutableStateOf(powerSaveMode()) }
     var watching by remember { mutableStateOf(StormService.running) }
     var darkness by remember { mutableStateOf(darknessHere()) }
+    var logSize by remember { mutableStateOf(Graph.journal(context).sizeBytes()) }
 
     // Permission and exemption state changes outside the app, so re-read it
     // whenever the user comes back rather than trusting a stale snapshot.
@@ -188,6 +215,7 @@ private fun GloamingApp() {
                 saverOn = powerSaveMode()
                 watching = StormService.running
                 darkness = darknessHere()
+                logSize = Graph.journal(context).sizeBytes()
                 shownAt = System.currentTimeMillis()
             }
         }
@@ -260,6 +288,7 @@ private fun GloamingApp() {
                     darkness = darkness,
                     powerSaveMode = saverOn,
                     watching = watching,
+                    logSizeBytes = logSize,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -319,6 +348,23 @@ private fun GloamingApp() {
                 onNightVisionChange = {
                     settings = settings.copy(nightVision = it)
                     BootAware.saveSettings(context, settings)
+                },
+                onLogRetentionChange = {
+                    settings = settings.copy(logRetentionDays = it)
+                    BootAware.saveSettings(context, settings)
+                    // Turning it off means off now, not once the next poll gets
+                    // round to pruning. Somebody switching it off is asking for
+                    // the log to stop existing, not to stop growing.
+                    if (!settings.keepsLog) Graph.journal(context).clear()
+                    logSize = Graph.journal(context).sizeBytes()
+                },
+                onExportLog = {
+                    runCatching { shareLog(context) }
+                        .onFailure { Log.w("Gloaming", "could not export the log", it) }
+                },
+                onClearLog = {
+                    Graph.journal(context).clear()
+                    logSize = 0L
                 },
                 onAuroraIntervalChange = {
                     settings = settings.copy(auroraAlertIntervalMinutes = it)

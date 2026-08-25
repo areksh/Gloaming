@@ -1,5 +1,6 @@
 package sh.arek.gloaming.work
 
+import sh.arek.gloaming.Notes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -57,7 +58,8 @@ class PollReceiver : BroadcastReceiver() {
                     next = result.next
                     val unlocked = BootAware.isUnlocked(application)
                     val storm = if (result.storm) ", storm" else ""
-                    Log.i(
+                    Notes.i(
+                        application,
                         TAG,
                         "poll outcome: ${result.outcome} (unlocked=$unlocked, " +
                             "next in ${result.next.delayMinutes}m: " +
@@ -75,8 +77,8 @@ class PollReceiver : BroadcastReceiver() {
                     runCatching {
                         val passes = Graph.passPoller(application).poll()
                         passWake = minutesUntil(passes.nextWakeAtMillis)
-                        Log.i(TAG, "pass check: ${passes.decision} (next in ${passWake}m)")
-                    }.onFailure { Log.w(TAG, "pass check failed", it) }
+                        Notes.i(application, TAG, "pass check: ${passes.decision} (next in ${passWake}m)")
+                    }.onFailure { Notes.w(application, TAG, "pass check failed", it) }
                     // The widget is redrawn by the poll rather than on a
                     // schedule of its own, so it is exactly as fresh as the
                     // data behind it and costs no wakes.
@@ -84,13 +86,25 @@ class PollReceiver : BroadcastReceiver() {
                 } else {
                     // Before first unlock without the option enabled there is
                     // nothing readable to act on. Sleep until the next wake.
-                    Log.i(TAG, "locked and before-unlock alerting is off; skipping")
+                    Notes.i(application, TAG, "locked and before-unlock alerting is off; skipping")
                 }
             } catch (error: Throwable) {
-                Log.w(TAG, "poll failed", error)
+                Notes.w(application, TAG, "poll failed", error)
             } finally {
                 // Always queue the next wake, whatever happened. A poll that
                 // throws must not end the schedule and leave the app asleep.
+                // Once per wake, which is often enough for a log measured in
+                // days and costs nothing on a wake that is already happening.
+                runCatching {
+                    val user = BootAware.pollSettings(application).read()
+                    if (user.keepsLog) {
+                        Graph.journal(application)
+                            .prune(System.currentTimeMillis(), user.logRetentionMillis)
+                    } else {
+                        Graph.journal(application).clear()
+                    }
+                }
+
                 runCatching {
                     val aurora = next?.delayMinutes
                         ?: BootAware.pollSettings(application).read().pollIntervalMinutes

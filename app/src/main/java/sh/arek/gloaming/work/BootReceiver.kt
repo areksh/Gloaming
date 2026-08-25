@@ -1,5 +1,6 @@
 package sh.arek.gloaming.work
 
+import sh.arek.gloaming.Notes
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -35,7 +36,7 @@ class BootReceiver : BroadcastReceiver() {
         runCatching {
             val settings = BootAware.pollSettings(application).read()
             if (!settings.alertsEnabled) {
-                Log.i(TAG, "alerts are off; not rescheduling after boot")
+                Notes.i(application, TAG, "alerts are off; not rescheduling after boot")
                 return@runCatching
             }
 
@@ -44,8 +45,12 @@ class BootReceiver : BroadcastReceiver() {
             // more here than getting its timing ideal. The first poll after it
             // computes the real rate.
             PollAlarm.schedule(application, settings.pollIntervalMinutes)
-            Log.i(TAG, "rescheduled after $action (unlocked=${BootAware.isUnlocked(application)})")
-        }.onFailure { Log.e(TAG, "failed to reschedule after $action", it) }
+            Notes.i(
+                application,
+                TAG,
+                "rescheduled after $action (unlocked=${BootAware.isUnlocked(application)})",
+            )
+        }.onFailure { Notes.e(application, TAG, "failed to reschedule after $action", it) }
 
         requeueFollow(application)
     }
@@ -69,7 +74,7 @@ class BootReceiver : BroadcastReceiver() {
             val risesAt = held.followingRisesAt ?: return@runCatching
 
             if (!LivePass.stillPending(peaksAt, System.currentTimeMillis())) {
-                Log.i(TAG, "the followed pass of $catalogue is over; dropping it")
+                Notes.i(context, TAG, "the followed pass of $catalogue is over; dropping it")
                 store.write(
                     held.copy(
                         followingCatalogue = null,
@@ -85,8 +90,8 @@ class BootReceiver : BroadcastReceiver() {
             val lead = runCatching { Graph.settings(context).read().liveFollowLeadMillis }
                 .getOrDefault(LivePass.LEAD_MILLIS)
             PassAlarm.follow(context, catalogue, peaksAt, LivePass.startAt(risesAt, lead))
-            Log.i(TAG, "put the follow of $catalogue back after a reboot")
-        }.onFailure { Log.e(TAG, "failed to put a follow back after a reboot", it) }
+            Notes.i(context, TAG, "put the follow of $catalogue back after a reboot")
+        }.onFailure { Notes.e(context, TAG, "failed to put a follow back after a reboot", it) }
     }
 
     private companion object {

@@ -44,6 +44,7 @@ private const val KEY_PASS_LEAD = "pass_alert_lead_minutes"
 private const val KEY_MINIMUM_ELEVATION = "minimum_pass_elevation_degrees"
 private const val KEY_LIVE_LEAD = "live_follow_lead_minutes"
 private const val KEY_LIVE_MAX = "live_follow_max_minutes"
+private const val KEY_LOG_RETENTION = "log_retention_days"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -151,6 +152,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_LIVE_MAX,
                 UserSettings.DEFAULT_LIVE_MAX_MINUTES,
             ),
+            logRetentionDays = prefs.getInt(
+                KEY_LOG_RETENTION,
+                UserSettings.DEFAULT_LOG_RETENTION_DAYS,
+            ),
         )
     }
 
@@ -194,6 +199,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_MINIMUM_ELEVATION, settings.minimumPassElevationDegrees)
             putInt(KEY_LIVE_LEAD, settings.liveFollowLeadMinutes)
             putInt(KEY_LIVE_MAX, settings.liveFollowMaxMinutes)
+            putInt(KEY_LOG_RETENTION, settings.logRetentionDays)
         }.apply()
     }
 
