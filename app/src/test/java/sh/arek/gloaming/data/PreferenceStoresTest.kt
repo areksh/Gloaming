@@ -5,6 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.data.WatchDuration
 
 class PreferenceStoresTest {
 
@@ -38,6 +39,16 @@ class PreferenceStoresTest {
         assertEquals(147.3294, store.read().longitude!!, 0.0)
     }
 
+    /**
+     * Every field, each set away from its default.
+     *
+     * The name has to be true for this to be worth anything. It was not: the
+     * test set eleven fields of twenty-eight and drifted further behind with
+     * each one added, which is how four calendar settings shipped without ever
+     * being written to disk - turning calendar alerts off, restarting, and
+     * finding them on again. Comparing the whole object means a field added
+     * without persistence fails here rather than on somebody's phone.
+     */
     @Test
     fun `round-trips every setting`() {
         val store = settingsStore()
@@ -53,11 +64,42 @@ class PreferenceStoresTest {
             quietHours = QuietHours(23 * 60, 7 * 60),
             quietHoursOverride = true,
             nightVision = true,
+            passAlertsEnabled = false,
+            auroraAlertIntervalMinutes = 180,
+            issPassAlertIntervalMinutes = 720,
+            brightPassAlertIntervalMinutes = 60,
+            trainPassAlertIntervalMinutes = 120,
+            followStationPassesAutomatically = true,
+            watchDuration = WatchDuration.UntilLight,
+            preciseLocationBeforeUnlock = true,
+            passAlertLeadMinutes = 45,
+            minimumPassElevationDegrees = 30,
+            liveFollowLeadMinutes = 15,
+            liveFollowMaxMinutes = 20,
+            logRetentionDays = 14,
+            eventAlertsEnabled = false,
+            eventHeadsUpDays = 7,
+            eventAlertLeadMinutes = 240,
+            eclipseFollowMaxMinutes = 240,
         )
 
         store.write(settings)
 
         assertEquals(settings, store.read())
+    }
+
+    /**
+     * The same, the other way round: a field left at its default must survive
+     * too. A store that only writes non-defaults would pass the test above and
+     * still lose a deliberate "off" that happens to match the default.
+     */
+    @Test
+    fun `round-trips a settings object left entirely at its defaults`() {
+        val store = settingsStore()
+
+        store.write(UserSettings())
+
+        assertEquals(UserSettings(), store.read())
     }
 
     // Off is the default, and it has to survive being written: a null that read
