@@ -1507,6 +1507,22 @@ year, and that is stated rather than implied: the noctilucent prompt, because th
 season closed in mid August and does not reopen until late May, and the eclipse countdown,
 because the next eclipse visible from Edinburgh is 2 August 2027.*
 
+*Six things were added beyond the four items, each because building the four made the gap
+obvious rather than because the plan called for them:*
+
+- *Planetary oppositions, Venus at greatest brilliancy, the equinoxes and solstices, and
+  the perigee full moon - see the scope rule above for what these admit and exclude.*
+- *A **tonight** list, for what the calendar structurally cannot hold. See above.*
+- ***Starring** an event, and one switch deciding whether everything visible interrupts or
+  only the starred ones. See Sec. 9.5.*
+- *A **filter** on the calendar, one chip per kind with its count, applying to the list and
+  the alerts alike. The moon's quarters became their own kind and are hidden by default:
+  there are as many of them as there are new and full moons, they matter far less to an
+  observer, and together the four filled over half the year.*
+- ***Detecting the position*** rather than only typing it - the convenience Sec. 7 always
+  described and only half of which had been built.*
+- *A third tab, so the app stopped being one screen. Tonight, Calendar, Settings.*
+
 21. astronomy-engine events: eclipses, moon phases, conjunctions, elongations. Mostly
     wiring. **True of the computation and not of the work.** Every call is one line against
     the vendored ephemeris; what took the time was deciding what is worth telling somebody

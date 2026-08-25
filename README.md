@@ -39,14 +39,26 @@ remains before release
 is the part no test suite can do for you: a season of real nights, to calibrate
 the thresholds and confirm the app is worth keeping installed.
 
-On top of that sits a sky calendar: eclipses, meteor showers, close pairings of
-planets and the moon's phases, worked out on the phone for the year ahead and
-judged against where you are standing rather than listed as though everything
-is visible from everywhere. An eclipse that reaches maximum after the sun has
-set where you are says so. Eclipses carry a countdown you can follow contact by
-contact, and summer nights carry a prompt for noctilucent clouds - which is a
-prompt and not a forecast, because nothing has been able to forecast those
-since 2023.
+On top of that sits a sky calendar, on a tab of its own: eclipses, meteor
+showers, close pairings of planets, Mars, Jupiter and Saturn at opposition,
+Venus at its brightest, new and full moon, and the equinoxes and solstices - all
+worked out on the phone for the year ahead and judged against where you are
+standing rather than listed as though everything is visible from everywhere. An
+eclipse that reaches maximum after the sun has set where you are says so. You
+can filter out the kinds you do not care about, and star the ones you do.
+Eclipses carry a countdown you can follow contact by contact, and summer nights
+carry a prompt for noctilucent clouds - which is a prompt and not a forecast,
+because nothing has been able to forecast those since 2023.
+
+Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
+of binoculars, it is out of scope, which is why there are no Uranus oppositions
+and no transits of Mercury.
+
+A third tab answers the question the calendar structurally cannot: what is
+crossing tonight. A year of eclipses fits in a list, but a clear night here has
+hundreds of satellite passes, so the split is by shape - dated and sparse in the
+calendar, nightly and dense on Tonight, which leads with the best few rather
+than the earliest and always finds room for the space station.
 
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system
