@@ -56,6 +56,27 @@ object SkyCalendar {
     private const val SLIGHT = 0.10
 
     /**
+     * How close an eclipse has to be to a quarter phase to be the same event.
+     *
+     * Maximum eclipse and exact full or new moon are the same alignment seen
+     * two ways and never fall more than an hour or so apart.
+     */
+    private const val ECLIPSE_IS_A_PHASE_MILLIS = 6L * 60 * 60 * 1000
+
+    /** The moon is half a degree across, and is the only ruler anyone carries. */
+    private const val MOON_WIDTH_DEGREES = 0.5
+
+    /**
+     * How much wider the seen separation has to be than the true minimum before
+     * saying so is worth the words. A whole moon's width is the point at which
+     * the difference is something you would notice rather than arithmetic.
+     */
+    private const val DRIFT_WORTH_SAYING = MOON_WIDTH_DEGREES
+
+    /** Beyond this many moon-widths the comparison stops being a picture. */
+    private const val WIDTHS_WORTH_COUNTING = 4
+
+    /**
      * Everything worth knowing about between [fromMillis] and [horizonDays]
      * later, in time order.
      *
@@ -76,10 +97,28 @@ object SkyCalendar {
             addAll(solarEclipses(observer, start, until))
             addAll(lunarEclipses(observer, start, until))
             addAll(elongations(latitude, longitude, start, until))
+            addAll(conjunctions(latitude, longitude, fromMillis, until))
             addAll(moonPhases(start, until))
         }
             .filter { it.at in fromMillis..until }
+            .let(::withoutPhasesThatAreEclipses)
             .sortedBy { it.at }
+    }
+
+    /**
+     * A solar eclipse happens at new moon and a lunar one at full, always, by
+     * definition. Printing both is printing the same fact twice seven minutes
+     * apart, and the eclipse is by far the more interesting half of it.
+     */
+    private fun withoutPhasesThatAreEclipses(events: List<SkyEvent>): List<SkyEvent> {
+        val eclipses = events
+            .filter { it.kind == EventKind.SolarEclipse || it.kind == EventKind.LunarEclipse }
+            .map { it.at }
+
+        return events.filterNot { event ->
+            event.kind == EventKind.MoonPhase &&
+                eclipses.any { kotlin.math.abs(it - event.at) <= ECLIPSE_IS_A_PHASE_MILLIS }
+        }
     }
 
     // --- solar eclipses ---
@@ -280,8 +319,14 @@ object SkyCalendar {
                 "There is no darkness here at this time of year.",
             )
 
+            // Almost always because it sets before the sky is dark rather than
+            // because it never rises: an inner planet at greatest elongation is
+            // still close to the sun, and from a high latitude in autumn the
+            // ecliptic meets the horizon at an angle that takes it straight
+            // down with it.
             best.altitude <= 0.0 -> Visibility.NotFromHere(
-                "$name stays below the horizon here through the whole of the night.",
+                "$name never clears the horizon here once the sky is dark, so this " +
+                    "apparition is not one for this latitude.",
             )
 
             best.altitude < LOW_DEGREES -> Visibility.Marginal(
@@ -302,6 +347,123 @@ object SkyCalendar {
                 "The best fortnight of this apparition to look.",
             visibility = visibility,
         )
+    }
+
+    // --- conjunctions ---
+
+    /**
+     * Two bright things close together, reported as they are seen.
+     *
+     * The list is generous where the notifications will not be: three degrees
+     * catches roughly one pairing a fortnight, which is about right for
+     * something you scroll past and far too much for something that buzzes.
+     * [Conjunctions.STRIKING_DEGREES] is the tighter bar, applied where the
+     * interrupting is decided.
+     *
+     * The event is dated to the moment it is best seen rather than to the
+     * moment it is closest, because the calendar's job is to name a night to go
+     * out on. When the two differ by enough to matter the detail says so.
+     */
+    private fun conjunctions(
+        latitude: Double,
+        longitude: Double,
+        fromMillis: Long,
+        until: Long,
+    ): List<SkyEvent> = Conjunctions
+        .approaches(latitude, longitude, fromMillis, until)
+        .mapNotNull { conjunction(it, latitude, longitude) }
+
+    private fun conjunction(
+        approach: Approach,
+        latitude: Double,
+        longitude: Double,
+    ): SkyEvent? {
+        val seen = Conjunctions.asSeen(approach, latitude, longitude) ?: return null
+        val night = Twilight.nightNearest(latitude, longitude, approach.atMillis)
+
+        // Dropped rather than explained, which is the opposite of what eclipses
+        // and elongations get. Those are rare, people hear about them from
+        // elsewhere, and "not from where you are" is the answer they came for.
+        // Nobody hears about a conjunction, so one that cannot be seen is not a
+        // disappointment to be headed off - it is clutter.
+        if (seen.altitude <= 0.0) return null
+
+        // The pair has to look like a conjunction at the moment it is visible,
+        // not merely at the moment it is closest. The moon comes within three
+        // degrees of Mars on 7 September 2026 and is six degrees away by the
+        // time either of them clears the horizon at Edinburgh, which is the
+        // moon being vaguely near Mars rather than an event.
+        if (seen.separationDegrees > Conjunctions.NOTABLE_DEGREES) return null
+
+        val visibility = when {
+            seen.altitude < LOW_DEGREES -> Visibility.Marginal(
+                "They only reach ${seen.altitude.roundToInt()} degrees, low in the " +
+                    "${Compass.of(seen.azimuth).label}, so you will need a clear horizon.",
+            )
+
+            else -> Visibility.Good
+        }
+
+        // The figure quoted is the one somebody standing outside will see. When
+        // the true minimum happens in daylight or below the horizon, quoting it
+        // would promise a sight that is not on offer here.
+        val apart = seen.separationDegrees
+        val drifted = seen.separationDegrees - approach.separationDegrees > DRIFT_WORTH_SAYING
+
+        return SkyEvent(
+            kind = EventKind.Conjunction,
+            at = seen.atMillis,
+            from = night?.first ?: approach.atMillis,
+            until = night?.last ?: approach.atMillis,
+            title = pairing(approach),
+            detail = buildString {
+                append(apartInWords(apart))
+                if (visibility is Visibility.Good) {
+                    append(", ${seen.altitude.roundToInt()} degrees up in the ")
+                    append(Compass.of(seen.azimuth).label)
+                }
+                append(".")
+                if (drifted) {
+                    append(
+                        " They come closer still, but not while they are above the horizon here.",
+                    )
+                }
+            },
+            visibility = visibility,
+        )
+    }
+
+    /**
+     * The moon leads when it is involved, because that is how it is said aloud:
+     * the moon passes Jupiter, not Jupiter passes the moon.
+     */
+    private fun pairing(approach: Approach): String {
+        val moon = approach.first == SkyBody.Moon || approach.second == SkyBody.Moon
+        if (moon) {
+            val other = if (approach.first == SkyBody.Moon) approach.second else approach.first
+            return "The moon passes ${other.label}"
+        }
+        return "${approach.first.label} and ${approach.second.label} at their closest"
+    }
+
+    /**
+     * Degrees, and then the same thing in a unit anyone can check by looking up.
+     *
+     * "0.5 degrees" means nothing at arm's length. A moon's width is half a
+     * degree and is the only angular measure most people have ever had to hand.
+     */
+    private fun apartInWords(degrees: Double): String {
+        val figure = String.format(java.util.Locale.UK, "%.1f", degrees)
+        val widths = (degrees / MOON_WIDTH_DEGREES).roundToInt()
+        // Past about four moon-widths the comparison stops helping: nobody can
+        // picture nine of them in a row, and the number on its own is clearer.
+        val comparison = when {
+            degrees < MOON_WIDTH_DEGREES / 2 -> " - closer together than half a moon's width"
+            widths <= 1 -> " - about a moon's width apart"
+            widths <= WIDTHS_WORTH_COUNTING -> " - about $widths moon-widths apart"
+            else -> " apart"
+        }
+        return "$figure degrees$comparison"
     }
 
     // --- moon phases ---

@@ -140,11 +140,69 @@ class SkyCalendarTest {
     /** New moon is the dark-sky marker everything else is planned around. */
     @Test
     fun `lists moon phases and names the new moon`() {
-        val phases = onlyKind("2026-08-25T00:00:00Z", 30, EventKind.MoonPhase)
+        val phases = onlyKind("2026-08-25T00:00:00Z", 45, EventKind.MoonPhase)
 
-        assertTrue(phases.size.toString(), phases.size >= 3)
+        assertTrue(phases.size.toString(), phases.size >= 4)
         assertTrue(phases.any { it.title.contains("New moon") })
         assertTrue(phases.any { it.title.contains("Full moon") })
+    }
+
+    /**
+     * A lunar eclipse is a full moon and a solar eclipse is a new one, always.
+     * The eclipse of 28 August 2026 peaks seven minutes before the full moon it
+     * is, and printing both would be printing the same alignment twice.
+     */
+    @Test
+    fun `omits the moon phase that an eclipse already is`() {
+        val fullMoons = onlyKind("2026-08-25T00:00:00Z", 30, EventKind.MoonPhase)
+            .filter { it.title.contains("Full moon") }
+
+        assertTrue(fullMoons.map { it.at }.toString(), fullMoons.isEmpty())
+    }
+
+    // --- conjunctions ---
+
+    /**
+     * The moon comes within three degrees of Mars on 7 September 2026 and is
+     * six degrees away by the time either clears the horizon at Edinburgh. That
+     * is the moon being vaguely near Mars, not a conjunction, and the figure
+     * quoted has to be the one somebody outside would measure.
+     */
+    @Test
+    fun `omits a pair that is no longer close by the time it can be seen`() {
+        val conjunctions = onlyKind("2026-09-05T00:00:00Z", 6, EventKind.Conjunction)
+
+        assertTrue(
+            conjunctions.map { it.title + " " + it.detail }.toString(),
+            conjunctions.isEmpty(),
+        )
+    }
+
+    /**
+     * Mars and Jupiter on 16 November 2026, both high in a dark southern sky.
+     * The one planet-planet pairing in the horizon that is unambiguously worth
+     * going outside for.
+     */
+    @Test
+    fun `keeps a pair that is close and high in the dark`() {
+        val conjunction = onlyKind("2026-11-10T00:00:00Z", 14, EventKind.Conjunction).single()
+
+        assertEquals("Mars and Jupiter at their closest", conjunction.title)
+        assertEquals(Visibility.Good, conjunction.visibility)
+        assertTrue(conjunction.detail, conjunction.detail.contains("moon-widths"))
+    }
+
+    /**
+     * Nothing in the list is a conjunction the observer cannot see. Unlike an
+     * eclipse, which is worth explaining away because people hear about it from
+     * elsewhere, an invisible conjunction is only clutter.
+     */
+    @Test
+    fun `never lists a conjunction that cannot be seen from here`() {
+        val conjunctions = onlyKind("2026-08-25T00:00:00Z", 400, EventKind.Conjunction)
+
+        assertTrue(conjunctions.isNotEmpty())
+        assertTrue(conjunctions.none { it.visibility is Visibility.NotFromHere })
     }
 
     // --- the list as a whole ---
