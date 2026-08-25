@@ -17,8 +17,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.StormMode
+import sh.arek.gloaming.satellites.SatellitePass
 
 /**
  * What the sky is doing now, and the two switches that act on it.
@@ -37,6 +43,8 @@ fun TonightContent(
     onRequestNotifications: () -> Unit,
 ) {
     StatusCard(state)
+
+    TonightCard(state)
 
     if (!state.batteryExempt) {
         WarningCard(
@@ -232,3 +240,76 @@ private fun WatchNowCard(
     }
 }
 
+/**
+ * What there is to see between now and dawn.
+ *
+ * The gap this fills: passes were only ever reachable as a notification, so
+ * somebody standing outside at nine wondering what was crossing could do
+ * nothing but wait to be interrupted. A year of them cannot go in the calendar
+ * - a clear night here has upwards of forty - so the split is by shape: dated
+ * and sparse in the calendar, nightly and dense here.
+ */
+@Composable
+private fun TonightCard(state: MainUiState) {
+    val list = state.tonight ?: return
+    if (!state.settings.hasLocation) return
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Tonight", style = MaterialTheme.typography.titleMedium)
+
+            Text(
+                if (list.darkFrom == null) {
+                    "It does not get properly dark here at this time of year."
+                } else {
+                    "Dark from ${clock(list.darkFrom)} until ${clock(list.darkUntil!!)}."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+
+            list.noctilucent?.let {
+                Text(it.title, style = MaterialTheme.typography.titleSmall)
+                Text(it.detail, style = MaterialTheme.typography.bodySmall)
+            }
+
+            for (event in list.events) {
+                Text(event.title, style = MaterialTheme.typography.titleSmall)
+                Text(event.detail, style = MaterialTheme.typography.bodySmall)
+            }
+
+            if (list.passes.isEmpty()) {
+                Text(
+                    "Nothing crossing tonight that clears the horizon in sunlight.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Text(
+                    if (list.passes.size > list.bestPasses.size) {
+                        "${list.passes.size} satellites cross tonight. The best of them:"
+                    } else {
+                        "${list.passes.size} satellite ${plural2(list.passes.size)} tonight:"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                for (pass in list.bestPasses) {
+                    Text(describePassLine(pass), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+private fun plural2(count: Int) = if (count == 1) "pass" else "passes"
+
+/** One pass in one line: when, which way, and how high. */
+internal fun describePassLine(pass: SatellitePass): String =
+    "${clock(pass.risesAt)}  ${pass.name} - rises ${Compass.of(pass.riseAzimuth).label}, " +
+        "highest ${pass.peakElevation.roundToInt()} degrees ${Compass.of(pass.peakAzimuth).label} " +
+        "at ${clock(pass.peaksAt)}"
+
+/**
+ * The device's own clock and zone. A time printed in UTC would be wrong by an
+ * hour for half the year here and by more elsewhere.
+ */
+internal fun clock(millis: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))

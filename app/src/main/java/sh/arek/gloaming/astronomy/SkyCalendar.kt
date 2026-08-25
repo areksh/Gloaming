@@ -808,7 +808,7 @@ object SkyCalendar {
         }
 
         return SkyEvent(
-            kind = EventKind.MoonPhase,
+            kind = if (quarter.quarter % 2 == 0) EventKind.MoonPhase else EventKind.MoonQuarter,
             at = at,
             from = at,
             until = at,

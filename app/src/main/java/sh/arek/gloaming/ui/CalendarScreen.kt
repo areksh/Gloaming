@@ -1,11 +1,15 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,6 +47,8 @@ fun CalendarContent(
     loading: Boolean,
     starred: Set<String> = emptySet(),
     onToggleStar: (SkyEvent) -> Unit = {},
+    hiddenKinds: Set<String> = emptySet(),
+    onToggleKind: (EventKind) -> Unit = {},
 ) {
     if (!hasLocation) {
         Card {
@@ -73,8 +79,19 @@ fun CalendarContent(
         return
     }
 
+    KindFilter(events, hiddenKinds, onToggleKind)
+
+    val shown = events.filterNot { it.kind.name in hiddenKinds }
+    if (shown.isEmpty()) {
+        Text(
+            "Everything is filtered out. Turn a kind back on above.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        return
+    }
+
     var lastMonth = ""
-    for (event in events) {
+    for (event in shown) {
         val month = MONTH.format(Date(event.at))
         if (month != lastMonth) {
             Text(
@@ -151,6 +168,58 @@ private fun Reason(reason: String) {
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium,
     )
+}
+
+/**
+ * One chip per kind actually present, so the filter never offers to hide
+ * something the year does not contain.
+ *
+ * Counts on the chips because the point of the control is volume: it is only
+ * obvious that the moon's quarters are worth hiding once you can see there are
+ * forty-seven of them.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KindFilter(
+    events: List<SkyEvent>,
+    hiddenKinds: Set<String>,
+    onToggleKind: (EventKind) -> Unit,
+) {
+    val counts = events.groupingBy { it.kind }.eachCount()
+    if (counts.size < 2) return
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for (kind in EventKind.entries) {
+            val count = counts[kind] ?: continue
+            FilterChip(
+                selected = kind.name !in hiddenKinds,
+                onClick = { onToggleKind(kind) },
+                label = { Text("${labelFor(kind)} ($count)") },
+                modifier = Modifier.testTag(kindTag(kind)),
+            )
+        }
+    }
+}
+
+/** How a kind's chip is reached from a test. */
+fun kindTag(kind: EventKind): String = "kind:${kind.name}"
+
+/** What each kind is called where a user can see it. */
+internal fun labelFor(kind: EventKind): String = when (kind) {
+    EventKind.SolarEclipse -> "Solar eclipses"
+    EventKind.LunarEclipse -> "Lunar eclipses"
+    EventKind.MeteorShower -> "Meteor showers"
+    EventKind.Conjunction -> "Conjunctions"
+    EventKind.Elongation -> "Mercury and Venus"
+    EventKind.Opposition -> "Oppositions"
+    EventKind.GreatestBrightness -> "Venus at its brightest"
+    EventKind.MoonPhase -> "New and full moon"
+    EventKind.MoonQuarter -> "Moon quarters"
+    EventKind.Season -> "Equinoxes and solstices"
+    EventKind.Noctilucent -> "Noctilucent clouds"
 }
 
 /** How a star is reached from a test, and kept stable across reworded titles. */

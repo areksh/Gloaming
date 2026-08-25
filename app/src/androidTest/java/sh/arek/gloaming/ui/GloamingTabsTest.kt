@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -33,6 +34,7 @@ class GloamingTabsTest {
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)
 
     private val starred = mutableListOf<SkyEvent>()
+    private var hiddenKind: EventKind? = null
 
     private val eclipse = SkyEvent(
         kind = EventKind.SolarEclipse,
@@ -95,6 +97,7 @@ class GloamingTabsTest {
                 onEclipseFollowMaxChange = {},
                 onNotifyEveryEventChange = {},
                 onToggleStar = { starred += it },
+                onToggleKind = { hiddenKind = it },
                 onLocationModeChange = {},
                 onDetectLocation = {},
                 onWatchingChange = {},
@@ -216,5 +219,68 @@ class GloamingTabsTest {
         compose.onNodeWithTag(TAB_CALENDAR).performClick()
 
         compose.onAllNodesWithTag(starTag(hidden)).assertCountEquals(0)
+    }
+
+    // --- filtering ---
+
+    /** A chip per kind present, with its count, since volume is the point. */
+    @Test
+    fun offersAChipForEachKindPresent() {
+        val phase = eclipse.copy(
+            kind = EventKind.MoonPhase,
+            at = eclipse.at + 86_400_000L,
+            title = "Full moon",
+        )
+        show(calendar = listOf(eclipse, phase))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithTag(kindTag(EventKind.SolarEclipse)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("New and full moon (1)").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Pressing one reports the kind rather than acting alone. */
+    @Test
+    fun reportsAFilteredKind() {
+        val phase = eclipse.copy(kind = EventKind.MoonPhase, at = eclipse.at + 86_400_000L)
+        show(calendar = listOf(eclipse, phase))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(kindTag(EventKind.MoonPhase)).performScrollTo().performClick()
+
+        assertEquals(EventKind.MoonPhase, hiddenKind)
+    }
+
+    /** A hidden kind is gone from the list, not merely greyed out. */
+    @Test
+    fun hidesAFilteredKindFromTheList() {
+        val phase = eclipse.copy(
+            kind = EventKind.MoonPhase,
+            at = eclipse.at + 86_400_000L,
+            title = "Full moon",
+        )
+        show(
+            settings = located.copy(hiddenEventKinds = setOf("MoonPhase")),
+            calendar = listOf(eclipse, phase),
+        )
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithText("Partial eclipse of the sun").assertIsDisplayed()
+        compose.onAllNodesWithText("Full moon").assertCountEquals(0)
+    }
+
+    /** Filtering everything out says so rather than looking broken. */
+    @Test
+    fun saysSoWhenEverythingIsFilteredOut() {
+        show(
+            settings = located.copy(hiddenEventKinds = setOf("SolarEclipse", "MoonPhase")),
+            calendar = listOf(eclipse, eclipse.copy(kind = EventKind.MoonPhase, at = eclipse.at + 1)),
+        )
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithText("Everything is filtered out. Turn a kind back on above.")
+            .assertIsDisplayed()
     }
 }

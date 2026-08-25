@@ -241,6 +241,19 @@ data class UserSettings(
     val locationMode: LocationMode = LocationMode.Manual,
 
     /**
+     * Kinds of event the user does not want to see or hear about.
+     *
+     * Held as names rather than as the enum so the store stays a set of
+     * strings, and so a kind that disappears in a later version leaves a
+     * harmless orphan rather than failing to parse.
+     *
+     * The moon's quarters are hidden by default. There are as many of them as
+     * there are new and full moons and they matter far less, so left in they
+     * filled over half the calendar.
+     */
+    val hiddenEventKinds: Set<String> = setOf("MoonQuarter"),
+
+    /**
      * Whether every event worth seeing interrupts, or only the starred ones.
      *
      * On by default, so the calendar is useful before anybody has curated it -

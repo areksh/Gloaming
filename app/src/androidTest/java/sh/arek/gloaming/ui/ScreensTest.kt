@@ -26,6 +26,9 @@ import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
+import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.PassChannel
+import sh.arek.gloaming.satellites.SatellitePass
 
 /**
  * What the two content screens show, driven from state.
@@ -87,6 +90,7 @@ class ScreensTest {
         watching: Boolean = false,
         logSizeBytes: Long = 0L,
         locationNote: String? = null,
+        tonight: TonightList? = null,
     ) {
         compose.setContent {
             Column(
@@ -111,6 +115,7 @@ class ScreensTest {
                     watching = watching,
                     logSizeBytes = logSizeBytes,
                     locationNote = locationNote,
+                    tonight = tonight,
                 )
 
                 TonightContent(
@@ -806,5 +811,78 @@ class ScreensTest {
         compose.onNodeWithTag(EVERY_EVENT_SWITCH_TAG).performScrollTo().performClick()
 
         assertEquals(false, everyEvent)
+    }
+
+    // --- tonight ---
+
+    /** Passes were only ever reachable as a notification. Now they are readable. */
+    @Test
+    fun listsWhatIsCrossingTonight() {
+        val station = SatellitePass(
+            catalogue = 25544,
+            name = "ISS (ZARYA)",
+            channel = PassChannel.Iss,
+            risesAt = now + 3_600_000L,
+            riseAzimuth = 225.0,
+            peaksAt = now + 3_900_000L,
+            peakElevation = 68.0,
+            peakAzimuth = 180.0,
+            setsAt = now + 4_200_000L,
+            setAzimuth = 135.0,
+            rangeAtPeakKm = 420.0,
+            sunlitAtPeak = true,
+            entersShadowAt = null,
+            leavesShadowAt = null,
+        )
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = listOf(station),
+                bestPasses = listOf(station),
+                events = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Tonight").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("ISS (ZARYA)", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("68 degrees south", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    /** An empty sky is an answer, not a blank card. */
+    @Test
+    fun saysWhenNothingIsCrossingTonight() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Nothing crossing tonight", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Midsummer at high latitude has no darkness, and the card says that. */
+    @Test
+    fun saysWhenItDoesNotGetDark() {
+        show(
+            tonight = TonightList(
+                darkFrom = null,
+                darkUntil = null,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("It does not get properly dark here at this time of year.")
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 }

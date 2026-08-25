@@ -158,14 +158,21 @@ class SkyCalendarTest {
 
     // --- moon phases ---
 
-    /** New moon is the dark-sky marker everything else is planned around. */
+    /**
+     * New moon is the dark-sky marker everything else is planned around, and
+     * full moon is what washes it all out. Those two are their own kind; the
+     * quarters are [EventKind.MoonQuarter], so the filter can hide the half
+     * that matters less without a special case.
+     */
     @Test
-    fun `lists moon phases and names the new moon`() {
+    fun `lists the new and full moon apart from the quarters`() {
         val phases = onlyKind("2026-08-25T00:00:00Z", 45, EventKind.MoonPhase)
+        val quarters = onlyKind("2026-08-25T00:00:00Z", 45, EventKind.MoonQuarter)
 
-        assertTrue(phases.size.toString(), phases.size >= 4)
-        assertTrue(phases.any { it.title.contains("New moon") })
-        assertTrue(phases.any { it.title.contains("Full moon") })
+        assertTrue(phases.size.toString(), phases.size >= 2)
+        assertTrue(phases.all { it.title.contains("New moon") || it.title.contains("Full moon") })
+        assertTrue(quarters.isNotEmpty())
+        assertTrue(quarters.all { it.title.contains("quarter") })
     }
 
     /**

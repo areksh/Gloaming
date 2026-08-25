@@ -102,6 +102,7 @@ object EventPlanner {
         EventKind.Conjunction,
         EventKind.Elongation,
         EventKind.MoonPhase,
+        EventKind.MoonQuarter,
         EventKind.Season,
         // An opposition or a greatest brilliancy is a good few weeks either
         // side of its date rather than an appointment, so notice on the night
@@ -126,8 +127,19 @@ object EventPlanner {
         if (!settings.alertsEnabled || !settings.eventAlertsEnabled) return emptyList()
         return events
             .filter { it.visibility == Visibility.Good && EventChannel.of(it.kind) != null }
+            .filterNot { isHidden(it, settings) }
             .filter { settings.notifyAboutEveryEvent || !canBeStarred(it) || isStarred(it, settings) }
     }
+
+    /**
+     * Whether the user has filtered this kind out.
+     *
+     * One answer for the list and for the alerts alike: hiding meteor showers
+     * should mean not being woken about them, not merely not seeing them in a
+     * list somebody may never scroll.
+     */
+    fun isHidden(event: SkyEvent, settings: UserSettings): Boolean =
+        event.kind.name in settings.hiddenEventKinds
 
     fun isStarred(event: SkyEvent, settings: UserSettings): Boolean =
         starKey(event) in settings.starredEvents

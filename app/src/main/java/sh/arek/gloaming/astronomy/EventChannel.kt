@@ -38,7 +38,7 @@ enum class EventChannel(val id: String) {
             EventKind.GreatestBrightness,
             -> Conjunctions
             EventKind.Noctilucent -> Noctilucent
-            EventKind.MoonPhase, EventKind.Season -> null
+            EventKind.MoonPhase, EventKind.MoonQuarter, EventKind.Season -> null
         }
     }
 }

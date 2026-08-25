@@ -51,6 +51,8 @@ import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.Tonight
+import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
@@ -74,6 +76,15 @@ private const val DEFAULT_QUIET_FROM = 23 * 60
 private const val DEFAULT_QUIET_UNTIL = 7 * 60
 
 /** Quiet hours from two typed times, or null if either is not a time. */
+/**
+ * How often tonight's list is worked out again while the screen is open.
+ *
+ * Fifteen minutes. Passes move on and the darkness window turns over, but
+ * recomputing on every minute tick would run the propagator over the whole
+ * catalogue sixty times an hour for an answer that changes slowly.
+ */
+private const val TONIGHT_STALE_MILLIS = 15 * 60_000L
+
 private fun quietHoursFrom(from: String, until: String): QuietHours? {
     val start = parseTimeOfDay(from) ?: return null
     val end = parseTimeOfDay(until) ?: return null
@@ -208,6 +219,7 @@ private fun GloamingApp() {
     // thread and far too much on the main one.
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
     var calendarLoading by remember { mutableStateOf(false) }
+    var tonight by remember { mutableStateOf<TonightList?>(null) }
     var detectingLocation by remember { mutableStateOf(false) }
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
@@ -377,6 +389,28 @@ private fun GloamingApp() {
         calendarLoading = false
     }
 
+    // Worked out from the calendar and the elements already on the device, so
+    // it costs no network. Recomputed when the calendar is, and on the clock
+    // tick, because "tonight" moves as the evening does.
+    LaunchedEffect(calendar, settings.latitude, settings.longitude, shownAt / TONIGHT_STALE_MILLIS) {
+        val latitude = settings.latitude
+        val longitude = settings.longitude
+        if (latitude == null || longitude == null) {
+            tonight = null
+            return@LaunchedEffect
+        }
+        tonight = withContext(Dispatchers.Default) {
+            runCatching {
+                Tonight.of(
+                    satellites = Graph.satellites(context).cached(),
+                    calendar = calendar,
+                    settings = settings,
+                    nowMillis = System.currentTimeMillis(),
+                )
+            }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()
+        }
+    }
+
     GloamingTheme(nightVision = settings.nightVision) {
         DimScreen(settings.nightVision)
         Scaffold(
@@ -401,6 +435,7 @@ private fun GloamingApp() {
                     logSizeBytes = logSize,
                     calendar = calendar,
                     calendarLoading = calendarLoading,
+                    tonight = tonight,
                     detectingLocation = detectingLocation,
                     locationNote = locationNote,
                 ),
@@ -576,6 +611,17 @@ private fun GloamingApp() {
                             )
                         }
                     }
+                },
+                onToggleKind = { kind ->
+                    val hidden = settings.hiddenEventKinds
+                    settings = settings.copy(
+                        hiddenEventKinds = if (kind.name in hidden) {
+                            hidden - kind.name
+                        } else {
+                            hidden + kind.name
+                        },
+                    )
+                    BootAware.saveSettings(context, settings)
                 },
                 onLocationModeChange = { mode ->
                     if (mode == LocationMode.Automatic &&

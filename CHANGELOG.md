@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads the last position the phone already had rather than turning the GPS on.
   Typing it in still works with location denied forever, and is still the only
   way to ask about somewhere you are not.
+- A "tonight" card at the top of the Tonight tab: when it gets dark, which
+  satellites cross and how high they get, any calendar event falling tonight,
+  and the noctilucent prompt in season. Until now passes could only reach you
+  as a notification, so standing outside wondering what was crossing meant
+  waiting to be interrupted. It leads with the best few rather than the
+  earliest, and always finds room for the space station.
+- A filter on the calendar, one chip per kind with a count, hiding what you do
+  not care about from the list and from the alerts alike. The moon's quarters
+  are hidden by default: there are as many of them as there are new and full
+  moons, they matter far less, and together the four filled over half the year.
 - More in the calendar: Mars, Jupiter and Saturn at opposition - the one night
   of the year each is up all night and at its closest - Venus at its brightest,
   the equinoxes and solstices, and a note on the full moon when it falls at

@@ -1363,6 +1363,28 @@ Next to the displayed data, not buried under the donation link:
 
 ---
 
+### Tonight, which the calendar cannot hold
+
+**Added 2026-08-25.** The split between the calendar and the Tonight tab is by *shape*, not
+by feature: what is dated and sparse goes in the calendar, and what is nightly and dense
+goes on Tonight.
+
+A year of eclipses and oppositions fits in a list. A year of satellite passes does not - a
+clear night here has hundreds above ten degrees, measured at 281 on one December night from
+the Midlands - so a calendar of them would run to tens of thousands of entries and be
+useless at every scale. Yet "what is crossing while I am standing here" is the question the
+app exists to answer, and until this it could only be answered by waiting to be interrupted.
+
+Two rules the card needs that a notification does not:
+
+- **The best few, not the first few.** Listing by time answers "what happens next", which at
+  dusk is whatever rocket body happens to be up; the pass worth walking outside for may be
+  four hours later. The station is always given a place whatever its elevation, because it
+  is the one most people mean, and the remaining places go to whatever gets highest.
+- **A lower bar than an alert uses.** Somebody reading a list has chosen to look and can
+  skim past a mediocre pass. The same pass arriving as a notification has interrupted them
+  and has to earn it.
+
 ### What counts as an event at all
 
 **Decided 2026-08-25, and it settles most future questions in one line: if it cannot be

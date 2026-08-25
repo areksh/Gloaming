@@ -4,6 +4,7 @@ import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.TonightList
 
 /**
  * The watch switch, which is an action rather than a setting and so is the one
@@ -59,6 +60,8 @@ data class MainUiState(
     val calendar: List<SkyEvent> = emptyList(),
     /** True while that computation is in flight, so the tab can say so. */
     val calendarLoading: Boolean = false,
+    /** What there is to see between now and dawn, once it has been worked out. */
+    val tonight: TonightList? = null,
     /** True while a position is being read from the device. */
     val detectingLocation: Boolean = false,
     /**

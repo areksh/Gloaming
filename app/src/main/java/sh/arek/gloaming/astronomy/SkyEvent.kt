@@ -24,7 +24,22 @@ enum class EventKind {
     /** Venus at its brightest, which is bright enough to cast a shadow. */
     GreatestBrightness,
 
+    /**
+     * New and full moon: the two that decide what a night is worth. New is the
+     * darkest sky of the month, full washes out everything faint.
+     */
     MoonPhase,
+
+    /**
+     * First and last quarter, kept apart from [MoonPhase] rather than marked
+     * within it.
+     *
+     * They matter far less to an observer and there are just as many of them,
+     * so together the four filled over half the calendar. Making them their own
+     * kind means the ordinary filter can hide them - which it does by default -
+     * with no special case anywhere for "a moon phase below some threshold".
+     */
+    MoonQuarter,
 
     /**
      * An equinox or a solstice. Not a sight - listed because it marks the
