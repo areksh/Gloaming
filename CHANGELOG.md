@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A sky calendar, on a tab of its own. Solar and lunar eclipses, meteor
+  showers, close pairings of planets, greatest elongations of Mercury and
+  Venus, and the moon's phases - all worked out on the phone from a vendored
+  ephemeris, with no network and no downloaded list. Everything is judged
+  against where you are standing: an eclipse that happens with the sun already
+  below your horizon says so rather than being listed as though you could watch
+  it.
+- Alerts for the calendar, on three channels - `eclipses`, `meteor-showers` and
+  `conjunctions` - so any of them can be silenced from the system settings.
+  Eclipses and shower peaks get two notices, one a few days ahead so you can
+  plan around it and one on the day; everything else gets the one on the day.
+  Only events actually visible from where you are will interrupt.
+- Meteor showers with the two things most forecasts leave out: how high the
+  radiant gets where you are, and what the moon is doing. A rate of 150 an hour
+  with the radiant at 15 degrees under a gibbous moon is a rate of about five,
+  and the app says so instead of quoting the headline number.
+- A countdown for eclipses. Press "Follow it" on the notification and the app
+  counts to each contact in turn - first contact, totality, maximum, last
+  contact - and says where in the sky to look. It needs no signal, works for
+  partial and lunar eclipses as well as total ones, and stops on its own.
+- A prompt for noctilucent clouds on summer nights, when the sun sits at the
+  right depth for high ice clouds to still be lit. It is a prompt rather than a
+  forecast and says so: there has been no way to predict these since the AIM
+  satellite ended in 2023.
+- Three tabs - Tonight, Calendar and Settings - where the app was one long
+  scrolling page.
+
 ### Fixed
 
 - A pass on one channel could be missed because the app was waiting out a pass

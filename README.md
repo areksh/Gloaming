@@ -32,6 +32,15 @@ remains before release
 is the part no test suite can do for you: a season of real nights, to calibrate
 the thresholds and confirm the app is worth keeping installed.
 
+On top of that sits a sky calendar: eclipses, meteor showers, close pairings of
+planets and the moon's phases, worked out on the phone for the year ahead and
+judged against where you are standing rather than listed as though everything
+is visible from everywhere. An eclipse that reaches maximum after the sun has
+set where you are says so. Eclipses carry a countdown you can follow contact by
+contact, and summer nights carry a prompt for noctilucent clouds - which is a
+prompt and not a forecast, because nothing has been able to forecast those
+since 2023.
+
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system
 holds background checks until the phone next wakes, which overnight means hours,

@@ -821,9 +821,30 @@ call.
 
 ### Meteor showers
 
-No API exists. A hand-built table is required: name, radiant RA/Dec, nightly radiant drift,
-activity window, peak date/time, ZHR, parent body. Roughly 15 rows covers the showers
-anyone cares about. Shipped in the APK with a remote override.
+No API exists. A hand-built table is required: name, radiant RA/Dec, activity window, peak,
+ZHR, parent body. Thirteen rows covers the showers anyone who is not a specialist has heard
+of. Shipped in the APK.
+
+**Built 2026-08-25, with two changes to the above.**
+
+**The peak is stored as solar longitude, not as a date.** That is how the IMO publishes it,
+and it is what makes the table survive a change of year: the Earth reaches a given point in
+its orbit at the same place annually, so 140.0 degrees is the Perseid maximum in 2027, 2028
+and 2099 alike. `searchSunLongitude` turns it into an instant for whichever year is asked
+about. A table of dates would need replacing every year and would drift a day at a time as
+leap years came and went - wrong in exactly the quiet way nobody notices. Tested across four
+consecutive years and a leap year.
+
+**Nightly radiant drift is left out, deliberately.** The IMO publishes it and the app speaks
+about the peak night and no other, so the radiant at maximum is exactly the figure that
+matters; a drift term would refine a position on nights nothing is ever said about, using
+numbers interpolated rather than checkable against a published source.
+
+**Rates are discounted by the sine of the radiant altitude** - the standard correction - and
+the text says what it still assumes, which is a properly dark sky. A ZHR is a laboratory
+figure: radiant overhead, sky dark enough for sixth-magnitude stars. Quoting a bare 150 for
+the Geminids and delivering a dozen would be the same mistake this section rejects for
+satellite magnitudes.
 
 Given the radiant, the app computes radiant altitude at the observer's location combined
 with moon phase and moonrise - which most incumbents skip. A ZHR of 100 with a full moon
@@ -1018,7 +1039,18 @@ channel specifically - and never automatic across the `visual` group.
 
 - **Solar eclipse totality** - contact-time countdown, same code, seconds genuinely matter.
   A Phase 4 freebie once live pass mode exists, not a design driver.
-- **Lunar eclipses** - hours long, nothing to point at. No.
+  - **Broadened when built, 2026-08-25: any eclipse, not only a total solar one.** Totality
+    is the case it would almost never be used for. From Edinburgh the next six solar
+    eclipses are all partial, obscuration 0.17 to 0.64, and there is no totality for
+    decades - so a totality-only countdown has no user at this latitude. Knowing when
+    first contact is, so the filter goes on, is the real need and is the same countdown.
+- ~~**Lunar eclipses** - hours long, nothing to point at. No.~~ **Revised 2026-08-25:
+  built, and the "nothing to point at" half was simply wrong.** The moon has an azimuth
+  and an altitude like anything else, and the eclipse of 28 August 2026 peaks with it 7.4
+  degrees above the horizon at Edinburgh - at that height which way to look is the whole
+  question. The length objection was right and is answered by counting to the **next
+  contact** rather than through the whole event, with a cap of its own (three hours,
+  against live pass mode's thirty minutes) because the events genuinely are that long.
 - **Meteor showers** - a multi-hour window, not a moment. The right shape is a scheduled
   notification ("radiant up at 23:30, moon sets 01:00"), optionally with a tally screen. Not
   a foreground service.
@@ -1052,6 +1084,37 @@ happens (item 19), matching the `aurora-live` precedent storm mode set: wanting 
 a pass is coming is not the same as wanting a countdown running through it, and the two
 should be silenceable apart.
 
+**Added and changed 2026-08-25, building Phase 4:**
+
+- **`elongations` folded into `conjunctions`** rather than getting a channel of its own.
+  Same appetite - a planet is well placed tonight - and somebody who wants to hear about
+  one wants to hear about the other. Labelled "Planets and conjunctions" in the system
+  settings so the widening is visible to the user rather than only here.
+- **`noctilucent`** for item 24. It earns a channel despite being a prompt rather than an
+  event, because its appetite is unlike anything else here: nightly for three months and
+  then nothing for nine, and the three months are precisely when the aurora channel has
+  nothing to say. Somebody may well want this one and no other.
+- **`eclipse-live`** for the contact countdown, matching `aurora-live` and `passes-live`.
+- **Moon phases deliberately have no channel and never notify.** One arrives every 7.4
+  days; what they are for is planning everything else around, and an app that announced
+  each one is an app that gets muted.
+
+**No per-channel interval settings for any of these**, which is a deliberate departure
+from the pass channels. Passes needed intervals because a clear night over Edinburgh has
+upwards of forty worth looking at. The whole calendar produces about forty events a *year*,
+of which only the ones visible from the observer's own location ever speak, so a rate limit
+built for things that come over nightly would be apparatus with nothing to do. Android's
+own per-channel switch is the control that fits.
+
+**The darkness gate does not apply to calendar events either.** Sec. 9.2's rule that every
+outdoor event is gated on darkness was written with aurora and passes in mind. A solar
+eclipse happens in daylight by definition, so the gate would suppress every one of them.
+Whether a thing can be seen from where the observer stands is already settled, per kind and
+with the right rule for each, by the visibility verdict the calendar attaches - applying a
+blanket sun-below-six gate on top would answer the same question twice and get it wrong the
+second time. The cloud gate does still apply, to the notice on the day and not to the
+advance one, because a forecast two days out says nothing useful about the sky.
+
 ---
 
 ## 10. Hosted files
@@ -1064,9 +1127,15 @@ should be silenceable apart.
 | `oval.bin` | ~5-10 KB gz | 5 min | **Packed OVATION grid**: 1 byte/cell, row-major, 360x181. Global aurora probability. Fetched conditionally (Sec. 4). |
 | `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes and any Starlink trains. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
 | `comets.json` | ~2 KB | weekly | Curated MPC elements + H/slope. |
-| `showers.json` | ~2 KB | annually | **Shipped in the APK**, remote override optional. |
+| `showers.json` | - | never | **Shipped in the APK, no remote override.** Not a hosted file at all - see below. |
 
 ~40 KB total. The backend is a cron job and an object store.
+
+**Why the shower table needs no remote override.** The plan left one open in case the table
+went stale annually. Storing peaks as solar longitude rather than as dates (Sec. 8) means it
+does not: the same thirteen rows resolve correctly for any year, so there is nothing for an
+override to correct. That saves an endpoint, a cache path, a manifest entry and a signature
+for a file that would never have changed.
 
 **Why `sats.json` carries only two Starlinks per train.** The `starlink` group runs to
 thousands of objects. At the ~290 bytes per satellite the document costs today, publishing
@@ -1329,11 +1398,27 @@ watched from outside, which needs a clear night and a person rather than any fur
     the two ends of each train are published.
 
 **Phase 4 - the sky calendar**
+
+*All four items built as of 2026-08-25. Two of them are unverifiable against the sky this
+year, and that is stated rather than implied: the noctilucent prompt, because the northern
+season closed in mid August and does not reopen until late May, and the eclipse countdown,
+because the next eclipse visible from Edinburgh is 2 August 2027.*
+
 21. astronomy-engine events: eclipses, moon phases, conjunctions, elongations. Mostly
-    wiring.
+    wiring. **True of the computation and not of the work.** Every call is one line against
+    the vendored ephemeris; what took the time was deciding what is worth telling somebody
+    about. Measured for Edinburgh: three of the next six lunar eclipses are penumbral and
+    show nothing at all; three of the next six solar eclipses have the sun below the
+    horizon at maximum; close planet pairings inside three degrees arrive roughly
+    fortnightly. So every event carries a verdict judged against where the observer stands,
+    only the good ones may interrupt, and the rest appear in the calendar with the reason
+    rather than being dropped - the same argument the latitude ceiling makes in item 17.
 22. Meteor showers: hand-built table + radiant altitude + moon interference. Scheduled
-    notification, no live mode.
-23. Solar eclipse totality countdown - reuses live pass mode.
+    notification, no live mode. **Peaks stored as solar longitude, not as dates** - see
+    Sec. 6, and Sec. 10 on why that settles the remote override.
+23. Solar eclipse totality countdown - reuses live pass mode. **Broadened to any eclipse
+    when built**; see Sec. 9.4 for why totality alone would have had no user at this
+    latitude.
 24. Noctilucent clouds (see below).
 
 **Phase 5 - comets**
@@ -1392,9 +1477,12 @@ decision the project can settle on its own.
   curated by legacy tooling it may lag reality exactly when it matters, leaving the app
   blind to the brightest new objects despite parsing OMM correctly. Ask Kelso directly; he
   answers factual questions readily. Sec. 3.
-- **Developer alerting path.** The CelesTrak circuit breaker is required to report to a
-  human and there is currently no channel to one. `health.json` plus a maintainer-only ntfy
-  topic. Roughly half a day, and it covers silent AuroraWatch and SWPC failures too. Sec. 3.
+- ~~**Developer alerting path.**~~ **Closed: built in Phase 1, verified 2026-08-24.**
+  `health.json` plus a maintainer-only ntfy topic. The deliberate breaker trip confirmed end
+  to end that exactly one push arrives per transition rather than one per attempt. It covers
+  silent AuroraWatch and SWPC failures too, and caught one on 2026-08-25 - a source that had
+  stopped being attempted at all, which the record could not previously tell from a healthy
+  one. Sec. 3.
   - ~~Check whether Cloudflare's own alerting covers cron failure first~~ - checked
     2026-08-05: **it does not.** Cloudflare's notification catalogue carries no Workers or
     Cron Trigger entry at any tier, and webhook delivery needs a paid account regardless.

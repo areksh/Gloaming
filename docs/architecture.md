@@ -716,6 +716,46 @@ errors; the sourcing document is strong.
     and it is worth knowing that a Cloudflare cron can stop for no visible
     reason and that a redeploy is a plausible first remedy.
 
+21. **The calendar's real problem is relevance, not computation. Found building
+    item 21, 2026-08-25.** Sec. 14 calls the astronomy-engine events "mostly
+    wiring", and of the computation that is exactly right: every kind is one
+    call into the vendored ephemeris. What the estimate missed is that most of
+    what those calls return is not worth telling anybody about. Measured for
+    Edinburgh over the following years:
+
+    - Three of the next six lunar eclipses are **penumbral**, obscuration 0.000.
+      The moon misses the umbra entirely and the disc looks unchanged. These are
+      not dim events, they are invisible ones, and they are not produced at all.
+    - Three of the next six local solar eclipses have the **sun below the
+      horizon** at maximum. One of them, 26 January 2028, begins with the sun 5.6
+      degrees up and reaches maximum after it has set - which is neither "good"
+      nor "not visible" and needed a third verdict of its own.
+    - Close planet pairings inside three degrees arrive roughly **fortnightly**,
+      and most of them peak with the pair below the horizon. The moon passes
+      within four arcminutes of Venus on 14 September 2026, at ten in the
+      morning.
+
+    So a conjunction is reported **as it is seen** rather than as it is closest,
+    and one that is no longer close by the time it can be seen is dropped: six of
+    the fourteen the search found in the first two hundred days were the moon
+    being vaguely near a planet by the time either cleared the horizon. Reading a
+    season of the generated output is what surfaced all of this; none of it came
+    out of reasoning about the design beforehand, and it is the reason the
+    calendar has a visibility verdict rather than a boolean.
+
+22. **A lunar eclipse is a full moon, and the calendar printed both. Same day.**
+    Seven minutes apart, on 28 August 2026. A solar eclipse is a new moon and a
+    lunar one is a full moon by definition, so the two entries are the same
+    alignment seen twice; the moon phase is now suppressed when an eclipse
+    coincides. Trivial to fix and invisible until the output was read.
+
+23. **`equator` is topocentric, and for the moon that is not a detail.** The moon
+    has up to a degree of parallax, so a geocentric separation can be a whole
+    moon's width from what somebody actually sees - and the moon is involved in
+    most close approaches. A conjunction is a fact about a place, not about the
+    Earth, which is also why an app can compute it on the device and a server
+    could not.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
@@ -729,3 +769,6 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0004 - GPL-3.0 from day one.
 - ADR-0005 - a vendored Ed25519 verifier rather than a crypto library.
 - ADR-0006 - vendor astronomy-engine rather than resolve it from JitPack.
+- ADR-0007 - keep the vendored propagator in its own source tree.
+- ADR-0008 - fetch CelesTrak from outside Cloudflare.
+- ADR-0009 - three specific pollers, not one event engine.
