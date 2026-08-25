@@ -1297,10 +1297,12 @@ should be committed to before reading it.
 
 **Phase 3 - satellites (the largest single lump)**
 
-*All six items built as of 2026-08-24, and not yet fully verified: the end-to-end checks
-that remain are a deliberate breaker trip, a prediction compared against an independent
-source to the second, two unattended fetcher cycles, an overnight Doze run delivering a real
-pass alert, and one pass watched from outside.*
+*All six items built as of 2026-08-24 and verified end to end by 2026-08-25, bar one
+check: the breaker has been tripped deliberately and refused the second attempt without
+querying; a predicted ISS pass has been compared against Heavens-Above to the second on two
+independent peaks; two unattended fetcher cycles ran 2h01m49s apart; and an untouched phone
+in Doze delivered a real pass alert 27.5 minutes before the peak. What remains is one pass
+watched from outside, which needs a clear night and a person rather than any further code.*
 
 15. Worker: CelesTrak **OMM CSV** -> `sats.json`, 2-hourly, respecting one-per-update.
     **Circuit breaker on any non-200 first, before the parser** (Sec. 3). It is the requirement

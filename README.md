@@ -158,6 +158,13 @@ about twelve minutes, and anything that reads back further silently sees
 nothing. That bug lived in `tools/doze-check.sh` and invented a sevenfold
 deferral that was not happening.
 
+The app keeps its own log for exactly that reason, and it is the record worth
+reading after a night rather than the system's. Seven days by default, bounded
+at 512 KB so a fault logging in a loop cannot fill the phone, and written to
+device-protected storage so a poll before first unlock can reach it. The screen
+exports it through the share sheet and clears it. It records what the app
+decided and why, and never where the user is.
+
 ### Elements fetcher
 
 Fetches CelesTrak orbital elements and publishes `sats.json` to R2. It runs on
