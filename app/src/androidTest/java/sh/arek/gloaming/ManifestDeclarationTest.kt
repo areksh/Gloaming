@@ -132,6 +132,7 @@ class ManifestDeclarationTest {
                 "sh.arek.gloaming.widget.AuroraWidget" to true,
                 "sh.arek.gloaming.work.PassReceiver" to false,
                 "sh.arek.gloaming.work.FollowPassReceiver" to false,
+                "sh.arek.gloaming.work.FollowEclipseReceiver" to false,
             ),
             ours,
         )

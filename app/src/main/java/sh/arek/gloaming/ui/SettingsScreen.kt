@@ -505,6 +505,9 @@ private fun InterruptionCard(
  * last choice.
  */
 @OptIn(ExperimentalLayoutApi::class)
+/** How a chip in a [ChoiceRow] is reached from a test. */
+fun choiceTag(label: String, rendered: String): String = "choice:$label:$rendered"
+
 @Composable
 private fun ChoiceRow(
     label: String,
@@ -520,7 +523,15 @@ private fun ChoiceRow(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             for (option in choices) {
-                OutlinedButton(onClick = { onChange(option) }) { Text(render(option)) }
+                // Tagged because these cannot be identified by the setting they
+                // sit beside, unlike every other control here: "1h" appears in
+                // seven different rows, so picking one by its text alone means
+                // picking by position in the tree - which is exactly what broke
+                // when the watch card moved to its own tab.
+                OutlinedButton(
+                    onClick = { onChange(option) },
+                    modifier = Modifier.testTag(choiceTag(label, render(option))),
+                ) { Text(render(option)) }
             }
         }
     }
@@ -848,7 +859,7 @@ private fun CalendarCard(
                 )
                 ChoiceRow(
                     label = "Notice on the day",
-                    value = describeInterval(state.settings.eventAlertLeadMinutes),
+                    value = describeLead(state.settings.eventAlertLeadMinutes),
                     choices = UserSettings.EVENT_LEAD_CHOICES,
                     render = ::shortInterval,
                     onChange = onEventLeadChange,
@@ -861,7 +872,7 @@ private fun CalendarCard(
                 )
                 ChoiceRow(
                     label = "Stop following after",
-                    value = describeInterval(state.settings.eclipseFollowMaxMinutes),
+                    value = describeDuration(state.settings.eclipseFollowMaxMinutes),
                     choices = UserSettings.ECLIPSE_FOLLOW_MAX_CHOICES,
                     render = ::shortInterval,
                     onChange = onEclipseFollowMaxChange,

@@ -377,12 +377,17 @@ class ScreensTest {
             .assertExists()
     }
 
+    /**
+     * By tag, not by position. "1h" appears in seven rows, so picking the first
+     * one meant picking by tree order - and tree order moved when the watch
+     * card went to its own tab, which had this quietly clicking the watch
+     * duration instead of the aurora interval.
+     */
     @Test
     fun reportsTheIntervalTheUserPicked() {
         show()
 
-        compose.onNodeWithText("How often at most").performScrollTo()
-        compose.onAllNodesWithText("1h").onFirst().performScrollTo().performClick()
+        compose.onNodeWithTag(choiceTag("Aurora", "1h")).performScrollTo().performClick()
 
         assertEquals(60, auroraInterval)
     }
@@ -645,7 +650,12 @@ class ScreensTest {
 
         compose.onNodeWithText("Sky calendar").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Notice ahead: 2 days").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Notice on the day: 1 hour").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Notice on the day: an hour before")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Stop following after: 3 hours")
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     /** Switched off, the leads have nothing to configure and go away. */
@@ -665,5 +675,27 @@ class ScreensTest {
         compose.onNodeWithTag(EVENT_ALERTS_SWITCH_TAG).performScrollTo().performClick()
 
         assertEquals(false, eventAlerts)
+    }
+
+    /**
+     * A notice is not a rate. "at most once an hour" is the right sentence for
+     * a rate limit and nonsense for a lead, which is a thing that happens once.
+     */
+    @Test
+    fun describesALeadAsALeadRatherThanARate() {
+        show()
+
+        compose.onAllNodesWithText("Notice on the day: at most once an hour").assertCountEquals(0)
+    }
+
+    /** Picking a lead reports it, and does not report anything else. */
+    @Test
+    fun reportsTheCalendarLeadTheUserPicked() {
+        show()
+
+        compose.onNodeWithTag(choiceTag("Notice on the day", "2h")).performScrollTo().performClick()
+
+        assertEquals(120, eventLead)
+        assertEquals(null, auroraInterval)
     }
 }

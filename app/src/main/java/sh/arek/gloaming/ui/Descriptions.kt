@@ -136,3 +136,25 @@ internal fun describeLogSize(bytes: Long): String = when {
 
 /** Whole days, for the advance notice the calendar gives. */
 internal fun describeDays(days: Int): String = if (days == 1) "1 day" else "$days days"
+
+/**
+ * A span of time before something, as a lead rather than a rate.
+ *
+ * Distinct from [describeInterval], which says "at most once an hour" - correct
+ * for a rate limit and nonsense for a notice, which is not a thing that happens
+ * repeatedly.
+ */
+internal fun describeLead(minutes: Int): String = when {
+    minutes < 60 -> "$minutes minutes before"
+    minutes == 60 -> "an hour before"
+    minutes % 60 == 0 -> "${minutes / 60} hours before"
+    else -> "$minutes minutes before"
+}
+
+/** A cap on how long something may run, as a duration. */
+internal fun describeDuration(minutes: Int): String = when {
+    minutes < 60 -> "$minutes minutes"
+    minutes == 60 -> "an hour"
+    minutes % 60 == 0 -> "${minutes / 60} hours"
+    else -> "$minutes minutes"
+}
