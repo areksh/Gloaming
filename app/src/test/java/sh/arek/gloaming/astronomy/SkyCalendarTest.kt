@@ -52,6 +52,26 @@ class SkyCalendarTest {
         assertAtSecond("2027-08-02T09:00:23Z", eclipse!!.at)
         assertEquals(Visibility.Good, eclipse.visibility)
         assertTrue(eclipse.detail, eclipse.detail.contains("27 per cent"))
+        // Independently checked: timeanddate gives first contact around 09:10
+        // BST, maximum around 10:00 and last contact around 10:50, which is
+        // 08:10, 09:00 and 09:50 UTC.
+        assertAtSecond("2027-08-02T08:11:11Z", eclipse.from)
+        assertAtSecond("2027-08-02T09:51:31Z", eclipse.until)
+    }
+
+    /**
+     * Eclipse tables print magnitude, the fraction of the disc's diameter
+     * covered; this is obscuration, the fraction of its area, and the two are
+     * never equal. The same eclipse is quoted as 38 per cent elsewhere and 27
+     * here, and both are right. Saying which one is meant is what stops that
+     * reading as a bug.
+     */
+    @Test
+    fun `says which measurement the coverage figure is`() {
+        val eclipse = onlyKind("2026-08-25T00:00:00Z", 800, EventKind.SolarEclipse)
+            .first { it.at > at("2027-01-01T00:00:00Z") }
+
+        assertTrue(eclipse.detail, eclipse.detail.contains("by area"))
     }
 
     /**
@@ -83,6 +103,7 @@ class SkyCalendarTest {
         assertAtSecond("2026-08-28T04:12:49Z", eclipse.at)
         assertTrue(eclipse.visibility.toString(), eclipse.visibility is Visibility.Marginal)
         assertTrue(eclipse.detail, eclipse.detail.contains("97 per cent"))
+        assertTrue(eclipse.detail, eclipse.detail.contains("by area"))
     }
 
     /**

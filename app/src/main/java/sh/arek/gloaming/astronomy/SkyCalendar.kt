@@ -52,7 +52,18 @@ object SkyCalendar {
     /** Below this at maximum, and a clear horizon stops being a detail. */
     private const val LOW_DEGREES = 10.0
 
-    /** Less of the disc than this covered, and most people would not notice. */
+    /**
+     * Less of the disc than this covered, and most people would not notice.
+     *
+     * **By area, which is not the number eclipse tables print.** They quote
+     * magnitude, the fraction of the disc's *diameter* covered, and it is
+     * always the larger of the two - the eclipse of 2 August 2027 is magnitude
+     * 0.38 at Edinburgh and obscuration 0.27. Both are correct and they are not
+     * the same measurement, which is exactly the trap Sec. 6 describes for
+     * satellite magnitudes: two conventions that look like one number. The text
+     * says "by area" so somebody who reads 38 per cent elsewhere has the word
+     * that explains the difference rather than concluding the app is wrong.
+     */
     private const val SLIGHT = 0.10
 
     /**
@@ -180,7 +191,7 @@ object SkyCalendar {
             from = begins.time.millis(),
             until = ends.time.millis(),
             title = "${solarWord(eclipse.kind)} eclipse of the sun",
-            detail = "$covered per cent of the sun covered at maximum. " +
+            detail = "$covered per cent of the sun's disc covered by area at maximum. " +
                 "Never look at the sun without a proper solar filter.",
             visibility = visibility,
         )
@@ -252,8 +263,8 @@ object SkyCalendar {
             from = begins.millis(),
             until = ends.millis(),
             title = "${lunarWord(eclipse.kind)} eclipse of the moon",
-            detail = "$covered per cent of the moon in the Earth's deep shadow at maximum. " +
-                "Safe to watch with the naked eye, unlike the sun.",
+            detail = "$covered per cent of the moon's disc in the Earth's deep shadow by area " +
+                "at maximum. Safe to watch with the naked eye, unlike the sun.",
             visibility = visibility,
         )
     }

@@ -756,6 +756,28 @@ errors; the sourcing document is strong.
     Earth, which is also why an app can compute it on the device and a server
     could not.
 
+24. **The app's eclipse coverage figure disagrees with every eclipse table,
+    and both are right. Found doing the Phase 4 verification, 2026-08-25.**
+    Checking the eclipse of 2 August 2027 against timeanddate confirmed the
+    contact times to within a minute - first contact 08:11 UTC against "around
+    9.10am" BST, maximum 09:00 against "around 10am", last contact 09:51 against
+    "around 10.50am" - and disagreed flatly on how much of the sun is covered:
+    38 per cent there, 27 per cent here.
+
+    Neither is wrong. **Magnitude** is the fraction of the sun's *diameter*
+    covered and is what eclipse tables and the press print; **obscuration** is
+    the fraction of its *area* and is what the vendored ephemeris returns. They
+    are never equal and magnitude is always the larger. This is the same trap
+    Sec. 6 of the sourcing document describes for satellite magnitudes - two
+    conventions that look like one number - arriving from a different direction.
+
+    The app now says "27 per cent of the sun's disc covered by area", so a user
+    who reads 38 per cent elsewhere has the word that explains the difference
+    rather than concluding the prediction is broken. Worth knowing that this
+    would never have surfaced from the test suite: the fixtures come from the
+    same ephemeris as the code, so they agreed with each other perfectly. It
+    took comparing against something outside the project.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
