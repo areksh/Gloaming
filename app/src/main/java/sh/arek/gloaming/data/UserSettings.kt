@@ -143,6 +143,29 @@ data class UserSettings(
      * See [WatchDuration]. The span is theirs; the ceiling is not.
      */
     val watchDuration: WatchDuration = WatchDuration.DEFAULT,
+    /**
+     * Whether the mirror in device-encrypted storage keeps the precise position
+     * rather than the grid cell.
+     *
+     * Off, and it should stay off for most people. Device-encrypted storage is
+     * readable before the device has been unlocked since boot - that is the
+     * entire reason it exists - so it is protected by a device-bound key rather
+     * than by the user's credential, and a phone that is lost or taken before
+     * anyone unlocks it still yields what is in there. Reducing the mirror to a
+     * whole degree means what it yields is a region about 111 km across rather
+     * than an address.
+     *
+     * The reason to turn it on anyway is passes, not aurora. The aurora grid is
+     * looked up at whole degrees regardless, so rounding costs an aurora alert
+     * nothing at all. A pass prediction is different: 111 km moves the rise and
+     * set by tens of seconds and the peak by whole degrees of elevation, which
+     * is the difference between "look south-west at 22:14" being true and being
+     * approximately true.
+     *
+     * Only meaningful with [alertsBeforeUnlock] on; nothing is mirrored at all
+     * without it.
+     */
+    val preciseLocationBeforeUnlock: Boolean = false,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 

@@ -49,6 +49,7 @@ class MainScreenTest {
     private var issInterval: Int? = null
     private var followStation: Boolean? = null
     private var watchDuration: WatchDuration? = null
+    private var precise: Boolean? = null
 
 
     private fun show(
@@ -82,6 +83,7 @@ class MainScreenTest {
                 onThresholdChange = {},
                 onAlertsEnabledChange = {},
                 onBeforeUnlockChange = {},
+                onPreciseBeforeUnlockChange = { precise = it },
                 onCloudGateChange = {},
                 onCloudToleranceChange = {},
                 onQuietHoursEnabledChange = {},
@@ -376,6 +378,51 @@ class MainScreenTest {
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertDoesNotExist()
+    }
+
+    /**
+     * The precision choice only exists once there is a copy to be precise
+     * about. Offering it with before-unlock alerting off would be a question
+     * about nothing.
+     */
+    @Test
+    fun offersThePrecisionChoiceOnlyOnceTheCopyExists() {
+        show(settings = located.copy(alertsBeforeUnlock = false))
+
+        compose.onNodeWithText("Alert before unlock").performScrollTo().assertExists()
+        compose.onNodeWithText("Store my exact location").assertDoesNotExist()
+    }
+
+    @Test
+    fun reportsTurningOnPreciseStorageBeforeUnlock() {
+        show(settings = located.copy(alertsBeforeUnlock = true))
+
+        compose.onNodeWithTag(PRECISE_BEFORE_UNLOCK_TAG).performScrollTo().performClick()
+
+        assertEquals(true, precise)
+    }
+
+    /**
+     * The card must say which of the two it is actually doing. Claiming only a
+     * whole degree is stored while storing the typed position would be the
+     * worst kind of wrong.
+     */
+    @Test
+    fun saysWhichLocationIsActuallyStored() {
+        show(settings = located.copy(alertsBeforeUnlock = true, preciseLocationBeforeUnlock = true))
+
+        compose.onNodeWithText("Alert before unlock").performScrollTo().assertExists()
+        compose.onNodeWithText("exactly as you typed it", substring = true).assertExists()
+        compose.onNodeWithText("Only the whole degree is stored", substring = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun saysSoWhenOnlyTheRoundedLocationIsStored() {
+        show(settings = located.copy(alertsBeforeUnlock = true))
+
+        compose.onNodeWithText("Alert before unlock").performScrollTo().assertExists()
+        compose.onNodeWithText("Only the whole degree is stored", substring = true).assertExists()
     }
 
     /**

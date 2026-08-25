@@ -220,4 +220,40 @@ class MirrorSelectionTest {
         assertEquals(40, mirror.threshold)
         assertEquals(true, mirror.alertsBeforeUnlock)
     }
+
+    /**
+     * Rounding costs the aurora nothing and costs passes a great deal.
+     *
+     * The grid lookup rounds to whole degrees anyway, so an aurora alert before
+     * first unlock is exactly as good either way. A pass prediction is not:
+     * a degree is 111 km, which moves rise and set by tens of seconds and the
+     * peak by whole degrees of elevation - so "look south-west at 22:14" stops
+     * being true. Somebody who wants accurate passes before first unlock can
+     * say so, and what they are trading is stated where they say it.
+     */
+    @Test
+    fun `mirrors the precise position when the user has asked for that`() {
+        val settings = precise.copy(alertsBeforeUnlock = true, preciseLocationBeforeUnlock = true)
+
+        val mirror = BootAware.mirrorOf(settings)!!
+
+        assertEquals(55.95, mirror.latitude!!, 0.0)
+        assertEquals(-3.19, mirror.longitude!!, 0.0)
+    }
+
+    /** And it is off unless asked for: the default is still the grid cell. */
+    @Test
+    fun `rounds by default`() {
+        val mirror = BootAware.mirrorOf(precise.copy(alertsBeforeUnlock = true))!!
+
+        assertEquals(56.0, mirror.latitude!!, 0.0)
+    }
+
+    /** The option means nothing on its own; before-unlock alerting still gates it. */
+    @Test
+    fun `mirrors nothing precise when before-unlock alerting is off`() {
+        val settings = precise.copy(alertsBeforeUnlock = false, preciseLocationBeforeUnlock = true)
+
+        assertNull(BootAware.mirrorOf(settings))
+    }
 }

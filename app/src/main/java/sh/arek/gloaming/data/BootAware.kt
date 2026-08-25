@@ -71,7 +71,14 @@ object BootAware {
         PreferencesSettingsStore(credentialPreferences(context)).write(settings)
 
         val mirror = PreferencesSettingsStore(devicePreferences(context))
+        // Read before it is overwritten: coarsening the mirror has to take the
+        // cloud reading with it, and only the old value says whether the
+        // reading was taken at a finer position than the new one allows.
+        val wasPrecise = mirror.read().preciseLocationBeforeUnlock
         val toMirror = mirrorOf(settings)
+        if (wasPrecise && toMirror?.preciseLocationBeforeUnlock != true) {
+            FileWeatherCache(File(deviceContext(context).filesDir, CACHE_DIRECTORY)).clear()
+        }
         if (toMirror == null) {
             mirror.clear()
             // The cloud reading goes with it. It was taken at the mirror's
@@ -105,6 +112,9 @@ object BootAware {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (!settings.alertsBeforeUnlock || latitude == null || longitude == null) return null
+        // Asked for explicitly, and only worth asking for because of passes:
+        // see UserSettings.preciseLocationBeforeUnlock.
+        if (settings.preciseLocationBeforeUnlock) return settings
         return settings.copy(
             latitude = latitude.roundToInt().toDouble(),
             longitude = longitude.roundToInt().toDouble(),

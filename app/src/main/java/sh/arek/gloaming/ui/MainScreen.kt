@@ -55,6 +55,9 @@ const val WATCH_SWITCH_TAG = "watch-switch"
  */
 const val FOLLOW_STATION_SWITCH_TAG = "follow-station-switch"
 
+/** The precise-before-unlock switch, which sits beside a sentence rather than a value. */
+const val PRECISE_BEFORE_UNLOCK_TAG = "precise-before-unlock-switch"
+
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
     val settings: UserSettings,
@@ -87,6 +90,7 @@ fun MainScreen(
     onThresholdChange: (Int) -> Unit,
     onAlertsEnabledChange: (Boolean) -> Unit,
     onBeforeUnlockChange: (Boolean) -> Unit,
+    onPreciseBeforeUnlockChange: (Boolean) -> Unit,
     onCloudGateChange: (Boolean) -> Unit,
     onCloudToleranceChange: (Int) -> Unit,
     onQuietHoursEnabledChange: (Boolean) -> Unit,
@@ -161,7 +165,7 @@ fun MainScreen(
             onFollowStationChange,
         )
         WatchNowCard(state, onWatchingChange, onWatchDurationChange)
-        BeforeUnlockCard(state, onBeforeUnlockChange)
+        BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
 
         // Disabled while in flight, and says so. A button that looks idle
@@ -785,7 +789,11 @@ private fun WatchNowCard(
  * before unlock.
  */
 @Composable
-private fun BeforeUnlockCard(state: MainUiState, onBeforeUnlockChange: (Boolean) -> Unit) {
+private fun BeforeUnlockCard(
+    state: MainUiState,
+    onBeforeUnlockChange: (Boolean) -> Unit,
+    onPreciseBeforeUnlockChange: (Boolean) -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -806,14 +814,50 @@ private fun BeforeUnlockCard(state: MainUiState, onBeforeUnlockChange: (Boolean)
                 style = MaterialTheme.typography.bodySmall,
             )
             Text(
-                "The cost: your rounded location " +
-                    (state.settings.cell?.let { "(${it.latitude}, ${it.longitude}) " } ?: "") +
-                    "and alert settings are copied to storage the system can read " +
-                    "before you unlock. Only the whole degree is stored - about " +
-                    "111 km - never the position you typed. Turning this off deletes " +
-                    "that copy.",
+                if (state.settings.preciseLocationBeforeUnlock) {
+                    "The cost: the location you typed, exactly as you typed it, and your " +
+                        "alert settings are copied to storage the system can read before " +
+                        "you unlock. Turning this off deletes that copy."
+                } else {
+                    "The cost: your rounded location " +
+                        (state.settings.cell?.let { "(${it.latitude}, ${it.longitude}) " } ?: "") +
+                        "and alert settings are copied to storage the system can read " +
+                        "before you unlock. Only the whole degree is stored - about " +
+                        "111 km - never the position you typed. Turning this off deletes " +
+                        "that copy."
+                },
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            // Only once the copy exists at all. Offering a choice about how
+            // precise something is, when there is no something, is noise.
+            if (state.settings.alertsBeforeUnlock) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Store my exact location",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Switch(
+                        checked = state.settings.preciseLocationBeforeUnlock,
+                        onCheckedChange = onPreciseBeforeUnlockChange,
+                        modifier = Modifier.testTag(PRECISE_BEFORE_UNLOCK_TAG),
+                    )
+                }
+                Text(
+                    "Only worth it for satellite passes. The aurora grid is read at " +
+                        "whole degrees anyway, so rounding costs an aurora alert nothing " +
+                        "- but 111 km moves a pass by tens of seconds and several " +
+                        "degrees of elevation, so \"look south-west at 22:14\" stops " +
+                        "being quite true. What you are trading is that anyone who can " +
+                        "read this phone before it is unlocked reads where you are, " +
+                        "rather than roughly which part of the country.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
     }
 }

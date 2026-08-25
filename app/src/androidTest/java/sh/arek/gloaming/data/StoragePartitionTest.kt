@@ -10,6 +10,7 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 
 /**
  * That the two preference stores really are two.
@@ -89,6 +90,67 @@ class StoragePartitionTest {
             PreferencesSettingsStore(credentialPreferences(context)).read().latitude!!,
             0.0,
         )
+    }
+
+    /** A reading at the precise position, as a precise poll would have cached. */
+    private fun reading() = CachedCloud(
+        cover = CloudCover(total = 10, low = 0, mid = 0, high = 10),
+        latitude = 55.95,
+        longitude = -3.19,
+        fetchedAt = System.currentTimeMillis(),
+    )
+
+    /**
+     * Turning the precision back off has to take the cloud reading with it.
+     *
+     * While it was on, the poll read a position to two decimal places and the
+     * forecast request carried it, so the cached reading in device-encrypted
+     * storage records where the user was to about a kilometre. Reducing the
+     * mirror back to a whole degree while leaving that behind would keep the
+     * finer position exactly where the user just said they did not want one -
+     * the same reasoning that clears it when before-unlock alerting is turned
+     * off altogether.
+     */
+    @Test
+    fun turningOffPrecisionAlsoDropsTheReadingTakenAtIt() {
+        val precise = UserSettings(
+            latitude = 55.95,
+            longitude = -3.19,
+            alertsBeforeUnlock = true,
+            preciseLocationBeforeUnlock = true,
+        )
+        BootAware.saveSettings(context, precise)
+        val deviceCache = FileWeatherCache(
+            File(BootAware.deviceContext(context).filesDir, BootAware.CACHE_DIRECTORY),
+        )
+        deviceCache.write(reading())
+        assertNotNull(deviceCache.read())
+
+        BootAware.saveSettings(context, precise.copy(preciseLocationBeforeUnlock = false))
+
+        assertNull("the finer reading outlived the precision", deviceCache.read())
+        val mirrored = PreferencesSettingsStore(devicePreferences(context)).read()
+        assertEquals(56.0, mirrored.latitude!!, 0.0)
+    }
+
+    /** Leaving it on must not throw the reading away on every save. */
+    @Test
+    fun keepsTheReadingWhilePrecisionStaysOn() {
+        val precise = UserSettings(
+            latitude = 55.95,
+            longitude = -3.19,
+            alertsBeforeUnlock = true,
+            preciseLocationBeforeUnlock = true,
+        )
+        BootAware.saveSettings(context, precise)
+        val deviceCache = FileWeatherCache(
+            File(BootAware.deviceContext(context).filesDir, BootAware.CACHE_DIRECTORY),
+        )
+        deviceCache.write(reading())
+
+        BootAware.saveSettings(context, precise.copy(threshold = 45))
+
+        assertNotNull(deviceCache.read())
     }
 
     @Test

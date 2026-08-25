@@ -276,6 +276,12 @@ private fun GloamingApp() {
                     settings = settings.copy(alertsBeforeUnlock = it)
                     BootAware.saveSettings(context, settings)
                 },
+                // Coarsening again clears the cloud reading taken at the finer
+                // position; BootAware.saveSettings owns that.
+                onPreciseBeforeUnlockChange = {
+                    settings = settings.copy(preciseLocationBeforeUnlock = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onCloudGateChange = {
                     settings = settings.copy(cloudGateEnabled = it)
                     BootAware.saveSettings(context, settings)

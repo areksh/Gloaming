@@ -39,6 +39,7 @@ private const val KEY_BRIGHT_INTERVAL = "bright_pass_alert_interval_minutes"
 private const val KEY_TRAIN_INTERVAL = "train_pass_alert_interval_minutes"
 private const val KEY_FOLLOW_STATION = "follow_station_passes"
 private const val KEY_WATCH_DURATION = "watch_duration"
+private const val KEY_PRECISE_BEFORE_UNLOCK = "precise_location_before_unlock"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -129,6 +130,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             ),
             followStationPassesAutomatically = prefs.getBoolean(KEY_FOLLOW_STATION, false),
             watchDuration = WatchDuration.of(prefs.getString(KEY_WATCH_DURATION, null)),
+            preciseLocationBeforeUnlock = prefs.getBoolean(KEY_PRECISE_BEFORE_UNLOCK, false),
         )
     }
 
@@ -167,6 +169,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_TRAIN_INTERVAL, settings.trainPassAlertIntervalMinutes)
             putBoolean(KEY_FOLLOW_STATION, settings.followStationPassesAutomatically)
             putString(KEY_WATCH_DURATION, settings.watchDuration.name)
+            putBoolean(KEY_PRECISE_BEFORE_UNLOCK, settings.preciseLocationBeforeUnlock)
         }.apply()
     }
 
