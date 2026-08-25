@@ -540,6 +540,7 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 | **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** |
 | **CelesTrak** | `celestrak.org/NORAD/elements/gp.php?GROUP=...&FORMAT=CSV` - groups `stations`, `visual` | None | **2 h, once per update** | Non-profit. 403 on repeat. Firewall on abuse. **OMM CSV, not TLE.** |
 | **MPC** | Comet orbital elements | None | Weekly | Public. Includes H (absolute magnitude) and slope. |
+| **COBS** | `cobs.si/api/obs_list.api` - visual and CCD comet magnitude *observations* | None for reads | Daily at most | **Copyright Observatory Crni Vrh, no open licence stated. Permission not yet sought.** Candidate for Phase 5 - see Sec. 8 and Sec. 15. |
 | **JPL SBDB / Horizons** | Cross-check elements | None | As needed | Public. |
 | **Open-Meteo** | `api.open-meteo.com/v1/forecast` - `cloud_cover`, `cloud_cover_low/mid/high` | None | 1 h max | Non-commercial. **CC BY 4.0 - attribution link next to displayed data.** |
 | **IMO** | Meteor shower calendar | - | Annually | No API exists. Hand-built table (Sec. 8). |
@@ -840,9 +841,27 @@ requirement ("is it up, is it dark, is it brighter than 6"). Roughly 150-200 lin
 including Barker's.
 
 The H/slope formula is unreliable - comets outburst, fragment and disappoint. Predicted
-magnitude is presented as a hint and labelled as one. This is why `comets.json` is curated
-rather than scraped: "which comets are worth telling someone about" is a weekly judgement
-call.
+magnitude is presented as a hint and labelled as one. This is why `comets.json` was to be
+curated rather than scraped: "which comets are worth telling someone about" is a weekly
+judgement call.
+
+**Challenged 2026-08-25, and the reasoning above may not survive it.** The argument for
+hand-curation is entirely that the *prediction* is unreliable - but the fix for an
+unreliable prediction is a measurement, and the measurements exist. **COBS**, the Comet
+OBservation database run by Crni Vrh Observatory since 2010, holds over 288,700 visual and
+CCD magnitude observations of more than 1,640 comets, with a public JSON API and no
+authentication for reads. Recent versions also fit light curves with a Henyey-Greenstein
+model specifically to predict visual magnitude better than H/slope does.
+
+The case that makes the point: **220P/McNaught outburst from about magnitude 18 to 8.2 in
+late May 2026** and was around magnitude 6 by August, the brightest comet in the sky. The
+H/slope formula had it at 18 and would have said nothing. COBS observers had it within
+days, because thousands of people are looking - which is more eyes than a weekly judgement
+call has.
+
+So the curation does not disappear, it moves: from "which comets matter this week" to a
+threshold set once, which is a setting rather than a chore. What it costs is a fourth
+permission question - see Sec. 15.
 
 ### Meteor showers
 
@@ -1570,8 +1589,8 @@ is the source.
 
 ## 15. Open questions
 
-**No permission questions remain open.** Everything below is a technical or product
-decision the project can settle on its own.
+**One permission question is open again, for Phase 5.** Everything else below is a
+technical or product decision the project can settle on its own.
 
 **Closed, 2026-07:**
 
@@ -1591,6 +1610,18 @@ decision the project can settle on its own.
   Starlink and AST SpaceMobile are. Sec. 3.
 
 **New:**
+
+- **May Gloaming read COBS, and on what terms?** Raised 2026-08-25 while questioning
+  whether comet curation has to be a weekly human judgement (Sec. 8). The database is
+  public and the read API needs no key, but the site says "Copyright Observatory Crni Vrh,
+  All rights reserved" and states no open licence - so on this project's own precedent,
+  which asked AuroraWatch UK, Open-Meteo and CelesTrak first and now has three
+  load-bearing permissions because of it, the answer is to ask before writing the code.
+  What to ask for: a daily read of magnitude observations for a shortlist of comets, an
+  attribution line beside anything derived from it, and confirmation that non-commercial
+  use is acceptable. Worth asking early: it changes the shape of Phase 5, because with it
+  the app can say what a comet **is** doing and without it only what the elements
+  **predict** it should be doing.
 
 - **Does anything block 6-digit objects from entering the `visual` group?** If the group is
   curated by legacy tooling it may lag reality exactly when it matters, leaving the app
