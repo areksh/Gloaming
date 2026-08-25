@@ -5,6 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
 
 class PreferenceStoresTest {
@@ -81,6 +82,7 @@ class PreferenceStoresTest {
             eventHeadsUpDays = 7,
             eventAlertLeadMinutes = 240,
             eclipseFollowMaxMinutes = 240,
+            locationMode = LocationMode.Automatic,
         )
 
         store.write(settings)

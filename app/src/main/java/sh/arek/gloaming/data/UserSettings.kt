@@ -32,6 +32,22 @@ data class QuietHours(val startMinute: Int, val endMinute: Int) {
  * and typing a location is the only way to plan a trip ("will Shetland be clear
  * on Tuesday?").
  */
+/**
+ * Where the position in [UserSettings] comes from.
+ *
+ * A setting rather than a one-off prompt, because both answers stay useful:
+ * detecting is quicker at home, and typing is the only way to ask about
+ * somewhere you are not - "will Shetland be clear on Tuesday?" is a question
+ * device GPS cannot answer.
+ */
+enum class LocationMode {
+    /** Typed in. The default, and the one that always works. */
+    Manual,
+
+    /** Read from the device when the app is open. Never in the background. */
+    Automatic,
+}
+
 data class UserSettings(
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -214,6 +230,15 @@ data class UserSettings(
      * call; it is their storage and their record.
      */
     val logRetentionDays: Int = DEFAULT_LOG_RETENTION_DAYS,
+
+    /**
+     * Whether the position above was typed in or detected.
+     *
+     * Defaults to [LocationMode.Manual]: the audience runs GrapheneOS and
+     * denies location by default, so the app must be useful before it has asked
+     * for anything.
+     */
+    val locationMode: LocationMode = LocationMode.Manual,
 
     /**
      * Whether the sky calendar may interrupt at all.

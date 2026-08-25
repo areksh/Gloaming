@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
 
 /** The tabs, reached by tag because a label alone is ambiguous with a heading. */
@@ -68,6 +69,8 @@ fun GloamingTabs(
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
+    onLocationModeChange: (LocationMode) -> Unit,
+    onDetectLocation: () -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onWatchDurationChange: (WatchDuration) -> Unit,
     onSave: () -> Unit,
@@ -153,6 +156,8 @@ fun GloamingTabs(
                     onEventHeadsUpChange = onEventHeadsUpChange,
                     onEventLeadChange = onEventLeadChange,
                     onEclipseFollowMaxChange = onEclipseFollowMaxChange,
+                    onLocationModeChange = onLocationModeChange,
+                    onDetectLocation = onDetectLocation,
                     onSave = onSave,
                 )
             }

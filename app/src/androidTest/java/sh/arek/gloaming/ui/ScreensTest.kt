@@ -23,6 +23,7 @@ import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
 
@@ -68,6 +69,8 @@ class ScreensTest {
     private var eventAlerts: Boolean? = null
     private var eventHeadsUp: Int? = null
     private var eventLead: Int? = null
+    private var locationMode: LocationMode? = null
+    private var detected = 0
     private var logRetention: Int? = null
     private var exported = 0
     private var cleared = 0
@@ -82,6 +85,7 @@ class ScreensTest {
         powerSaveMode: Boolean = false,
         watching: Boolean = false,
         logSizeBytes: Long = 0L,
+        locationNote: String? = null,
     ) {
         compose.setContent {
             Column(
@@ -105,6 +109,7 @@ class ScreensTest {
                     powerSaveMode = powerSaveMode,
                     watching = watching,
                     logSizeBytes = logSizeBytes,
+                    locationNote = locationNote,
                 )
 
                 TonightContent(
@@ -147,6 +152,8 @@ class ScreensTest {
                     onEventHeadsUpChange = { eventHeadsUp = it },
                     onEventLeadChange = { eventLead = it },
                     onEclipseFollowMaxChange = {},
+                    onLocationModeChange = { locationMode = it },
+                    onDetectLocation = { detected++ },
                     onSave = {},
                 )
             }
@@ -697,5 +704,75 @@ class ScreensTest {
 
         assertEquals(120, eventLead)
         assertEquals(null, auroraInterval)
+    }
+
+    // --- location ---
+
+    /** Typing it in is the default, and the fields are there to type into. */
+    @Test
+    fun offersTypedInLocationByDefault() {
+        show()
+
+        compose.onNodeWithText("Latitude").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Longitude").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Asking the phone is offered, and reports the choice rather than acting alone. */
+    @Test
+    fun offersToLetThePhoneSayWhereYouAre() {
+        show()
+
+        compose.onNodeWithTag(LOCATION_MODE_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(LocationMode.Automatic, locationMode)
+    }
+
+    /**
+     * Switched to automatic, the text fields go: leaving them would offer two
+     * answers to one question with no rule for which wins.
+     */
+    @Test
+    fun hidesTheTypedFieldsWhileThePhoneIsAsked() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText("Use my position now").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Latitude").assertCountEquals(0)
+    }
+
+    /** The button asks for a position rather than doing it on every recomposition. */
+    @Test
+    fun asksForAPositionWhenTold() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(DETECT_LOCATION_TAG).performScrollTo().performClick()
+
+        assertEquals(1, detected)
+    }
+
+    /**
+     * The promise is specific and has to be on the screen where it is made, not
+     * only in the store listing: roughly, and only while the app is open.
+     */
+    @Test
+    fun saysWhatItWillAndWillNotDoWithYourPosition() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText("never asks for your position in the background", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** A refusal is reported rather than left as a switch that does nothing. */
+    @Test
+    fun reportsWhyItHasNoPosition() {
+        show(
+            settings = located.copy(locationMode = LocationMode.Automatic),
+            locationNote = "Location permission was declined, so Gloaming will keep using " +
+                "the position you type in.",
+        )
+
+        compose.onNodeWithText("Location permission was declined", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 }

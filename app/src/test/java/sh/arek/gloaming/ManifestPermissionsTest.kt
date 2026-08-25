@@ -21,6 +21,9 @@ class ManifestPermissionsTest {
     private val intended = setOf(
         // Fetching the manifest, status and grid.
         "android.permission.INTERNET",
+        // Offered as a convenience, never required: coarse only, foreground
+        // only, and the app is fully functional with it denied forever.
+        "android.permission.ACCESS_COARSE_LOCATION",
         // Held while a scheduled poll runs so the device does not sleep mid-fetch.
         "android.permission.WAKE_LOCK",
         // Re-arms the alarm after a reboot; alarms do not survive a restart.
@@ -76,11 +79,41 @@ class ManifestPermissionsTest {
         )
     }
 
+    /**
+     * Narrowed rather than dropped.
+     *
+     * This began as "asks for no location permission at all", which was right
+     * while the position was only ever typed in. Detecting it is now offered as
+     * the convenience Sec. 7 always described - manual stays first-class and
+     * the app is fully functional with this denied - so the guard moves to
+     * where the risk actually is: asking for *more* location than the app uses.
+     *
+     * Coarse is genuinely all it uses. The aurora grid is one-degree cells,
+     * Open-Meteo is given a position rounded to about a kilometre, and a few
+     * kilometres of error moves a satellite pass by a second. Fine location
+     * would buy nothing and cost the posture.
+     */
     @Test
-    fun `asks for no location permission`() {
-        // Location is typed in. Asking for the permission would undercut the
-        // whole privacy posture for something the app does not need.
+    fun `asks for coarse location and never fine`() {
         val location = declaredPermissions().filter { it.contains("LOCATION") }
-        assertEquals(emptyList<String>(), location)
+
+        assertEquals(listOf("android.permission.ACCESS_COARSE_LOCATION"), location)
+    }
+
+    /**
+     * The line that must never be crossed. Background location would turn a
+     * convenience into tracking, and nothing in the app needs it: a position is
+     * read only while somebody is looking at the screen, and the stored one is
+     * what every scheduled wake uses.
+     */
+    @Test
+    fun `never asks to know where you are in the background`() {
+        // The declarations, not the raw file: the manifest comment says in
+        // words that there is no background location, and grepping the text
+        // caught its own explanation.
+        val declared = declaredPermissions()
+
+        assertTrue(declared.toString(), "android.permission.ACCESS_BACKGROUND_LOCATION" !in declared)
+        assertTrue(declared.toString(), "android.permission.ACCESS_FINE_LOCATION" !in declared)
     }
 }

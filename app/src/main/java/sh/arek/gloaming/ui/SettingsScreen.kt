@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
@@ -74,9 +75,18 @@ fun SettingsContent(
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
+    onLocationModeChange: (LocationMode) -> Unit,
+    onDetectLocation: () -> Unit,
     onSave: () -> Unit,
 ) {
-    LocationCard(state, onLatitudeChange, onLongitudeChange, onSave)
+    LocationCard(
+        state,
+        onLatitudeChange,
+        onLongitudeChange,
+        onSave,
+        onLocationModeChange,
+        onDetectLocation,
+    )
     ThresholdCard(state, onThresholdChange, onAlertsEnabledChange)
     SkyCard(state, onCloudGateChange, onCloudToleranceChange)
     QuietHoursCard(
@@ -117,31 +127,89 @@ private fun LocationCard(
     onLatitudeChange: (String) -> Unit,
     onLongitudeChange: (String) -> Unit,
     onSave: () -> Unit,
+    onLocationModeChange: (LocationMode) -> Unit,
+    onDetectLocation: () -> Unit,
 ) {
+    val automatic = state.settings.locationMode == LocationMode.Automatic
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Location", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Typed in, not requested. North and east are positive.",
+                "Everything the app works out depends on where you are. Type it in, or let " +
+                    "the phone say - whichever suits, and you can change your mind here at " +
+                    "any time.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            OutlinedTextField(
-                value = state.latitudeInput,
-                onValueChange = onLatitudeChange,
-                label = { Text("Latitude") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.longitudeInput,
-                onValueChange = onLongitudeChange,
-                label = { Text("Longitude") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(onClick = onSave) { Text("Save") }
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Let the phone tell me", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = automatic,
+                    onCheckedChange = {
+                        onLocationModeChange(
+                            if (it) LocationMode.Automatic else LocationMode.Manual,
+                        )
+                    },
+                    modifier = Modifier.testTag(LOCATION_MODE_SWITCH_TAG),
+                )
+            }
+
+            if (automatic) {
+                Text(
+                    "Only while the app is open, and only roughly - to about a kilometre, " +
+                        "which is all any of the forecasts use. Gloaming never asks for your " +
+                        "position in the background and never turns the GPS on; it reads the " +
+                        "last position the phone already had.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Button(
+                    onClick = onDetectLocation,
+                    enabled = !state.detectingLocation,
+                    modifier = Modifier.fillMaxWidth().testTag(DETECT_LOCATION_TAG),
+                ) {
+                    Text(if (state.detectingLocation) "Looking..." else "Use my position now")
+                }
+                state.locationNote?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall)
+                }
+                Text(
+                    if (state.settings.hasLocation) {
+                        "Using ${degrees(state.settings.latitude!!)}, " +
+                            "${degrees(state.settings.longitude!!)}."
+                    } else {
+                        "No position yet."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Text(
+                    "North and east are positive. Typing it in is also how you ask about " +
+                        "somewhere you are not.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = state.latitudeInput,
+                    onValueChange = onLatitudeChange,
+                    label = { Text("Latitude") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.longitudeInput,
+                    onValueChange = onLongitudeChange,
+                    label = { Text("Longitude") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(onClick = onSave) { Text("Save") }
+            }
         }
     }
 }
@@ -505,6 +573,10 @@ private fun InterruptionCard(
  * last choice.
  */
 @OptIn(ExperimentalLayoutApi::class)
+/** The location controls, which sit beside sentences rather than values. */
+const val LOCATION_MODE_SWITCH_TAG = "location-mode-switch"
+const val DETECT_LOCATION_TAG = "detect-location"
+
 /** How a chip in a [ChoiceRow] is reached from a test. */
 fun choiceTag(label: String, rendered: String): String = "choice:$label:$rendered"
 

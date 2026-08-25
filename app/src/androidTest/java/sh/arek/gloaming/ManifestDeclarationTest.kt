@@ -81,6 +81,10 @@ class ManifestDeclarationTest {
     fun requestsNothingBeyondItsOwnManifestAndTheSystem() {
         val ours = setOf(
             android.Manifest.permission.INTERNET,
+            // Coarse only, foreground only, and never required - the app works
+            // with it denied forever. ManifestPermissionsTest guards that fine
+            // and background location stay out.
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
             android.Manifest.permission.WAKE_LOCK,
             android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
             "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",

@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,27 +30,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.compose.runtime.DisposableEffect
+import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.SkyCalendar
+import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.data.AndroidLocationSource
+import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.LocationMode
+import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
-import sh.arek.gloaming.astronomy.Darkness
-import sh.arek.gloaming.astronomy.SkyCalendar
-import sh.arek.gloaming.astronomy.SkyEvent
-import sh.arek.gloaming.astronomy.Twilight
-import sh.arek.gloaming.data.BootAware
-import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.work.PassAlarm
 import sh.arek.gloaming.work.PollAlarm
 import sh.arek.gloaming.work.StormService
@@ -201,6 +203,8 @@ private fun GloamingApp() {
     // thread and far too much on the main one.
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
     var calendarLoading by remember { mutableStateOf(false) }
+    var detectingLocation by remember { mutableStateOf(false) }
+    var locationNote by remember { mutableStateOf<String?>(null) }
 
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryOk by remember { mutableStateOf(batteryExempt()) }
@@ -250,6 +254,60 @@ private fun GloamingApp() {
 
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
+
+    /**
+     * Reads the phone's last known position and stores it, or says why not.
+     *
+     * Off the main thread because it touches the system's location store, and
+     * silent about the position itself: the log records that a fix was taken
+     * and never where it was, which is the same rule everything else here
+     * follows.
+     */
+    fun detectLocation() {
+        scope.launch {
+            detectingLocation = true
+            locationNote = null
+            val fix = withContext(Dispatchers.IO) {
+                runCatching { AndroidLocationSource(context).current() }
+                    .onFailure { Log.w("Gloaming", "could not read a position", it) }
+                    .getOrNull()
+            }
+            detectingLocation = false
+
+            if (fix == null) {
+                // Deliberately not "turn on your GPS". The app only ever reads
+                // positions the phone already had, so the honest advice is to
+                // use something that does ask for one, or to type it in.
+                locationNote = "The phone has no recent position to hand. Open a map app " +
+                    "briefly, or switch this off and type it in."
+                return@launch
+            }
+
+            settings = settings.copy(latitude = fix.latitude, longitude = fix.longitude)
+            latitudeInput = fix.latitude.toString()
+            longitudeInput = fix.longitude.toString()
+            BootAware.saveSettings(context, settings)
+            locationNote = null
+        }
+    }
+
+    val locationPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            settings = settings.copy(locationMode = LocationMode.Automatic)
+            BootAware.saveSettings(context, settings)
+            detectLocation()
+        } else {
+            // Straight back to typing it in, rather than leaving a switch on
+            // that cannot do anything. Sec. 7 requires the app be fully
+            // functional with this denied, and a dead control is not that.
+            settings = settings.copy(locationMode = LocationMode.Manual)
+            BootAware.saveSettings(context, settings)
+            locationNote = "Location permission was declined, so Gloaming will keep using " +
+                "the position you type in."
+        }
+    }
 
     /**
      * Runs a check the user asked for, here and now.
@@ -321,6 +379,8 @@ private fun GloamingApp() {
                     logSizeBytes = logSize,
                     calendar = calendar,
                     calendarLoading = calendarLoading,
+                    detectingLocation = detectingLocation,
+                    locationNote = locationNote,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -463,6 +523,22 @@ private fun GloamingApp() {
                     settings = settings.copy(eclipseFollowMaxMinutes = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onLocationModeChange = { mode ->
+                    if (mode == LocationMode.Automatic &&
+                        !AndroidLocationSource.hasPermission(context)
+                    ) {
+                        // Asked at the moment it is wanted rather than on first
+                        // run, so the request arrives with its reason visible
+                        // on screen behind it.
+                        locationPermission.launch(AndroidLocationSource.PERMISSION)
+                    } else {
+                        settings = settings.copy(locationMode = mode)
+                        BootAware.saveSettings(context, settings)
+                        locationNote = null
+                        if (mode == LocationMode.Automatic) detectLocation()
+                    }
+                },
+                onDetectLocation = { detectLocation() },
                 onWatchDurationChange = {
                     settings = settings.copy(watchDuration = it)
                     BootAware.saveSettings(context, settings)

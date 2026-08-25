@@ -58,6 +58,7 @@ private const val KEY_LAST_ISS_ALERT_AT = "last_iss_alert_at"
 private const val KEY_LAST_BRIGHT_ALERT_AT = "last_bright_alert_at"
 private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
+private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
@@ -158,6 +159,11 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_LIVE_MAX,
                 UserSettings.DEFAULT_LIVE_MAX_MINUTES,
             ),
+            locationMode = if (prefs.getBoolean(KEY_LOCATION_AUTOMATIC, false)) {
+                LocationMode.Automatic
+            } else {
+                LocationMode.Manual
+            },
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             eventHeadsUpDays = prefs.getInt(
                 KEY_EVENT_HEADS_UP,
@@ -219,6 +225,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_LIVE_LEAD, settings.liveFollowLeadMinutes)
             putInt(KEY_LIVE_MAX, settings.liveFollowMaxMinutes)
             putInt(KEY_LOG_RETENTION, settings.logRetentionDays)
+            putBoolean(KEY_LOCATION_AUTOMATIC, settings.locationMode == LocationMode.Automatic)
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)

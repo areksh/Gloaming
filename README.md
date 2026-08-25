@@ -8,6 +8,13 @@ Your location is never sent to us. All the astronomy is computed on-device, all
 alert decisions are made on-device, and nothing can contact the app - it reaches
 out on its own schedule and nothing reaches in.
 
+You can type your position in or let the phone tell it, whichever you prefer,
+and switch between the two whenever you like. Letting the phone tell it asks for
+**coarse** location and nothing more, only while the app is open, and never in
+the background - Gloaming does not even turn the GPS on, it reads the last
+position the phone already had. Typing it in works with location denied forever,
+and is also how you ask about somewhere you are not.
+
 Satellite passes follow the same rule: the orbital elements are published once,
 for everybody, and every prediction happens on your phone. CelesTrak never sees
 an install, and could not tell where one was if it did.
@@ -140,7 +147,7 @@ deferred alarm still lists as pending and looks entirely healthy.
 cannot engage while the phone is charging, so it will not reproduce on a device
 plugged into a test rig.
 
-Measured on a Pixel 10a in forced deep Doze, 22-35 minutes per run, with the
+Measured on a Pixel 8a in forced deep Doze, 22-35 minutes per run, with the
 exemption granted and a 5-minute interval configured:
 
 - Polls landed every **9-10 minutes**, the same with battery saver on as off.

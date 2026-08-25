@@ -8,6 +8,16 @@
       permission is declared; location is entered manually unless the user opts
       into LocationManager later.
     -->
+    <!--
+      Coarse only, and only while the app is open. The aurora grid is
+      one-degree cells and Open-Meteo is given a position rounded to about a
+      kilometre, so fine location would buy nothing the app uses. There is no
+      ACCESS_BACKGROUND_LOCATION: "detect it for me" means when you open the
+      app, never while it is asleep, and a typed-in position works with this
+      denied forever.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Runtime-requested from Android 13; ignored below it. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />

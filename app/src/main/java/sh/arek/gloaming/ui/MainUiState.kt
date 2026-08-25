@@ -59,4 +59,11 @@ data class MainUiState(
     val calendar: List<SkyEvent> = emptyList(),
     /** True while that computation is in flight, so the tab can say so. */
     val calendarLoading: Boolean = false,
+    /** True while a position is being read from the device. */
+    val detectingLocation: Boolean = false,
+    /**
+     * What happened last time a position was asked for, when it is worth
+     * saying: a refused permission, or no fix the phone was willing to give.
+     */
+    val locationNote: String? = null,
 )

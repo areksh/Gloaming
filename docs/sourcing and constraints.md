@@ -715,6 +715,31 @@ Shetland be clear on Tuesday?"), which device GPS cannot.
 for users who want it. The app must be fully functional with location permission
 permanently denied.
 
+**Built 2026-08-25, with three limits worth stating.**
+
+- **Coarse only.** The aurora grid is one-degree cells, Open-Meteo is handed a position
+  rounded to about a kilometre, and a few kilometres of error moves a satellite pass by a
+  second. `ACCESS_FINE_LOCATION` would buy nothing the app uses and would be exactly the
+  permission-it-does-not-need this section warns about.
+- **Foreground only. No `ACCESS_BACKGROUND_LOCATION`, ever.** "Detect it for me" means when
+  the app is open; the detected position is then stored and every scheduled wake uses that,
+  exactly as it uses a typed-in one. This is the difference between a convenience and
+  tracking, and it also sidesteps the Android 10 background-location grant, which most of
+  this audience would refuse and be right to.
+- **Last-known fixes only; no location updates are requested.** Gloaming never turns the GPS
+  on, so asking costs no battery: it reads positions other apps have already caused the
+  system to record. The cost is that the answer is sometimes nothing, which is reported
+  plainly rather than papered over.
+
+A fix is refused if it is over half an hour old, vaguer than fifty kilometres, or at
+exactly zero. The staleness rule matters most: somebody drives out of town to a dark site,
+opens the app, and a precise three-hour-old fix would confidently hand back the house they
+left, putting the darkness gate, the cloud forecast and every pass in the wrong place.
+
+The mode is a setting rather than a one-off prompt, because both answers stay useful.
+Typing it in is the only way to ask about somewhere you are not, which is what makes trip
+planning work.
+
 ### Android app: SDK levels
 
 ```kotlin

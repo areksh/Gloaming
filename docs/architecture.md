@@ -195,7 +195,10 @@ Recreated as a Compose project matching Sec. 7: `minSdk 24`,
 `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.x, Compose BOM 2026.06.x, AGP 9.
 No Play Services anywhere; `LocationManager` only (never the fused provider),
 with manual location entry as a first-class input and the app fully functional
-with location permission permanently denied (Sec. 7, Sec. 11).
+with location permission permanently denied (Sec. 7, Sec. 11). Detecting the
+position is offered as of 2026-08-25 and is coarse, foreground-only and
+last-known-fix-only - see Sec. 7 of the sourcing document for the three limits
+and why each one holds.
 
 Note on the build: AGP 9 has built-in Kotlin support, so the
 `org.jetbrains.kotlin.android` plugin is not applied (AGP rejects it). Only

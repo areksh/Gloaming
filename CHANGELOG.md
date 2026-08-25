@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Your position can now be detected by the phone as well as typed in, with a
+  switch between the two you can change at any time. It asks for coarse
+  location only, only while the app is open, and never in the background: it
+  reads the last position the phone already had rather than turning the GPS on.
+  Typing it in still works with location denied forever, and is still the only
+  way to ask about somewhere you are not.
 - A sky calendar, on a tab of its own. Solar and lunar eclipses, meteor
   showers, close pairings of planets, greatest elongations of Mercury and
   Venus, and the moon's phases - all worked out on the phone from a vendored
