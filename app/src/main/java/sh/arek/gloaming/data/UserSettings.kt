@@ -302,8 +302,66 @@ data class UserSettings(
      * bug hold a wake lock through a whole night.
      */
     val eclipseFollowMaxMinutes: Int = DEFAULT_ECLIPSE_FOLLOW_MAX_MINUTES,
+
+    /**
+     * How faint a comet may be and still be worth hearing about.
+     *
+     * The setting that decides whether anything is heard about in a typical
+     * year. Most years have no naked-eye comet at all and several within reach
+     * of binoculars, so where somebody puts this depends entirely on what they
+     * are prepared to go and look through.
+     */
+    val cometMagnitudeThreshold: Int = DEFAULT_COMET_MAGNITUDE,
+
+    /**
+     * How high a comet must climb before it counts as up.
+     *
+     * Separate from [minimumPassElevationDegrees] rather than sharing it. A
+     * satellite low in the murk is still a moving point of light and perfectly
+     * obvious; a comet is a faint smudge, and the same murk simply erases it.
+     */
+    val minimumCometAltitudeDegrees: Int = DEFAULT_COMET_ALTITUDE_DEGREES,
+
+    /**
+     * How old a magnitude somebody measured may be before it stops being
+     * believed.
+     *
+     * Past this the app falls back to the predicted magnitude and says that is
+     * what it is doing. Brightness is the one thing about a comet that changes
+     * fast, and a fortnight-old report of one in outburst is not evidence about
+     * tonight.
+     */
+    val cometObservationStaleDays: Int = DEFAULT_COMET_STALE_DAYS,
+
+    /**
+     * How much moonlight is tolerable before a comet is called washed out, as a
+     * percentage.
+     *
+     * **This matters more for a comet than for anything else the app covers.**
+     * A planet at magnitude -2 does not care about the moon. A comet is a
+     * diffuse smudge spread over a patch of sky, so what matters is its surface
+     * brightness against the sky's, and moonlight raises the sky everywhere at
+     * once. A magnitude-6 comet under a gibbous moon is, in practice, not
+     * there.
+     *
+     * It is also the one most worth having a control on rather than a constant,
+     * because how much moonlight is tolerable depends entirely on whether
+     * somebody is driving an hour to a dark site or stepping into the garden.
+     *
+     * Expressed like [cloudTolerance] so the two read the same way: the share
+     * of the night's moonlight that may be present before the app stops
+     * recommending it.
+     */
+    val cometMoonTolerance: Int = DEFAULT_COMET_MOON_TOLERANCE,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
+
+    /** [cometObservationStaleDays] as the repository compares it. */
+    val cometObservationStaleMillis: Long
+        get() = cometObservationStaleDays * 24L * 60L * 60L * 1000L
+
+    /** [cometMoonTolerance] as the interference figure it is compared against. */
+    val cometMoonFraction: Double get() = cometMoonTolerance / 100.0
 
     /** [passAlertLeadMinutes] as the planner uses it. */
     val passAlertLeadMillis: Long get() = passAlertLeadMinutes * 60_000L
@@ -412,6 +470,12 @@ data class UserSettings(
         val ECLIPSE_FOLLOW_MAX_CHOICES = listOf(60, 120, 180, 240)
 
         /**
+         * Magnitude 6, which is roughly what an unaided eye reaches from a
+         * genuinely dark site - so the default is "tell me about anything I
+         * could see without equipment", and the fainter settings are for people
+         * willing to fetch binoculars.
+         */
+        /**
          * The moon's quarters, folded away to begin with.
          *
          * There are as many of them as of every other kind put together, and
@@ -421,6 +485,30 @@ data class UserSettings(
          * silently unhide them on the first read after an upgrade.
          */
         val DEFAULT_HIDDEN_EVENT_KINDS = setOf("MoonQuarter")
+
+        const val DEFAULT_COMET_MAGNITUDE = 6
+
+        /** What the brightness control offers. Lower is stricter. */
+        val COMET_MAGNITUDE_CHOICES = listOf(4, 5, 6, 8)
+
+        /** Higher than a satellite's, because haze erases a smudge it cannot erase a point. */
+        const val DEFAULT_COMET_ALTITUDE_DEGREES = 15
+
+        val COMET_ALTITUDE_CHOICES = listOf(5, 10, 15, 25)
+
+        /** A week, which spans the cloudy spell that stops anybody looking. */
+        const val DEFAULT_COMET_STALE_DAYS = 7
+
+        val COMET_STALE_CHOICES = listOf(3, 7, 14, 30)
+
+        /**
+         * Half the night's moonlight, which is about the point a binocular
+         * comet stops being findable from an ordinary garden.
+         */
+        const val DEFAULT_COMET_MOON_TOLERANCE = 50
+
+        /** What the moonlight control offers, as a percentage. */
+        val COMET_MOON_CHOICES = listOf(25, 50, 75, 100)
 
         /**
          * Six hours between alerts on any one channel, until the user says

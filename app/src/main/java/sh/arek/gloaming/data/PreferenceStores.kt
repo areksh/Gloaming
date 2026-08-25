@@ -66,6 +66,10 @@ private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
 private const val KEY_HIDDEN_KINDS = "hidden_event_kinds"
+private const val KEY_COMET_MAGNITUDE = "comet_magnitude_threshold"
+private const val KEY_COMET_ALTITUDE = "minimum_comet_altitude_degrees"
+private const val KEY_COMET_STALE = "comet_observation_stale_days"
+private const val KEY_COMET_MOON = "comet_moon_tolerance"
 private const val KEY_ANNOUNCED_EVENTS = "announced_events"
 private const val KEY_NEXT_EVENT_CHECK_AT = "next_event_check_at"
 private const val KEY_LAST_PASS_CATALOGUE = "last_pass_catalogue"
@@ -193,6 +197,22 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_LOG_RETENTION,
                 UserSettings.DEFAULT_LOG_RETENTION_DAYS,
             ),
+            cometMagnitudeThreshold = prefs.getInt(
+                KEY_COMET_MAGNITUDE,
+                UserSettings.DEFAULT_COMET_MAGNITUDE,
+            ),
+            minimumCometAltitudeDegrees = prefs.getInt(
+                KEY_COMET_ALTITUDE,
+                UserSettings.DEFAULT_COMET_ALTITUDE_DEGREES,
+            ),
+            cometObservationStaleDays = prefs.getInt(
+                KEY_COMET_STALE,
+                UserSettings.DEFAULT_COMET_STALE_DAYS,
+            ),
+            cometMoonTolerance = prefs.getInt(
+                KEY_COMET_MOON,
+                UserSettings.DEFAULT_COMET_MOON_TOLERANCE,
+            ),
         )
     }
 
@@ -247,6 +267,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)
             putInt(KEY_ECLIPSE_FOLLOW_MAX, settings.eclipseFollowMaxMinutes)
+            putInt(KEY_COMET_MAGNITUDE, settings.cometMagnitudeThreshold)
+            putInt(KEY_COMET_ALTITUDE, settings.minimumCometAltitudeDegrees)
+            putInt(KEY_COMET_STALE, settings.cometObservationStaleDays)
+            putInt(KEY_COMET_MOON, settings.cometMoonTolerance)
         }.apply()
     }
 

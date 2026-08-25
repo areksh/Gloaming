@@ -60,7 +60,10 @@ class PreferenceStoresTest {
      * Comparing the whole object fixed that much. It did not fix the rest:
      * `hiddenEventKinds` was still never persisted, because a field the
      * fixture leaves at its default compares equal whether it was written or
-     * not. The test below now polices that.
+     * not, so the calendar's kind filter was lost on every restart.
+     *
+     * The test below this one now polices that, so the trap cannot be sprung a
+     * third time.
      */
     private fun everySettingChanged() = UserSettings(
         latitude = 69.65,
@@ -95,6 +98,10 @@ class PreferenceStoresTest {
         notifyAboutEveryEvent = false,
         starredEvents = setOf("SolarEclipse|1817197223000"),
         hiddenEventKinds = setOf("Conjunction", "Season"),
+        cometMagnitudeThreshold = 8,
+        minimumCometAltitudeDegrees = 25,
+        cometObservationStaleDays = 30,
+        cometMoonTolerance = 25,
     )
 
     @Test
