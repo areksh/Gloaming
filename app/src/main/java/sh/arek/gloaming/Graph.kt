@@ -5,6 +5,7 @@ import java.io.File
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.FileManifestStore
+import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
@@ -12,17 +13,18 @@ import sh.arek.gloaming.data.Journal
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
 import sh.arek.gloaming.data.PreferencesAlertStateStore
+import sh.arek.gloaming.data.PreferencesSettingsStore
+import sh.arek.gloaming.data.SatelliteRepository
+import sh.arek.gloaming.data.SettingsStore
+import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
-import sh.arek.gloaming.data.PreferencesSettingsStore
-import sh.arek.gloaming.data.SettingsStore
-import sh.arek.gloaming.data.FileSatelliteCache
-import sh.arek.gloaming.data.SatelliteRepository
-import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.domain.EventPoller
 import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.OkHttpFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
+import sh.arek.gloaming.notify.AndroidEventNotifier
 import sh.arek.gloaming.notify.AndroidPassNotifier
 import sh.arek.gloaming.work.AndroidPassFollower
 import sh.arek.gloaming.work.StormService
@@ -150,6 +152,32 @@ object Graph {
             state = alertState(application),
             notifier = AndroidPassNotifier(application),
             follower = AndroidPassFollower(application),
+        )
+    }
+
+    /**
+     * The sky calendar's poller.
+     *
+     * Shares the aurora wake rather than owning an alarm, the same as
+     * [passPoller]: the calendar has nothing to poll for, only moments to keep,
+     * and a third alarm would be a third thing to get wrong after a reboot.
+     */
+    fun eventPoller(context: Context): EventPoller {
+        val application = context.applicationContext
+        val http = OkHttpFetcher(httpClient)
+
+        return EventPoller(
+            calendar = EventPoller.REAL,
+            manifests = ManifestRepository(
+                http = http,
+                store = FileManifestStore(cacheDirectory(application)),
+                publicKey = GloamingEndpoints.MANIFEST_PUBLIC_KEY,
+                manifestUrl = GloamingEndpoints.MANIFEST_URL,
+            ),
+            weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
+            settings = BootAware.pollSettings(application),
+            state = alertState(application),
+            notifier = AndroidEventNotifier(application),
         )
     }
 }

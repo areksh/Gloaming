@@ -214,6 +214,27 @@ data class UserSettings(
      * call; it is their storage and their record.
      */
     val logRetentionDays: Int = DEFAULT_LOG_RETENTION_DAYS,
+
+    /**
+     * Whether the sky calendar may interrupt at all.
+     *
+     * One switch rather than one per channel: the channels are rare by nature
+     * and Android already offers a per-channel switch in the system settings,
+     * so a second set here would be the same control twice.
+     */
+    val eventAlertsEnabled: Boolean = true,
+
+    /**
+     * How many days of notice an eclipse or a shower peak gets.
+     *
+     * Only the kinds worth arranging an evening around get this at all. It is
+     * a setting because how far ahead somebody wants to hear depends on how far
+     * they would travel for it.
+     */
+    val eventHeadsUpDays: Int = DEFAULT_EVENT_HEADS_UP_DAYS,
+
+    /** How long before it starts the notice on the day goes out. */
+    val eventAlertLeadMinutes: Int = DEFAULT_EVENT_LEAD_MINUTES,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -225,6 +246,10 @@ data class UserSettings(
 
     /** Whether the app should be keeping its own log at all. */
     val keepsLog: Boolean get() = logRetentionDays > 0
+
+    val eventHeadsUpMillis: Long get() = eventHeadsUpDays * 24L * 60L * 60L * 1000L
+
+    val eventAlertLeadMillis: Long get() = eventAlertLeadMinutes * 60_000L
 
     /** [liveFollowLeadMinutes] as the tracker uses it. */
     val liveFollowLeadMillis: Long get() = liveFollowLeadMinutes * 60_000L
@@ -301,6 +326,16 @@ data class UserSettings(
 
         /** What the retention control offers, in days. Zero means keep none. */
         val LOG_RETENTION_CHOICES = listOf(0, 1, 3, 7, 14)
+
+        /** Two days: long enough to change plans, short enough to still be the same week. */
+        const val DEFAULT_EVENT_HEADS_UP_DAYS = 2
+
+        val EVENT_HEADS_UP_CHOICES = listOf(1, 2, 3, 7)
+
+        /** An hour, which is enough to get somewhere dark and let your eyes adjust. */
+        const val DEFAULT_EVENT_LEAD_MINUTES = 60
+
+        val EVENT_LEAD_CHOICES = listOf(30, 60, 120, 240)
 
         /**
          * Six hours between alerts on any one channel, until the user says
@@ -384,6 +419,19 @@ data class AlertState(
      * complaint rather than a feature.
      */
     val nextPassCheckAt: Long? = null,
+
+    /**
+     * The calendar notices already given, keyed by event and phase.
+     *
+     * A set rather than a single "last announced", because two events can be
+     * pending at once - an eclipse two days out and a shower peaking tonight -
+     * and a single slot would lose one of them. Pruned to what is recent, which
+     * these being rare keeps to a handful.
+     */
+    val announcedEvents: Set<String> = emptySet(),
+
+    /** When the calendar poller asked to be woken next. */
+    val nextEventCheckAt: Long? = null,
     /**
      * The pass the live tracker has been asked to follow, if any.
      *

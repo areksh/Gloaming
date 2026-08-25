@@ -58,6 +58,8 @@ private const val KEY_LAST_ISS_ALERT_AT = "last_iss_alert_at"
 private const val KEY_LAST_BRIGHT_ALERT_AT = "last_bright_alert_at"
 private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
+private const val KEY_ANNOUNCED_EVENTS = "announced_events"
+private const val KEY_NEXT_EVENT_CHECK_AT = "next_event_check_at"
 private const val KEY_LAST_PASS_CATALOGUE = "last_pass_catalogue"
 private const val KEY_FOLLOWING_CATALOGUE = "following_catalogue"
 private const val KEY_FOLLOWING_PEAK_AT = "following_peak_at"
@@ -231,6 +233,8 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             lastTrainAlertAt = prefs.getLong(KEY_LAST_TRAIN_ALERT_AT, UNSET)
                 .takeIf { it != UNSET },
             nextPassCheckAt = prefs.getLong(KEY_NEXT_PASS_CHECK_AT, UNSET).takeIf { it != UNSET },
+            announcedEvents = prefs.getStringSet(KEY_ANNOUNCED_EVENTS, emptySet()).orEmpty(),
+            nextEventCheckAt = prefs.getLong(KEY_NEXT_EVENT_CHECK_AT, UNSET).takeIf { it != UNSET },
             lastPassCatalogue = prefs.getInt(KEY_LAST_PASS_CATALOGUE, -1).takeIf { it >= 0 },
             followingCatalogue = prefs.getInt(KEY_FOLLOWING_CATALOGUE, -1).takeIf { it >= 0 },
             followingPeakAt = prefs.getLong(KEY_FOLLOWING_PEAK_AT, UNSET).takeIf { it != UNSET },
@@ -258,6 +262,12 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
                 ?: remove(KEY_LAST_BRIGHT_ALERT_AT)
             state.lastTrainAlertAt?.let { putLong(KEY_LAST_TRAIN_ALERT_AT, it) }
                 ?: remove(KEY_LAST_TRAIN_ALERT_AT)
+            // A defensive copy: SharedPreferences keeps the very set handed to
+            // it and hands the same instance back on read, so a later mutation
+            // of ours would silently rewrite what is on disk.
+            putStringSet(KEY_ANNOUNCED_EVENTS, state.announcedEvents.toSet())
+            state.nextEventCheckAt?.let { putLong(KEY_NEXT_EVENT_CHECK_AT, it) }
+                ?: remove(KEY_NEXT_EVENT_CHECK_AT)
             state.nextPassCheckAt?.let { putLong(KEY_NEXT_PASS_CHECK_AT, it) }
                 ?: remove(KEY_NEXT_PASS_CHECK_AT)
             state.lastPassCatalogue?.let { putInt(KEY_LAST_PASS_CATALOGUE, it) }

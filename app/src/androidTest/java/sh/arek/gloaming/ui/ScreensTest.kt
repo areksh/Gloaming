@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -64,6 +65,9 @@ class ScreensTest {
     private var passLead: Int? = null
     private var minimumElevation: Int? = null
     private var liveLead: Int? = null
+    private var eventAlerts: Boolean? = null
+    private var eventHeadsUp: Int? = null
+    private var eventLead: Int? = null
     private var logRetention: Int? = null
     private var exported = 0
     private var cleared = 0
@@ -139,6 +143,9 @@ class ScreensTest {
                     onPassLeadChange = { passLead = it },
                     onMinimumElevationChange = { minimumElevation = it },
                     onLiveLeadChange = { liveLead = it },
+                    onEventAlertsChange = { eventAlerts = it },
+                    onEventHeadsUpChange = { eventHeadsUp = it },
+                    onEventLeadChange = { eventLead = it },
                     onSave = {},
                 )
             }
@@ -628,5 +635,34 @@ class ScreensTest {
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Follow every station pass", substring = true)
             .assertDoesNotExist()
+    }
+
+    /** The calendar's own switch, and the leads it hides until it is on. */
+    @Test
+    fun offersTheCalendarAndItsTwoLeads() {
+        show()
+
+        compose.onNodeWithText("Sky calendar").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Notice ahead: 2 days").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Notice on the day: 1 hour").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Switched off, the leads have nothing to configure and go away. */
+    @Test
+    fun hidesTheCalendarLeadsWhenTheCalendarIsOff() {
+        show(settings = located.copy(eventAlertsEnabled = false))
+
+        compose.onNodeWithText("Sky calendar").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Notice ahead: 2 days").assertCountEquals(0)
+    }
+
+    /** Turning it off is passed straight out. */
+    @Test
+    fun theCalendarSwitchIsReported() {
+        show()
+
+        compose.onNodeWithTag(EVENT_ALERTS_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(false, eventAlerts)
     }
 }

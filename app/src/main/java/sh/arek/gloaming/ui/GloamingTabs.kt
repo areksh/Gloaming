@@ -64,6 +64,9 @@ fun GloamingTabs(
     onPassLeadChange: (Int) -> Unit,
     onMinimumElevationChange: (Int) -> Unit,
     onLiveLeadChange: (Int) -> Unit,
+    onEventAlertsChange: (Boolean) -> Unit,
+    onEventHeadsUpChange: (Int) -> Unit,
+    onEventLeadChange: (Int) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onWatchDurationChange: (WatchDuration) -> Unit,
     onSave: () -> Unit,
@@ -145,6 +148,9 @@ fun GloamingTabs(
                     onPassLeadChange = onPassLeadChange,
                     onMinimumElevationChange = onMinimumElevationChange,
                     onLiveLeadChange = onLiveLeadChange,
+                    onEventAlertsChange = onEventAlertsChange,
+                    onEventHeadsUpChange = onEventHeadsUpChange,
+                    onEventLeadChange = onEventLeadChange,
                     onSave = onSave,
                 )
             }

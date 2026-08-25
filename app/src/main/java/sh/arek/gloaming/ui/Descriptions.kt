@@ -133,3 +133,6 @@ internal fun describeLogSize(bytes: Long): String = when {
     bytes < 1024L -> "$bytes bytes recorded."
     else -> "${bytes / 1024} KB recorded."
 }
+
+/** Whole days, for the advance notice the calendar gives. */
+internal fun describeDays(days: Int): String = if (days == 1) "1 day" else "$days days"

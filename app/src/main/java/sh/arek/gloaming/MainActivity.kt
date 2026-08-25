@@ -447,6 +447,18 @@ private fun GloamingApp() {
                     settings = settings.copy(liveFollowLeadMinutes = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onEventAlertsChange = {
+                    settings = settings.copy(eventAlertsEnabled = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onEventHeadsUpChange = {
+                    settings = settings.copy(eventHeadsUpDays = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onEventLeadChange = {
+                    settings = settings.copy(eventAlertLeadMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onWatchDurationChange = {
                     settings = settings.copy(watchDuration = it)
                     BootAware.saveSettings(context, settings)

@@ -50,6 +50,9 @@ class PollReceiver : BroadcastReceiver() {
             // When the pass planner wants to be woken, in minutes from now.
             // Null when it has nothing to ask for.
             var passWake: Int? = null
+            // The same for the sky calendar, which asks far less often: its
+            // events are known months ahead, so most wakes it has nothing to say.
+            var eventWake: Int? = null
             try {
                 if (BootAware.canPollNow(application)) {
                     val result = withTimeout(POLL_TIMEOUT_MILLIS) {
@@ -79,6 +82,20 @@ class PollReceiver : BroadcastReceiver() {
                         passWake = minutesUntil(passes.nextWakeAtMillis)
                         Notes.i(application, TAG, "pass check: ${passes.decision} (next in ${passWake}m)")
                     }.onFailure { Notes.w(application, TAG, "pass check failed", it) }
+
+                    // The calendar shares this wake too, and for a stronger
+                    // reason than passes do: it has nothing to poll for at all,
+                    // only moments to keep. Most wakes it is Resting and
+                    // returns immediately.
+                    runCatching {
+                        val events = Graph.eventPoller(application).poll()
+                        eventWake = minutesUntil(events.nextWakeAtMillis)
+                        Notes.i(
+                            application,
+                            TAG,
+                            "calendar check: ${events.decision} (next in ${eventWake}m)",
+                        )
+                    }.onFailure { Notes.w(application, TAG, "calendar check failed", it) }
                     // The widget is redrawn by the poll rather than on a
                     // schedule of its own, so it is exactly as fresh as the
                     // data behind it and costs no wakes.
@@ -108,12 +125,13 @@ class PollReceiver : BroadcastReceiver() {
                 runCatching {
                     val aurora = next?.delayMinutes
                         ?: BootAware.pollSettings(application).read().pollIntervalMinutes
+                    val soonest = listOfNotNull(aurora, passWake, eventWake).min()
                     // The sooner of the two. A pass alert goes out half an hour
                     // before the satellite is highest, and the aurora schedule
                     // is happy to sleep for an hour on a quiet overcast night -
                     // so taking only the aurora interval would deliver a pass
                     // alert after the pass.
-                    PollAlarm.schedule(application, minOf(aurora, passWake ?: aurora))
+                    PollAlarm.schedule(application, soonest)
                 }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
                 pending.finish()

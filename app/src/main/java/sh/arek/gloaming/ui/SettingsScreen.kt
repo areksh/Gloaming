@@ -70,6 +70,9 @@ fun SettingsContent(
     onPassLeadChange: (Int) -> Unit,
     onMinimumElevationChange: (Int) -> Unit,
     onLiveLeadChange: (Int) -> Unit,
+    onEventAlertsChange: (Boolean) -> Unit,
+    onEventHeadsUpChange: (Int) -> Unit,
+    onEventLeadChange: (Int) -> Unit,
     onSave: () -> Unit,
 ) {
     LocationCard(state, onLatitudeChange, onLongitudeChange, onSave)
@@ -94,6 +97,7 @@ fun SettingsContent(
         onMinimumElevationChange,
         onLiveLeadChange,
     )
+    CalendarCard(state, onEventAlertsChange, onEventHeadsUpChange, onEventLeadChange)
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
     LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
@@ -772,3 +776,76 @@ private fun LicenceText(licence: String) {
     }
 }
 
+
+
+/** The switch and the two leads the sky calendar interrupts on. */
+const val EVENT_ALERTS_SWITCH_TAG = "event-alerts-switch"
+
+/**
+ * How the calendar is allowed to interrupt.
+ *
+ * One switch and two leads, rather than an interval per channel as the pass
+ * card carries. Passes needed intervals because a clear night has upwards of
+ * forty worth looking at; the whole calendar produces about forty events a
+ * year, and only the ones that can actually be seen from here ever speak. A
+ * rate limit built for things that come over nightly would have nothing to do,
+ * and Android's own per-channel switch already covers "keep eclipses, silence
+ * conjunctions".
+ */
+@Composable
+private fun CalendarCard(
+    state: MainUiState,
+    onEventAlertsChange: (Boolean) -> Unit,
+    onEventHeadsUpChange: (Int) -> Unit,
+    onEventLeadChange: (Int) -> Unit,
+) {
+    Card {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Sky calendar", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Eclipses, meteor showers and close pairings of planets. Only the ones " +
+                    "actually visible from where you are will interrupt; the rest are in " +
+                    "the Calendar tab with the reason.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Tell me about these", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = state.settings.eventAlertsEnabled,
+                    onCheckedChange = onEventAlertsChange,
+                    modifier = Modifier.testTag(EVENT_ALERTS_SWITCH_TAG),
+                )
+            }
+
+            if (state.settings.eventAlertsEnabled) {
+                Text(
+                    "Eclipses and shower peaks get two notices: one a few days ahead so " +
+                        "you can plan around it, and one on the day. Everything else gets " +
+                        "the one on the day.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ChoiceRow(
+                    label = "Notice ahead",
+                    value = describeDays(state.settings.eventHeadsUpDays),
+                    choices = UserSettings.EVENT_HEADS_UP_CHOICES,
+                    render = ::describeDays,
+                    onChange = onEventHeadsUpChange,
+                )
+                ChoiceRow(
+                    label = "Notice on the day",
+                    value = describeInterval(state.settings.eventAlertLeadMinutes),
+                    choices = UserSettings.EVENT_LEAD_CHOICES,
+                    render = ::shortInterval,
+                    onChange = onEventLeadChange,
+                )
+            }
+        }
+    }
+}
