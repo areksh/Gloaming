@@ -98,6 +98,7 @@ object SkyCalendar {
             addAll(lunarEclipses(observer, start, until))
             addAll(elongations(latitude, longitude, start, until))
             addAll(conjunctions(latitude, longitude, fromMillis, until))
+            addAll(showers(latitude, longitude, fromMillis, until))
             addAll(moonPhases(start, until))
         }
             .filter { it.at in fromMillis..until }
@@ -464,6 +465,85 @@ object SkyCalendar {
             else -> " apart"
         }
         return "$figure degrees$comparison"
+    }
+
+    // --- meteor showers ---
+
+    /**
+     * The peak nights, with the two things most shower forecasts leave out.
+     *
+     * A ZHR is quoted everywhere and is a laboratory figure; how high the
+     * radiant gets and what the moon is doing are what actually decide the
+     * night, and both depend on where the observer is. A rate of 150 with the
+     * radiant at 15 degrees under a gibbous moon is a rate of about five.
+     *
+     * Unlike a conjunction, a shower whose radiant never rises is still worth
+     * listing with its reason: people hear about the Perseids from the
+     * newspapers, and being told they belong to the other hemisphere is the
+     * answer they came for.
+     */
+    private fun showers(
+        latitude: Double,
+        longitude: Double,
+        fromMillis: Long,
+        until: Long,
+    ): List<SkyEvent> = Showers
+        .peaks(latitude, longitude, fromMillis, until)
+        .map { shower(it, latitude, longitude) }
+
+    private fun shower(peak: ShowerPeak, latitude: Double, longitude: Double): SkyEvent {
+        val night = Twilight.nightNearest(latitude, longitude, peak.peaksAt)
+        val moonPercent = (peak.moonIllumination * 100).roundToInt()
+
+        val visibility = when {
+            peak.radiantAltitude <= 0.0 -> Visibility.NotFromHere(
+                "The radiant never rises here, so this one belongs to the other hemisphere.",
+            )
+
+            night == null -> Visibility.NotFromHere(
+                "There is no darkness here at this time of year.",
+            )
+
+            peak.radiantAltitude < Showers.LOW_RADIANT_DEGREES -> Visibility.Marginal(
+                "The radiant only reaches ${peak.radiantAltitude.roundToInt()} degrees, so " +
+                    "most of the shower happens below the horizon.",
+            )
+
+            peak.moonInterference > Showers.MOONLIT -> Visibility.Marginal(
+                "The moon is $moonPercent per cent lit and up for most of the night, which " +
+                    "will wash out all but the brightest.",
+            )
+
+            else -> Visibility.Good
+        }
+
+        return SkyEvent(
+            kind = EventKind.MeteorShower,
+            // Dated to the dark hours rather than to the maximum, which often
+            // falls in the middle of the day: the useful answer is which night
+            // to go out on.
+            at = peak.bestAt,
+            from = night?.first ?: peak.peaksAt,
+            until = night?.last ?: peak.peaksAt,
+            title = "${peak.shower.name} at their best",
+            detail = buildString {
+                if (peak.hourlyRateFromHere > 0) {
+                    append("Perhaps ${peak.hourlyRateFromHere} an hour from here at its best, ")
+                    append("under a properly dark sky - a town cuts that by more than half. ")
+                } else {
+                    append("Up to ${peak.shower.zenithHourlyRate} an hour where the radiant ")
+                    append("rises. ")
+                }
+                append("Look ${Compass.of(peak.radiantAzimuth).label}")
+                if (peak.radiantAltitude > 0.0) {
+                    append(", ${peak.radiantAltitude.roundToInt()} degrees up")
+                }
+                append(", though they can appear anywhere in the sky. ")
+                append("Debris from ${peak.shower.parent}. ")
+                append("Active ${peak.shower.activeFrom} to ${peak.shower.activeUntil}.")
+            },
+            visibility = visibility,
+        )
     }
 
     // --- moon phases ---
