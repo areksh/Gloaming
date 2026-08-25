@@ -3,6 +3,7 @@ package sh.arek.gloaming.satellites
 import com.rtbishop.look4sat.core.domain.predict.GeoPos
 import com.rtbishop.look4sat.core.domain.predict.RAD2DEG
 import kotlin.math.roundToInt
+import sh.arek.gloaming.astronomy.Compass
 
 /** Where a satellite is at one instant, from where the observer is standing. */
 data class LiveFix(

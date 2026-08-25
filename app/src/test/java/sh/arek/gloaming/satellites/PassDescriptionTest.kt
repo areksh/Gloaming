@@ -1,5 +1,6 @@
 package sh.arek.gloaming.satellites
 
+import sh.arek.gloaming.astronomy.Compass
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -139,15 +140,6 @@ class PassDescriptionTest {
         assertEquals(Compass.NorthWest, described.risesTowards)
         assertEquals(Compass.East, described.peaksTowards)
         assertEquals(Compass.SouthEast, described.setsTowards)
-    }
-
-    /** The compass wraps, and 350 degrees is north rather than north-west. */
-    @Test
-    fun `rounds an azimuth to the nearest of eight points`() {
-        assertEquals(Compass.North, Compass.of(350.0))
-        assertEquals(Compass.North, Compass.of(0.0))
-        assertEquals(Compass.NorthEast, Compass.of(44.0))
-        assertEquals(Compass.West, Compass.of(281.0))
     }
 
     /** British English throughout, and no decorative characters. */

@@ -1,5 +1,6 @@
 package sh.arek.gloaming.satellites
 
+import sh.arek.gloaming.astronomy.Compass
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
