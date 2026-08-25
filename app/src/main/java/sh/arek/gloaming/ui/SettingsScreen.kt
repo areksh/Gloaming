@@ -179,8 +179,7 @@ private fun LocationCard(
                 }
                 Text(
                     if (state.settings.hasLocation) {
-                        "Using ${degrees(state.settings.latitude!!)}, " +
-                            "${degrees(state.settings.longitude!!)}."
+                        "Using ${coordinates(state.settings.latitude!!, state.settings.longitude!!)}."
                     } else {
                         "No position yet."
                     },

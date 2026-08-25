@@ -9,11 +9,8 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
-import sh.arek.gloaming.domain.PollPlan
-import sh.arek.gloaming.widget.AuroraWidget
 
 /**
  * Runs one poll when the alarm fires.
@@ -44,62 +41,12 @@ class PollReceiver : BroadcastReceiver() {
             .getOrNull()
 
         CoroutineScope(Dispatchers.IO).launch {
-            // Set by a poll that got far enough to work one out. Anything else
-            // falls back to the flat interval below.
-            var next: PollPlan? = null
-            // When the pass planner wants to be woken, in minutes from now.
-            // Null when it has nothing to ask for.
-            var passWake: Int? = null
-            // The same for the sky calendar, which asks far less often: its
-            // events are known months ahead, so most wakes it has nothing to say.
-            var eventWake: Int? = null
+            var outcome: RefreshOutcome? = null
             try {
                 if (BootAware.canPollNow(application)) {
-                    val result = withTimeout(POLL_TIMEOUT_MILLIS) {
-                        Graph.poller(application).poll()
-                    }
-                    next = result.next
-                    val unlocked = BootAware.isUnlocked(application)
-                    val storm = if (result.storm) ", storm" else ""
-                    Notes.i(
-                        application,
-                        TAG,
-                        "poll outcome: ${result.outcome} (unlocked=$unlocked, " +
-                            "next in ${result.next.delayMinutes}m: " +
-                            "${result.next.reason}$storm)",
-                    )
-                    // Only once unlocked: a foreground service cannot be
-                    // started before then, and the attempt would throw.
-                    if (unlocked) StormService.apply(application, result.storm)
-
-                    // Passes share this wake rather than owning an alarm.
-                    // Most of the time the planner has nothing to do and says
-                    // so immediately; the work only happens at the moments it
-                    // asked for. Its failure must not cost the aurora poll its
-                    // next wake, which is already queued below.
-                    runCatching {
-                        val passes = Graph.passPoller(application).poll()
-                        passWake = minutesUntil(passes.nextWakeAtMillis)
-                        Notes.i(application, TAG, "pass check: ${passes.decision} (next in ${passWake}m)")
-                    }.onFailure { Notes.w(application, TAG, "pass check failed", it) }
-
-                    // The calendar shares this wake too, and for a stronger
-                    // reason than passes do: it has nothing to poll for at all,
-                    // only moments to keep. Most wakes it is Resting and
-                    // returns immediately.
-                    runCatching {
-                        val events = Graph.eventPoller(application).poll()
-                        eventWake = minutesUntil(events.nextWakeAtMillis)
-                        Notes.i(
-                            application,
-                            TAG,
-                            "calendar check: ${events.decision} (next in ${eventWake}m)",
-                        )
-                    }.onFailure { Notes.w(application, TAG, "calendar check failed", it) }
-                    // The widget is redrawn by the poll rather than on a
-                    // schedule of its own, so it is exactly as fresh as the
-                    // data behind it and costs no wakes.
-                    AuroraWidget.refresh(application)
+                    // Exactly what the button does, by construction: the two
+                    // paths share one function so they cannot drift apart.
+                    outcome = Refresh.everything(application, TAG)
                 } else {
                     // Before first unlock without the option enabled there is
                     // nothing readable to act on. Sleep until the next wake.
@@ -123,15 +70,11 @@ class PollReceiver : BroadcastReceiver() {
                 }
 
                 runCatching {
-                    val aurora = next?.delayMinutes
-                        ?: BootAware.pollSettings(application).read().pollIntervalMinutes
-                    val soonest = listOfNotNull(aurora, passWake, eventWake).min()
-                    // The sooner of the two. A pass alert goes out half an hour
-                    // before the satellite is highest, and the aurora schedule
-                    // is happy to sleep for an hour on a quiet overcast night -
-                    // so taking only the aurora interval would deliver a pass
-                    // alert after the pass.
-                    PollAlarm.schedule(application, soonest)
+                    val flat = BootAware.pollSettings(application).read().pollIntervalMinutes
+                    PollAlarm.schedule(
+                        application,
+                        outcome?.nextWakeMinutes(flat) ?: flat,
+                    )
                 }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
                 pending.finish()
@@ -139,21 +82,9 @@ class PollReceiver : BroadcastReceiver() {
         }
     }
 
-    /**
-     * Whole minutes until [millis], never less than one.
-     *
-     * Rounded down, so a wake lands at or before the moment asked for rather
-     * than after it - the alarm is inexact and already runs late.
-     */
-    private fun minutesUntil(millis: Long): Int {
-        val delay = millis - System.currentTimeMillis()
-        return (delay / 60_000L).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
-    }
-
     private companion object {
         const val TAG = "PollReceiver"
         const val WAKE_LOCK_TAG = "gloaming:poll"
         const val WAKE_LOCK_TIMEOUT_MILLIS = 60_000L
-        const val POLL_TIMEOUT_MILLIS = 45_000L
     }
 }

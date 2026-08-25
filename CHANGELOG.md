@@ -44,6 +44,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- "Check now" refreshes everything, not only the aurora. It now runs the
+  satellite passes and the sky calendar too, which is what a button called
+  that should always have done - and it schedules the next background wake for
+  whichever of the three is due first. Before, it used the aurora interval
+  alone, so pressing it on a quiet overcast night could push the next wake out
+  past a pass alert due in half an hour and deliver it after the pass.
 - A pass on one channel could be missed because the app was waiting out a pass
   on another. Found on the first untouched overnight run: a rocket body was
   announced at 03:00 and the space station's own alert, due at 03:18, was slept

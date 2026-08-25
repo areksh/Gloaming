@@ -96,6 +96,37 @@ fun describeIssCoverage(latitude: Double): String? {
  * locale, in the middle of an English sentence. Sign is dropped because the
  * hemisphere does not change the answer.
  */
+/**
+ * A position with its hemispheres named.
+ *
+ * Not [degrees], which drops the sign on purpose because its callers supply the
+ * direction in words alongside it. Printing a bare coordinate pair through that
+ * turned 53.009, -1.287 - the Midlands - into "53.0, 1.3", which is the North
+ * Sea. Letters rather than a minus sign because a lone "-" in front of a number
+ * is easy to miss and impossible to misread as "W".
+ *
+ * Three places is about a hundred metres, which is far finer than anything the
+ * app does with it and coarse enough not to imply a precision the fix does not
+ * have.
+ */
+internal fun coordinates(latitude: Double, longitude: Double): String {
+    val northSouth = if (latitude >= 0) "N" else "S"
+    val eastWest = if (longitude >= 0) "E" else "W"
+    return "%.3f %s, %.3f %s".format(
+        java.util.Locale.UK,
+        kotlin.math.abs(latitude),
+        northSouth,
+        kotlin.math.abs(longitude),
+        eastWest,
+    )
+}
+
+/**
+ * A magnitude in degrees, without a sign.
+ *
+ * The sign is deliberately dropped: every caller says which way separately -
+ * "69.6 degrees north", "10 degrees up". Use [coordinates] for a position.
+ */
 internal fun degrees(value: Double): String {
     val tenths = kotlin.math.round(kotlin.math.abs(value) * 10).toInt()
     return "${tenths / 10}.${tenths % 10}"

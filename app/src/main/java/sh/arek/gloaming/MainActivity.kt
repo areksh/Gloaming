@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,7 @@ import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
 import sh.arek.gloaming.work.PassAlarm
 import sh.arek.gloaming.work.PollAlarm
+import sh.arek.gloaming.work.Refresh
 import sh.arek.gloaming.work.StormService
 
 /**
@@ -204,6 +206,8 @@ private fun GloamingApp() {
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
     var calendarLoading by remember { mutableStateOf(false) }
     var detectingLocation by remember { mutableStateOf(false) }
+    // Bumped to ask for the calendar again when the user refreshes by hand.
+    var calendarNonce by remember { mutableIntStateOf(0) }
     var locationNote by remember { mutableStateOf<String?>(null) }
 
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -327,11 +331,22 @@ private fun GloamingApp() {
         if (checking) return
         checking = true
         scope.launch {
-            runCatching { withContext(Dispatchers.IO) { Graph.poller(context).poll() } }
-                .onSuccess { PollAlarm.schedule(context, it.next.delayMinutes) }
+            runCatching {
+                withContext(Dispatchers.IO) { Refresh.everything(context, "CheckNow") }
+            }
+                .onSuccess {
+                    // The soonest of the three, not the aurora interval alone.
+                    // Taking only aurora's could push the next wake out past a
+                    // pass alert already due, and deliver it after the pass.
+                    PollAlarm.schedule(context, it.nextWakeMinutes(settings.pollIntervalMinutes))
+                }
                 .onFailure { Log.w("Gloaming", "check now failed", it) }
             alertState = stateStore.read()
             shownAt = System.currentTimeMillis()
+            // The calendar is deterministic, so it does not go stale on its
+            // own - but events do fall out of the far end of the horizon, and
+            // somebody who pressed refresh meant all of it.
+            calendarNonce++
             checking = false
         }
     }
@@ -339,7 +354,7 @@ private fun GloamingApp() {
     // Keyed on the location and nothing else: the calendar is deterministic and
     // does not go stale, so recomputing it on any other change would be work
     // done for no different answer.
-    LaunchedEffect(settings.latitude, settings.longitude) {
+    LaunchedEffect(settings.latitude, settings.longitude, calendarNonce) {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
