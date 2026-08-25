@@ -37,6 +37,7 @@ describe("buildManifest", () => {
       status: "https://sky.arek.sh/v1/status.json",
       oval: "https://sky.arek.sh/v1/oval.bin",
       sats: "https://sky.arek.sh/v1/sats.json",
+      comets: "https://sky.arek.sh/v1/comets.json",
       weather: "https://api.open-meteo.com/v1/forecast",
     });
   });

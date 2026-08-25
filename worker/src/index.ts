@@ -28,11 +28,12 @@ const SWPC_CRON = "*/5 * * * *";
  * aborted the invocation before anything was recorded and the one channel built
  * to report a silent failure was itself silent.
  *
- * `celestrak` is listed but has no cron here: it is fetched from outside
- * Cloudflare entirely (ADR-0008) and writes its own record into the same
- * bucket, which this composes without needing to know where it came from.
+ * `celestrak` and `comets` are listed but have no cron here: both are fetched
+ * from outside Cloudflare entirely (ADR-0008) and write their own records into
+ * the same bucket, which this composes without needing to know where either
+ * came from.
  */
-const SOURCES = ["manifest", "swpc", "aurorawatch", "celestrak"];
+const SOURCES = ["manifest", "swpc", "aurorawatch", "celestrak", "comets"];
 
 /**
  * Runs one source's refresh, records the outcome, and alerts on a change of

@@ -370,6 +370,24 @@ export function parseCobsObservations(body: string): Map<string, CobsObservation
   return grouped;
 }
 
+/**
+ * How many pages the response says it spans.
+ *
+ * COBS pages its results, and a window that fits on one page today may not
+ * during a bright apparition, when thousands of people report the same comet.
+ * Reading only the first page would not fail - it would quietly reduce a
+ * fortnight to a fraction of it, on exactly the comet everybody was watching.
+ */
+export function cobsPageCount(body: string): number {
+  try {
+    const parsed = JSON.parse(body) as { info?: { pages?: unknown } };
+    const pages = Number(parsed.info?.pages);
+    return Number.isFinite(pages) && pages > 0 ? Math.floor(pages) : 1;
+  } catch {
+    return 1;
+  }
+}
+
 function numberOrNull(text: string): number | null {
   if (text === "") return null;
   const value = Number(text);

@@ -1,5 +1,5 @@
 import { ensureRuntime } from "./runtime";
-import { run } from "./run";
+import { run, runComets } from "./run";
 import { R2Store } from "./store";
 
 /**
@@ -76,6 +76,25 @@ async function main(): Promise<number> {
     userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"),
   };
 
+  const comets = {
+    /**
+     * `data.minorplanetcenter.net`, not `www`.
+     *
+     * The two serve the same file and only one of them is reachable. `www`
+     * times out from some networks entirely and answers 403 to others, and its
+     * `/data` path redirects; the data host answers over HTTP/2 with an ETag
+     * and a permissive CORS header. Checking this before writing the fetcher is
+     * the lesson of ADR-0008, where Cloudflare's egress could not reach
+     * CelesTrak and a whole phase had to move.
+     */
+    elementsUrl: optional(
+      "MPC_COMETS_URL",
+      "https://data.minorplanetcenter.net/iau/MPCORB/CometEls.txt",
+    ),
+    observationsUrl: optional("COBS_OBSERVATIONS_URL", "https://cobs.si/api/obs_list.api"),
+    userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"),
+  };
+
   const result = await run(store, alerting, config);
 
   if (result.published) {
@@ -83,12 +102,27 @@ async function main(): Promise<number> {
       `published sats.json with ${result.satellites} satellites ` +
         `and ${result.trains} Starlink train(s)`,
     );
-    return 0;
+  } else {
+    // stderr and a non-zero exit, so `systemctl status` and journalctl both
+    // show it without anyone having to know where else to look.
+    console.error(`did not publish sats.json: ${result.error}`);
   }
-  // stderr and a non-zero exit, so `systemctl status` and journalctl both show
-  // it without anyone having to know where else to look.
-  console.error(`did not publish: ${result.error}`);
-  return 1;
+
+  // Run regardless of how the satellites went, and reported separately. The
+  // two sources share nothing but the bucket: neither should be able to cost
+  // the other a refresh.
+  const comet = await runComets(store, alerting, comets);
+
+  if (comet.published) {
+    console.log(
+      `published comets.json with ${comet.comets} comet(s), ` +
+        `${comet.measured} carrying a measured magnitude`,
+    );
+  } else {
+    console.error(`did not publish comets.json: ${comet.error}`);
+  }
+
+  return result.published && comet.published ? 0 : 1;
 }
 
 main()

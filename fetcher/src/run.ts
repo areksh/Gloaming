@@ -1,5 +1,13 @@
 import { buildSatellites, parseOmmCsv, type ParsedSatellite } from "./celestrak";
 import { detectTrains, type StarlinkTrain } from "./trains";
+import {
+  OBSERVATION_WINDOW_DAYS,
+  buildComets,
+  cobsPageCount,
+  parseCobsObservations,
+  parseCometEls,
+  type CobsObservation,
+} from "./comets";
 import { fetchThroughBreaker } from "./breaker";
 import { notifyMaintainer, recordOutcome, type Alerting } from "./health";
 import type { ObjectStore } from "./store";
@@ -172,5 +180,207 @@ export async function run(
     }
 
     return { published: false, satellites: 0, trains: 0, error: message };
+  }
+}
+
+// --- comets ---
+
+/**
+ * A second source, entirely separate from CelesTrak.
+ *
+ * Separate on purpose, at every level: its own health record, its own failure
+ * path, and no shared breaker. A 403 from the Minor Planet Center must not stop
+ * the station's elements refreshing, and the reverse holds too.
+ *
+ * **Deliberately no circuit breaker.** The one on CelesTrak exists because
+ * CelesTrak's usage policy demands stopping on any non-200 and Kelso states it
+ * is what keeps an IP off the firewall (Sec. 3). Neither the MPC nor COBS asks
+ * for anything of the kind, and a manual-reset breaker on them would mean one
+ * transient 500 halts comet updates until a human notices. What they get
+ * instead is what any polite client owes: a named User-Agent, one request a
+ * day, and a failure recorded and alerted on rather than retried.
+ */
+export const COMETS_SOURCE = "comets";
+
+const COMETS_KEY = "v1/comets.json";
+
+/**
+ * Six hours, against `sats.json`'s thirty minutes.
+ *
+ * Orbital elements for a satellite in low orbit go stale in hours; a comet's
+ * go stale in months, and the observed magnitudes underneath change daily at
+ * the very most. Nothing is gained by asking more often than the document
+ * changes.
+ */
+const COMETS_CACHE_CONTROL = "public, max-age=21600";
+
+/** COBS's own maximum page size, so a fortnight normally arrives in one request. */
+const COBS_PAGE_SIZE = 2500;
+
+/**
+ * A ceiling on paging, so a misread response cannot become an unbounded loop
+ * against somebody else's observatory. Ten pages is 25,000 observations in a
+ * fortnight, some forty times the ordinary volume.
+ */
+const COBS_MAX_PAGES = 10;
+
+export interface CometConfig {
+  /** The MPC's comet element file, fixed-width. */
+  elementsUrl: string;
+  /** COBS's observation API, without its query - this adds one. */
+  observationsUrl: string;
+  userAgent: string;
+}
+
+export interface CometRunResult {
+  published: boolean;
+  comets: number;
+  /** How many of them carry a magnitude somebody actually measured. */
+  measured: number;
+  error?: string;
+}
+
+/**
+ * A plain fetch with a name attached.
+ *
+ * Redirects are not followed, for the same reason the breaker does not follow
+ * them: a followed 301 arrives as a 200 from wherever it pointed, and the whole
+ * value of a 301 is that it says the URL is legacy. `www.minorplanetcenter.net`
+ * answers 403 to some clients and redirects `/data` elsewhere, which is why
+ * `data.minorplanetcenter.net` is the host used.
+ */
+async function fetchText(
+  alerting: Alerting,
+  url: string,
+  userAgent: string,
+): Promise<string> {
+  const response = await alerting.fetch(url, {
+    headers: { "User-Agent": userAgent },
+    redirect: "manual",
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}`);
+  }
+  return response.text();
+}
+
+/** One page of the observation window, as a URL. */
+function observationsUrl(base: string, now: Date, page: number): string {
+  const from = new Date(now.getTime() - OBSERVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  const url = new URL(base);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("from_date", from.toISOString().slice(0, 10));
+  url.searchParams.set("length", String(COBS_PAGE_SIZE));
+  url.searchParams.set("page", String(page));
+  return url.toString();
+}
+
+/**
+ * The fortnight of observations, or none if COBS cannot be read.
+ *
+ * Softer than the elements, on the same reasoning `readTrains` uses: without
+ * elements there are no comets at all, but without observations there are still
+ * comets - the app falls back to the predicted magnitude and says so. Losing
+ * the measurements should cost this run its measurements and not its comets.
+ */
+async function readObservations(
+  alerting: Alerting,
+  config: CometConfig,
+  now: Date,
+): Promise<Map<string, CobsObservation[]>> {
+  const merged = new Map<string, CobsObservation[]>();
+
+  try {
+    let pages = 1;
+    for (let page = 1; page <= Math.min(pages, COBS_MAX_PAGES); page += 1) {
+      const body = await fetchText(
+        alerting,
+        observationsUrl(config.observationsUrl, now, page),
+        config.userAgent,
+      );
+      if (page === 1) pages = cobsPageCount(body);
+
+      for (const [key, observations] of parseCobsObservations(body)) {
+        merged.set(key, [...(merged.get(key) ?? []), ...observations]);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`no observed magnitudes this run: ${message}`);
+    return new Map();
+  }
+
+  return merged;
+}
+
+/**
+ * One comet run: elements, observations, published document.
+ *
+ * Sequential like the CelesTrak run, and for a milder version of the same
+ * reason: two academic hosts should not be asked for large documents at the
+ * same instant by the same client.
+ */
+export async function runComets(
+  store: ObjectStore,
+  alerting: Alerting,
+  config: CometConfig,
+  now: () => Date = () => new Date(),
+): Promise<CometRunResult> {
+  try {
+    const elements = parseCometEls(
+      await fetchText(alerting, config.elementsUrl, config.userAgent),
+    );
+    if (elements.length === 0) {
+      throw new Error(`${config.elementsUrl} parsed to no comets at all`);
+    }
+
+    const observations = await readObservations(alerting, config, now());
+    const document = buildComets(elements, observations, now().getTime());
+
+    await store.put(COMETS_KEY, JSON.stringify(document), {
+      contentType: "application/json",
+      cacheControl: COMETS_CACHE_CONTROL,
+    });
+
+    const transition = await recordOutcome(store, COMETS_SOURCE, { ok: true }, now());
+    if (transition === "recovered") {
+      await notifyMaintainer(alerting, {
+        title: `Gloaming: ${COMETS_SOURCE} recovered`,
+        body: `${COMETS_SOURCE} is publishing again.`,
+      });
+    }
+
+    return {
+      published: true,
+      comets: document.comets.length,
+      measured: document.comets.filter((comet) => comet.observed !== null).length,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    try {
+      const transition = await recordOutcome(
+        store,
+        COMETS_SOURCE,
+        { ok: false, error: message },
+        now(),
+      );
+      if (transition === "failed") {
+        await notifyMaintainer(alerting, {
+          title: `Gloaming: ${COMETS_SOURCE} is failing`,
+          body: message,
+        });
+      }
+    } catch (recording) {
+      const also = recording instanceof Error ? recording.message : String(recording);
+      return {
+        published: false,
+        comets: 0,
+        measured: 0,
+        error: `${message} (the health record could not be written either: ${also})`,
+      };
+    }
+
+    return { published: false, comets: 0, measured: 0, error: message };
   }
 }
