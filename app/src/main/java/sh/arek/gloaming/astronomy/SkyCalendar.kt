@@ -1,6 +1,8 @@
 package sh.arek.gloaming.astronomy
 
 import io.github.cosinekitty.astronomy.Aberration
+import io.github.cosinekitty.astronomy.ApsisInfo
+import io.github.cosinekitty.astronomy.ApsisKind
 import io.github.cosinekitty.astronomy.Body
 import io.github.cosinekitty.astronomy.EclipseKind
 import io.github.cosinekitty.astronomy.EquatorEpoch
@@ -13,10 +15,14 @@ import io.github.cosinekitty.astronomy.Time
 import io.github.cosinekitty.astronomy.Visibility as ElongationSide
 import io.github.cosinekitty.astronomy.equator
 import io.github.cosinekitty.astronomy.horizon
+import io.github.cosinekitty.astronomy.illumination
 import io.github.cosinekitty.astronomy.localSolarEclipsesAfter
+import io.github.cosinekitty.astronomy.lunarApsidesAfter
 import io.github.cosinekitty.astronomy.lunarEclipsesAfter
 import io.github.cosinekitty.astronomy.moonQuartersAfter
 import io.github.cosinekitty.astronomy.searchMaxElongation
+import io.github.cosinekitty.astronomy.searchPeakMagnitude
+import io.github.cosinekitty.astronomy.searchRelativeLongitude
 import kotlin.math.roundToInt
 
 /**
@@ -74,6 +80,18 @@ object SkyCalendar {
      */
     private const val ECLIPSE_IS_A_PHASE_MILLIS = 6L * 60 * 60 * 1000
 
+    /** How far past the horizon to look for a perigee that a full moon may pair with. */
+    private const val PERIGEE_LOOKAHEAD_MILLIS = 2L * DAY_MILLIS
+
+    /** How far apart two apparitions of the same thing must be to be two. */
+    private const val SEPARATE_APPARITIONS_DAYS = 60.0
+
+    /** How long either side of opposition a planet is still worth the trip. */
+    private const val OPPOSITION_SEASON_DAYS = 21.0
+
+    /** The same, for greatest brilliancy, which is a sharper peak. */
+    private const val BRIGHTEST_SEASON_DAYS = 10.0
+
     /** The moon is half a degree across, and is the only ruler anyone carries. */
     private const val MOON_WIDTH_DEGREES = 0.5
 
@@ -110,6 +128,9 @@ object SkyCalendar {
             addAll(elongations(latitude, longitude, start, until))
             addAll(conjunctions(latitude, longitude, fromMillis, until))
             addAll(showers(latitude, longitude, fromMillis, until))
+            addAll(oppositions(latitude, longitude, start, until))
+            addAll(greatestBrightness(latitude, longitude, start, until))
+            addAll(seasons(fromMillis, until))
             addAll(moonPhases(start, until))
         }
             .filter { it.at in fromMillis..until }
@@ -557,6 +578,180 @@ object SkyCalendar {
         )
     }
 
+    // --- oppositions and greatest brilliancy ---
+
+    /**
+     * The planets worth naming, and where the list stops.
+     *
+     * Saturn is the last one a person can go outside and simply look at:
+     * everything beyond it needs a telescope, and a telescope is not minimal
+     * equipment. That is the scope rule for the whole app, applied here.
+     */
+    private val NAKED_EYE_PLANETS = listOf(Body.Mars, Body.Jupiter, Body.Saturn)
+
+    /**
+     * A planet opposite the sun.
+     *
+     * The one night of the year each is at its best: closest to us, fully lit,
+     * and above the horizon from dusk to dawn rather than for an hour at one
+     * end of the night. If somebody looks at Mars once, this is the fortnight.
+     */
+    private fun oppositions(
+        latitude: Double,
+        longitude: Double,
+        start: Time,
+        until: Long,
+    ): List<SkyEvent> = NAKED_EYE_PLANETS.flatMap { body ->
+        buildList {
+            var cursor = start
+            while (true) {
+                val at = runCatching { searchRelativeLongitude(body, 0.0, cursor) }.getOrNull()
+                    ?: return@buildList
+                if (at.millis() > until) return@buildList
+                add(opposition(body, at, latitude, longitude))
+                // Stepped past, or the search returns the same one forever.
+                cursor = at.addDays(SEPARATE_APPARITIONS_DAYS)
+            }
+        }
+    }
+
+    private fun opposition(
+        body: Body,
+        time: Time,
+        latitude: Double,
+        longitude: Double,
+    ): SkyEvent {
+        val name = body.toString()
+        val brightness = runCatching { illumination(body, time).mag }.getOrNull()
+        val best = bestInDarkness(skyBodyOf(body), latitude, longitude, time.millis())
+
+        return SkyEvent(
+            kind = EventKind.Opposition,
+            at = time.millis(),
+            from = time.addDays(-OPPOSITION_SEASON_DAYS).millis(),
+            until = time.addDays(OPPOSITION_SEASON_DAYS).millis(),
+            title = "$name at its best for the year",
+            detail = buildString {
+                append("Opposite the sun, so it rises at sunset and is up all night, ")
+                append("and it is as close and as bright as it gets this time round")
+                brightness?.let { append(" - magnitude ${String.format(java.util.Locale.UK, "%.1f", it)}") }
+                append(". Worth looking on any clear night for a few weeks either side.")
+            },
+            visibility = placement(best, name),
+        )
+    }
+
+    /**
+     * Venus at greatest brilliancy.
+     *
+     * Not the same thing as greatest elongation, which is when it is furthest
+     * from the sun in the sky. This is when the crescent's size and its
+     * illuminated fraction best trade off - around magnitude -4.8, bright
+     * enough to cast a shadow from a properly dark site and to be mistaken for
+     * an aircraft by everybody else.
+     */
+    private fun greatestBrightness(
+        latitude: Double,
+        longitude: Double,
+        start: Time,
+        until: Long,
+    ): List<SkyEvent> = buildList {
+        var cursor = start
+        while (true) {
+            val found = runCatching { searchPeakMagnitude(Body.Venus, cursor) }.getOrNull()
+                ?: return@buildList
+            if (found.time.millis() > until) return@buildList
+            val best = bestInDarkness(SkyBody.Venus, latitude, longitude, found.time.millis())
+            add(
+                SkyEvent(
+                    kind = EventKind.GreatestBrightness,
+                    at = found.time.millis(),
+                    from = found.time.addDays(-BRIGHTEST_SEASON_DAYS).millis(),
+                    until = found.time.addDays(BRIGHTEST_SEASON_DAYS).millis(),
+                    title = "Venus at its brightest",
+                    detail = "Magnitude ${String.format(java.util.Locale.UK, "%.1f", found.mag)} - " +
+                        "bright enough to cast a shadow from a properly dark site, and bright " +
+                        "enough that most people who notice it assume it is an aircraft.",
+                    visibility = placement(best, "Venus"),
+                ),
+            )
+            cursor = found.time.addDays(SEPARATE_APPARITIONS_DAYS)
+        }
+    }
+
+    /** How well placed a planet is on the nights around its moment. */
+    private fun placement(best: Sighting?, name: String): Visibility = when {
+        best == null -> Visibility.NotFromHere("There is no darkness here at this time of year.")
+
+        best.altitude <= 0.0 -> Visibility.NotFromHere(
+            "$name stays below the horizon here through the whole of the night.",
+        )
+
+        best.altitude < LOW_DEGREES -> Visibility.Marginal(
+            "$name only reaches ${best.altitude.roundToInt()} degrees, low in the " +
+                "${Compass.of(best.azimuth).label}, so you will need a clear horizon.",
+        )
+
+        else -> Visibility.Good
+    }
+
+    // --- the turning year ---
+
+    /**
+     * Equinoxes and solstices.
+     *
+     * Not a sight, and they never interrupt. They are here because they are
+     * what the observing year turns on: at these latitudes the June solstice is
+     * when astronomical darkness stops arriving at all, and the September
+     * equinox is when it comes back.
+     */
+    private fun seasons(fromMillis: Long, until: Long): List<SkyEvent> {
+        val firstYear = yearOf(fromMillis)
+        return (firstYear..yearOf(until)).flatMap { year ->
+            val turning = io.github.cosinekitty.astronomy.seasons(year)
+            listOf(
+                turning.marchEquinox to "March equinox",
+                turning.juneSolstice to "June solstice",
+                turning.septemberEquinox to "September equinox",
+                turning.decemberSolstice to "December solstice",
+            ).map { (time, name) ->
+                SkyEvent(
+                    kind = EventKind.Season,
+                    at = time.millis(),
+                    from = time.millis(),
+                    until = time.millis(),
+                    title = name,
+                    detail = seasonNote(name),
+                    visibility = Visibility.Good,
+                )
+            }
+        }
+    }
+
+    private fun seasonNote(name: String) = when (name) {
+        "March equinox" -> "Day and night equal. Nights shortening from here, and the best of " +
+            "the dark-sky season behind you until autumn."
+        "June solstice" -> "The shortest night of the year. Above about 60 degrees there is no " +
+            "astronomical darkness at all around now."
+        "September equinox" -> "Day and night equal. Proper darkness returns from here, and " +
+            "with it the observing season."
+        else -> "The longest night of the year, and the most of it worth being outside for."
+    }
+
+    private fun yearOf(millis: Long): Int {
+        val calendar = java.util.GregorianCalendar(java.util.TimeZone.getTimeZone("UTC"))
+        calendar.timeInMillis = millis
+        return calendar.get(java.util.Calendar.YEAR)
+    }
+
+    private fun skyBodyOf(body: Body) = when (body) {
+        Body.Mars -> SkyBody.Mars
+        Body.Jupiter -> SkyBody.Jupiter
+        Body.Saturn -> SkyBody.Saturn
+        Body.Venus -> SkyBody.Venus
+        else -> SkyBody.Mercury
+    }
+
     // --- moon phases ---
 
     /**
@@ -567,13 +762,29 @@ object SkyCalendar {
      * anything faint - and out of the notifications because a phase arrives
      * every 7.4 days and an app that says so is an app that gets muted.
      */
-    private fun moonPhases(start: Time, until: Long): List<SkyEvent> =
-        moonQuartersAfter(start)
-            .takeWhile { it.time.millis() <= until }
-            .map(::moonPhase)
+    private fun moonPhases(start: Time, until: Long): List<SkyEvent> {
+        val perigees = lunarApsidesAfter(start)
+            .takeWhile { it.time.millis() <= until + PERIGEE_LOOKAHEAD_MILLIS }
+            .filter { it.kind == ApsisKind.Pericenter }
             .toList()
 
-    private fun moonPhase(quarter: MoonQuarterInfo): SkyEvent {
+        return moonQuartersAfter(start)
+            .takeWhile { it.time.millis() <= until }
+            .map { moonPhase(it, perigees) }
+            .toList()
+    }
+
+    /**
+     * How close a full moon must fall to perigee to be worth remarking on.
+     *
+     * A day. The moon's distance changes slowly enough near perigee that
+     * anything inside this looks the same size as the closest possible one, and
+     * anything outside it does not look different from an ordinary full moon
+     * either - which is the honest thing to say about supermoons generally.
+     */
+    private const val SUPERMOON_HOURS = 24.0
+
+    private fun moonPhase(quarter: MoonQuarterInfo, perigees: List<ApsisInfo>): SkyEvent {
         val at = quarter.time.millis()
         val (title, detail) = when (quarter.quarter) {
             0 -> "New moon" to
@@ -584,16 +795,37 @@ object SkyCalendar {
                 "Up all night and bright enough to wash out meteors and anything faint."
             else -> "Last quarter" to "Half lit, rising around midnight."
         }
+        // A supermoon is a full moon, so this is that entry saying more rather
+        // than a second entry beside it - the same rule that stops an eclipse
+        // and the full moon it is being printed twice.
+        val perigee = if (quarter.quarter == FULL_MOON) {
+            perigees.minByOrNull { kotlin.math.abs(it.time.millis() - at) }
+                ?.takeIf {
+                    kotlin.math.abs(it.time.millis() - at) <= (SUPERMOON_HOURS * 3_600_000).toLong()
+                }
+        } else {
+            null
+        }
+
         return SkyEvent(
             kind = EventKind.MoonPhase,
             at = at,
             from = at,
             until = at,
             title = title,
-            detail = detail,
+            detail = perigee?.let {
+                "$detail It is also the closest full moon of its run, " +
+                    "${String.format(java.util.Locale.UK, "%,d", it.distanceKm.roundToInt())} " +
+                    "km away. That makes it a few per cent wider than an average full moon, " +
+                    "which is honestly less than the eye can pick out - but it is the best " +
+                    "one to photograph beside a landmark."
+            } ?: detail,
             visibility = Visibility.Good,
         )
     }
+
+    /** [MoonQuarterInfo] numbers the quarters from new; two is full. */
+    private const val FULL_MOON = 2
 
     // --- the shared darkness question ---
 

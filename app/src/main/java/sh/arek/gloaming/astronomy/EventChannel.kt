@@ -32,9 +32,13 @@ enum class EventChannel(val id: String) {
         fun of(kind: EventKind): EventChannel? = when (kind) {
             EventKind.SolarEclipse, EventKind.LunarEclipse -> Eclipses
             EventKind.MeteorShower -> MeteorShowers
-            EventKind.Conjunction, EventKind.Elongation -> Conjunctions
+            EventKind.Conjunction,
+            EventKind.Elongation,
+            EventKind.Opposition,
+            EventKind.GreatestBrightness,
+            -> Conjunctions
             EventKind.Noctilucent -> Noctilucent
-            EventKind.MoonPhase -> null
+            EventKind.MoonPhase, EventKind.Season -> null
         }
     }
 }

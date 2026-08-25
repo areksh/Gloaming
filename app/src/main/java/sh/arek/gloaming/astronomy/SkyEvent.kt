@@ -14,7 +14,24 @@ enum class EventKind {
     MeteorShower,
     Conjunction,
     Elongation,
+
+    /**
+     * A planet opposite the sun: up all night, closest for the year, and the
+     * night to look at it if you look once.
+     */
+    Opposition,
+
+    /** Venus at its brightest, which is bright enough to cast a shadow. */
+    GreatestBrightness,
+
     MoonPhase,
+
+    /**
+     * An equinox or a solstice. Not a sight - listed because it marks the
+     * observing year turning, and at these latitudes the return or loss of
+     * darkness. Never interrupts, like a moon phase.
+     */
+    Season,
 
     /**
      * Not a dated occasion like the rest, but a condition that holds most clear

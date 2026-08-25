@@ -1363,6 +1363,45 @@ Next to the displayed data, not buried under the donation link:
 
 ---
 
+### What counts as an event at all
+
+**Decided 2026-08-25, and it settles most future questions in one line: if it cannot be
+seen with the naked eye or minimal equipment, it is out of scope. A telescope is not
+minimal equipment.**
+
+Binoculars are; a pair of 10x50s is what a lot of people already own and is the natural
+next step from looking. A telescope is a different hobby, with different apps, and building
+for it would pull the whole design towards catalogues and finder charts and away from
+"look up now".
+
+What this admits, added the same day: planetary oppositions for Mars, Jupiter and Saturn -
+one night a year each when the planet is opposite the sun, up all night and at its closest;
+Venus at greatest brilliancy, around magnitude -4.8, which casts a shadow from a dark site;
+and the closest full moon of a run, folded into the full moon entry rather than listed
+beside it, on the same rule that stops an eclipse and the full moon it is being printed
+twice.
+
+What it excludes, and why each is a real question somebody will ask:
+
+- **Uranus and Neptune at opposition.** Both are technically naked-eye-marginal at best and
+  in practice need optics to find at all, let alone see as anything but a point.
+- **Transits of Mercury and Venus.** The next Mercury transit is 13 November 2032 and Venus
+  does not transit again until 2117. Both need a filtered telescope to see at all.
+- **Planetary perihelion and aphelion, lunar nodes, libration.** Nothing happens in the sky
+  that a person can go outside and look at.
+- **Deep-sky objects**, which Sec. 8 already excludes for the separate reason that
+  astronomy-engine offers exactly eight user star slots.
+
+Equinoxes and solstices are the one deliberate exception, and they earn it by not
+interrupting: they are not sights, they are what the observing year turns on - the June
+solstice is when astronomical darkness stops arriving at these latitudes and the September
+equinox is when it comes back. They are listed and never notify, the same treatment moon
+phases get.
+
+If the app is ever expanded towards equipment, this is the line to revisit first.
+
+---
+
 ## 14. Build order
 
 Each slice stands alone.

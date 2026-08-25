@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads the last position the phone already had rather than turning the GPS on.
   Typing it in still works with location denied forever, and is still the only
   way to ask about somewhere you are not.
+- More in the calendar: Mars, Jupiter and Saturn at opposition - the one night
+  of the year each is up all night and at its closest - Venus at its brightest,
+  the equinoxes and solstices, and a note on the full moon when it falls at
+  perigee. Nothing that needs a telescope: the app covers what you can see with
+  your eyes or a pair of binoculars, and that is now written down as the rule.
 - Events in the calendar can be starred. There is a "tell me about all of
   them" switch in Settings, on by default, so the calendar is useful before
   you have curated anything; turn it off and only your starred events will
