@@ -251,7 +251,7 @@ data class UserSettings(
      * there are new and full moons and they matter far less, so left in they
      * filled over half the calendar.
      */
-    val hiddenEventKinds: Set<String> = setOf("MoonQuarter"),
+    val hiddenEventKinds: Set<String> = DEFAULT_HIDDEN_EVENT_KINDS,
 
     /**
      * Whether every event worth seeing interrupts, or only the starred ones.
@@ -410,6 +410,17 @@ data class UserSettings(
         const val DEFAULT_ECLIPSE_FOLLOW_MAX_MINUTES = 180
 
         val ECLIPSE_FOLLOW_MAX_CHOICES = listOf(60, 120, 180, 240)
+
+        /**
+         * The moon's quarters, folded away to begin with.
+         *
+         * There are as many of them as of every other kind put together, and
+         * they matter far less to an observer than the new and full moon do.
+         * Named here rather than written inline so the preference store can
+         * fall back to the same set - reading it with an empty default would
+         * silently unhide them on the first read after an upgrade.
+         */
+        val DEFAULT_HIDDEN_EVENT_KINDS = setOf("MoonQuarter")
 
         /**
          * Six hours between alerts on any one channel, until the user says

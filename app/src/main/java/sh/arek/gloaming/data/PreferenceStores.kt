@@ -65,6 +65,7 @@ private const val KEY_STARRED_EVENTS = "starred_events"
 private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
+private const val KEY_HIDDEN_KINDS = "hidden_event_kinds"
 private const val KEY_ANNOUNCED_EVENTS = "announced_events"
 private const val KEY_NEXT_EVENT_CHECK_AT = "next_event_check_at"
 private const val KEY_LAST_PASS_CATALOGUE = "last_pass_catalogue"
@@ -169,6 +170,13 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
             starredEvents = prefs.getStringSet(KEY_STARRED_EVENTS, emptySet()).orEmpty(),
+            // Read with the default as its fallback rather than an empty set,
+            // so a fresh install still starts with the moon's quarters folded
+            // away - there are as many of them as every other kind combined.
+            hiddenEventKinds = prefs.getStringSet(
+                KEY_HIDDEN_KINDS,
+                UserSettings.DEFAULT_HIDDEN_EVENT_KINDS,
+            ).orEmpty(),
             eventHeadsUpDays = prefs.getInt(
                 KEY_EVENT_HEADS_UP,
                 UserSettings.DEFAULT_EVENT_HEADS_UP_DAYS,
@@ -235,6 +243,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             // A defensive copy, for the reason the announced record carries one:
             // SharedPreferences keeps the very set handed to it.
             putStringSet(KEY_STARRED_EVENTS, settings.starredEvents.toSet())
+            putStringSet(KEY_HIDDEN_KINDS, settings.hiddenEventKinds.toSet())
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)
             putInt(KEY_ECLIPSE_FOLLOW_MAX, settings.eclipseFollowMaxMinutes)

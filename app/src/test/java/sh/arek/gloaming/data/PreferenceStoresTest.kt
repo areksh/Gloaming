@@ -50,46 +50,94 @@ class PreferenceStoresTest {
      * finding them on again. Comparing the whole object means a field added
      * without persistence fails here rather than on somebody's phone.
      */
+    /**
+     * Every field, each set away from its default.
+     *
+     * The name has to be true for this to be worth anything, and twice now it
+     * has not been. It first set eleven fields of twenty-eight, which is how
+     * four calendar settings shipped without ever being written to disk -
+     * turning calendar alerts off, restarting, and finding them on again.
+     * Comparing the whole object fixed that much. It did not fix the rest:
+     * `hiddenEventKinds` was still never persisted, because a field the
+     * fixture leaves at its default compares equal whether it was written or
+     * not. The test below now polices that.
+     */
+    private fun everySettingChanged() = UserSettings(
+        latitude = 69.65,
+        longitude = 18.96,
+        threshold = 70,
+        alertsEnabled = false,
+        pollIntervalMinutes = 30,
+        alertsBeforeUnlock = true,
+        cloudTolerance = 55,
+        cloudGateEnabled = false,
+        quietHours = QuietHours(23 * 60, 7 * 60),
+        quietHoursOverride = true,
+        nightVision = true,
+        passAlertsEnabled = false,
+        auroraAlertIntervalMinutes = 180,
+        issPassAlertIntervalMinutes = 720,
+        brightPassAlertIntervalMinutes = 60,
+        trainPassAlertIntervalMinutes = 120,
+        followStationPassesAutomatically = true,
+        watchDuration = WatchDuration.UntilLight,
+        preciseLocationBeforeUnlock = true,
+        passAlertLeadMinutes = 45,
+        minimumPassElevationDegrees = 30,
+        liveFollowLeadMinutes = 15,
+        liveFollowMaxMinutes = 20,
+        logRetentionDays = 14,
+        eventAlertsEnabled = false,
+        eventHeadsUpDays = 7,
+        eventAlertLeadMinutes = 240,
+        eclipseFollowMaxMinutes = 240,
+        locationMode = LocationMode.Automatic,
+        notifyAboutEveryEvent = false,
+        starredEvents = setOf("SolarEclipse|1817197223000"),
+        hiddenEventKinds = setOf("Conjunction", "Season"),
+    )
+
     @Test
     fun `round-trips every setting`() {
         val store = settingsStore()
-        val settings = UserSettings(
-            latitude = 69.65,
-            longitude = 18.96,
-            threshold = 70,
-            alertsEnabled = false,
-            pollIntervalMinutes = 30,
-            alertsBeforeUnlock = true,
-            cloudTolerance = 55,
-            cloudGateEnabled = false,
-            quietHours = QuietHours(23 * 60, 7 * 60),
-            quietHoursOverride = true,
-            nightVision = true,
-            passAlertsEnabled = false,
-            auroraAlertIntervalMinutes = 180,
-            issPassAlertIntervalMinutes = 720,
-            brightPassAlertIntervalMinutes = 60,
-            trainPassAlertIntervalMinutes = 120,
-            followStationPassesAutomatically = true,
-            watchDuration = WatchDuration.UntilLight,
-            preciseLocationBeforeUnlock = true,
-            passAlertLeadMinutes = 45,
-            minimumPassElevationDegrees = 30,
-            liveFollowLeadMinutes = 15,
-            liveFollowMaxMinutes = 20,
-            logRetentionDays = 14,
-            eventAlertsEnabled = false,
-            eventHeadsUpDays = 7,
-            eventAlertLeadMinutes = 240,
-            eclipseFollowMaxMinutes = 240,
-            locationMode = LocationMode.Automatic,
-            notifyAboutEveryEvent = false,
-            starredEvents = setOf("SolarEclipse|1817197223000"),
-        )
+        val settings = everySettingChanged()
 
         store.write(settings)
 
         assertEquals(settings, store.read())
+    }
+
+    /**
+     * The guard on the test above: the fixture must differ from the defaults in
+     * every single field.
+     *
+     * Without this, adding a setting and forgetting to persist it passes both
+     * round-trip tests - the fixture leaves the new field at its default, the
+     * store returns the default because it never wrote anything, and the two
+     * compare equal. That is precisely how `hiddenEventKinds` shipped
+     * unpersisted for a whole phase.
+     *
+     * Java reflection rather than Kotlin's, which would need `kotlin-reflect`
+     * on the test path for nothing this does not already get. Computed
+     * properties have no backing field and so do not appear, which is right:
+     * they are derived and there is nothing to persist.
+     */
+    @Test
+    fun `the round-trip fixture leaves no field at its default`() {
+        val defaults = UserSettings()
+        val changed = everySettingChanged()
+
+        val untouched = UserSettings::class.java.declaredFields
+            .filterNot { it.isSynthetic || java.lang.reflect.Modifier.isStatic(it.modifiers) }
+            .onEach { it.isAccessible = true }
+            .filter { it.get(changed) == it.get(defaults) }
+            .map { it.name }
+
+        assertEquals(
+            "these are left at their default, so the round-trip test cannot see them",
+            emptyList<String>(),
+            untouched,
+        )
     }
 
     /**
