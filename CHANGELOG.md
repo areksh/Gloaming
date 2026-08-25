@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A pass on one channel could be missed because the app was waiting out a pass
+  on another. Found on the first untouched overnight run: a rocket body was
+  announced at 03:00 and the space station's own alert, due at 03:18, was slept
+  straight through. The channels have separate budgets so that one does not
+  crowd out the other, and this was exactly that.
+- The backend could not tell the difference between a source that was working
+  and a source nobody was asking. One of them stopped for two and a half hours
+  while the health record reported it healthy, because the record only ever
+  described attempts. It now reports a source as stale when its last success is
+  too old to believe, and says so on the alerting channel.
+
 ### Added
 
 - Satellite passes. The app predicts when the ISS and other bright satellites
@@ -38,6 +51,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   best pass is chosen from, so a longer setting means better alerts rather than
   just fewer of them. A clear night has upwards of forty satellite passes worth
   looking at, and without this the app would have mentioned most of them.
+- Almost every timing in the app is now yours to set, rather than a constant
+  nobody could see. How long a watch runs before it stops itself, including
+  "until it gets light"; how much warning you get before a pass is highest; how
+  low a pass may be and still be worth mentioning; and how early the live
+  tracker starts. A few numbers stay fixed on purpose - the tracker's tick, how
+  far a pass may drift and still be the same pass, and the ceiling on a watch -
+  because those are not preferences, and a wrong value breaks the app rather
+  than annoying you.
+- Gloaming keeps its own log of what it did and why, on the phone. Android's own
+  log is a buffer the system recycles, and overnight - the only time this app
+  works - it has usually rolled past whatever you wanted to see. Choose how many
+  days to keep, export it, or clear it. It records decisions and never where you
+  are.
+- An option to store your exact location for before-first-unlock alerting,
+  rather than the rounded one. Worth it only for satellite passes: the aurora
+  grid is read at whole degrees anyway, but 111 km moves a pass by tens of
+  seconds and several degrees. Off by default, and the setting says plainly what
+  it changes about what a locked phone will hand over.
 - Live pass mode. Gloaming can follow a pass across the sky while it happens,
   counting down to the rise and then saying which way to look and how far up,
   second by second, until it sets. It needs no signal - the elements are already

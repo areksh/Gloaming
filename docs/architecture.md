@@ -665,6 +665,57 @@ errors; the sourcing document is strong.
     pattern: the data is supplied by a third party, the format is documented but
     the *values* are not, and the failure mode is total rather than partial.
 
+19. **The first untouched overnight run, and what it found. 2026-08-25.** The
+    milestone itself passed: an alert for a rocket body was delivered at
+    03:00:53 for a peak at 03:28:23 - a 27.5-minute lead - on an unplugged
+    phone in Doze that nobody had touched since the evening. That is the Phase
+    3 equivalent of the Phase 1 result, and nothing short of it would have done.
+
+    It also found a real defect, which is what it was for. The station's pass
+    at 03:48:24 was never announced. `nextWake` returned the announced pass's
+    own set for `Decision.Announce` - "the pass has been dealt with, wait until
+    it is over" - which is sound about that pass and says nothing about the
+    other channel. The station's alert fell due at 03:18:24, inside the window
+    the planner had decided to sleep through. The channels have separate
+    budgets precisely so one does not crowd out the other, and this was that
+    happening. Fixed: after an announcement the planner wakes at the earlier of
+    the pass's end and the soonest alert due elsewhere.
+
+    A second cause is not addressed. The wake that *was* armed landed 27 minutes
+    late, and by then the pass had peaked and was correctly discarded. A
+    punctual wake would still have caught it, with a shortened lead. That is a
+    scheduling question rather than a planning one and wants its own
+    observation before anything is changed on a guess.
+
+    The other lesson was about the evidence. Reconstructing this took preference
+    values and a simulation, because logcat is the system's ring buffer and had
+    long since rolled past the window in question - which is the only window
+    this app works in. The app now keeps its own log.
+
+20. **A source stopped being attempted, and health could not see it. Fixed
+    2026-08-25.** The SWPC cron stopped firing at 04:30:54 and the health
+    record went on reporting `ok` with zero failures for two and a half hours,
+    while `status.json` served a solar wind reading from 04:25. NOAA was fine
+    throughout - checked directly, serving 06:48 data. It was found by accident,
+    looking for something else.
+
+    `recordOutcome` catches every throw and writes a failure, so a source that
+    *runs* and breaks is reported. Health recorded attempts and only attempts,
+    which meant a source nobody asks looked exactly like a source in perfect
+    order. That is precisely the silent failure the channel was built for.
+
+    Health now judges whether the last success is recent enough to believe and
+    labels the source `stale`, against a per-source expectation, and pushes on
+    the edge - including recovery, which cannot come from `recordOutcome`
+    because a source that merely stopped was never marked failing.
+
+    On the cause: **redeploying the Worker revived it**. SWPC resumed at
+    07:15:55, immediately after a deploy whose only relevant effect was
+    re-registering the triggers. That is the same family as issue 10, where a
+    documented cron expression registered without complaint and never fired,
+    and it is worth knowing that a Cloudflare cron can stop for no visible
+    reason and that a redeploy is a plausible first remedy.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
