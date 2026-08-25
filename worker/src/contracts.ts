@@ -16,7 +16,13 @@ export type Transition = "none" | "failed" | "recovered";
 
 export interface SourceHealth {
   source: string;
-  state: "ok" | "failing";
+  /**
+   * `ok` and `failing` record what the last attempt did. `stale` is different
+   * in kind: it means nothing has been attempted recently enough for the last
+   * result to be worth believing, and it is decided when the document is
+   * composed rather than stored.
+   */
+  state: "ok" | "failing" | "stale";
   last_success: string | null;
   last_error: string | null;
   last_error_at: string | null;

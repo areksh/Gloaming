@@ -7,7 +7,13 @@
  * Devices read from the R2 custom domain through the CDN instead.
  */
 
-import { notifyMaintainer, publishHealth, recordOutcome, type Outcome } from "./health";
+import {
+  notifyMaintainer,
+  publishHealth,
+  recordOutcome,
+  reportStaleness,
+  type Outcome,
+} from "./health";
 import { ensureManifest, refreshSpaceWeather, refreshUk, type Deps } from "./pipeline";
 
 /** Which cron expression drives which source. Matches `triggers.crons`. */
@@ -72,7 +78,10 @@ async function runSource(
     });
   }
 
-  await publishHealth(env, SOURCES, deps.now());
+  // Composed first, then judged: a source that has simply stopped being
+  // attempted is invisible to the outcome above, because there is no outcome.
+  const health = await publishHealth(env, SOURCES, deps.now());
+  await reportStaleness(env, deps, health);
 
   return failure;
 }

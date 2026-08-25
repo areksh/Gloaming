@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   composeHealth,
   HEALTH_SCHEMA,
+  type Health,
   notifyMaintainer,
   readHealth,
   recordOutcome,
+  reportStaleness,
 } from "../src/health";
 
 const now = () => new Date("2026-08-05T01:00:00Z");
@@ -104,6 +106,148 @@ describe("composeHealth", () => {
     const health = await composeHealth(env, ["never-run"], now());
 
     expect(health.sources["never-run"]).toBeUndefined();
+  });
+
+  /**
+   * The failure this was written for, observed in production 2026-08-25. The
+   * SWPC cron stopped firing and the health record went on saying `ok` with
+   * zero failures for hours, because a source that is never *attempted* never
+   * records anything. Meanwhile `status.json` served a reading two and a half
+   * hours stale and nothing anywhere said so.
+   *
+   * Health recorded attempts and nothing else; it now also judges whether the
+   * last success is recent enough to believe. A source nobody is asking is
+   * exactly the silent failure this channel exists to catch.
+   */
+  it("calls a source stale when its last success is too old to believe", async () => {
+    const source = "swpc";
+    await recordOutcome(env, source, { ok: true }, now());
+
+    const health = await composeHealth(env, [source], new Date("2026-08-05T02:30:00Z"));
+
+    expect(health.sources[source]?.state).toBe("stale");
+    // The stored record is untouched: it is the log of attempts, and the last
+    // attempt really did succeed.
+    expect((await readHealth(env, source))?.state).toBe("ok");
+  });
+
+  it("leaves a source alone while its last success is recent", async () => {
+    const source = "swpc2";
+    await recordOutcome(env, source, { ok: true }, now());
+
+    const health = await composeHealth(env, [source], later());
+
+    expect(health.sources[source]?.state).toBe("ok");
+  });
+
+  /** A source already known to be failing keeps that, which says more. */
+  it("does not relabel a failing source as merely stale", async () => {
+    const source = "swpc3";
+    await recordOutcome(env, source, { ok: false, error: "503" }, now());
+
+    const health = await composeHealth(env, [source], new Date("2026-08-05T02:30:00Z"));
+
+    expect(health.sources[source]?.state).toBe("failing");
+  });
+
+  /**
+   * Sources refresh at their own rates, so one threshold cannot serve all of
+   * them. CelesTrak is fetched two-hourly by a job on another host; calling it
+   * stale after ten minutes would cry wolf every cycle.
+   */
+  it("judges each source against its own expected rate", async () => {
+    await recordOutcome(env, "celestrak", { ok: true }, now());
+
+    const withinItsRate = await composeHealth(env, ["celestrak"], new Date("2026-08-05T02:00:00Z"));
+    const wellPastIt = await composeHealth(env, ["celestrak"], new Date("2026-08-05T09:00:00Z"));
+
+    expect(withinItsRate.sources["celestrak"]?.state).toBe("ok");
+    expect(wellPastIt.sources["celestrak"]?.state).toBe("stale");
+  });
+});
+
+describe("reportStaleness", () => {
+  const pushes = () => {
+    const sent: { title: string; body: string }[] = [];
+    const fetcher = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      sent.push({
+        title: new Headers(init?.headers).get("Title") ?? "",
+        body: String(init?.body ?? ""),
+      });
+      return new Response("ok");
+    }) as unknown as typeof fetch;
+    return { sent, deps: { fetch: fetcher, now: () => now() } };
+  };
+
+  const stale = (source: string): Health => ({
+    schema: HEALTH_SCHEMA,
+    generated: now().toISOString(),
+    sources: {
+      [source]: {
+        source,
+        state: "stale",
+        last_success: "2026-08-05T00:00:00.000Z",
+        last_error: null,
+        last_error_at: null,
+        consecutive_failures: 0,
+      },
+    },
+  });
+
+  const healthy = (source: string): Health => {
+    const document = stale(source);
+    document.sources[source] = { ...document.sources[source]!, state: "ok" };
+    return document;
+  };
+
+  /**
+   * A pull channel nobody thinks to check is not an alert. The staleness that
+   * prompted all this went unnoticed for two and a half hours precisely because
+   * nothing pushed.
+   */
+  it("pushes once when a source goes stale", async () => {
+    const source = "stale-a";
+    const first = pushes();
+
+    await reportStaleness(env, first.deps, stale(source));
+
+    expect(first.sent).toHaveLength(1);
+    expect(first.sent[0]?.title).toContain(source);
+  });
+
+  /** And not again on every compose, which is every few minutes. */
+  it("does not push again while it stays stale", async () => {
+    const source = "stale-b";
+    await reportStaleness(env, pushes().deps, stale(source));
+
+    const second = pushes();
+    await reportStaleness(env, second.deps, stale(source));
+
+    expect(second.sent).toHaveLength(0);
+  });
+
+  /**
+   * Recovery has to come from here too. A source that merely stopped was never
+   * marked failing, so it never transitions back through recordOutcome and
+   * nothing else would ever say it had returned.
+   */
+  it("says so when a stale source starts reporting again", async () => {
+    const source = "stale-c";
+    await reportStaleness(env, pushes().deps, stale(source));
+
+    const back = pushes();
+    await reportStaleness(env, back.deps, healthy(source));
+
+    expect(back.sent).toHaveLength(1);
+    expect(back.sent[0]?.title).toContain("recovered");
+  });
+
+  it("stays quiet about a source that was never stale", async () => {
+    const quiet = pushes();
+
+    await reportStaleness(env, quiet.deps, healthy("stale-d"));
+
+    expect(quiet.sent).toHaveLength(0);
   });
 });
 

@@ -37,6 +37,46 @@ export type Outcome = { ok: true } | { ok: false; error: string };
 
 const healthKey = (source: string) => `internal/health/${source}.json`;
 
+/**
+ * How long a source may go without a success before its record stops being
+ * worth believing.
+ *
+ * Generously above each source's real cadence, because the point is to catch a
+ * source that has *stopped*, not to complain about one that ran late. SWPC and
+ * AuroraWatch are minutes apart, so an hour is many missed cycles; CelesTrak is
+ * fetched two-hourly from another host entirely, so it gets far longer.
+ *
+ * A source with no entry here is never called stale. That is the safe default:
+ * a new source should not start alarming before anyone has decided what its
+ * cadence even is.
+ */
+const STALE_AFTER_MILLIS: Record<string, number> = {
+  manifest: 60 * 60 * 1000,
+  swpc: 60 * 60 * 1000,
+  aurorawatch: 60 * 60 * 1000,
+  celestrak: 6 * 60 * 60 * 1000,
+};
+
+/**
+ * Whether [state] is too old to believe at [now].
+ *
+ * Only ever applied to a source whose last attempt succeeded. One that is
+ * already failing keeps that label, which says strictly more: "failing" names
+ * a cause, and "stale" is what you say when there is no cause because nothing
+ * has run.
+ */
+function isStale(state: SourceHealth, now: Date): boolean {
+  if (state.state !== "ok" || state.last_success === null) {
+    return false;
+  }
+  const limit = STALE_AFTER_MILLIS[state.source];
+  if (limit === undefined) {
+    return false;
+  }
+  const age = now.getTime() - Date.parse(state.last_success);
+  return Number.isFinite(age) && age > limit;
+}
+
 export async function readHealth(env: Env, source: string): Promise<SourceHealth | null> {
   const stored = await env.DATA.get(healthKey(source));
   if (stored === null) {
@@ -96,20 +136,89 @@ export async function composeHealth(env: Env, sources: string[], now: Date): Pro
 
   const health: Health = { schema: HEALTH_SCHEMA, generated: now.toISOString(), sources: {} };
   for (const [source, state] of entries) {
-    if (state !== null) {
-      health.sources[source] = state;
+    if (state === null) {
+      continue;
     }
+    // Overlaid on the composed document, never written back to the partial:
+    // that record is the log of attempts, and the last attempt did succeed.
+    health.sources[source] = isStale(state, now) ? { ...state, state: "stale" } : state;
   }
   return health;
 }
 
+/** Which sources a staleness alert has already gone out for. */
+const STALE_LATCH_KEY = "internal/health/stale.json";
+
+async function readStaleLatch(env: Env): Promise<string[]> {
+  const stored = await env.DATA.get(STALE_LATCH_KEY);
+  if (stored === null) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(await stored.text()) as { sources?: unknown };
+    return Array.isArray(parsed.sources) ? parsed.sources.filter((s) => typeof s === "string") : [];
+  } catch {
+    // A corrupt latch means at worst one repeated alert, which is far better
+    // than throwing here and taking the whole invocation down with it.
+    return [];
+  }
+}
+
+/**
+ * Alerts on a source that has stopped reporting, and on its return.
+ *
+ * Separate from [recordOutcome]'s transitions because it catches the opposite
+ * failure. That one fires when a source is *attempted* and fails; this one
+ * fires when a source is not attempted at all, which is what happened when the
+ * SWPC cron stopped on 2026-08-25 and the record went on saying `ok` for hours.
+ *
+ * Recovery has to come from here too. A source that merely stopped was never
+ * marked failing, so it never transitions back through [recordOutcome] and
+ * nothing else would ever say it had returned.
+ *
+ * Only sources present in [health] are considered, so the latch is never
+ * disturbed for a source this invocation knows nothing about.
+ */
+export async function reportStaleness(env: Env, deps: Deps, health: Health): Promise<void> {
+  const known = Object.keys(health.sources);
+  const nowStale = known.filter((source) => health.sources[source]?.state === "stale");
+
+  const latch = await readStaleLatch(env);
+  const previously = latch.filter((source) => known.includes(source));
+
+  const started = nowStale.filter((source) => !previously.includes(source));
+  const ended = previously.filter((source) => !nowStale.includes(source));
+
+  for (const source of started) {
+    const last = health.sources[source]?.last_success ?? "never";
+    await notifyMaintainer(env, deps, {
+      title: `Gloaming: ${source} has stopped reporting`,
+      body:
+        `No successful run since ${last}. Nothing is failing - nothing is being ` +
+        `attempted, so check that its schedule is still firing.`,
+    });
+  }
+  for (const source of ended) {
+    await notifyMaintainer(env, deps, {
+      title: `Gloaming: ${source} recovered`,
+      body: `${source} is reporting again.`,
+    });
+  }
+
+  if (started.length > 0 || ended.length > 0) {
+    const kept = latch.filter((source) => !known.includes(source));
+    await env.DATA.put(STALE_LATCH_KEY, JSON.stringify({ sources: [...kept, ...nowStale] }));
+  }
+}
+
 /** Publishes the composed health document for anyone debugging from outside. */
-export async function publishHealth(env: Env, sources: string[], now: Date): Promise<void> {
+export async function publishHealth(env: Env, sources: string[], now: Date): Promise<Health> {
   const health = await composeHealth(env, sources, now);
   await publish(env.DATA, "v1/health.json", JSON.stringify(health), {
     cacheControl: CACHE_CONTROL["health.json"],
     contentType: "application/json",
   });
+  return health;
 }
 
 /**
