@@ -39,12 +39,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.runtime.DisposableEffect
-import sh.arek.gloaming.ui.MainScreen
+import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.SkyCalendar
+import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.QuietHours
@@ -194,6 +196,12 @@ private fun GloamingApp() {
     // when the screen is opened: an age frozen at "checked 3 minutes ago" while
     // somebody watches it is a small lie, and the same freeze is what would
     // leave "nothing to see until it gets dark" up after dark.
+    // The year ahead, worked out once per location rather than per composition.
+    // It costs about a quarter of a second, which is nothing on a background
+    // thread and far too much on the main one.
+    var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
+    var calendarLoading by remember { mutableStateOf(false) }
+
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryOk by remember { mutableStateOf(batteryExempt()) }
     var notificationsOk by remember { mutableStateOf(notificationsAllowed()) }
@@ -270,10 +278,32 @@ private fun GloamingApp() {
         }
     }
 
+    // Keyed on the location and nothing else: the calendar is deterministic and
+    // does not go stale, so recomputing it on any other change would be work
+    // done for no different answer.
+    LaunchedEffect(settings.latitude, settings.longitude) {
+        val latitude = settings.latitude
+        val longitude = settings.longitude
+        if (latitude == null || longitude == null) {
+            calendar = emptyList()
+            return@LaunchedEffect
+        }
+        calendarLoading = true
+        calendar = withContext(Dispatchers.Default) {
+            runCatching {
+                SkyCalendar.events(latitude, longitude, System.currentTimeMillis())
+            }.getOrElse {
+                Log.w("Gloaming", "could not work out the calendar", it)
+                emptyList()
+            }
+        }
+        calendarLoading = false
+    }
+
     GloamingTheme(nightVision = settings.nightVision) {
         DimScreen(settings.nightVision)
         Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-            MainScreen(
+            GloamingTabs(
                 state = MainUiState(
                     settings = settings,
                     alertState = alertState,
@@ -289,6 +319,8 @@ private fun GloamingApp() {
                     powerSaveMode = saverOn,
                     watching = watching,
                     logSizeBytes = logSize,
+                    calendar = calendar,
+                    calendarLoading = calendarLoading,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },

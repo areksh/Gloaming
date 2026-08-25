@@ -1,5 +1,11 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -10,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -19,7 +26,7 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
 
 /**
- * What the screen shows, driven from state.
+ * What the two content screens show, driven from state.
  *
  * Written after "Check now" appeared to do nothing: the poll ran, but the
  * screen had read the alert state once and never again, so it kept saying "Not
@@ -27,13 +34,17 @@ import sh.arek.gloaming.data.WatchDuration
  * of that - that the status text follows the state it is given, and that the
  * button reports being busy.
  *
+ * Tonight and Settings are rendered together in one column here rather than
+ * through the tab bar, because these assertions are about what each card says
+ * and not about which tab it is behind. GloamingTabsTest covers the tabs.
+ *
  * **These need the device unlocked.** An activity launched behind the keyguard
  * resumes for an instant and pauses again without ever drawing, so the Compose
  * harness finds no semantics tree and every assertion here fails with "No
  * compose hierarchies found in the app" - which reads like a broken test setup
  * and is not.
  */
-class MainScreenTest {
+class ScreensTest {
 
     @get:Rule
     val compose = createComposeRule()
@@ -69,8 +80,13 @@ class MainScreenTest {
         logSizeBytes: Long = 0L,
     ) {
         compose.setContent {
-            MainScreen(
-                state = MainUiState(
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                val state = MainUiState(
                     settings = settings,
                     alertState = alertState,
                     latitudeInput = "55.95",
@@ -85,39 +101,47 @@ class MainScreenTest {
                     powerSaveMode = powerSaveMode,
                     watching = watching,
                     logSizeBytes = logSizeBytes,
-                ),
-                onLatitudeChange = {},
-                onLongitudeChange = {},
-                onThresholdChange = {},
-                onAlertsEnabledChange = {},
-                onBeforeUnlockChange = {},
-                onPreciseBeforeUnlockChange = { precise = it },
-                onCloudGateChange = {},
-                onCloudToleranceChange = {},
-                onQuietHoursEnabledChange = {},
-                onQuietFromChange = {},
-                onQuietUntilChange = {},
-                onQuietHoursOverrideChange = {},
-                onNightVisionChange = {},
-                onLogRetentionChange = { logRetention = it },
-                onExportLog = { exported++ },
-                onClearLog = { cleared++ },
-                onAuroraIntervalChange = { auroraInterval = it },
-                onIssIntervalChange = { issInterval = it },
-                onBrightIntervalChange = {},
-                onTrainIntervalChange = {},
-                onPassAlertsChange = {},
-                onFollowStationChange = { followStation = it },
-                onPassLeadChange = { passLead = it },
-                onMinimumElevationChange = { minimumElevation = it },
-                onLiveLeadChange = { liveLead = it },
-                onWatchingChange = { watchRequest = it },
-                onWatchDurationChange = { watchDuration = it },
-                onSave = {},
-                onPollNow = { polled++ },
-                onRequestBatteryExemption = {},
-                onRequestNotifications = {},
-            )
+                )
+
+                TonightContent(
+                    state = state,
+                    onWatchingChange = { watchRequest = it },
+                    onWatchDurationChange = { watchDuration = it },
+                    onPollNow = { polled++ },
+                    onRequestBatteryExemption = {},
+                    onRequestNotifications = {},
+                )
+
+                SettingsContent(
+                    state = state,
+                    onLatitudeChange = {},
+                    onLongitudeChange = {},
+                    onThresholdChange = {},
+                    onAlertsEnabledChange = {},
+                    onBeforeUnlockChange = {},
+                    onPreciseBeforeUnlockChange = { precise = it },
+                    onCloudGateChange = {},
+                    onCloudToleranceChange = {},
+                    onQuietHoursEnabledChange = {},
+                    onQuietFromChange = {},
+                    onQuietUntilChange = {},
+                    onQuietHoursOverrideChange = {},
+                    onNightVisionChange = {},
+                    onLogRetentionChange = { logRetention = it },
+                    onExportLog = { exported++ },
+                    onClearLog = { cleared++ },
+                    onAuroraIntervalChange = { auroraInterval = it },
+                    onIssIntervalChange = { issInterval = it },
+                    onBrightIntervalChange = {},
+                    onTrainIntervalChange = {},
+                    onPassAlertsChange = {},
+                    onFollowStationChange = { followStation = it },
+                    onPassLeadChange = { passLead = it },
+                    onMinimumElevationChange = { minimumElevation = it },
+                    onLiveLeadChange = { liveLead = it },
+                    onSave = {},
+                )
+            }
         }
     }
 

@@ -1,6 +1,7 @@
 package sh.arek.gloaming.ui
 
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
 
@@ -50,4 +51,12 @@ data class MainUiState(
     val watching: Boolean = false,
     /** How much of the app's own log is on disk, for the log card. */
     val logSizeBytes: Long = 0L,
+    /**
+     * The year ahead, already computed. Held rather than derived on the fly
+     * because a year takes a quarter of a second to work out, which is far too
+     * long to spend in a composition.
+     */
+    val calendar: List<SkyEvent> = emptyList(),
+    /** True while that computation is in flight, so the tab can say so. */
+    val calendarLoading: Boolean = false,
 )
