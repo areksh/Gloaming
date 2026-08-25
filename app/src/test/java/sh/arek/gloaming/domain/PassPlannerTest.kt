@@ -249,7 +249,10 @@ class PassPlannerTest {
         val decision = PassPlanner.decide(listOf(pass()), now, settings, spoken, 0, clear)
 
         val interval = settings.issPassAlertIntervalMinutes * 60_000L
-        assertEquals(lastAlert + interval, PassPlanner.nextWake(decision, now))
+        assertEquals(
+            lastAlert + interval,
+            PassPlanner.nextWake(decision, now, emptyList(), settings, spoken),
+        )
     }
 
     /**
@@ -329,7 +332,7 @@ class PassPlannerTest {
     fun `comes back when the alert is due`() {
         val now = peak - 2 * hour
 
-        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(pass()), now)
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(pass()), now, emptyList(), settings, AlertState())
 
         assertEquals(peak - PassPlanner.LEAD_MILLIS, wake)
     }
@@ -340,7 +343,7 @@ class PassPlannerTest {
         val subject = pass()
         val now = peak - 8 * hour
 
-        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(subject), now)
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(subject), now, emptyList(), settings, AlertState())
 
         assertEquals(subject.risesAt - PassPlanner.FRESHEN_BEFORE_MILLIS, wake)
     }
@@ -350,7 +353,7 @@ class PassPlannerTest {
     fun `waits until a pass is over before considering the next`() {
         val subject = pass()
 
-        val wake = PassPlanner.nextWake(PassPlanner.Decision.Announce(subject), peak - 60_000L)
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.Announce(subject), peak - 60_000L, emptyList(), settings, AlertState())
 
         assertTrue(wake > subject.setsAt)
     }
@@ -359,9 +362,77 @@ class PassPlannerTest {
     fun `looks again in a few hours when there is nothing coming`() {
         val now = peak
 
-        val wake = PassPlanner.nextWake(PassPlanner.Decision.Nothing, now)
+        val wake = PassPlanner.nextWake(PassPlanner.Decision.Nothing, now, emptyList(), settings, AlertState())
 
         assertEquals(now + PassPlanner.DORMANT_INTERVAL_MILLIS, wake)
+    }
+
+    /**
+     * The failure this was written for, observed on real hardware overnight on
+     * 2026-08-25. A rocket body was announced at 03:00:53 for a peak at
+     * 03:28:23, and the planner armed its next wake for that pass's *set* at
+     * about 03:34 - sleeping straight through 03:18:24, which was when the
+     * station's own pass on the other channel fell due. The station pass was
+     * never announced.
+     *
+     * "The pass has been dealt with, so wait until it is over" is sound about
+     * the pass that was announced, and says nothing about the other channel.
+     * Channels have separate budgets precisely so one does not crowd out the
+     * other, and sleeping past another channel's alert is exactly that.
+     */
+    @Test
+    fun `does not sleep through another channel's alert after announcing`() {
+        val announced = pass(peaksAt = peak, catalogue = 20580)
+        // The station peaks later but its alert falls due first, because the
+        // announced pass is not over until after that moment.
+        val station = pass(peaksAt = peak + 31 * 60_000L, catalogue = 25544)
+        val alertDue = station.peaksAt - PassPlanner.LEAD_MILLIS
+        // Due after this moment, but before the announced pass has finished.
+        assertTrue(alertDue > peak - 60_000L)
+        assertTrue(alertDue < announced.setsAt)
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.Announce(announced),
+            peak - 60_000L,
+            listOf(announced, station),
+            settings,
+            AlertState(),
+        )
+
+        assertEquals(alertDue, wake)
+    }
+
+    /** With nothing else pending it still waits out the pass it announced. */
+    @Test
+    fun `waits out the announced pass when no other channel is due`() {
+        val announced = pass(peaksAt = peak, catalogue = 20580)
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.Announce(announced),
+            peak - 60_000L,
+            listOf(announced),
+            settings,
+            AlertState(),
+        )
+
+        assertEquals(announced.setsAt + 1, wake)
+    }
+
+    /** And it does not wake for a channel that has already spoken. */
+    @Test
+    fun `ignores a channel that is still rate limited`() {
+        val announced = pass(peaksAt = peak, catalogue = 20580)
+        val station = pass(peaksAt = peak + 31 * 60_000L, catalogue = 25544)
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.Announce(announced),
+            peak - 60_000L,
+            listOf(announced, station),
+            settings,
+            AlertState(lastIssAlertAt = peak),
+        )
+
+        assertEquals(announced.setsAt + 1, wake)
     }
 
     @Test

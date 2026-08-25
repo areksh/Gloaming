@@ -135,7 +135,7 @@ class PassPoller(
             ?.takeIf { channel != null && PassPlanner.shouldFollow(channel, user) }
             ?.also { runCatching { follower.follow(it) } }
 
-        val wake = PassPlanner.nextWake(decision, at)
+        val wake = PassPlanner.nextWake(decision, at, upcoming, user, held)
         state.write(
             held.copy(
                 lastPassPeakAt = announced?.pass?.peaksAt ?: held.lastPassPeakAt,

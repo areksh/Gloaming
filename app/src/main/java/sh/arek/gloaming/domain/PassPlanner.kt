@@ -296,7 +296,51 @@ object PassPlanner {
      * or - once a pass has been dealt with - after it has finished, so the one
      * behind it can be considered.
      */
-    fun nextWake(decision: Decision, now: Long): Long = when (decision) {
+    /**
+     * When to look again.
+     *
+     * [passes], [settings] and [state] are the same ones [decide] was given,
+     * and they are needed for one case only: having announced a pass, the
+     * planner must still wake for another channel's pass that falls due before
+     * this one is over. See the [Decision.Announce] branch.
+     */
+    /**
+     * The soonest moment another channel needs an alert, or null if none does.
+     *
+     * Channels that have already spoken and are still inside their interval are
+     * skipped: waking for one would find it rate-limited and achieve nothing.
+     * Anything else is worth a wake, even if the pass turns out not to be
+     * announced when we get there - one spare wake is cheap and a missed pass
+     * is what this exists to prevent.
+     */
+    private fun soonestElsewhere(
+        passes: List<SatellitePass>,
+        announced: PassChannel,
+        now: Long,
+        settings: UserSettings,
+        state: AlertState,
+    ): Long? = passes
+        .asSequence()
+        .filter { it.channel != announced }
+        .filter { channelFreeAt(it.channel, settings, state) <= it.peaksAt - LEAD_MILLIS }
+        .map { it.peaksAt - LEAD_MILLIS }
+        .filter { it > now }
+        .minOrNull()
+
+    /** When [channel] may next speak, given what it last said. */
+    private fun channelFreeAt(
+        channel: PassChannel,
+        settings: UserSettings,
+        state: AlertState,
+    ): Long = lastAlertAt(channel, state)?.plus(intervalMillis(channel, settings)) ?: Long.MIN_VALUE
+
+    fun nextWake(
+        decision: Decision,
+        now: Long,
+        passes: List<SatellitePass>,
+        settings: UserSettings,
+        state: AlertState,
+    ): Long = when (decision) {
         is Decision.Nothing -> now + DORMANT_INTERVAL_MILLIS
         // Exactly when the channel is free again; there is nothing to do until
         // then and nothing to gain from waking earlier.
@@ -310,9 +354,28 @@ object PassPlanner {
             maxOf(minOf(alertAt, if (freshenAt > now) freshenAt else alertAt), now + 1)
         }
 
-        // The pass has been dealt with, one way or another. Nothing more will
-        // change about it, so wait until it is over.
-        is Decision.Announce -> decision.pass.setsAt + 1
+        /*
+         * Waiting out the pass, unless another channel needs speaking to first.
+         *
+         * The pass just announced is dealt with and nothing more will change
+         * about it, so the default is to sleep until it is over and then
+         * consider what is behind it. But the channels have separate budgets
+         * precisely so that one does not crowd out another, and a pass on a
+         * different channel can fall due while this one is still in the sky -
+         * its alert is thirty minutes before *its* peak, which can easily be
+         * before this pass sets.
+         *
+         * Found on real hardware, 2026-08-25: a rocket body announced at
+         * 03:00:53 armed the next wake for its own set at 03:34, sleeping past
+         * 03:18:24 when the station's pass came due. The station was never
+         * mentioned.
+         */
+        is Decision.Announce -> minOf(
+            decision.pass.setsAt + 1,
+            soonestElsewhere(passes, decision.pass.channel, now, settings, state)
+                ?: (decision.pass.setsAt + 1),
+        )
+
         is Decision.AlreadyTold -> decision.pass.setsAt + 1
         is Decision.InQuietHours -> decision.pass.setsAt + 1
         is Decision.TooCloudy -> decision.pass.setsAt + 1
