@@ -82,7 +82,9 @@ class BootReceiver : BroadcastReceiver() {
 
             // A start already in the past fires at once, which is what should
             // happen: the pass is up and somebody is waiting for it.
-            PassAlarm.follow(context, catalogue, peaksAt, LivePass.startAt(risesAt))
+            val lead = runCatching { Graph.settings(context).read().liveFollowLeadMillis }
+                .getOrDefault(LivePass.LEAD_MILLIS)
+            PassAlarm.follow(context, catalogue, peaksAt, LivePass.startAt(risesAt, lead))
             Log.i(TAG, "put the follow of $catalogue back after a reboot")
         }.onFailure { Log.e(TAG, "failed to put a follow back after a reboot", it) }
     }

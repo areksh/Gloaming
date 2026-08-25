@@ -100,7 +100,13 @@ class PassPoller(
 
         val isDarkAt = { instant: Long -> darkness.isDark(latitude, longitude, instant) }
         val upcoming = PassPlanner.visible(
-            passes = predictions(at, latitude, longitude, isDarkAt),
+            passes = predictions(
+                at,
+                latitude,
+                longitude,
+                isDarkAt,
+                user.minimumPassElevationDegrees.toDouble(),
+            ),
             isDarkAt = isDarkAt,
         )
 
@@ -108,7 +114,7 @@ class PassPoller(
         // The forecast is only worth a radio wake once a pass is close enough
         // to speak about, which is the same reason the aurora poll leaves it
         // until last.
-        val closeEnough = next != null && at >= next.peaksAt - PassPlanner.LEAD_MILLIS
+        val closeEnough = next != null && at >= next.peaksAt - user.passAlertLeadMillis
         val cloud = if (closeEnough) cloudCover(user, latitude, longitude) else null
 
         val decision = PassPlanner.decide(
@@ -173,9 +179,10 @@ class PassPoller(
         latitude: Double,
         longitude: Double,
         isDarkAt: (Long) -> Boolean,
+        bar: Double,
     ): List<SatellitePass> {
         val held = satellites.cached()
-        val fromHeld = held?.let { predict(it, latitude, longitude, at) } ?: emptyList()
+        val fromHeld = held?.let { predict(it, latitude, longitude, at, bar) } ?: emptyList()
         val soonest = PassPlanner.next(PassPlanner.visible(fromHeld, isDarkAt), at)
             ?.let { it.risesAt - at }
 
@@ -183,7 +190,7 @@ class PassPoller(
 
         val fresh = runCatching { satellites.refresh(manifests.refresh()) }.getOrNull()
         return if (fresh == null || fresh == held) fromHeld
-        else predict(fresh, latitude, longitude, at)
+        else predict(fresh, latitude, longitude, at, bar)
     }
 
     /**
@@ -200,15 +207,16 @@ class PassPoller(
         latitude: Double,
         longitude: Double,
         at: Long,
+        bar: Double,
     ): List<SatellitePass> {
         val until = at + PassPlanner.HORIZON_MILLIS
         val ends = document.trains.flatMap { listOf(it.lead, it.tail) }.toSet()
 
         val singles = document.satellites
             .filterNot { it.catalogue in ends }
-            .flatMap { PassFinder.passes(it, latitude, longitude, at, until) }
+            .flatMap { PassFinder.passes(it, latitude, longitude, at, until, bar) }
 
-        return singles + TrainFinder.passes(document, latitude, longitude, at, until)
+        return singles + TrainFinder.passes(document, latitude, longitude, at, until, bar)
     }
 
     private suspend fun cloudCover(

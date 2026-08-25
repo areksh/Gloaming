@@ -166,8 +166,62 @@ data class UserSettings(
      * without it.
      */
     val preciseLocationBeforeUnlock: Boolean = false,
+    /**
+     * How long before a pass is highest the alert goes out, in minutes.
+     *
+     * Long enough to put a coat on, short enough that the cloud forecast
+     * checked alongside it still describes the sky you walk out into. Whether
+     * that is ten minutes or forty is a fact about the person, not about the
+     * satellite: somebody in a flat with a balcony and somebody who drives out
+     * of town want quite different numbers.
+     *
+     * It is also the window a channel picks the best pass from, so a longer
+     * lead does not merely warn earlier - it chooses from more.
+     */
+    val passAlertLeadMinutes: Int = DEFAULT_PASS_LEAD_MINUTES,
+    /**
+     * The lowest a pass may get and still be worth mentioning, in degrees.
+     *
+     * Ten by default, which is roughly where roofs and trees stop. Somebody
+     * with a clear horizon over the sea can lower it; somebody in a city with
+     * buildings all round can raise it and stop being told about passes they
+     * cannot possibly see.
+     */
+    val minimumPassElevationDegrees: Int = DEFAULT_MINIMUM_ELEVATION_DEGREES,
+    /**
+     * How long before a satellite rises the live tracker starts, in minutes.
+     *
+     * Long enough to get outside and let your eyes adjust, short enough that a
+     * foreground service is not running for half an hour. Which of those
+     * matters more depends entirely on how far you have to walk.
+     */
+    val liveFollowLeadMinutes: Int = DEFAULT_LIVE_LEAD_MINUTES,
+    /**
+     * The longest the live tracker may run, in minutes.
+     *
+     * A safety net rather than a feature: a low-orbit pass runs under ten
+     * minutes, so anything approaching this is a bug holding a wake lock. It is
+     * settable because the lead above is, and the two have to be able to add up
+     * to something sensible.
+     */
+    val liveFollowMaxMinutes: Int = DEFAULT_LIVE_MAX_MINUTES,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
+
+    /** [passAlertLeadMinutes] as the planner uses it. */
+    val passAlertLeadMillis: Long get() = passAlertLeadMinutes * 60_000L
+
+    /** [liveFollowLeadMinutes] as the tracker uses it. */
+    val liveFollowLeadMillis: Long get() = liveFollowLeadMinutes * 60_000L
+
+    /**
+     * [liveFollowMaxMinutes] as the tracker uses it, never below the lead.
+     *
+     * A cap shorter than the lead would stop the tracker before the satellite
+     * had risen, which is the one moment it exists for.
+     */
+    val liveFollowMaxMillis: Long
+        get() = maxOf(liveFollowMaxMinutes * 60_000L, liveFollowLeadMillis + 10 * 60_000L)
 
     /** The observer position at the grid's own resolution, if one is set. */
     val cell: GridCell?
@@ -199,6 +253,33 @@ data class UserSettings(
          * threshold, this wants a season of real data to calibrate against.
          */
         const val DEFAULT_CLOUD_TOLERANCE = 80
+
+        /**
+         * Half an hour before the highest point.
+         *
+         * Was a constant in the planner. The reasoning behind the number has
+         * not changed - a coat, and a forecast still worth believing - but the
+         * number itself is a fact about the user rather than about the sky.
+         */
+        const val DEFAULT_PASS_LEAD_MINUTES = 30
+
+        /** Roughly where roofs and trees stop, for a typical horizon. */
+        const val DEFAULT_MINIMUM_ELEVATION_DEGREES = 10
+
+        /** What the lead control offers, in minutes. */
+        val PASS_LEAD_CHOICES = listOf(10, 20, 30, 45, 60)
+
+        /** What the horizon control offers, in degrees. */
+        val MINIMUM_ELEVATION_CHOICES = listOf(5, 10, 15, 20, 30)
+
+        /** Enough to get outside and let your eyes adjust. */
+        const val DEFAULT_LIVE_LEAD_MINUTES = 10
+
+        /** Three times the longest pass, so only a bug reaches it. */
+        const val DEFAULT_LIVE_MAX_MINUTES = 30
+
+        /** What the tracker's lead control offers, in minutes. */
+        val LIVE_LEAD_CHOICES = listOf(2, 5, 10, 15, 20)
 
         /**
          * Six hours between alerts on any one channel, until the user says

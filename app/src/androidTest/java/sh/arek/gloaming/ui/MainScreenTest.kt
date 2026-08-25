@@ -50,6 +50,9 @@ class MainScreenTest {
     private var followStation: Boolean? = null
     private var watchDuration: WatchDuration? = null
     private var precise: Boolean? = null
+    private var passLead: Int? = null
+    private var minimumElevation: Int? = null
+    private var liveLead: Int? = null
 
 
     private fun show(
@@ -97,6 +100,9 @@ class MainScreenTest {
                 onTrainIntervalChange = {},
                 onPassAlertsChange = {},
                 onFollowStationChange = { followStation = it },
+                onPassLeadChange = { passLead = it },
+                onMinimumElevationChange = { minimumElevation = it },
+                onLiveLeadChange = { liveLead = it },
                 onWatchingChange = { watchRequest = it },
                 onWatchDurationChange = { watchDuration = it },
                 onSave = {},
@@ -378,6 +384,47 @@ class MainScreenTest {
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertDoesNotExist()
+    }
+
+    /**
+     * The timings that used to be constants nobody could reach. How much
+     * warning you want, what is too low to bother mentioning, and how early the
+     * tracker starts are all facts about the person and their horizon rather
+     * than about the sky.
+     */
+    @Test
+    fun offersThePassTimingsAsSettings() {
+        show()
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Tell me: 30 minutes before it is highest", substring = true)
+            .performScrollTo()
+            .assertExists()
+        compose.onNodeWithText("Ignore passes below: 10 degrees up", substring = true)
+            .performScrollTo()
+            .assertExists()
+        compose.onNodeWithText("Live tracker starts: 10 minutes before it rises", substring = true)
+            .performScrollTo()
+            .assertExists()
+    }
+
+    @Test
+    fun reportsTheHorizonTheUserPicked() {
+        show()
+
+        compose.onNodeWithText("Ignore passes below", substring = true).performScrollTo()
+        compose.onAllNodesWithText("30 deg").onFirst().performScrollTo().performClick()
+
+        assertEquals(30, minimumElevation)
+    }
+
+    /** The pass timings go with the intervals when passes are silenced. */
+    @Test
+    fun hidesThePassTimingsWhenPassesAreOff() {
+        show(settings = UserSettings(passAlertsEnabled = false))
+
+        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Tell me:", substring = true).assertDoesNotExist()
     }
 
     /**

@@ -357,6 +357,18 @@ private fun GloamingApp() {
                     if (wanted) StormService.watchNow(context) else StormService.stop(context)
                     watching = wanted
                 },
+                onPassLeadChange = {
+                    settings = settings.copy(passAlertLeadMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onMinimumElevationChange = {
+                    settings = settings.copy(minimumPassElevationDegrees = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onLiveLeadChange = {
+                    settings = settings.copy(liveFollowLeadMinutes = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onWatchDurationChange = {
                     settings = settings.copy(watchDuration = it)
                     BootAware.saveSettings(context, settings)

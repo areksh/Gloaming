@@ -34,7 +34,10 @@ class FollowPassReceiver : BroadcastReceiver() {
 
         remember(application, catalogue, peaksAt, risesAt)
 
-        if (LivePass.startsNow(risesAt, System.currentTimeMillis())) {
+        val lead = runCatching { Graph.settings(application).read().liveFollowLeadMillis }
+            .getOrDefault(LivePass.LEAD_MILLIS)
+
+        if (LivePass.startsNow(risesAt, System.currentTimeMillis(), lead)) {
             PassService.follow(application, catalogue, peaksAt)
             // The tracker's own notification says everything this one did and
             // keeps saying it, so leaving both up would be two lines about one
@@ -44,7 +47,7 @@ class FollowPassReceiver : BroadcastReceiver() {
             // The alert stays up in this case. There is nothing to replace it
             // with for another twenty minutes, and a notification that vanishes
             // on being pressed reads as having gone wrong.
-            PassAlarm.follow(application, catalogue, peaksAt, LivePass.startAt(risesAt))
+            PassAlarm.follow(application, catalogue, peaksAt, LivePass.startAt(risesAt, lead))
         }
     }
 

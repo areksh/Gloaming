@@ -1,6 +1,7 @@
 package sh.arek.gloaming.work
 
 import android.content.Context
+import sh.arek.gloaming.Graph
 import sh.arek.gloaming.domain.PassFollower
 import sh.arek.gloaming.satellites.LivePass
 import sh.arek.gloaming.satellites.SatellitePass
@@ -23,14 +24,17 @@ class AndroidPassFollower(context: Context) : PassFollower {
     private val application = context.applicationContext
 
     override fun follow(pass: SatellitePass) {
-        if (LivePass.startsNow(pass.risesAt, System.currentTimeMillis())) {
+        val lead = runCatching { Graph.settings(application).read().liveFollowLeadMillis }
+            .getOrDefault(LivePass.LEAD_MILLIS)
+
+        if (LivePass.startsNow(pass.risesAt, System.currentTimeMillis(), lead)) {
             PassService.follow(application, pass.catalogue, pass.peaksAt)
         } else {
             PassAlarm.follow(
                 application,
                 pass.catalogue,
                 pass.peaksAt,
-                LivePass.startAt(pass),
+                LivePass.startAt(pass, lead),
             )
         }
     }

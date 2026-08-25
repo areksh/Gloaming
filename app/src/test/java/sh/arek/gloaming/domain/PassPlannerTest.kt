@@ -368,6 +368,40 @@ class PassPlannerTest {
     }
 
     /**
+     * How much warning somebody wants is a fact about them, not about the
+     * satellite: a flat with a balcony and a drive out of town are different
+     * numbers. It was a constant, so it was neither.
+     */
+    @Test
+    fun `speaks at the lead the user asked for`() {
+        val patient = settings.copy(passAlertLeadMinutes = 45)
+        val hurried = settings.copy(passAlertLeadMinutes = 10)
+        val at = peak - 40 * 60_000L
+
+        assertTrue(PassPlanner.decide(listOf(pass()), at, patient, AlertState(), 0, clear)
+            is PassPlanner.Decision.Announce)
+        assertTrue(PassPlanner.decide(listOf(pass()), at, hurried, AlertState(), 0, clear)
+            is PassPlanner.Decision.TooSoon)
+    }
+
+    /** And comes back at the moment its own lead falls due, not a fixed one. */
+    @Test
+    fun `arms the next wake against the lead the user asked for`() {
+        val hurried = settings.copy(passAlertLeadMinutes = 10)
+        val now = peak - 3 * 60 * 60_000L
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.TooSoon(pass()),
+            now,
+            emptyList(),
+            hurried,
+            AlertState(),
+        )
+
+        assertEquals(peak - 10 * 60_000L, wake)
+    }
+
+    /**
      * The failure this was written for, observed on real hardware overnight on
      * 2026-08-25. A rocket body was announced at 03:00:53 for a peak at
      * 03:28:23, and the planner armed its next wake for that pass's *set* at

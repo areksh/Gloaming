@@ -2,6 +2,8 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -104,6 +107,9 @@ fun MainScreen(
     onTrainIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
     onFollowStationChange: (Boolean) -> Unit,
+    onPassLeadChange: (Int) -> Unit,
+    onMinimumElevationChange: (Int) -> Unit,
+    onLiveLeadChange: (Int) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onWatchDurationChange: (WatchDuration) -> Unit,
     onSave: () -> Unit,
@@ -163,6 +169,9 @@ fun MainScreen(
             onTrainIntervalChange,
             onPassAlertsChange,
             onFollowStationChange,
+            onPassLeadChange,
+            onMinimumElevationChange,
+            onLiveLeadChange,
         )
         WatchNowCard(state, onWatchingChange, onWatchDurationChange)
         BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
@@ -213,6 +222,9 @@ private fun InterruptionCard(
     onTrainIntervalChange: (Int) -> Unit,
     onPassAlertsChange: (Boolean) -> Unit,
     onFollowStationChange: (Boolean) -> Unit,
+    onPassLeadChange: (Int) -> Unit,
+    onMinimumElevationChange: (Int) -> Unit,
+    onLiveLeadChange: (Int) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -296,6 +308,79 @@ private fun InterruptionCard(
                         "launch and then not again as they spread out.",
                     style = MaterialTheme.typography.bodySmall,
                 )
+
+                HorizontalDivider()
+
+                // How much warning, and what is worth warning about. Both were
+                // constants; neither is a fact about the sky.
+                ChoiceRow(
+                    label = "Tell me",
+                    value = "${state.settings.passAlertLeadMinutes} minutes before it is highest",
+                    choices = UserSettings.PASS_LEAD_CHOICES,
+                    render = { "${it}m" },
+                    onChange = onPassLeadChange,
+                )
+                Text(
+                    "Also the window the best pass is picked from, so a longer warning " +
+                        "means a better pass as well as an earlier one.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                ChoiceRow(
+                    label = "Ignore passes below",
+                    value = "${state.settings.minimumPassElevationDegrees} degrees up",
+                    choices = UserSettings.MINIMUM_ELEVATION_CHOICES,
+                    render = { "$it deg" },
+                    onChange = onMinimumElevationChange,
+                )
+                Text(
+                    "Roughly where roofs and trees stop. Raise it in a city, lower it " +
+                        "if you have a clear horizon.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                ChoiceRow(
+                    label = "Live tracker starts",
+                    value = "${state.settings.liveFollowLeadMinutes} minutes before it rises",
+                    choices = UserSettings.LIVE_LEAD_CHOICES,
+                    render = { "${it}m" },
+                    onChange = onLiveLeadChange,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A labelled value with its choices under it.
+ *
+ * The choices **wrap**. A plain Row clips whatever does not fit and gives no
+ * sign of having done so: the button is still in the semantics tree, still
+ * reported as present, and simply cannot be pressed. That is how "30 deg" went
+ * missing off the right edge - found by a test that could see it and not press
+ * it, which is exactly the shape of bug a user would report as "the last option
+ * does nothing".
+ *
+ * It also means a large system font size costs a row of height rather than the
+ * last choice.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChoiceRow(
+    label: String,
+    value: String,
+    choices: List<Int>,
+    render: (Int) -> String,
+    onChange: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("$label: $value", style = MaterialTheme.typography.bodyMedium)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            for (option in choices) {
+                OutlinedButton(onClick = { onChange(option) }) { Text(render(option)) }
             }
         }
     }
@@ -303,14 +388,13 @@ private fun InterruptionCard(
 
 @Composable
 private fun IntervalRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("$label: ${describeInterval(minutes)}", style = MaterialTheme.typography.bodyMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (option in UserSettings.ALERT_INTERVAL_CHOICES) {
-                OutlinedButton(onClick = { onChange(option) }) { Text(shortInterval(option)) }
-            }
-        }
-    }
+    ChoiceRow(
+        label = label,
+        value = describeInterval(minutes),
+        choices = UserSettings.ALERT_INTERVAL_CHOICES,
+        render = ::shortInterval,
+        onChange = onChange,
+    )
 }
 
 /** Hours where they are whole, because "360 minutes" is not how anyone thinks. */

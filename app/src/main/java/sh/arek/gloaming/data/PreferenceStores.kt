@@ -40,6 +40,10 @@ private const val KEY_TRAIN_INTERVAL = "train_pass_alert_interval_minutes"
 private const val KEY_FOLLOW_STATION = "follow_station_passes"
 private const val KEY_WATCH_DURATION = "watch_duration"
 private const val KEY_PRECISE_BEFORE_UNLOCK = "precise_location_before_unlock"
+private const val KEY_PASS_LEAD = "pass_alert_lead_minutes"
+private const val KEY_MINIMUM_ELEVATION = "minimum_pass_elevation_degrees"
+private const val KEY_LIVE_LEAD = "live_follow_lead_minutes"
+private const val KEY_LIVE_MAX = "live_follow_max_minutes"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -131,6 +135,22 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             followStationPassesAutomatically = prefs.getBoolean(KEY_FOLLOW_STATION, false),
             watchDuration = WatchDuration.of(prefs.getString(KEY_WATCH_DURATION, null)),
             preciseLocationBeforeUnlock = prefs.getBoolean(KEY_PRECISE_BEFORE_UNLOCK, false),
+            passAlertLeadMinutes = prefs.getInt(
+                KEY_PASS_LEAD,
+                UserSettings.DEFAULT_PASS_LEAD_MINUTES,
+            ),
+            minimumPassElevationDegrees = prefs.getInt(
+                KEY_MINIMUM_ELEVATION,
+                UserSettings.DEFAULT_MINIMUM_ELEVATION_DEGREES,
+            ),
+            liveFollowLeadMinutes = prefs.getInt(
+                KEY_LIVE_LEAD,
+                UserSettings.DEFAULT_LIVE_LEAD_MINUTES,
+            ),
+            liveFollowMaxMinutes = prefs.getInt(
+                KEY_LIVE_MAX,
+                UserSettings.DEFAULT_LIVE_MAX_MINUTES,
+            ),
         )
     }
 
@@ -170,6 +190,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putBoolean(KEY_FOLLOW_STATION, settings.followStationPassesAutomatically)
             putString(KEY_WATCH_DURATION, settings.watchDuration.name)
             putBoolean(KEY_PRECISE_BEFORE_UNLOCK, settings.preciseLocationBeforeUnlock)
+            putInt(KEY_PASS_LEAD, settings.passAlertLeadMinutes)
+            putInt(KEY_MINIMUM_ELEVATION, settings.minimumPassElevationDegrees)
+            putInt(KEY_LIVE_LEAD, settings.liveFollowLeadMinutes)
+            putInt(KEY_LIVE_MAX, settings.liveFollowMaxMinutes)
         }.apply()
     }
 

@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
+import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.PassPlanner
 import sh.arek.gloaming.satellites.LivePass
 import sh.arek.gloaming.satellites.LiveTracker
@@ -60,6 +61,16 @@ class PassService : Service() {
 
     @Volatile
     private var latestStartId: Int = 0
+
+    /**
+     * The user's cap, read once the settings are in hand.
+     *
+     * Starts at the default because the wake lock is taken before the settings
+     * are read - the system gives a service only seconds to show its
+     * notification, so nothing that touches disk happens first.
+     */
+    @Volatile
+    private var capMillis: Long = UserSettings.DEFAULT_LIVE_MAX_MINUTES * 60_000L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -122,6 +133,7 @@ class PassService : Service() {
         }
 
         val at = System.currentTimeMillis()
+        capMillis = user.liveFollowMaxMillis
         // Back a little, so a pass whose rise has just slipped past is still
         // found rather than missed by a few seconds.
         val from = at - SEARCH_BACK_MILLIS
@@ -171,7 +183,7 @@ class PassService : Service() {
             update(LivePass.describe(tracker.fixAt(now), pass, now), pass.name)
 
             if (now > pass.setsAt + LINGER_MILLIS) return
-            if (now - startedAt > MAX_RUN_MILLIS) {
+            if (now - startedAt > capMillis) {
                 Log.i(TAG, "live pass hit its time limit; stopping")
                 return
             }
@@ -311,6 +323,7 @@ class PassService : Service() {
          * minutes, so anything approaching this is a bug holding a wake lock.
          */
         private const val MAX_RUN_MILLIS = 30 * 60 * 1000L
+
 
         /** Whether a pass is being followed now, so a second cannot start over it. */
         @Volatile

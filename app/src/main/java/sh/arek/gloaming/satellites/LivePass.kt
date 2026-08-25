@@ -60,15 +60,20 @@ class LiveTracker(
 object LivePass {
 
     /**
-     * How long before the rise the tracker starts.
+     * How long before the rise the tracker starts, when nobody has said
+     * otherwise.
      *
-     * Long enough to get outside and let your eyes adjust to the dark, short
-     * enough that a foreground service is not running for half an hour.
+     * The number lives in [sh.arek.gloaming.data.UserSettings] now: long enough
+     * to get outside and let your eyes adjust, short enough that a foreground
+     * service is not running for half an hour, and which of those matters more
+     * depends on how far the user has to walk. This is the fallback for callers
+     * with no settings to hand.
      */
     const val LEAD_MILLIS: Long = 10 * 60 * 1000L
 
     /** When to start following [pass]. */
-    fun startAt(pass: SatellitePass): Long = startAt(pass.risesAt)
+    fun startAt(pass: SatellitePass, leadMillis: Long = LEAD_MILLIS): Long =
+        startAt(pass.risesAt, leadMillis)
 
     /**
      * The same, from the rise alone.
@@ -77,7 +82,7 @@ object LivePass {
      * a pass is re-derived at the moment of following and there is no sense in
      * shipping a copy of it through a pending intent to be thrown away.
      */
-    fun startAt(risesAt: Long): Long = risesAt - LEAD_MILLIS
+    fun startAt(risesAt: Long, leadMillis: Long = LEAD_MILLIS): Long = risesAt - leadMillis
 
     /**
      * Whether the tracker should start immediately rather than wait for a wake.
@@ -89,7 +94,8 @@ object LivePass {
      * started from the background, and a notification the user has just pressed
      * is one of the exemptions - so the tap is the best moment there will be.
      */
-    fun startsNow(risesAt: Long, now: Long): Boolean = now >= startAt(risesAt)
+    fun startsNow(risesAt: Long, now: Long, leadMillis: Long = LEAD_MILLIS): Boolean =
+        now >= startAt(risesAt, leadMillis)
 
     /** Whether there is any of [pass] left to watch at [now]. */
     fun isWorthFollowing(pass: SatellitePass, now: Long): Boolean = now <= pass.setsAt

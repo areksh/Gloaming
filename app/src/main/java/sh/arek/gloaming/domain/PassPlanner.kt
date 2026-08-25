@@ -30,12 +30,14 @@ object PassPlanner {
     const val HORIZON_MILLIS: Long = 12 * 60 * 60 * 1000L
 
     /**
-     * How long before the highest point the alert goes out.
+     * How long before the highest point the alert goes out, when nobody has
+     * said otherwise.
      *
-     * Long enough to put a coat on, short enough that the cloud forecast
-     * checked alongside it still describes the sky the user will walk out into.
+     * The number itself now lives in [UserSettings]: how much warning somebody
+     * wants is a fact about them and not about the satellite. This remains for
+     * the places that have no settings to hand.
      */
-    const val LEAD_MILLIS: Long = 30 * 60 * 1000L
+    val LEAD_MILLIS: Long = UserSettings.DEFAULT_PASS_LEAD_MINUTES * 60_000L
 
     /**
      * How long before a pass the elements are re-fetched.
@@ -186,7 +188,7 @@ object PassPlanner {
             val eligible = passes.filter {
                 it.channel == channel &&
                     it.peaksAt > now &&
-                    it.peaksAt - LEAD_MILLIS >= free
+                    it.peaksAt - settings.passAlertLeadMillis >= free
             }
             val opens = maxOf(now, free)
             val window = eligible.filter { it.peaksAt <= opens + intervalMillis(channel, settings) }
@@ -244,7 +246,7 @@ object PassPlanner {
                 Decision.Nothing
             }
         }
-        if (now < pass.peaksAt - LEAD_MILLIS) return Decision.TooSoon(pass)
+        if (now < pass.peaksAt - settings.passAlertLeadMillis) return Decision.TooSoon(pass)
         if (isAlreadyTold(pass, state)) return Decision.AlreadyTold(pass)
 
         val quietHours = settings.quietHours
@@ -322,8 +324,10 @@ object PassPlanner {
     ): Long? = passes
         .asSequence()
         .filter { it.channel != announced }
-        .filter { channelFreeAt(it.channel, settings, state) <= it.peaksAt - LEAD_MILLIS }
-        .map { it.peaksAt - LEAD_MILLIS }
+        .filter {
+            channelFreeAt(it.channel, settings, state) <= it.peaksAt - settings.passAlertLeadMillis
+        }
+        .map { it.peaksAt - settings.passAlertLeadMillis }
         .filter { it > now }
         .minOrNull()
 
@@ -349,7 +353,7 @@ object PassPlanner {
         is Decision.Resting -> now
 
         is Decision.TooSoon -> {
-            val alertAt = decision.pass.peaksAt - LEAD_MILLIS
+            val alertAt = decision.pass.peaksAt - settings.passAlertLeadMillis
             val freshenAt = decision.pass.risesAt - FRESHEN_BEFORE_MILLIS
             maxOf(minOf(alertAt, if (freshenAt > now) freshenAt else alertAt), now + 1)
         }
