@@ -22,6 +22,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import sh.arek.gloaming.Graph
+import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
 import sh.arek.gloaming.domain.PollOutcome
@@ -89,8 +92,9 @@ class StormService : Service() {
 
         if (watching == null) {
             running = true
-            wakeLock = acquireWakeLock()
-            watching = scope.launch { watch() }
+            val cap = capMillis()
+            wakeLock = acquireWakeLock(cap)
+            watching = scope.launch { watch(cap) }
         }
 
         // Not sticky: if the system kills this under pressure, the ordinary
@@ -116,7 +120,32 @@ class StormService : Service() {
      * running would hold a wake lock all night, which is the worst thing this
      * app could do to a phone.
      */
-    private suspend fun watch() {
+    /**
+     * How long this watch may run, from the user's setting.
+     *
+     * Read once, at the start, rather than each time round the loop: a watch
+     * that silently changed length underneath somebody standing outside would
+     * be worse than one that honours what it was started with.
+     */
+    private fun capMillis(): Long {
+        val user = runCatching { Graph.settings(applicationContext).read() }.getOrNull()
+            ?: return WatchDuration.DEFAULT.capMillis(System.currentTimeMillis(), null)
+
+        val now = System.currentTimeMillis()
+        val endsAt = runCatching {
+            val latitude = user.latitude
+            val longitude = user.longitude
+            if (latitude == null || longitude == null) {
+                null
+            } else {
+                (Twilight.darkness(latitude, longitude, now) as? Darkness.Now)?.endsAt
+            }
+        }.getOrNull()
+
+        return user.watchDuration.capMillis(now, endsAt)
+    }
+
+    private suspend fun watch(capMillis: Long) {
         val startedAt = System.currentTimeMillis()
 
         while (scope.isActive) {
@@ -141,7 +170,7 @@ class StormService : Service() {
                 }
             }
 
-            if (System.currentTimeMillis() - startedAt > MAX_RUN_MILLIS) {
+            if (System.currentTimeMillis() - startedAt > capMillis) {
                 Log.i(TAG, "storm mode hit its time limit; stopping")
                 break
             }
@@ -231,10 +260,12 @@ class StormService : Service() {
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
-    private fun acquireWakeLock(): PowerManager.WakeLock? = runCatching {
+    private fun acquireWakeLock(capMillis: Long): PowerManager.WakeLock? = runCatching {
         getSystemService(PowerManager::class.java)
             ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            ?.apply { acquire(MAX_RUN_MILLIS) }
+            // The same cap as the loop's, so the lock cannot outlive the watch
+            // even if the loop stops in a way that misses its release.
+            ?.apply { acquire(capMillis) }
     }.onFailure { Log.w(TAG, "could not hold a wake lock; watching anyway", it) }.getOrNull()
 
     companion object {
@@ -245,8 +276,6 @@ class StormService : Service() {
         private const val ACTION_STOP = "sh.arek.gloaming.STOP_STORM"
         private const val EXTRA_MANUAL = "sh.arek.gloaming.MANUAL_WATCH"
 
-        /** A safety net, not a feature. Long enough to outlast any real display. */
-        private const val MAX_RUN_MILLIS = 4 * 60 * 60 * 1000L
 
         /**
          * Whether the service is running, for the hysteresis in

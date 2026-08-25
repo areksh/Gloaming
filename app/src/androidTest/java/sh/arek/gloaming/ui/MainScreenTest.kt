@@ -16,6 +16,7 @@ import org.junit.Test
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.WatchDuration
 
 /**
  * What the screen shows, driven from state.
@@ -47,6 +48,7 @@ class MainScreenTest {
     private var auroraInterval: Int? = null
     private var issInterval: Int? = null
     private var followStation: Boolean? = null
+    private var watchDuration: WatchDuration? = null
 
 
     private fun show(
@@ -94,6 +96,7 @@ class MainScreenTest {
                 onPassAlertsChange = {},
                 onFollowStationChange = { followStation = it },
                 onWatchingChange = { watchRequest = it },
+                onWatchDurationChange = { watchDuration = it },
                 onSave = {},
                 onPollNow = { polled++ },
                 onRequestBatteryExemption = {},
@@ -373,6 +376,42 @@ class MainScreenTest {
         compose.onNodeWithText("How often at most").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertDoesNotExist()
+    }
+
+    /**
+     * How long a watch runs was a constant nobody could see, let alone change.
+     * The span is the user's call, the same as the interruption intervals; the
+     * ceiling above it is not, because an unbounded watch holds a wake lock and
+     * polls every two minutes until the battery is flat.
+     */
+    @Test
+    fun offersEveryWatchDuration() {
+        show()
+
+        compose.onNodeWithText("Watch now").performScrollTo().assertExists()
+        compose.onNodeWithText("Stops on its own after: 4 hours").assertExists()
+        for (label in listOf("1h", "2h", "4h", "8h", "Dawn")) {
+            compose.onAllNodesWithText(label).onFirst().assertExists()
+        }
+    }
+
+    @Test
+    fun reportsTheWatchDurationTheUserPicked() {
+        show()
+
+        compose.onNodeWithText("Watch now").performScrollTo()
+        compose.onAllNodesWithText("Dawn").onFirst().performScrollTo().performClick()
+
+        assertEquals(WatchDuration.UntilLight, watchDuration)
+    }
+
+    /** The midsummer case is stated rather than discovered at three in the morning. */
+    @Test
+    fun explainsWhatHappensWhenTheSkyNeverDarkens() {
+        show(settings = located.copy(watchDuration = WatchDuration.UntilLight))
+
+        compose.onNodeWithText("Watch now").performScrollTo().assertExists()
+        compose.onNodeWithText("it never fully does", substring = true).assertExists()
     }
 
     /**

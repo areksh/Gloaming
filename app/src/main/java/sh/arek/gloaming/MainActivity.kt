@@ -351,6 +351,10 @@ private fun GloamingApp() {
                     if (wanted) StormService.watchNow(context) else StormService.stop(context)
                     watching = wanted
                 },
+                onWatchDurationChange = {
+                    settings = settings.copy(watchDuration = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onSave = {
                     val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
                     val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }

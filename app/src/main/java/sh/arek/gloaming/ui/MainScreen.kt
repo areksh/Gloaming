@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
 import sh.arek.gloaming.domain.StormMode
@@ -100,6 +101,7 @@ fun MainScreen(
     onPassAlertsChange: (Boolean) -> Unit,
     onFollowStationChange: (Boolean) -> Unit,
     onWatchingChange: (Boolean) -> Unit,
+    onWatchDurationChange: (WatchDuration) -> Unit,
     onSave: () -> Unit,
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
@@ -158,7 +160,7 @@ fun MainScreen(
             onPassAlertsChange,
             onFollowStationChange,
         )
-        WatchNowCard(state, onWatchingChange)
+        WatchNowCard(state, onWatchingChange, onWatchDurationChange)
         BeforeUnlockCard(state, onBeforeUnlockChange)
         NightVisionCard(state, onNightVisionChange)
 
@@ -313,6 +315,15 @@ private fun describeInterval(minutes: Int): String = when {
     minutes == 60 -> "at most once an hour"
     minutes % 60 == 0 -> "at most every ${minutes / 60} hours"
     else -> "at most every $minutes minutes"
+}
+
+/** Short enough for a row of five buttons on a narrow screen. */
+private fun shortWatchDuration(option: WatchDuration): String = when (option) {
+    WatchDuration.OneHour -> "1h"
+    WatchDuration.TwoHours -> "2h"
+    WatchDuration.FourHours -> "4h"
+    WatchDuration.EightHours -> "8h"
+    WatchDuration.UntilLight -> "Dawn"
 }
 
 private fun shortInterval(minutes: Int): String =
@@ -693,7 +704,11 @@ private fun QuietHoursCard(
  * somebody actually cares about and not on the other three hundred.
  */
 @Composable
-private fun WatchNowCard(state: MainUiState, onWatchingChange: (Boolean) -> Unit) {
+private fun WatchNowCard(
+    state: MainUiState,
+    onWatchingChange: (Boolean) -> Unit,
+    onWatchDurationChange: (WatchDuration) -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -712,10 +727,35 @@ private fun WatchNowCard(state: MainUiState, onWatchingChange: (Boolean) -> Unit
                 "Checks every ${StormMode.POLL_MINUTES} minutes and keeps a notification " +
                     "up while it does. Nothing Android does to background apps can delay " +
                     "it, so this is the one to use on a night that matters - or if you " +
-                    "have missed alerts you expected. It stops on its own after four " +
-                    "hours.",
+                    "have missed alerts you expected.",
                 style = MaterialTheme.typography.bodySmall,
             )
+
+            // Offered whether or not a watch is running: changing it mid-watch
+            // is the moment somebody outside is most likely to want it, and the
+            // running watch keeps the length it started with rather than
+            // changing underneath them.
+            Text(
+                "Stops on its own after: ${state.settings.watchDuration.label}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (option in WatchDuration.entries) {
+                    OutlinedButton(onClick = { onWatchDurationChange(option) }) {
+                        Text(shortWatchDuration(option))
+                    }
+                }
+            }
+            if (state.settings.watchDuration == WatchDuration.UntilLight) {
+                Text(
+                    "Until the sky starts to get light where you are. In midsummer up " +
+                        "here it never fully does, and then this falls back to " +
+                        "${WatchDuration.MAXIMUM_MILLIS / (60 * 60_000L)} hours - which " +
+                        "is also the longest any watch will run, so a forgotten one " +
+                        "cannot flatten the battery.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
             // Only raised when the saver is actually on. A standing warning
             // about a mode nobody has enabled is noise, and noise is what gets

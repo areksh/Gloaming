@@ -137,6 +137,12 @@ data class UserSettings(
      * from a notification rather than something that starts happening to them.
      */
     val followStationPassesAutomatically: Boolean = false,
+    /**
+     * How long a watch the user started runs before it stops itself.
+     *
+     * See [WatchDuration]. The span is theirs; the ceiling is not.
+     */
+    val watchDuration: WatchDuration = WatchDuration.DEFAULT,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
