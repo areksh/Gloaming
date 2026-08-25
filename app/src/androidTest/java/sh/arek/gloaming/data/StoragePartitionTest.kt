@@ -1,7 +1,9 @@
 package sh.arek.gloaming.data
 
+import android.content.SharedPreferences
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -10,7 +12,6 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * That the two preference stores really are two.
@@ -26,11 +27,48 @@ class StoragePartitionTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+    private var savedCredential: Map<String, Any?> = emptyMap()
+    private var savedDevice: Map<String, Any?> = emptyMap()
+
+    /**
+     * A clean slate, and the phone's own settings handed back afterwards.
+     *
+     * This runs against the real preference stores, so simply clearing them
+     * took the location off whatever device the suite was run on - silently,
+     * because the app stayed installed and the battery exemption survived. An
+     * overnight run then sat at NoLocation until morning and tested nothing,
+     * which is the same expensive failure the README's uninstall warning exists
+     * to prevent, only harder to notice.
+     */
     @Before
-    @After
-    fun clearBothStores() {
+    fun emptyBothStores() {
+        savedCredential = credentialPreferences(context).all.toMap()
+        savedDevice = devicePreferences(context).all.toMap()
         credentialPreferences(context).edit().clear().commit()
         devicePreferences(context).edit().clear().commit()
+    }
+
+    @After
+    fun putBothStoresBack() {
+        restore(credentialPreferences(context), savedCredential)
+        restore(devicePreferences(context), savedDevice)
+    }
+
+    private fun restore(preferences: SharedPreferences, saved: Map<String, Any?>) {
+        preferences.edit().clear().apply {
+            for ((key, value) in saved) {
+                when (value) {
+                    is Boolean -> putBoolean(key, value)
+                    is Int -> putInt(key, value)
+                    is Long -> putLong(key, value)
+                    is Float -> putFloat(key, value)
+                    is String -> putString(key, value)
+                    // The only set the app stores is the announced-events
+                    // record, and SharedPreferences only ever holds strings.
+                    is Set<*> -> putStringSet(key, value.filterIsInstance<String>().toSet())
+                }
+            }
+        }.commit()
     }
 
     @Test

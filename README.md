@@ -73,6 +73,13 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
 ```
 
+The instrumented suite runs against the app's **real** preference stores, and
+puts them back when it finishes. It did not always: clearing them took the
+location off whatever phone the suite ran on, silently, because the app stayed
+installed and the exemption survived - so the next overnight run sat at
+"no location" until morning and tested nothing. If you add a test that writes
+to a real store, save and restore rather than clearing.
+
 **The plain form uninstalls the app when it finishes**, which takes the app's
 settings and its battery-optimisation exemption with it. That is easy to miss
 and expensive when it happens: a phone set up for an overnight run and then used
