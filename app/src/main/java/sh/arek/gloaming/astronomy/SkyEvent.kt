@@ -15,6 +15,13 @@ enum class EventKind {
     Conjunction,
     Elongation,
     MoonPhase,
+
+    /**
+     * Not a dated occasion like the rest, but a condition that holds most clear
+     * nights for three months. Kept out of the calendar for that reason and
+     * produced only for tonight - see [Noctilucent].
+     */
+    Noctilucent,
 }
 
 /**

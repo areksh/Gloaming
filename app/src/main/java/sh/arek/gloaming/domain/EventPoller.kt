@@ -1,5 +1,6 @@
 package sh.arek.gloaming.domain
 
+import sh.arek.gloaming.astronomy.Noctilucent
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertStateStore
@@ -83,7 +84,12 @@ class EventPoller(
             return EventPollResult(EventPlanner.Decision.Resting, due)
         }
 
-        val events = calendar.events(latitude, longitude, at)
+        // Tonight's noctilucent prompt is merged in here rather than coming
+        // from the calendar, because it is a condition rather than a dated
+        // occasion: it holds most clear nights for three months, and ninety
+        // identical entries would bury the things worth scrolling to.
+        val events = calendar.events(latitude, longitude, at) +
+            listOfNotNull(Noctilucent.event(latitude, longitude, at))
         val pending = EventPlanner.due(events, at, user, held)
 
         // The forecast is only worth a radio wake when something is about to be

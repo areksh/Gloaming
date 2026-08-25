@@ -100,6 +100,9 @@ object EventPlanner {
     private fun wantsHeadsUp(kind: EventKind): Boolean = when (kind) {
         EventKind.SolarEclipse, EventKind.LunarEclipse, EventKind.MeteorShower -> true
         EventKind.Conjunction, EventKind.Elongation, EventKind.MoonPhase -> false
+        // Tonight or not at all: the conditions are worked out for the night
+        // they apply to, so there is no future one to give notice of.
+        EventKind.Noctilucent -> false
     }
 
     /**

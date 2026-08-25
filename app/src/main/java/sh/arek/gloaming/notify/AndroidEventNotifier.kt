@@ -86,6 +86,7 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
                 EventChannel.Eclipses -> "Eclipses"
                 EventChannel.MeteorShowers -> "Meteor showers"
                 EventChannel.Conjunctions -> "Planets and conjunctions"
+                EventChannel.Noctilucent -> "Noctilucent clouds"
             },
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply {
@@ -99,6 +100,9 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
                 EventChannel.Conjunctions ->
                     "When two bright planets come close together, or a planet is at its best " +
                         "for the year."
+                EventChannel.Noctilucent ->
+                    "On summer nights when the sun sits at the right depth for high ice " +
+                        "clouds to still be lit. A prompt to look north, not a forecast."
             }
         }
         context.getSystemService(NotificationManager::class.java)

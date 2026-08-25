@@ -16,6 +16,15 @@ enum class EventChannel(val id: String) {
     Eclipses("eclipses"),
     MeteorShowers("meteor-showers"),
     Conjunctions("conjunctions"),
+
+    /**
+     * An addition to the design's taxonomy, recorded rather than assumed. These
+     * arrive nightly for three months and then not at all for nine, which is a
+     * quite different appetite from an eclipse twice a year - and the season is
+     * exactly when the aurora channel has nothing to say, so somebody may well
+     * want this one and no other.
+     */
+    Noctilucent("noctilucent"),
     ;
 
     companion object {
@@ -24,6 +33,7 @@ enum class EventChannel(val id: String) {
             EventKind.SolarEclipse, EventKind.LunarEclipse -> Eclipses
             EventKind.MeteorShower -> MeteorShowers
             EventKind.Conjunction, EventKind.Elongation -> Conjunctions
+            EventKind.Noctilucent -> Noctilucent
             EventKind.MoonPhase -> null
         }
     }
