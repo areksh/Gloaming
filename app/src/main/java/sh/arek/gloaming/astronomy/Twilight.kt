@@ -82,6 +82,19 @@ object Twilight {
      */
     private const val SEARCH_DAYS: Double = 1.5
 
+    private const val DAY_MILLIS: Long = 24L * 60 * 60 * 1000
+
+    /**
+     * How many nights [nightNearest] considers.
+     *
+     * Three covers the night before, the night of and the night after, which is
+     * every case an event dated to an instant can fall between.
+     */
+    private const val CANDIDATE_NIGHTS: Int = 3
+
+    /** Stepped past the end of a window so the next search does not find it again. */
+    private const val GAP_MILLIS: Long = 10L * 60 * 1000
+
     /** Degrees above the horizon, negative below. */
     fun sunAltitude(latitude: Double, longitude: Double, atMillis: Long): Double =
         altitudeOf(Body.Sun, observer(latitude, longitude), Time.fromMillisecondsSince1970(atMillis))
@@ -132,6 +145,55 @@ object Twilight {
                 belowDegrees,
             ),
         )
+    }
+
+    /**
+     * The stretch of darkness whose middle falls closest to [aroundMillis].
+     *
+     * Here rather than with its callers because it is the same polar problem
+     * [darkness] already answers, and answering it twice would be answering it
+     * differently. An eclipse, a greatest elongation and a shower peak are all
+     * dated to an instant that is usually the wrong moment to evaluate them -
+     * often the middle of the day - and what each really asks about is the
+     * night either side.
+     *
+     * Three candidates from a day before, picked by nearest midpoint: that puts
+     * a midday event on the evening after it and a four-in-the-morning event on
+     * the night it is already part of, without either being a special case.
+     *
+     * Null when there is no darkness to be had. That is an answer rather than a
+     * failure - the midnight sun and Shetland's simmer dim both produce it.
+     */
+    fun nightNearest(
+        latitude: Double,
+        longitude: Double,
+        aroundMillis: Long,
+        belowDegrees: Double = CIVIL_DEGREES,
+    ): LongRange? {
+        var cursor = aroundMillis - DAY_MILLIS
+        val windows = mutableListOf<LongRange>()
+
+        repeat(CANDIDATE_NIGHTS) {
+            when (val found = darkness(latitude, longitude, cursor, belowDegrees)) {
+                is Darkness.Now -> {
+                    val ends = found.endsAt ?: (cursor + DAY_MILLIS)
+                    windows += cursor..ends
+                    cursor = ends + GAP_MILLIS
+                }
+
+                is Darkness.Later -> {
+                    val ends = found.endsAt ?: (found.startsAt + DAY_MILLIS)
+                    windows += found.startsAt..ends
+                    cursor = ends + GAP_MILLIS
+                }
+
+                // No darkness within the horizon searched, and none of the
+                // later candidates can find any either.
+                Darkness.None -> return@repeat
+            }
+        }
+
+        return windows.minByOrNull { kotlin.math.abs((it.first + it.last) / 2 - aroundMillis) }
     }
 
     /** When the sun next crosses [degrees] going the given way, if it does. */

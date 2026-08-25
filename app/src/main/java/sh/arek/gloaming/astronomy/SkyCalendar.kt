@@ -56,15 +56,6 @@ object SkyCalendar {
     private const val SLIGHT = 0.10
 
     /**
-     * How long a polar night is sampled for before giving up.
-     *
-     * [Twilight.darkness] reports no end at all inside the arctic circle in
-     * winter, which is true and unhelpful to a loop. A day's worth covers every
-     * question the calendar asks of one night.
-     */
-    private const val UNBOUNDED_NIGHT_MILLIS = DAY_MILLIS
-
-    /**
      * Everything worth knowing about between [fromMillis] and [horizonDays]
      * later, in time order.
      *
@@ -373,13 +364,13 @@ object SkyCalendar {
         longitude: Double,
         aroundMillis: Long,
     ): Sighting? {
-        val window = nightNearest(latitude, longitude, aroundMillis) ?: return null
+        val window = Twilight.nightNearest(latitude, longitude, aroundMillis) ?: return null
         val observer = observer(latitude, longitude)
         val target = bodyOf(body)
 
         var best: Sighting? = null
         var at = window.first
-        while (at <= window.second) {
+        while (at <= window.last) {
             val time = Time.fromMillisecondsSince1970(at)
             val position = equator(target, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
             val seen = horizon(time, observer, position.ra, position.dec, Refraction.Normal)
@@ -389,45 +380,6 @@ object SkyCalendar {
             at += SAMPLE_MILLIS
         }
         return best
-    }
-
-    /**
-     * The stretch of darkness whose middle is closest to [aroundMillis].
-     *
-     * Three candidates from a day before, because an event at midday belongs to
-     * the evening after it and one at four in the morning belongs to the night
-     * it is already in, and picking by nearest midpoint gets both right without
-     * either being a special case.
-     */
-    private fun nightNearest(
-        latitude: Double,
-        longitude: Double,
-        aroundMillis: Long,
-    ): Pair<Long, Long>? {
-        var cursor = aroundMillis - DAY_MILLIS
-        val windows = mutableListOf<Pair<Long, Long>>()
-
-        repeat(3) {
-            when (val darkness = Twilight.darkness(latitude, longitude, cursor)) {
-                is Darkness.Now -> {
-                    val ends = darkness.endsAt ?: (cursor + UNBOUNDED_NIGHT_MILLIS)
-                    windows += cursor to ends
-                    cursor = ends + SAMPLE_MILLIS
-                }
-
-                is Darkness.Later -> {
-                    val ends = darkness.endsAt ?: (darkness.startsAt + UNBOUNDED_NIGHT_MILLIS)
-                    windows += darkness.startsAt to ends
-                    cursor = ends + SAMPLE_MILLIS
-                }
-
-                Darkness.None -> return@repeat
-            }
-        }
-
-        return windows.minByOrNull { (from, until) ->
-            kotlin.math.abs((from + until) / 2 - aroundMillis)
-        }
     }
 
     // --- shared plumbing ---
