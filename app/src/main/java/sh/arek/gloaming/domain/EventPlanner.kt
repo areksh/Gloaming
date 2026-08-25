@@ -115,13 +115,43 @@ object EventPlanner {
      */
     fun announceable(events: List<SkyEvent>, settings: UserSettings): List<SkyEvent> {
         if (!settings.alertsEnabled || !settings.eventAlertsEnabled) return emptyList()
-        return events.filter {
-            it.visibility == Visibility.Good && EventChannel.of(it.kind) != null
-        }
+        return events
+            .filter { it.visibility == Visibility.Good && EventChannel.of(it.kind) != null }
+            .filter { settings.notifyAboutEveryEvent || !canBeStarred(it) || isStarred(it, settings) }
     }
 
+    fun isStarred(event: SkyEvent, settings: UserSettings): Boolean =
+        starKey(event) in settings.starredEvents
+
+    /**
+     * The starred record with everything long past dropped.
+     *
+     * The same treatment as the announced record, and for the same reason: a
+     * star on an eclipse that happened last year is a preference about nothing.
+     */
+    fun pruneStars(keys: Set<String>, now: Long): Set<String> = prune(keys, now)
+
+    /**
+     * Identifies one event, for starring and for the announced record alike.
+     *
+     * Kind and time rather than the title, because a title is prose and prose
+     * gets reworded - a star should survive that.
+     */
+    fun starKey(event: SkyEvent): String = "${event.kind}|${event.at}"
+
     /** Identifies one notice about one event, so neither phase repeats. */
-    fun key(event: SkyEvent, phase: Phase): String = "${event.kind}|${event.at}|$phase"
+    fun key(event: SkyEvent, phase: Phase): String = "${starKey(event)}|$phase"
+
+    /**
+     * Whether starring this is a thing the user could have done.
+     *
+     * Noctilucent conditions never appear in the calendar - they are worked out
+     * for tonight and would otherwise fill it with ninety identical entries -
+     * so there is nothing to put a star on. Making them obey the star filter
+     * would silence them permanently the moment somebody turned it on, for a
+     * reason they could never see or undo.
+     */
+    fun canBeStarred(event: SkyEvent): Boolean = event.kind != EventKind.Noctilucent
 
     /** When [phase] of [event] becomes due. */
     private fun dueAt(event: SkyEvent, phase: Phase, settings: UserSettings): Long = when (phase) {

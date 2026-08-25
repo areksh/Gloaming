@@ -1,11 +1,14 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
@@ -13,6 +16,7 @@ import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.EventPlanner
 
 /**
  * The tab bar, which is the app's first navigation of any kind.
@@ -27,6 +31,8 @@ class GloamingTabsTest {
     val compose = createComposeRule()
 
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)
+
+    private val starred = mutableListOf<SkyEvent>()
 
     private val eclipse = SkyEvent(
         kind = EventKind.SolarEclipse,
@@ -87,6 +93,8 @@ class GloamingTabsTest {
                 onEventHeadsUpChange = {},
                 onEventLeadChange = {},
                 onEclipseFollowMaxChange = {},
+                onNotifyEveryEventChange = {},
+                onToggleStar = { starred += it },
                 onLocationModeChange = {},
                 onDetectLocation = {},
                 onWatchingChange = {},
@@ -161,5 +169,52 @@ class GloamingTabsTest {
         compose.onNodeWithTag(TAB_CALENDAR).performClick()
 
         compose.onNodeWithText("Working out the year ahead...").assertIsDisplayed()
+    }
+
+    // --- starring ---
+
+    /** A star is offered on an event that could act on it. */
+    @Test
+    fun offersAStarOnAVisibleEvent() {
+        show()
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithTag(starTag(eclipse)).performScrollTo().assertIsDisplayed()
+    }
+
+    /** Pressing it reports the event rather than acting alone. */
+    @Test
+    fun reportsAStarredEvent() {
+        show()
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(starTag(eclipse)).performScrollTo().performClick()
+
+        assertEquals(listOf(eclipse), starred)
+    }
+
+    /** An already-starred event says so, so the control is not a mystery. */
+    @Test
+    fun saysWhenAnEventIsAlreadyStarred() {
+        show(settings = located.copy(starredEvents = setOf(EventPlanner.starKey(eclipse))))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithText("Starred").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * No star on something the ground is in the way of. It would be a control
+     * that quietly does nothing, since the visibility verdict decides first.
+     */
+    @Test
+    fun offersNoStarOnAnEventThatCannotBeSeen() {
+        val hidden = eclipse.copy(visibility = Visibility.NotFromHere("below the horizon here"))
+        show(calendar = listOf(hidden))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onAllNodesWithTag(starTag(hidden)).assertCountEquals(0)
     }
 }

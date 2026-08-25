@@ -71,6 +71,7 @@ class ScreensTest {
     private var eventLead: Int? = null
     private var locationMode: LocationMode? = null
     private var detected = 0
+    private var everyEvent: Boolean? = null
     private var logRetention: Int? = null
     private var exported = 0
     private var cleared = 0
@@ -152,6 +153,7 @@ class ScreensTest {
                     onEventHeadsUpChange = { eventHeadsUp = it },
                     onEventLeadChange = { eventLead = it },
                     onEclipseFollowMaxChange = {},
+                    onNotifyEveryEventChange = { everyEvent = it },
                     onLocationModeChange = { locationMode = it },
                     onDetectLocation = { detected++ },
                     onSave = {},
@@ -774,5 +776,35 @@ class ScreensTest {
         compose.onNodeWithText("Location permission was declined", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    /** On by default: the calendar is useful before anybody has curated it. */
+    @Test
+    fun tellsYouAboutEverythingByDefault() {
+        show()
+
+        compose.onNodeWithText("Tell me about all of them").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Everything visible from where you are will interrupt", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Turning it off says what starring now does, rather than leaving it implied. */
+    @Test
+    fun explainsWhatStarringDoesOnceItMatters() {
+        show(settings = located.copy(notifyAboutEveryEvent = false))
+
+        compose.onNodeWithText("Only the events you star in the Calendar tab will interrupt.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theEveryEventSwitchIsReported() {
+        show()
+
+        compose.onNodeWithTag(EVERY_EVENT_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(false, everyEvent)
     }
 }

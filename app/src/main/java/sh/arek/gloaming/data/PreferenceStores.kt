@@ -60,6 +60,8 @@ private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
 private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
+private const val KEY_EVERY_EVENT = "notify_about_every_event"
+private const val KEY_STARRED_EVENTS = "starred_events"
 private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
@@ -165,6 +167,8 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 LocationMode.Manual
             },
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
+            notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
+            starredEvents = prefs.getStringSet(KEY_STARRED_EVENTS, emptySet()).orEmpty(),
             eventHeadsUpDays = prefs.getInt(
                 KEY_EVENT_HEADS_UP,
                 UserSettings.DEFAULT_EVENT_HEADS_UP_DAYS,
@@ -227,6 +231,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_LOG_RETENTION, settings.logRetentionDays)
             putBoolean(KEY_LOCATION_AUTOMATIC, settings.locationMode == LocationMode.Automatic)
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
+            putBoolean(KEY_EVERY_EVENT, settings.notifyAboutEveryEvent)
+            // A defensive copy, for the reason the announced record carries one:
+            // SharedPreferences keeps the very set handed to it.
+            putStringSet(KEY_STARRED_EVENTS, settings.starredEvents.toSet())
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)
             putInt(KEY_ECLIPSE_FOLLOW_MAX, settings.eclipseFollowMaxMinutes)

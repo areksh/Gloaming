@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
 
@@ -69,6 +70,8 @@ fun GloamingTabs(
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
+    onNotifyEveryEventChange: (Boolean) -> Unit,
+    onToggleStar: (SkyEvent) -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
     onDetectLocation: () -> Unit,
     onWatchingChange: (Boolean) -> Unit,
@@ -123,6 +126,8 @@ fun GloamingTabs(
                     events = state.calendar,
                     hasLocation = state.settings.hasLocation,
                     loading = state.calendarLoading,
+                    starred = state.settings.starredEvents,
+                    onToggleStar = onToggleStar,
                 )
 
                 else -> SettingsContent(
@@ -156,6 +161,7 @@ fun GloamingTabs(
                     onEventHeadsUpChange = onEventHeadsUpChange,
                     onEventLeadChange = onEventLeadChange,
                     onEclipseFollowMaxChange = onEclipseFollowMaxChange,
+                    onNotifyEveryEventChange = onNotifyEveryEventChange,
                     onLocationModeChange = onLocationModeChange,
                     onDetectLocation = onDetectLocation,
                     onSave = onSave,

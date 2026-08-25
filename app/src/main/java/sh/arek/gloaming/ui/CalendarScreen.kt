@@ -8,16 +8,20 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import sh.arek.gloaming.astronomy.EventChannel
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.domain.EventPlanner
 
 /**
  * The year ahead, grouped by month.
@@ -37,6 +41,8 @@ fun CalendarContent(
     events: List<SkyEvent>,
     hasLocation: Boolean,
     loading: Boolean,
+    starred: Set<String> = emptySet(),
+    onToggleStar: (SkyEvent) -> Unit = {},
 ) {
     if (!hasLocation) {
         Card {
@@ -78,7 +84,11 @@ fun CalendarContent(
             )
             lastMonth = month
         }
-        EventRow(event)
+        EventRow(
+            event = event,
+            starred = EventPlanner.starKey(event) in starred,
+            onToggleStar = { onToggleStar(event) },
+        )
     }
 }
 
@@ -89,7 +99,7 @@ fun CalendarContent(
  * what makes a list of thirty scannable rather than something to be read.
  */
 @Composable
-private fun EventRow(event: SkyEvent) {
+private fun EventRow(event: SkyEvent, starred: Boolean, onToggleStar: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp)) {
             Column(Modifier.width(56.dp)) {
@@ -115,6 +125,20 @@ private fun EventRow(event: SkyEvent) {
                     is Visibility.NotFromHere -> Reason(visibility.reason)
                     Visibility.Good -> Unit
                 }
+                // Offered only where it could do something. Starring an event
+                // the ground is in the way of, or one that never interrupts
+                // anyway, would be a control that quietly does nothing.
+                if (event.visibility == Visibility.Good &&
+                    EventChannel.of(event.kind) != null &&
+                    EventPlanner.canBeStarred(event)
+                ) {
+                    TextButton(
+                        onClick = onToggleStar,
+                        modifier = Modifier.testTag(starTag(event)),
+                    ) {
+                        Text(if (starred) "Starred" else "Star")
+                    }
+                }
             }
         }
     }
@@ -128,6 +152,9 @@ private fun Reason(reason: String) {
         fontWeight = FontWeight.Medium,
     )
 }
+
+/** How a star is reached from a test, and kept stable across reworded titles. */
+fun starTag(event: SkyEvent): String = "star:${EventPlanner.starKey(event)}"
 
 /**
  * The span, for the things that have one.

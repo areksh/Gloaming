@@ -75,6 +75,7 @@ fun SettingsContent(
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
+    onNotifyEveryEventChange: (Boolean) -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
     onDetectLocation: () -> Unit,
     onSave: () -> Unit,
@@ -114,6 +115,7 @@ fun SettingsContent(
         onEventHeadsUpChange,
         onEventLeadChange,
         onEclipseFollowMaxChange,
+        onNotifyEveryEventChange,
     )
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
@@ -574,6 +576,7 @@ private fun InterruptionCard(
 @OptIn(ExperimentalLayoutApi::class)
 /** The location controls, which sit beside sentences rather than values. */
 const val LOCATION_MODE_SWITCH_TAG = "location-mode-switch"
+const val EVERY_EVENT_SWITCH_TAG = "every-event-switch"
 const val DETECT_LOCATION_TAG = "detect-location"
 
 /** How a chip in a [ChoiceRow] is reached from a test. */
@@ -888,6 +891,7 @@ private fun CalendarCard(
     onEventHeadsUpChange: (Int) -> Unit,
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
+    onNotifyEveryEventChange: (Boolean) -> Unit,
 ) {
     Card {
         Column(
@@ -915,6 +919,27 @@ private fun CalendarCard(
             }
 
             if (state.settings.eventAlertsEnabled) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Tell me about all of them", style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked = state.settings.notifyAboutEveryEvent,
+                        onCheckedChange = onNotifyEveryEventChange,
+                        modifier = Modifier.testTag(EVERY_EVENT_SWITCH_TAG),
+                    )
+                }
+                Text(
+                    if (state.settings.notifyAboutEveryEvent) {
+                        "Everything visible from where you are will interrupt. Turn this off " +
+                            "and only the events you have starred in the Calendar tab will."
+                    } else {
+                        "Only the events you star in the Calendar tab will interrupt."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(
                     "Eclipses and shower peaks get two notices: one a few days ahead so " +
                         "you can plan around it, and one on the day. Everything else gets " +

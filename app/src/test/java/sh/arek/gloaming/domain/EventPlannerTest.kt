@@ -321,4 +321,108 @@ class EventPlannerTest {
     fun `finds nothing due when nothing is`() {
         assertNull(EventPlanner.due(listOf(eclipse()), at("2027-01-01T00:00:00Z"), settings, AlertState()))
     }
+
+    // --- starring ---
+
+    /** On by default, so the calendar is useful before anybody has curated it. */
+    @Test
+    fun `announces everything visible by default`() {
+        val decision = decide(listOf(conjunction()), "2026-11-16T01:00:00Z")
+
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.Announce)
+    }
+
+    /** Turned off, an unstarred event is a line in the calendar and nothing more. */
+    @Test
+    fun `says nothing about an unstarred event when only starred ones may interrupt`() {
+        val decision = decide(
+            listOf(conjunction()),
+            "2026-11-16T01:00:00Z",
+            user = settings.copy(notifyAboutEveryEvent = false),
+        )
+
+        assertEquals(EventPlanner.Decision.Nothing, decision)
+    }
+
+    /** And a starred one still speaks. */
+    @Test
+    fun `announces a starred event when only starred ones may interrupt`() {
+        val event = conjunction()
+        val decision = decide(
+            listOf(event),
+            "2026-11-16T01:00:00Z",
+            user = settings.copy(
+                notifyAboutEveryEvent = false,
+                starredEvents = setOf(EventPlanner.starKey(event)),
+            ),
+        )
+
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.Announce)
+    }
+
+    /** A star cannot rescue something that cannot be seen from here. */
+    @Test
+    fun `a star does not override the visibility verdict`() {
+        val hidden = conjunction(visibility = Visibility.NotFromHere("below the horizon"))
+        val decision = decide(
+            listOf(hidden),
+            "2026-11-16T01:00:00Z",
+            user = settings.copy(starredEvents = setOf(EventPlanner.starKey(hidden))),
+        )
+
+        assertEquals(EventPlanner.Decision.Nothing, decision)
+    }
+
+    /**
+     * Noctilucent conditions never reach the calendar, so there is nothing to
+     * put a star on. Making them obey the filter would silence them for good
+     * the moment somebody turned it on, for a reason they could never see.
+     */
+    @Test
+    fun `still announces what could never have been starred`() {
+        val nlc = SkyEvent(
+            kind = EventKind.Noctilucent,
+            at = at("2027-06-21T21:30:00Z"),
+            from = at("2027-06-21T21:30:00Z"),
+            until = at("2027-06-21T23:30:00Z"),
+            title = "Good conditions for noctilucent clouds",
+            detail = "Look low in the north.",
+            visibility = Visibility.Good,
+        )
+
+        val decision = decide(
+            listOf(nlc),
+            "2027-06-21T21:00:00Z",
+            user = settings.copy(notifyAboutEveryEvent = false),
+        )
+
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.Announce)
+    }
+
+    /** The star key names the event and not the phase, or one star would be two. */
+    @Test
+    fun `keys a star to the event rather than to a notice about it`() {
+        val event = eclipse()
+
+        assertTrue(
+            EventPlanner.key(event, EventPlanner.Phase.HeadsUp)
+                .startsWith(EventPlanner.starKey(event)),
+        )
+        assertTrue(
+            EventPlanner.key(event, EventPlanner.Phase.Tonight)
+                .startsWith(EventPlanner.starKey(event)),
+        )
+    }
+
+    /** A star on something long past is a preference about nothing. */
+    @Test
+    fun `forgets stars on events long gone`() {
+        val old = EventPlanner.starKey(eclipse())
+
+        assertTrue(EventPlanner.pruneStars(setOf(old), at("2027-09-30T00:00:00Z")).isEmpty())
+        assertEquals(
+            setOf(old),
+            EventPlanner.pruneStars(setOf(old), at("2027-08-02T12:00:00Z")),
+        )
+    }
 }

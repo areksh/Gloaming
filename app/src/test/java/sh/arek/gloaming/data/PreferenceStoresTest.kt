@@ -83,6 +83,8 @@ class PreferenceStoresTest {
             eventAlertLeadMinutes = 240,
             eclipseFollowMaxMinutes = 240,
             locationMode = LocationMode.Automatic,
+            notifyAboutEveryEvent = false,
+            starredEvents = setOf("SolarEclipse|1817197223000"),
         )
 
         store.write(settings)

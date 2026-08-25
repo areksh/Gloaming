@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads the last position the phone already had rather than turning the GPS on.
   Typing it in still works with location denied forever, and is still the only
   way to ask about somewhere you are not.
+- Events in the calendar can be starred. There is a "tell me about all of
+  them" switch in Settings, on by default, so the calendar is useful before
+  you have curated anything; turn it off and only your starred events will
+  interrupt. Starring one while the switch is still on says so, rather than
+  leaving you to wonder whether the star did anything.
 - A sky calendar, on a tab of its own. Solar and lunar eclipses, meteor
   showers, close pairings of planets, greatest elongations of Mercury and
   Venus, and the moon's phases - all worked out on the phone from a vendored

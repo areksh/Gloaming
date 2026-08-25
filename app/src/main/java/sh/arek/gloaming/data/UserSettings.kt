@@ -241,6 +241,25 @@ data class UserSettings(
     val locationMode: LocationMode = LocationMode.Manual,
 
     /**
+     * Whether every event worth seeing interrupts, or only the starred ones.
+     *
+     * On by default, so the calendar is useful before anybody has curated it -
+     * a list that tells you nothing until you have gone through it is a list
+     * most people never come back to. Turning it off makes starring the filter
+     * rather than a bookmark.
+     */
+    val notifyAboutEveryEvent: Boolean = true,
+
+    /**
+     * The events the user has picked out, by kind and time.
+     *
+     * Kept here rather than in [AlertState] because it is a choice the user
+     * made, not a record of what the app did. Pruned once they are well past,
+     * on the same reasoning as the announced record.
+     */
+    val starredEvents: Set<String> = emptySet(),
+
+    /**
      * Whether the sky calendar may interrupt at all.
      *
      * One switch rather than one per channel: the channels are rare by nature

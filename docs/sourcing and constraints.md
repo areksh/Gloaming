@@ -1124,6 +1124,20 @@ should be silenceable apart.
   days; what they are for is planning everything else around, and an app that announced
   each one is an app that gets muted.
 
+**Starring, added 2026-08-25.** A calendar event can be starred, and one switch decides
+whether everything visible interrupts or only the starred ones. It defaults to everything:
+a list that tells you nothing until you have been through it is a list most people never
+come back to, so curation is the opt-in rather than the price of entry. Starring while the
+switch is still on says so on the spot, because a control that silently does nothing is
+worse than no control.
+
+Two rules fall out of it. A star never overrides the visibility verdict - starring an
+eclipse the ground is in the way of cannot conjure it above the horizon - so the star is
+offered only where it could act. And noctilucent conditions are exempt from the filter
+entirely: they never appear in the calendar, so there is nothing to star, and making them
+obey it would silence them for good the moment somebody turned it on, for a reason they
+could never see or undo.
+
 **No per-channel interval settings for any of these**, which is a deliberate departure
 from the pass channels. Passes needed intervals because a clear night over Edinburgh has
 upwards of forty worth looking at. The whole calendar produces about forty events a *year*,

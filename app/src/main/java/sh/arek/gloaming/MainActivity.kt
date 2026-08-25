@@ -19,6 +19,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
+import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
@@ -208,6 +211,7 @@ private fun GloamingApp() {
     var detectingLocation by remember { mutableStateOf(false) }
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
+    val snackbar = remember { SnackbarHostState() }
     var locationNote by remember { mutableStateOf<String?>(null) }
 
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -375,7 +379,10 @@ private fun GloamingApp() {
 
     GloamingTheme(nightVision = settings.nightVision) {
         DimScreen(settings.nightVision)
-        Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            snackbarHost = { SnackbarHost(snackbar) },
+        ) { padding ->
             GloamingTabs(
                 state = MainUiState(
                     settings = settings,
@@ -537,6 +544,38 @@ private fun GloamingApp() {
                 onEclipseFollowMaxChange = {
                     settings = settings.copy(eclipseFollowMaxMinutes = it)
                     BootAware.saveSettings(context, settings)
+                },
+                onNotifyEveryEventChange = {
+                    settings = settings.copy(notifyAboutEveryEvent = it)
+                    BootAware.saveSettings(context, settings)
+                },
+                onToggleStar = { event ->
+                    val key = EventPlanner.starKey(event)
+                    val starring = key !in settings.starredEvents
+                    val kept = if (starring) {
+                        settings.starredEvents + key
+                    } else {
+                        settings.starredEvents - key
+                    }
+                    settings = settings.copy(
+                        // Pruned as it is written, so a star on something long
+                        // past does not sit in the preferences file forever.
+                        starredEvents = EventPlanner.pruneStars(kept, System.currentTimeMillis()),
+                    )
+                    BootAware.saveSettings(context, settings)
+
+                    // Said only when the star cannot change anything, and only
+                    // when putting one on: somebody removing a star already
+                    // knows they are curating, and being told twice is worse
+                    // than not being told.
+                    if (starring && settings.notifyAboutEveryEvent) {
+                        scope.launch {
+                            snackbar.showSnackbar(
+                                "Starred. You are being told about everything anyway - turn " +
+                                    "that off under Settings to hear only your starred events.",
+                            )
+                        }
+                    }
                 },
                 onLocationModeChange = { mode ->
                     if (mode == LocationMode.Automatic &&
