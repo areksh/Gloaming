@@ -51,7 +51,18 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
 ./gradlew :app:assembleDebug          # build the debug APK
 ./gradlew :app:testDebugUnitTest      # unit tests, no device needed
 ./gradlew :app:connectedDebugAndroidTest  # instrumented tests, needs a device
+
+# The same, without wiping the app afterwards - see below
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
 ```
+
+**The plain form uninstalls the app when it finishes**, which takes the app's
+settings and its battery-optimisation exemption with it. That is easy to miss
+and expensive when it happens: a phone set up for an overnight run and then used
+to run the suite is quietly back to a fresh install, and the night tests
+nothing. Pass `leaveApksInstalledAfterRun` on any device that is also being used
+to watch something.
 
 The instrumented tests cover the seams a JVM test cannot reach: that the
 credential- and device-encrypted preference stores really are separate, that the
