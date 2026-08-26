@@ -71,7 +71,7 @@ class PassService : Service() {
      * notification, so nothing that touches disk happens first.
      */
     @Volatile
-    private var capMillis: Long = UserSettings.DEFAULT_LIVE_MAX_MINUTES * 60_000L
+    private var capMillis: Long = LivePass.runFor(UserSettings.DEFAULT_LIVE_MAX_MINUTES * 60_000L)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -134,7 +134,9 @@ class PassService : Service() {
         }
 
         val at = System.currentTimeMillis()
-        capMillis = user.liveFollowMaxMillis
+        // Never past the wake lock's own span, which was taken before these
+        // settings could be read. See LivePass.MAXIMUM_RUN_MILLIS.
+        capMillis = LivePass.runFor(user.liveFollowMaxMillis)
         // Back a little, so a pass whose rise has just slipped past is still
         // found rather than missed by a few seconds.
         val from = at - SEARCH_BACK_MILLIS
@@ -292,7 +294,7 @@ class PassService : Service() {
     private fun acquireWakeLock(): PowerManager.WakeLock? = runCatching {
         getSystemService(PowerManager::class.java)
             ?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, WAKE_LOCK_TAG)
-            ?.apply { acquire(MAX_RUN_MILLIS) }
+            ?.apply { acquire(LivePass.MAXIMUM_RUN_MILLIS) }
     }.onFailure { Log.w(TAG, "could not hold a wake lock; following anyway", it) }.getOrNull()
 
     companion object {
@@ -322,12 +324,6 @@ class PassService : Service() {
 
         /** A lead of ten minutes plus the longest pass, with room to spare. */
         private const val SEARCH_AHEAD_MILLIS = 45 * 60_000L
-
-        /**
-         * A safety net rather than a feature. A low-orbit pass runs under ten
-         * minutes, so anything approaching this is a bug holding a wake lock.
-         */
-        private const val MAX_RUN_MILLIS = 30 * 60 * 1000L
 
 
         /** Whether a pass is being followed now, so a second cannot start over it. */

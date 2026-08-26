@@ -231,4 +231,31 @@ class LivePassTest {
         assertTrue(LivePass.startsNow(pass.risesAt, start))
         assertTrue(LivePass.startsNow(pass.risesAt, pass.risesAt + 60_000L))
     }
+
+    /**
+     * The tracker runs under a wake lock taken for a fixed span, before any
+     * setting has been read - the system gives a service seconds to show its
+     * notification, so nothing that touches disk happens first. A run allowed
+     * to outlast that lock does not stop; it stalls, with the device free to
+     * sleep mid-pass and the countdown frozen on screen.
+     *
+     * So the lock's span is the ceiling and a setting may only shorten the
+     * run. The two numbers happen to be equal today, which is exactly how they
+     * would come to disagree unnoticed.
+     */
+    @Test
+    fun `never runs longer than the wake lock it holds`() {
+        val beyond = LivePass.MAXIMUM_RUN_MILLIS + 15 * 60_000L
+
+        assertEquals(LivePass.MAXIMUM_RUN_MILLIS, LivePass.runFor(beyond))
+        assertEquals(LivePass.MAXIMUM_RUN_MILLIS, LivePass.runFor(LivePass.MAXIMUM_RUN_MILLIS))
+    }
+
+    /** A shorter setting is the user's to make, and is honoured as given. */
+    @Test
+    fun `honours a cap inside the wake lock's span`() {
+        val asked = LivePass.MAXIMUM_RUN_MILLIS - 5 * 60_000L
+
+        assertEquals(asked, LivePass.runFor(asked))
+    }
 }

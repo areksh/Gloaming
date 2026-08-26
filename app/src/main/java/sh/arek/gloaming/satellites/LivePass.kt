@@ -72,6 +72,30 @@ object LivePass {
      */
     const val LEAD_MILLIS: Long = 10 * 60 * 1000L
 
+    /**
+     * The longest the tracker may run, and the span of the wake lock it holds.
+     *
+     * A low-orbit pass is over in under ten minutes, so anything approaching
+     * this is a bug rather than a long pass - which is what the wake lock's
+     * own timeout is there to bound.
+     *
+     * It is a ceiling on the user's setting rather than a separate number,
+     * because the lock is taken before any setting has been read: the system
+     * gives a service seconds to show its notification, so nothing that
+     * touches disk happens first. A run allowed to outlast its lock would not
+     * stop at the cap - it would stall, with the device free to sleep and the
+     * countdown frozen in front of somebody standing outside.
+     */
+    const val MAXIMUM_RUN_MILLIS: Long = 30 * 60 * 1000L
+
+    /**
+     * How long a run asking for [wantedMillis] actually gets.
+     *
+     * Shorter is the user's to choose; longer is not on offer. See
+     * [MAXIMUM_RUN_MILLIS] for why the ceiling is not negotiable.
+     */
+    fun runFor(wantedMillis: Long): Long = wantedMillis.coerceAtMost(MAXIMUM_RUN_MILLIS)
+
     /** When to start following [pass]. */
     fun startAt(pass: SatellitePass, leadMillis: Long = LEAD_MILLIS): Long =
         startAt(pass.risesAt, leadMillis)
