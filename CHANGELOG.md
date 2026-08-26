@@ -101,6 +101,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The manifest now costs one request a day, as designed, instead of two
+  requests on every poll. Nothing else changes: a verified copy less than a
+  day old is simply the answer, and a moved endpoint still reaches every
+  device within a day.
+
 - A poll interrupted at the wrong moment can no longer end the overnight
   schedule. The next alarm used to be armed only after a poll finished, so a
   process killed - or stalled past its wake lock - between the alarm firing

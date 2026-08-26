@@ -3,6 +3,7 @@ package sh.arek.gloaming.data
 import java.io.File
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -51,6 +52,29 @@ class FileManifestStoreTest {
         File(temporaryFolder.root, "manifest.sig").delete()
 
         assertNull(store().read())
+    }
+
+    @Test
+    fun `has no timestamp before anything has been written`() {
+        assertNull(store().writtenAt())
+    }
+
+    // The stamp is what holds the daily fetch cadence, so it has to move with
+    // the write - a stamp that survived an overwrite would starve the app of
+    // a manifest that had genuinely changed.
+    @Test
+    fun `stamps the moment the manifest was written`() {
+        val before = System.currentTimeMillis()
+
+        store().write(CachedManifest("{}".toByteArray(), ByteArray(64)))
+        val written = store().writtenAt()
+
+        assertTrue("no stamp after a write", written != null)
+        // File timestamps can be coarser than the clock, so a second of slack.
+        assertTrue(
+            "stamp $written is not around $before",
+            written!! >= before - 1_000 && written <= System.currentTimeMillis() + 1_000,
+        )
     }
 
     @Test

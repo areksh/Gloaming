@@ -47,6 +47,9 @@ class CachedManifest(val body: ByteArray, val signature: ByteArray)
 interface ManifestStore {
     fun read(): CachedManifest?
     fun write(cached: CachedManifest)
+
+    /** When the cached copy was last written, or null if there is none. */
+    fun writtenAt(): Long?
 }
 
 /**

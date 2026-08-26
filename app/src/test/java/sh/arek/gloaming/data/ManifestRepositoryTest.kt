@@ -45,12 +45,17 @@ class ManifestRepositoryTest {
     }
 
     /** Keeps the cached manifest in memory rather than on disk. */
-    private class FakeStore(var stored: CachedManifest? = null) : ManifestStore {
+    private class FakeStore(
+        var stored: CachedManifest? = null,
+        var storedAt: Long? = null,
+    ) : ManifestStore {
         override fun read(): CachedManifest? = stored
 
         override fun write(cached: CachedManifest) {
             stored = cached
         }
+
+        override fun writtenAt(): Long? = storedAt
     }
 
     private fun fetcher(vararg overrides: Pair<String, Result<ByteArray>>) = FakeFetcher(
@@ -61,8 +66,10 @@ class ManifestRepositoryTest {
         ),
     )
 
+    private val now = 1_756_200_000_000L
+
     private fun repository(http: HttpFetcher, store: ManifestStore) =
-        ManifestRepository(http, store, publicKey, manifestUrl)
+        ManifestRepository(http, store, publicKey, manifestUrl, now = { now })
 
     @Test
     fun `accepts and parses a correctly signed manifest`() = runTest {
@@ -183,6 +190,61 @@ class ManifestRepositoryTest {
 
         assertTrue(http.requested.contains(manifestUrl))
         assertTrue(http.requested.contains("$manifestUrl.sig"))
+    }
+
+    // --- the daily cadence ---
+
+    /**
+     * The manifest's contract is one request a day, and every poller calls
+     * refresh() on every wake - so the repository is where the cadence has to
+     * live, or an elevated night of five-minute polls turns one request into
+     * six hundred.
+     */
+    @Test
+    fun `answers from a fresh cached copy without touching the network`() = runTest {
+        val http = fetcher()
+        val store = FakeStore(CachedManifest(body, signature), storedAt = now - 60 * 60 * 1000L)
+
+        val manifest = repository(http, store).refresh()
+
+        assertEquals(1, manifest.schema)
+        assertEquals(emptyList<String>(), http.requested)
+    }
+
+    @Test
+    fun `fetches again once the held copy is a day old`() = runTest {
+        val http = fetcher()
+        val store = FakeStore(CachedManifest(body, signature), storedAt = now - 25 * 60 * 60 * 1000L)
+
+        repository(http, store).refresh()
+
+        assertTrue(http.requested.contains(manifestUrl))
+    }
+
+    /** A clock that has jumped backwards must refetch, not hold the copy for ever. */
+    @Test
+    fun `treats a copy stamped in the future as stale`() = runTest {
+        val http = fetcher()
+        val store = FakeStore(CachedManifest(body, signature), storedAt = now + 60 * 60 * 1000L)
+
+        repository(http, store).refresh()
+
+        assertTrue(http.requested.contains(manifestUrl))
+    }
+
+    /** Freshness is a property of a copy that verifies; a corrupt one has none. */
+    @Test
+    fun `ignores freshness when the cached copy does not verify`() = runTest {
+        val http = fetcher()
+        val store = FakeStore(
+            CachedManifest("{}".toByteArray(), signature),
+            storedAt = now - 60 * 60 * 1000L,
+        )
+
+        val manifest = repository(http, store).refresh()
+
+        assertTrue(http.requested.contains(manifestUrl))
+        assertEquals(1, manifest.schema)
     }
 
     /**

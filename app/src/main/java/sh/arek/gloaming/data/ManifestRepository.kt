@@ -24,6 +24,7 @@ class ManifestRepository(
     private val store: ManifestStore,
     private val publicKey: ByteArray,
     private val manifestUrl: String,
+    private val now: () -> Long = System::currentTimeMillis,
 ) {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -31,15 +32,26 @@ class ManifestRepository(
     /**
      * Returns the freshest manifest that can be trusted.
      *
+     * At most one network fetch a day, which is the manifest's documented
+     * budget. Every poller calls this on every wake, so without the gate an
+     * elevated night of five-minute polls would turn one request into six
+     * hundred; a verified copy held for less than a day is simply the answer.
+     * The cost is that a moved endpoint, or the kill switch, takes up to a day
+     * to reach a device - which is the latency the design already accepts for
+     * a document re-fetched daily.
+     *
      * The cached copy is verified on every refresh rather than only when the
-     * network fails, because its stamp is what a fetched manifest has to beat.
-     * That costs one signature check per poll, which is minutes apart.
+     * network fails: freshness is a property of a copy that verifies, and its
+     * stamp is what a fetched manifest has to beat. That costs one signature
+     * check per poll, which is minutes apart.
      *
      * @throws ManifestUnavailableException when neither the fetched nor the
      *   cached manifest verifies.
      */
     suspend fun refresh(): Manifest {
         val cached = lastKnownGood()
+        if (cached != null && heldRecently()) return cached
+
         val fetched = runCatching { fetchAndVerify() }.getOrNull()
 
         if (fetched != null && !isRollback(fetched.manifest, cached)) {
@@ -47,6 +59,18 @@ class ManifestRepository(
             return fetched.manifest
         }
         return cached ?: cachedOrThrow()
+    }
+
+    /**
+     * Whether the held copy is recent enough to answer without a request.
+     *
+     * A stamp in the future means the clock has jumped backwards; treating
+     * that as fresh would hold the copy until the clock caught up, so it
+     * refetches instead.
+     */
+    private fun heldRecently(): Boolean {
+        val age = store.writtenAt()?.let { now() - it } ?: return false
+        return age in 0 until REFRESH_INTERVAL_MILLIS
     }
 
     /**
@@ -98,5 +122,10 @@ class ManifestRepository(
             throw ManifestUnavailableException("Manifest signature did not verify")
         }
         return json.decodeFromString(Manifest.serializer(), body.toString(Charsets.UTF_8))
+    }
+
+    companion object {
+        /** The documented budget: the manifest costs one request a day. */
+        const val REFRESH_INTERVAL_MILLIS: Long = 24 * 60 * 60 * 1000L
     }
 }

@@ -128,6 +128,7 @@ class SkyPollerTest {
     private class Manifests(var stored: CachedManifest?) : ManifestStore {
         override fun read() = stored
         override fun write(cached: CachedManifest) { stored = cached }
+        override fun writtenAt(): Long? = null
     }
 
     private class Cache(var status: Pair<String, String?>? = null, var g: CachedGrid? = null) :

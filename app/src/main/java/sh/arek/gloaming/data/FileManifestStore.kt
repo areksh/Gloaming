@@ -29,6 +29,13 @@ class FileManifestStore(directory: File) : ManifestStore {
     }
 
     /**
+     * The body file's own timestamp, the same choice the element and comet
+     * caches make: the body is written last, so this stamps the moment the
+     * pair was complete.
+     */
+    override fun writtenAt(): Long? = bodyFile.takeIf { it.isFile }?.lastModified()
+
+    /**
      * Writes the signature first, then the body.
      *
      * A crash between the two leaves a signature that does not match the older
