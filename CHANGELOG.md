@@ -101,6 +101,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A poll interrupted at the wrong moment can no longer end the overnight
+  schedule. The next alarm used to be armed only after a poll finished, so a
+  process killed - or stalled past its wake lock - between the alarm firing
+  and that reschedule left nothing pending until the next reboot or app open.
+  The wake is now armed before the poll starts and replaced with the computed
+  one when it completes.
+
 - The app's own log now records polls made before the first unlock after a
   reboot. It was silently empty for exactly that window: the setting that says
   whether to keep a log was read from storage that is locked until the user

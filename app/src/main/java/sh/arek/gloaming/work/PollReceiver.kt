@@ -28,6 +28,22 @@ class PollReceiver : BroadcastReceiver() {
         val pending = goAsync()
         val application = context.applicationContext
 
+        // The next wake is armed before anything else and replaced with the
+        // computed one when the poll completes. The alarm that delivered this
+        // broadcast is already spent, so between here and the reschedule in
+        // `finally` nothing is pending - and a process death or a stall past
+        // the wake lock in that window would otherwise end the schedule until
+        // the next reboot or app open, on exactly the phone nobody touches
+        // overnight. The provisional alarm shares the PendingIntent slot, so
+        // the real one simply overwrites it; it only ever fires if the poll
+        // never got as far as scheduling its own.
+        runCatching {
+            PollAlarm.schedule(
+                application,
+                BootAware.pollSettings(application).read().pollIntervalMinutes,
+            )
+        }
+
         // A wake lock is an optimisation, not a precondition: without it the
         // device may sleep mid-fetch and the poll fails, which the next wake
         // retries. Crashing the receiver instead would take the app down on
