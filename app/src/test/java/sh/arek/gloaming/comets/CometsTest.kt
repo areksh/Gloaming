@@ -90,6 +90,44 @@ class CometsTest {
     }
 
     /**
+     * The window's edges deliberately run half a magnitude past the threshold.
+     *
+     * The threshold is a hard line and the sweep is weekly, so without slack a
+     * comet hovering at the line would flicker in and out of the calendar from
+     * one recomputation to the next. The pin is on the fading edge: the last
+     * week of the window has the comet already fainter than the threshold but
+     * inside the slack, which the magnitude law itself is asked to confirm.
+     * Found unpinned by a mutation that set the slack to zero and survived the
+     * whole suite.
+     */
+    @Test
+    fun `holds the window through weeks a whisker outside the threshold`() {
+        // H = 5.5 peaks around magnitude 5.7 on this geometry: just inside the
+        // default threshold of 6, with a long slow fade through the slack.
+        val hovering = comet(magnitudeH = 5.5)
+        val event = calendar(hovering).first()
+
+        val atTheEnd = CometFinder.positionOf(
+            hovering.orbit,
+            magnitudeH = 5.5,
+            slope = 4.0,
+            latitude = latitude,
+            longitude = longitude,
+            atMillis = event.until,
+        ).magnitude!!
+        val threshold = settings.cometMagnitudeThreshold.toDouble()
+
+        assertTrue(
+            "the window ended at $atTheEnd, inside the threshold rather than the slack",
+            atTheEnd > threshold,
+        )
+        assertTrue(
+            "the window ended at $atTheEnd, past the slack entirely",
+            atTheEnd <= threshold + 0.6,
+        )
+    }
+
+    /**
      * A calendar of the year ahead must not date anything behind us.
      *
      * Easy to get wrong and it was: the brightest sample is usually now, and
