@@ -44,10 +44,13 @@ enum class IssCoverage {
         /**
          * How well [latitude] is served, north or south.
          *
-         * Both thresholds approximate a fuzzy edge, so each boundary value
-         * falls in the more generous band: a marginal pass that does not
-         * materialise disappoints less than being told there is nothing when
-         * there is.
+         * Both thresholds approximate a fuzzy edge, and both boundary values
+         * land in [Marginal] - which is the hedge rather than a direction.
+         * Standing exactly on either line, the honest answer is that passes
+         * are possible and not dependable, and that is what Marginal says: at
+         * the lower edge it declines to promise the regular passes [Covered]
+         * implies, and at the upper it declines to rule out the occasional one
+         * [None] denies.
          */
         fun of(latitude: Double): IssCoverage = when {
             abs(latitude) > NONE_ABOVE_DEGREES -> None

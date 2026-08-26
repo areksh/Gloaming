@@ -45,11 +45,17 @@ class IssCoverageTest {
     }
 
     @Test
-    fun `puts the boundaries in the more generous band`() {
-        // Both thresholds are approximations of a fuzzy edge, so each belongs
-        // to the band that promises less and disappoints less.
+    fun `hedges on both boundaries rather than committing`() {
+        // Both thresholds approximate a fuzzy edge, and standing exactly on
+        // either one the honest answer is "possible, not dependable" - so both
+        // land in Marginal, which is the hedge rather than a direction.
         assertEquals(IssCoverage.Marginal, IssCoverage.of(IssCoverage.MARGINAL_ABOVE_DEGREES))
         assertEquals(IssCoverage.Marginal, IssCoverage.of(IssCoverage.NONE_ABOVE_DEGREES))
         assertEquals(IssCoverage.None, IssCoverage.of(IssCoverage.NONE_ABOVE_DEGREES + 0.1))
+        // And the band below the lower edge still promises regular passes.
+        assertEquals(
+            IssCoverage.Covered,
+            IssCoverage.of(IssCoverage.MARGINAL_ABOVE_DEGREES - 0.1),
+        )
     }
 }
