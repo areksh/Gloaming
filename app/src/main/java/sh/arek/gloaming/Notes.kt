@@ -2,6 +2,7 @@ package sh.arek.gloaming
 
 import android.content.Context
 import android.util.Log
+import sh.arek.gloaming.data.BootAware
 
 /**
  * Says something, to logcat and to the app's own log at once.
@@ -40,11 +41,18 @@ object Notes {
      * Reading the setting costs a preference lookup per entry, which is far
      * cheaper than the alternative: keeping a log somebody has explicitly said
      * they do not want.
+     *
+     * Read from the poll's own store, not the credential-encrypted one. Before
+     * first unlock the credential store does not merely disagree - it throws,
+     * and the catch below swallowed that, so every line from a locked poll
+     * quietly reached logcat alone and the journal was empty for exactly the
+     * window it exists to explain. `BootAware.pollSettings` picks the
+     * device-encrypted mirror precisely when a locked poll is possible.
      */
     private fun record(context: Context, tag: String, message: String) {
         runCatching {
             val application = context.applicationContext
-            if (!Graph.settings(application).read().keepsLog) return
+            if (!BootAware.pollSettings(application).read().keepsLog) return
             Graph.journal(application).append(System.currentTimeMillis(), tag, message)
         }
     }

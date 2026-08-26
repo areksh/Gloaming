@@ -101,6 +101,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The app's own log now records polls made before the first unlock after a
+  reboot. It was silently empty for exactly that window: the setting that says
+  whether to keep a log was read from storage that is locked until the user
+  unlocks, the failure was swallowed, and every line from a locked poll
+  reached only logcat - whose buffer has rolled over by morning. The journal
+  was built for those nights, and now it covers them.
+
 - One observer filing many reports can no longer set a comet's published
   brightness. The magnitude is now the median over observers - one voice
   each, the median of that person's own reports - rather than over the
