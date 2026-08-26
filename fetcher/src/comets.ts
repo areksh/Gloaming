@@ -550,15 +550,23 @@ function reduceOver(
 }
 
 /**
- * The brightest a comet could ever look, by the standard magnitude law.
+ * The brightest a comet should look, by the standard magnitude law.
  *
  * `m = H + 5 log10(delta) + 2.5 G log10(r)`, evaluated with the comet at
  * perihelion and the Earth as close to it as the two orbits could ever put
- * them. That makes it an upper bound rather than an estimate, which is the
- * property a coarse filter needs: it can hold a comet that turns out to be dull
- * but can never drop one that turns out to be worth seeing. What a comet
- * actually looks like on a given night is fainter, and the device works that
- * out for itself.
+ * them. Generous rather than typical, which is what a coarse filter wants:
+ * what a comet actually looks like on most nights is fainter, and the device
+ * works that out for itself.
+ *
+ * Not a true upper bound, despite the perihelion evaluation. For a comet with
+ * q inside the Earth's orbit, the sun term is smaller than at perihelion when
+ * the comet crosses r = 1 AU, and a close Earth approach at that crossing can
+ * beat this figure by a magnitude or two - an intrinsically faint comet
+ * passing a few hundredths of an AU away could clear the publish bar while
+ * this filter drops it. Computing the real minimum needs the Earth's position,
+ * which the fetcher deliberately does not have. Accepted, because a comet that
+ * close is observed heavily within days and the measurement branch above then
+ * publishes it regardless of anything this predicts.
  */
 export function brightestPossible(comet: ParsedComet): number | null {
   if (comet.magnitude_h === null) return null;
