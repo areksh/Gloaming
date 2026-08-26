@@ -885,12 +885,26 @@ errors; the sourcing document is strong.
     than by a failing test. Comet keys now carry the name, and are kept until
     the comet fades.
 
-30. **The Starlink train alerting worked overnight, unprompted. 2026-08-26.**
-    A train notification arrived on the device without anybody watching for it,
-    which is the first end-to-end confirmation of the Phase 3 train work outside
-    a test: the fetcher publishing the supplemental list, the device reading it,
-    `TrainFinder` predicting a pass from two elements sets, and the pass poller
-    waking to speak. Item 20 was previously verified only against fixtures.
+30. **The Starlink train alerting worked overnight, through a seventeen-hour
+    upstream outage. 2026-08-26.** A train notification arrived on the device
+    without anybody watching for it - the first end-to-end confirmation of the
+    Phase 3 train work outside a test, where item 20 had only ever been
+    verified against fixtures.
+
+    What makes it worth recording is what was happening upstream at the time.
+    The CelesTrak breaker had tripped at 14:28 the previous afternoon on an
+    HTTP 503, and every scheduled run since had correctly refused to query, so
+    the elements behind that notification were up to seventeen hours old. The
+    claim that "a tripped breaker degrades pass prediction rather than breaking
+    it" was written as a design intention and has now been demonstrated by
+    accident, on real hardware, without anybody arranging it. A 503 is exactly
+    the transient a manual-reset breaker is least suited to and most defensible
+    about: the cost of waiting for a human was one day of element freshness and
+    nothing a user could perceive.
+
+    The maintainer alert fired as designed at the moment it tripped. It was
+    missed rather than absent, which is a different problem and not one the
+    fetcher can solve.
 
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,

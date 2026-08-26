@@ -1637,6 +1637,12 @@ is what makes a comet's brightness consistent from one night to the next; four s
 covering brightness, altitude, staleness and moonlight; a comets notification channel; and
 one closing notice when a comet fades, which is the other half of a story the app starts.*
 
+*Verified in production 2026-08-26: the fetcher published `comets.json` from the seedbox
+with 30 comets, 10P/Tempel at magnitude 8.3 from 20 observers and 220P/McNaught at 9.5 from
+39, and `health.json` now composes a `comets` source alongside `celestrak` without the
+Worker knowing where either came from. The daily guard was observed working on the real box:
+a second run twenty seconds later left the document alone.*
+
 *Unverifiable against the sky for now, and honestly so: on the day it was finished the
 brightest comet anywhere was 10P/Tempel at magnitude 8.3, so the app correctly shows nothing
 at its default threshold of 6. Most years have no naked-eye comet. The positions are checked
