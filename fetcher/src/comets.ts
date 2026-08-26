@@ -45,9 +45,10 @@ export const COMETS_ATTRIBUTION = {
   elements: "Orbital elements: IAU Minor Planet Center",
   elements_source: "https://www.minorplanetcenter.net/",
   changes:
-    "Observed magnitudes are the median of reports from at least two independent " +
-    "observers, over the shortest window from 2 to 14 days that holds two, not " +
-    "observations as filed. Observers are counted, never named.",
+    "Observed magnitudes are the median over independent observers - one voice " +
+    "per observer, each the median of their own reports - over the shortest " +
+    "window from 2 to 14 days that holds enough of them, not observations as " +
+    "filed. Observers are counted, never named.",
 } as const;
 
 /**
@@ -494,6 +495,14 @@ function shortestWith(
   return null;
 }
 
+/** The median of an already-sorted list of magnitudes. */
+function medianOf(sorted: number[]): number {
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]!
+    : (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
 /** The median over one rung, or null if too few people looked within it. */
 function reduceOver(
   observations: CobsObservation[],
@@ -510,15 +519,24 @@ function reduceOver(
   );
   if (recent.length === 0) return null;
 
-  const observers = new Set(recent.map((observation) => observation.observer));
-  if (observers.size < Math.max(need, LEAST_OBSERVERS)) return null;
+  const byObserver = new Map<string, number[]>();
+  for (const observation of recent) {
+    const own = byObserver.get(observation.observer) ?? [];
+    own.push(observation.magnitude);
+    byObserver.set(observation.observer, own);
+  }
+  if (byObserver.size < Math.max(need, LEAST_OBSERVERS)) return null;
 
-  const sorted = recent.map((observation) => observation.magnitude).sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  const median =
-    sorted.length % 2 === 1
-      ? sorted[middle]!
-      : (sorted[middle - 1]! + sorted[middle]!) / 2;
+  // One voice per observer: each person's reports reduce to their own median
+  // first, and the published figure is the median across people. A median
+  // taken over the reports directly leaves a back door the observer count was
+  // built to close - one person filing nightly outvotes everyone who filed
+  // once, which is precisely how the wild NEOWISE reports would have been
+  // published the moment any second observer said anything at all.
+  const voices = [...byObserver.values()]
+    .map((own) => medianOf(own.sort((a, b) => a - b)))
+    .sort((a, b) => a - b);
+  const median = medianOf(voices);
 
   return {
     // Rounded to a tenth, which is the precision magnitudes are reported to.
@@ -526,7 +544,7 @@ function reduceOver(
     magnitude: Math.round(median * 10) / 10,
     atMillis: Math.max(...recent.map((observation) => observation.atMillis)),
     reports: recent.length,
-    observers: observers.size,
+    observers: byObserver.size,
     windowDays,
   };
 }

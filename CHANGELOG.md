@@ -101,6 +101,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- One observer filing many reports can no longer set a comet's published
+  brightness. The magnitude is now the median over observers - one voice
+  each, the median of that person's own reports - rather than over the
+  reports themselves, where seven wrong numbers from one person outvoted one
+  right number from another. This closes the remaining half of the wild
+  NEOWISE-reports case that motivated requiring two observers in the first
+  place.
+
 - The calendar's kind filter is now remembered. Hiding meteor showers, or
   unfolding the moon's quarters, held until the app was next started and then
   quietly reverted - and hiding a kind also silences its alerts, so the effect

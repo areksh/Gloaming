@@ -274,6 +274,35 @@ describe("reduceObservations", () => {
     expect(reduced).toBeNull();
   });
 
+  /**
+   * The NEOWISE case one step on: the wild observer keeps filing and a single
+   * genuine report arrives beside it. A median over reports is dragged to the
+   * wild value - seven of the eight numbers are one person's - so each observer
+   * gets one voice, the median of their own reports, and the answer sits
+   * between the two voices instead of being whichever of them filed more.
+   */
+  it("keeps a prolific observer from outvoting the field", () => {
+    const reduced = reduceObservations(
+      [
+        at("2026-08-25T06:00:00Z", 1.2, "SHIaf"),
+        at("2026-08-25T05:00:00Z", 1.2, "SHIaf"),
+        at("2026-08-25T04:00:00Z", 1.3, "SHIaf"),
+        at("2026-08-25T03:00:00Z", 1.5, "SHIaf"),
+        at("2026-08-25T02:00:00Z", 2.9, "SHIaf"),
+        at("2026-08-25T01:00:00Z", 5.2, "SHIaf"),
+        at("2026-08-25T00:00:00Z", 9.5, "SHIaf"),
+        at("2026-08-25T07:00:00Z", 12.0, "MEY"),
+      ],
+      NOW,
+    );
+
+    // SHIaf's own median is 1.5 and MEY's is 12.0; the published figure is the
+    // median of those two voices, not of the eight reports (which would be 2.2).
+    expect(reduced?.magnitude).toBe(6.8);
+    expect(reduced?.reports).toBe(8);
+    expect(reduced?.observers).toBe(2);
+  });
+
   it("reports when the most recent observation was made", () => {
     const reduced = reduceObservations(
       [
