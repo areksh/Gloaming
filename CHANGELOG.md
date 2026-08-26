@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   link to the licence the comet brightnesses are published under. Every measured
   comet brightness in the app comes from volunteer observers who went outside
   and looked, which is the one thing here no amount of arithmetic could replace.
+  Observers are counted rather than named, so that somebody who asks COBS to
+  delete their data is not left with their name cached on strangers' phones.
+- A comet's brightness now tracks what it is doing rather than what it averaged
+  over the past fortnight, and the app says how many people saw it over how many
+  days. A comet that outbursts can brighten several magnitudes in a day, and the
+  old fortnight average turned one such outburst into a rounding error.
 - Your position can now be detected by the phone as well as typed in, with a
   switch between the two you can change at any time. It asks for coarse
   location only, only while the app is open, and never in the background: it

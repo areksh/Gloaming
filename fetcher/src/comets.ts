@@ -46,7 +46,8 @@ export const COMETS_ATTRIBUTION = {
   elements_source: "https://www.minorplanetcenter.net/",
   changes:
     "Observed magnitudes are the median of reports from at least two independent " +
-    "observers within a 14-day window, not observations as filed.",
+    "observers, over the shortest window from 2 to 14 days that holds two, not " +
+    "observations as filed. Observers are counted, never named.",
 } as const;
 
 /**
@@ -61,14 +62,36 @@ export const COMETS_ATTRIBUTION = {
 export const PUBLISH_MAGNITUDE = 10;
 
 /**
- * How far back observations are gathered.
+ * How far back observations are gathered, shortest first.
  *
- * Brightness is the one thing about a comet that changes fast, so a long window
- * would average an outburst away against the fortnight before it. Two weeks is
- * long enough that a comet nobody looked at on a cloudy weekend still has a
- * figure, and short enough to follow a comet that is changing.
+ * **A ladder rather than a single window, because the two things this reduction
+ * has to do pull against each other.** Rejecting a wild observer needs several
+ * independent people, which argues for a long window; tracking a comet that is
+ * actually changing needs a short one. A fixed fortnight silently chose the
+ * first and lost the second.
+ *
+ * Measured over 180 days of real COBS data: a comet's median brightness moves
+ * 0.20 magnitudes a day at the midpoint and 1.80 at the 99th percentile, and
+ * 29P/Schwassmann-Wachmann - which outbursts every few weeks - managed 3.75. A
+ * fortnight median flattened that 29P outburst from a 3.8-magnitude swing into
+ * a 0.1-magnitude wobble; the app would have reported that nothing happened.
+ *
+ * So the window is the shortest rung that holds [PREFERRED_OBSERVERS] separate
+ * people, falling back to the shortest holding [LEAST_OBSERVERS] for a comet
+ * too faint to be watched that closely. On the same data that lands on two days
+ * for the great majority of comet-days, because the comets bright enough to
+ * matter are watched nightly by many people; the longer rungs are for the faint
+ * ones nobody looked at over a cloudy weekend. Tracking error against the day's
+ * own median roughly halves - mean 0.47 to 0.23, worst case 5.2 to 3.1.
+ *
+ * The last rung is the span actually requested from COBS, so lengthening it
+ * means lengthening the request too.
  */
-export const OBSERVATION_WINDOW_DAYS = 14;
+export const OBSERVATION_WINDOW_LADDER: readonly number[] = [2, 3, 5, 7, 14];
+
+/** How far back observations are requested from COBS - the longest rung. */
+export const OBSERVATION_WINDOW_DAYS =
+  OBSERVATION_WINDOW_LADDER[OBSERVATION_WINDOW_LADDER.length - 1]!;
 
 /**
  * How many people must have looked before a measured magnitude is believed.
@@ -86,6 +109,23 @@ export const OBSERVATION_WINDOW_DAYS = 14;
  * announce the comet of the decade because one person mistyped.
  */
 export const LEAST_OBSERVERS = 2;
+
+/**
+ * How many separate people make a short window worth preferring to a longer
+ * one.
+ *
+ * Two is the floor for believing a magnitude at all, but it is a thin basis for
+ * choosing to ignore a fortnight of other reports. Individual comet estimates
+ * are far noisier than they look: on 2026-08-22 six observers put 10P/Tempel
+ * anywhere between magnitude 7.3 and 12.0 on the same night. A median of two
+ * draws from that is a coin toss; a median of four is not.
+ *
+ * So a short window has to earn its place by having four people in it, and a
+ * comet nobody watches that closely falls back to the floor and a longer
+ * window. Measured, that costs 0.02 magnitudes of mean tracking accuracy and
+ * lifts the thinnest tenth of cases from three observers to four.
+ */
+export const PREFERRED_OBSERVERS = 4;
 
 /**
  * How long before and after perihelion a comet is worth carrying, in days.
@@ -120,6 +160,8 @@ export interface ObservedMagnitude {
   atMillis: number;
   reports: number;
   observers: number;
+  /** Which rung of [OBSERVATION_WINDOW_LADDER] this came from, in days. */
+  windowDays: number;
 }
 
 /** One comet's orbit, as read from the MPC file. */
@@ -433,7 +475,33 @@ export function reduceObservations(
   observations: CobsObservation[],
   nowMillis: number,
 ): ObservedMagnitude | null {
-  const window = nowMillis - OBSERVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return (
+    shortestWith(observations, nowMillis, PREFERRED_OBSERVERS) ??
+    shortestWith(observations, nowMillis, LEAST_OBSERVERS)
+  );
+}
+
+/** The shortest rung holding at least [need] separate observers. */
+function shortestWith(
+  observations: CobsObservation[],
+  nowMillis: number,
+  need: number,
+): ObservedMagnitude | null {
+  for (const windowDays of OBSERVATION_WINDOW_LADDER) {
+    const reduced = reduceOver(observations, nowMillis, windowDays, need);
+    if (reduced !== null) return reduced;
+  }
+  return null;
+}
+
+/** The median over one rung, or null if too few people looked within it. */
+function reduceOver(
+  observations: CobsObservation[],
+  nowMillis: number,
+  windowDays: number,
+  need: number,
+): ObservedMagnitude | null {
+  const window = nowMillis - windowDays * 24 * 60 * 60 * 1000;
   const recent = observations.filter(
     (observation) =>
       observation.atMillis >= window &&
@@ -443,7 +511,7 @@ export function reduceObservations(
   if (recent.length === 0) return null;
 
   const observers = new Set(recent.map((observation) => observation.observer));
-  if (observers.size < LEAST_OBSERVERS) return null;
+  if (observers.size < Math.max(need, LEAST_OBSERVERS)) return null;
 
   const sorted = recent.map((observation) => observation.magnitude).sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -459,6 +527,7 @@ export function reduceObservations(
     atMillis: Math.max(...recent.map((observation) => observation.atMillis)),
     reports: recent.length,
     observers: observers.size,
+    windowDays,
   };
 }
 

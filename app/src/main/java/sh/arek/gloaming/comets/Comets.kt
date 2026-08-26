@@ -424,7 +424,14 @@ object Comets {
             if (night.measured && observed != null) {
                 append(", from ${observed.observers} ")
                 append(if (observed.observers == 1) "observer" else "observers")
-                append(" within the last few days")
+                // The span is worth printing: seven observers over five days
+                // and two over a fortnight deserve different amounts of trust,
+                // and the app is in no position to weigh that for somebody.
+                if (observed.windowDays > 0) {
+                    append(" over ${observed.windowDays} days")
+                } else {
+                    append(" within the last few days")
+                }
             } else {
                 append(", predicted rather than measured")
             }

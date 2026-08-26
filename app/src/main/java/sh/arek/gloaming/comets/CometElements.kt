@@ -22,8 +22,23 @@ data class ObservedMagnitude(
      * How many separate people. Carried so the app can say so, and because it
      * is the number that makes the figure trustworthy rather than the count of
      * reports - one person can file a dozen and be wrong in all of them.
+     *
+     * A count and never a name. Crediting COBS is what their licence asks for,
+     * and their GDPR policy undertakes not to share member information onward -
+     * so an observer's right to be forgotten is not quietly defeated by a name
+     * sitting in a cache on somebody's phone.
      */
     val observers: Int,
+    /**
+     * How many days of reports the figure was taken over.
+     *
+     * The fetcher uses the shortest window that has enough separate observers
+     * in it, so this varies from two days for a well-watched comet to a
+     * fortnight for one nobody looks at. Printed rather than hidden, because
+     * "seven observers over five days" and "two over a fortnight" deserve
+     * different amounts of trust.
+     */
+    @SerialName("windowDays") val windowDays: Int = 0,
 )
 
 /**

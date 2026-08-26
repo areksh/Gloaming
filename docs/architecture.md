@@ -101,10 +101,11 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 
   Two rules do the work that a weekly human judgement was going to do:
 
-  - **A median over at least two independent observers.** Both halves earn their place. On
-    2026-08-25 one COBS observer was reporting C/2020 F3 (NEOWISE) at magnitude 1.2 - six
-    years after it faded - and C/2014 UN271, which is out past Saturn, at 0.5. Seven
-    reports, one person. A median over that observer's own numbers still says 1.5.
+  - **A median over independent observers, in the shortest window that has enough of
+    them.** Both halves earn their place. On 2026-08-25 one COBS observer was reporting
+    C/2020 F3 (NEOWISE) at magnitude 1.2 - six years after it faded - and C/2014 UN271,
+    which is out past Saturn, at 0.5. Seven reports, one person. A median over that
+    observer's own numbers still says 1.5.
   - **A measurement decides and the prediction is only the fallback**, and then only for a
     comet near enough to perihelion in time for it to mean anything. Without the second
     clause the file publishes Hale-Bopp forever: it has the brightest absolute magnitude in
@@ -905,6 +906,37 @@ errors; the sourcing document is strong.
     The maintainer alert fired as designed at the moment it tripped. It was
     missed rather than absent, which is a different problem and not one the
     fetcher can solve.
+
+31. **The reduction window was absorbing the signal it existed to carry.
+    2026-08-26.** Asked how often the comet sources should be fetched, the
+    honest answer turned out to be that the fetch interval was never the
+    binding constraint and the reduction was.
+
+    Magnitudes were reduced to a median over a fixed fortnight, chosen to have
+    enough independent observers to reject a wild one. Measured against 180 days
+    of real COBS data, that also flattened a 3.8-magnitude outburst of
+    29P/Schwassmann-Wachmann into a 0.1-magnitude wobble. No fetch cadence
+    whatever could have surfaced that, because the published number barely
+    moved: polling hourly would have transferred a megabyte an hour to report
+    that nothing had happened.
+
+    The window is now a ladder from two days to a fortnight, taking the shortest
+    rung that holds four separate observers and falling back to two for a comet
+    nobody watches closely. Tracking error against the day's own median roughly
+    halves. The four is not decoration: individual comet estimates are far
+    noisier than they look - six observers put 10P/Tempel between magnitude 7.3
+    and 12.0 on one night - so a pair is not enough to justify ignoring a
+    fortnight of other reports, and requiring four costs 0.02 magnitudes of mean
+    accuracy while lifting the thinnest tenth of cases off a coin toss.
+
+    The change was visible immediately on live data: 220P/McNaught, which the
+    fortnight median still had at 9.5, has in fact faded past magnitude 10 over
+    the past week and now correctly drops below the publishing bar.
+
+    The general shape is worth keeping. When asked to make a pipeline more
+    responsive, check where the lag actually is before touching the part that
+    was asked about. Here the request interval, the CDN cache and the device
+    poll were all faster than the smoothing sitting in the middle.
 
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,

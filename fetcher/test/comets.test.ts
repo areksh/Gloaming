@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  OBSERVATION_WINDOW_DAYS,
+  OBSERVATION_WINDOW_LADDER,
   brightestPossible,
   buildComets,
   cobsKey,
@@ -346,6 +348,126 @@ describe("reduceObservations", () => {
  * Earth at the closest the two orbits allow. The real magnitude on any given
  * night is fainter than this, and the device works that out for itself.
  */
+/**
+ * The window is a ladder, shortest rung first.
+ *
+ * The two jobs of this reduction pull against each other: rejecting a wild
+ * observer wants many independent people and so a long window, while tracking a
+ * comet that is genuinely changing wants a short one. A fixed fortnight chose
+ * the first and lost the second - measured on 180 days of real COBS data, it
+ * flattened a 3.8-magnitude outburst of 29P/Schwassmann-Wachmann into a
+ * 0.1-magnitude wobble.
+ */
+describe("the observation window ladder", () => {
+  const at = (iso: string, magnitude: number, observer: string): CobsObservation => ({
+    magnitude,
+    atMillis: Date.parse(iso),
+    observer,
+  });
+
+  it("uses the shortest window four separate people looked in", () => {
+    const reduced = reduceObservations(
+      [
+        at("2026-08-25T01:00:00Z", 7.0, "AAA"),
+        at("2026-08-25T02:00:00Z", 7.0, "BBB"),
+        at("2026-08-25T03:00:00Z", 7.2, "CCC"),
+        at("2026-08-25T04:00:00Z", 7.2, "DDD"),
+        at("2026-08-14T00:00:00Z", 12.0, "EEE"),
+        at("2026-08-14T01:00:00Z", 12.0, "FFF"),
+      ],
+      NOW,
+    );
+
+    expect(reduced?.windowDays).toBe(2);
+    expect(reduced?.magnitude).toBe(7.1);
+    expect(reduced?.reports).toBe(4);
+  });
+
+  /**
+   * Two people are enough to believe a magnitude but not enough to justify
+   * ignoring a fortnight of other reports. Individual estimates are far noisier
+   * than they look - six observers put 10P/Tempel between 7.3 and 12.0 on one
+   * night - so a pair falls back to a longer window rather than winning on
+   * recency alone.
+   */
+  it("will not let a mere pair outvote a longer window", () => {
+    const reduced = reduceObservations(
+      [
+        at("2026-08-25T02:00:00Z", 7.0, "AAA"),
+        at("2026-08-25T03:00:00Z", 7.2, "BBB"),
+        at("2026-08-20T00:00:00Z", 12.0, "CCC"),
+        at("2026-08-20T01:00:00Z", 12.0, "DDD"),
+      ],
+      NOW,
+    );
+
+    expect(reduced?.windowDays).toBe(7);
+    expect(reduced?.observers).toBe(4);
+  });
+
+  /**
+   * The whole point: a comet that has just brightened reports its new
+   * brightness rather than a fortnight's average of the old one.
+   */
+  it("follows an outburst instead of averaging it away", () => {
+    const quiet = Array.from({ length: 20 }, (_, i) =>
+      at(`2026-08-${String(11 + Math.floor(i / 2)).padStart(2, "0")}T0${i % 2}:00:00Z`, 16.0, `OBS${i % 6}`));
+    const outburst = [
+      at("2026-08-25T01:00:00Z", 12.3, "AAA"),
+      at("2026-08-25T02:00:00Z", 12.3, "BBB"),
+      at("2026-08-25T03:00:00Z", 12.5, "CCC"),
+      at("2026-08-25T04:00:00Z", 12.5, "DDD"),
+    ];
+
+    const reduced = reduceObservations([...quiet, ...outburst], NOW);
+
+    expect(reduced?.magnitude).toBe(12.4);
+    expect(reduced?.windowDays).toBe(2);
+  });
+
+  /**
+   * A faint comet nobody looked at over a cloudy weekend still gets an answer,
+   * from a longer rung. That is what the longer rungs are for.
+   */
+  it("reaches further back for a comet only two people have seen all fortnight", () => {
+    const reduced = reduceObservations(
+      [
+        at("2026-08-16T00:00:00Z", 14.0, "AAA"),
+        at("2026-08-19T00:00:00Z", 14.4, "BBB"),
+      ],
+      NOW,
+    );
+
+    expect(reduced?.windowDays).toBe(14);
+    expect(reduced?.magnitude).toBe(14.2);
+  });
+
+  /**
+   * A short window must not become a back door around the observer rule. One
+   * person reporting hourly still fails, however recent the reports are - which
+   * is the NEOWISE case, and the reason the rule exists at all.
+   */
+  it("still refuses a single observer however fresh the reports", () => {
+    const reduced = reduceObservations(
+      [
+        at("2026-08-25T04:00:00Z", 1.2, "SHIaf"),
+        at("2026-08-25T03:00:00Z", 1.2, "SHIaf"),
+        at("2026-08-25T02:00:00Z", 1.3, "SHIaf"),
+        at("2026-08-25T01:00:00Z", 1.5, "SHIaf"),
+      ],
+      NOW,
+    );
+
+    expect(reduced).toBeNull();
+  });
+
+  it("climbs the ladder in order and never past the fetched window", () => {
+    expect([...OBSERVATION_WINDOW_LADDER]).toEqual([2, 3, 5, 7, 14]);
+    expect(OBSERVATION_WINDOW_DAYS).toBe(14);
+    expect(Math.max(...OBSERVATION_WINDOW_LADDER)).toBe(OBSERVATION_WINDOW_DAYS);
+  });
+});
+
 describe("brightestPossible", () => {
   it("uses the standard comet magnitude law", () => {
     const [lemmon] = parseCometEls(`${LEMMON}\n`);

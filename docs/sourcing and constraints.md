@@ -896,11 +896,24 @@ threshold the user sets once. What is built:
   only for a comet near enough to perihelion in time for it to mean anything - without that
   window the file publishes Hale-Bopp forever, since it has the brightest absolute
   magnitude in the catalogue and a perihelion in March 1997.
-- The reduction is a **median over at least two independent observers**. Both halves are
-  load-bearing. On 2026-08-25 a single COBS observer was reporting C/2020 F3 (NEOWISE) at
-  magnitude 1.2 - six years after it faded - and C/2014 UN271, which is out past Saturn, at
-  0.5. Seven reports, one person, all nonsense. A median over that observer's own numbers
-  still says 1.5; only requiring independent agreement rejects it.
+- The reduction is a **median over independent observers, in the shortest window that has
+  enough of them**. Both halves are load-bearing. On 2026-08-25 a single COBS observer was
+  reporting C/2020 F3 (NEOWISE) at magnitude 1.2 - six years after it faded - and C/2014
+  UN271, which is out past Saturn, at 0.5. Seven reports, one person, all nonsense. A median
+  over that observer's own numbers still says 1.5; only requiring independent agreement
+  rejects it.
+- **The window is a ladder from two days to a fortnight, not a fixed fortnight.** The first
+  attempt fixed it at fourteen days and that quietly destroyed the thing the whole source
+  exists for. Measured over 180 days of real data: comet brightness moves 0.20 magnitudes a
+  day at the midpoint, 1.80 at the 99th percentile, and 3.75 for 29P/Schwassmann-Wachmann,
+  which outbursts every few weeks. A fortnight median turned a 3.8-magnitude 29P outburst
+  into a 0.1-magnitude wobble - the app would have reported that nothing happened. The
+  ladder takes the shortest rung holding four separate observers, falling back to two for a
+  comet nobody watches closely, which roughly halves tracking error against the day's own
+  median: mean 0.47 to 0.23, worst case 5.2 to 3.1.
+- **Individual estimates are much noisier than they look**, which is why a short window has
+  to earn its place. Six observers put 10P/Tempel between magnitude 7.3 and 12.0 on the same
+  night. A median of two draws from that is close to a coin toss.
 - On the device the measurement also **corrects the prediction**: the difference between
   what was measured and what the law predicted for that same night is carried across to
   every other night, which is what an observer means by refitting a light curve, done with
@@ -1262,6 +1275,18 @@ the magnitudes are medians rather than observations as filed. That is a conditio
 BY-NC-SA 4.0 and it belongs on the object rather than only in the app, because the object is
 served from a public CDN and somebody who finds the URL alone should be able to see whose
 work it is.
+
+`windowDays` says how many days of reports the magnitude was taken over, and the app prints
+it: "seven observers over five days" and "two over a fortnight" deserve different amounts of
+trust, and nothing here is in a position to weigh that for somebody.
+
+**Observers are counted and never named.** The licence asks for COBS to be credited, not the
+individual observers, and their GDPR policy undertakes not to share member information with
+other organisations. The observer codes the count is derived from are used in the fetcher
+and discarded. A name republished on a CDN and cached onto phones would put an observer's
+right to be forgotten beyond anybody's reach, which is a poor way to respect the volunteers
+the licence exists to protect. Their guidelines do ask for co-authorship where an observer's
+data is critical to research - that clause is about papers, and this is not one.
 
 `perihelion_jd_tt` is a Julian date in **Terrestrial Time**, not a unix timestamp. The MPC
 states the perihelion passage in TT, the two scales differ by over a minute, and a comet
