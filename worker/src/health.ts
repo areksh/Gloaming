@@ -55,6 +55,11 @@ const STALE_AFTER_MILLIS: Record<string, number> = {
   swpc: 60 * 60 * 1000,
   aurorawatch: 60 * 60 * 1000,
   celestrak: 6 * 60 * 60 * 1000,
+  // Twice daily, and the run skips without recording anything while the
+  // published document is fresh - so this entry is the only thing that can
+  // tell a comet source that stopped from one in perfect order. Three missed
+  // cycles, not one, so a single skipped run cannot cry wolf.
+  comets: 36 * 60 * 60 * 1000,
 };
 
 /**

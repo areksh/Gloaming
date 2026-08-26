@@ -164,6 +164,24 @@ describe("composeHealth", () => {
     expect(withinItsRate.sources["celestrak"]?.state).toBe("ok");
     expect(wellPastIt.sources["celestrak"]?.state).toBe("stale");
   });
+
+  /**
+   * The comet source publishes twice a day and its run skips without recording
+   * anything while the published document is fresh, so if it stops being
+   * attempted its record freezes at `ok` - exactly the silent failure this
+   * label exists to catch, and until now the one source it could not catch it
+   * for. Judged against three missed twice-daily cycles, so one skipped run or
+   * a slow day cannot cry wolf.
+   */
+  it("notices when the comet source has stopped being attempted", async () => {
+    await recordOutcome(env, "comets", { ok: true }, now());
+
+    const withinItsRate = await composeHealth(env, ["comets"], new Date("2026-08-06T07:00:00Z"));
+    const wellPastIt = await composeHealth(env, ["comets"], new Date("2026-08-06T14:00:00Z"));
+
+    expect(withinItsRate.sources["comets"]?.state).toBe("ok");
+    expect(wellPastIt.sources["comets"]?.state).toBe("stale");
+  });
 });
 
 describe("reportStaleness", () => {
