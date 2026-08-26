@@ -416,6 +416,39 @@ if [ "${failures:-0}" -gt 0 ]; then
         "$(printf '%s' "$poll_log" | grep 'poll failed' | tail -1)"
 fi
 
+step "Did the app's own journal record the locked polls?"
+
+# The journal is the record worth reading after a real overnight run, and it
+# lives in device-encrypted storage precisely so a locked poll can write to
+# it. It once could not: the retention setting was read from the
+# credential-encrypted store, which throws before first unlock, and the catch
+# around it swallowed every entry - so the journal was empty for exactly the
+# window this harness exercises while the logcat check above looked healthy.
+# Logcat rolls over in minutes, so by morning the journal is the only record.
+#
+# Entries from before this boot are excluded, or a journal line from last
+# night's run would satisfy the check for ever. ISO-8601 stamps in UTC compare
+# lexicographically, so the filter is a string comparison.
+journal=$(as_app "cat $DE_CACHE/gloaming.log 2>/dev/null")
+journal_boot=$(boot_epoch_ms)
+booted_iso=""
+if [ -n "$journal_boot" ]; then
+    booted_iso=$(date -u -d "@$((journal_boot / 1000))" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || true)
+fi
+journalled_locked=$(printf '%s' "$journal" | grep 'unlocked=false' \
+    | awk -v boot="$booted_iso" 'boot == "" || $1 >= boot' | grep -c . || true)
+if [ "${journalled_locked:-0}" -gt 0 ]; then
+    pass "$journalled_locked locked poll(s) are in the app's own journal"
+elif [ "${locked_polls:-0}" -gt 0 ]; then
+    fail "polls ran while locked but the journal has none of them" \
+        "A journal blind before unlock explains nothing by morning; check Notes reads the poll's own settings store."
+elif [ -z "$journal" ]; then
+    skip "no journal to read" \
+        "Log retention may be off, or nothing has been journalled yet."
+else
+    skip "no locked polls for the journal to have recorded"
+fi
+
 step "Did an alert actually post?"
 
 # Quiet conditions are the normal case and produce no alert, so this only
