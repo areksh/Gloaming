@@ -99,8 +99,18 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // Make sure a schedule exists, in case this is a first run or the chain
-        // was ever lost. Enqueuing is idempotent under a unique work name.
-        PollAlarm.schedule(this, Graph.settings(this).read().pollIntervalMinutes)
+        // was ever lost. Rearming replaces whatever alarm was pending rather
+        // than adding to it, so opening the app repeatedly costs nothing.
+        //
+        // Only when alerts are on, though. The settings switch cancels the
+        // alarm and the boot receiver already declines to rearm it, so without
+        // this the app would put back, on every launch, a wake somebody had
+        // switched off - one that can only find alerts disabled and go back to
+        // sleep.
+        val settings = Graph.settings(this).read()
+        if (settings.alertsEnabled) {
+            PollAlarm.schedule(this, settings.pollIntervalMinutes)
+        }
 
         setContent { GloamingApp() }
     }
