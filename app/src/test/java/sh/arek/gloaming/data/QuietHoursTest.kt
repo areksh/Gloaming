@@ -41,6 +41,18 @@ class QuietHoursTest {
         assertFalse(quiet.contains(at(7)))
     }
 
+    // The same boundary on the branch that does not wrap. The two branches
+    // share no comparison, so the test above proves nothing about this one -
+    // found by a mutation that excluded the start minute here and survived
+    // the whole suite.
+    @Test
+    fun `includes the start minute of a same-day period too`() {
+        val quiet = QuietHours(startMinute = at(13), endMinute = at(14))
+
+        assertTrue(quiet.contains(at(13)))
+        assertFalse(quiet.contains(at(14)))
+    }
+
     /**
      * "Quiet from 23:00 until 23:00" is a contradiction, and reading it as
      * silence for a whole day would mute the app permanently through a
