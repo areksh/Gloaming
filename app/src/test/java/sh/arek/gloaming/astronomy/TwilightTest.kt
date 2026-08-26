@@ -1,5 +1,6 @@
 package sh.arek.gloaming.astronomy
 
+import java.time.Instant
 import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -24,6 +25,8 @@ import org.junit.Test
  * degrees. That is an independent oracle.
  */
 class TwilightTest {
+
+    private fun at(iso: String) = Instant.parse(iso).toEpochMilli()
 
     private val greenwichLatitude = 51.4779
     private val greenwichLongitude = 0.0
@@ -256,5 +259,64 @@ class TwilightTest {
     private fun angleBetween(a: Double, b: Double): Double {
         val difference = abs(a - b) % 360.0
         return if (difference > 180.0) 360.0 - difference else difference
+    }
+
+    // --- moonlight, shared between showers and comets ---
+
+    /**
+     * How much of a night's darkness the moon spoils.
+     *
+     * Shared by meteor showers and comets, which is why it lives in `Twilight`
+     * rather than in either: two implementations of the same number would
+     * eventually be two different numbers. It matters most to comets, a comet
+     * being a diffuse smudge whose contrast against the sky is what moonlight
+     * destroys.
+     *
+     * The dates are a real full moon and a real new moon over Edinburgh in
+     * 1997, so the assertion is about the sky rather than about the arithmetic.
+     */
+    @Test
+    fun `finds a full moon up all night ruinous and a new moon harmless`() {
+        val fullMoon = at("1997-03-23T22:00:00Z")
+        val newMoon = at("1997-03-08T22:00:00Z")
+
+        assertTrue(Twilight.moon(fullMoon).illumination > 0.99)
+        assertTrue(Twilight.moon(newMoon).illumination < 0.02)
+
+        assertTrue(Twilight.moonInterference(55.95, -3.19, fullMoon) > 0.9)
+        assertEquals(0.0, Twilight.moonInterference(55.95, -3.19, newMoon), 0.01)
+    }
+
+    /**
+     * Brightness alone is the wrong measure, which is the whole reason this is
+     * a product rather than an illumination. A full moon that has set by
+     * midnight costs far less than a half moon up all night, so the fraction
+     * has to be able to pull a bright moon's cost down.
+     */
+    @Test
+    fun `never reports more interference than the moon is lit`() {
+        var moment = at("1997-02-01T22:00:00Z")
+        val end = at("1997-04-15T22:00:00Z")
+        while (moment <= end) {
+            val interference = Twilight.moonInterference(55.95, -3.19, moment)
+            val illumination = Twilight.moon(moment).illumination
+
+            assertTrue("$interference at $moment", interference in 0.0..1.0)
+            assertTrue(
+                "$interference exceeds $illumination at $moment",
+                interference <= illumination + 1e-9,
+            )
+            moment += 24L * 60 * 60 * 1000
+        }
+    }
+
+    /** No darkness to spoil is no interference, not a failure. */
+    @Test
+    fun `reports no interference where the sun does not set`() {
+        assertEquals(
+            0.0,
+            Twilight.moonInterference(78.2, 15.6, at("1997-06-21T12:00:00Z")),
+            0.0,
+        )
     }
 }

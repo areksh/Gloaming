@@ -305,4 +305,60 @@ class GloamingTabsTest {
         compose.onNodeWithText("Everything is filtered out. Turn a kind back on above.")
             .assertIsDisplayed()
     }
+
+    // --- comets ---
+
+    /**
+     * A comet in the calendar, keyed on its name rather than its moment.
+     *
+     * That distinction is the whole reason this test exists. Every other event
+     * here has a moment fixed by orbital mechanics; a comet's is invented by
+     * the calendar - the best night from now - and moves whenever the calendar
+     * is recomputed, so a star keyed on time would be lost within a day of
+     * being set.
+     */
+    private val comet = SkyEvent(
+        kind = EventKind.Comet,
+        at = 1_800_000_000_000L,
+        from = 1_797_408_000_000L,
+        until = 1_802_592_000_000L,
+        title = "Comet 220P/McNaught",
+        detail = "Magnitude 9.5, from 39 observers within the last few days. " +
+            "Highest at 46 degrees in the south.",
+        visibility = Visibility.Good,
+    )
+
+    @Test
+    fun showsACometInTheCalendar() {
+        show(calendar = listOf(comet))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+
+        compose.onNodeWithText("Comet 220P/McNaught").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("39 observers", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** A comet can be starred, which is what makes "tell me anyway" reachable. */
+    @Test
+    fun reportsAStarredComet() {
+        show(calendar = listOf(comet))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(starTag(comet)).performScrollTo().performClick()
+
+        assertEquals(listOf(comet), starred)
+    }
+
+    /** Comets get their own chip, so somebody who wants none can hide the lot. */
+    @Test
+    fun offersACometChipOnTheFilter() {
+        show(calendar = listOf(comet, eclipse))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(kindTag(EventKind.Comet)).performScrollTo().performClick()
+
+        assertEquals(EventKind.Comet, hiddenKind)
+    }
 }

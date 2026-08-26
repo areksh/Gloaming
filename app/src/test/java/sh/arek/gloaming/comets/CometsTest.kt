@@ -193,6 +193,36 @@ class CometsTest {
     }
 
     /**
+     * The moonlight rule as the sky actually presents it: the same comet, the
+     * same tolerance, two different moons.
+     *
+     * 1997-03-23 was a full moon over Edinburgh and up essentially all night -
+     * an interference of 0.999 - and 1997-03-08 was a new moon, at 0.000. A
+     * bright comet has to come out marginal under the first and good under the
+     * second, at the default tolerance and with nothing else changed.
+     *
+     * Testing it this way round rather than by moving the tolerance is the
+     * point: it proves the verdict follows the moon, not merely the setting.
+     */
+    @Test
+    fun `calls the same comet marginal under a full moon and good under a new one`() {
+        val underFull = tonight(
+            comet(observed = ObservedMagnitude(1.0, at("1997-03-23T12:00:00Z"), 40, 20)),
+            now = "1997-03-23T22:00:00Z",
+        )
+        val underNew = tonight(
+            comet(observed = ObservedMagnitude(1.0, at("1997-03-08T12:00:00Z"), 40, 20)),
+            now = "1997-03-08T22:00:00Z",
+        )
+
+        val moonlit = underFull.first().visibility
+        assertTrue(moonlit.toString(), moonlit is Visibility.Marginal)
+        assertTrue((moonlit as Visibility.Marginal).reason.contains("moon"))
+
+        assertEquals(Visibility.Good, underNew.first().visibility)
+    }
+
+    /**
      * The moonlight rule, which matters more for a comet than for anything else
      * the app covers: a comet is a diffuse smudge, so what moonlight destroys is
      * its contrast against the sky rather than its brightness.
