@@ -50,6 +50,22 @@ Eclipses carry a countdown you can follow contact by contact, and summer nights
 carry a prompt for noctilucent clouds - which is a prompt and not a forecast,
 because nothing has been able to forecast those since 2023.
 
+Comets sit on the calendar too, and are the one thing here the app cannot work
+out from arithmetic alone. Where a comet will be comes from its orbit, which is
+solved on the phone; how bright it will look comes from what observers have
+actually reported, because the two-hundred-year-old formula for that is
+routinely wrong by several magnitudes in either direction. On 25 August 2026 it
+had one comet six magnitudes too faint and another eight too bright, on the same
+day. So the app quotes a measured brightness where anybody has looked recently,
+falls back to the prediction where nobody has, and always says which of the two
+it is showing you. You set how faint is worth hearing about, how high it has to
+get, how much moonlight you will tolerate - which matters far more for a comet
+than for a planet, since a comet is a smudge rather than a point - and how stale
+a report may be. When a comet fades, you get one quiet notice and then silence.
+
+Most years have no comet you could see without binoculars, and the app will
+honestly show you nothing rather than dressing up a faint one.
+
 Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
 of binoculars, it is out of scope, which is why there are no Uranus oppositions
 and no transits of Mercury.

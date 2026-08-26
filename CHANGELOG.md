@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Comets.** The app now tracks every comet worth knowing about, working out
+  where each one will be from its orbit and how bright it actually is from what
+  observers have reported. Each gets one calendar entry for the weeks it is
+  worth planning around, and appears on the Tonight card whenever it is up,
+  with how high it gets and which way to look.
+- Four settings for comets, because all four are questions about you rather
+  than about the sky: how faint is still worth telling you about, how high it
+  has to get, how much moonlight you will put up with, and how old a
+  brightness report may be before the app stops believing it. Moonlight matters
+  more for a comet than for anything else the app covers - a comet is a smudge
+  spread across a patch of sky rather than a point, so a bright moon washes it
+  out where it would barely dim a planet.
+- The brightness the app quotes for a comet comes from people who have looked at
+  it, not from a formula, whenever anybody has looked recently - and it says
+  which it is showing. The formula is routinely wrong by several magnitudes in
+  either direction: on 25 August 2026 it put one comet six magnitudes too faint
+  and another eight too bright, on the same day.
+- One quiet notice when a comet you were told about has faded, and then silence.
+  Comets disappointing is the normal case rather than the exception, and an app
+  that only announces arrivals teaches you its comets never amount to anything.
+- A separate notification channel for comets, so you can silence them alone or
+  keep only them.
 - Your position can now be detected by the phone as well as typed in, with a
   switch between the two you can change at any time. It asks for coarse
   location only, only while the app is open, and never in the background: it
@@ -68,6 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   scrolling page.
 
 ### Fixed
+
+- The calendar's kind filter is now remembered. Hiding meteor showers, or
+  unfolding the moon's quarters, held until the app was next started and then
+  quietly reverted - and hiding a kind also silences its alerts, so the effect
+  was not merely cosmetic.
 
 - "Check now" refreshes everything, not only the aurora. It now runs the
   satellite passes and the sky calendar too, which is what a button called

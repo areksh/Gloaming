@@ -539,12 +539,20 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 | **NOAA SWPC** | `services.swpc.noaa.gov/json/ovation_aurora_latest.json` (global grid), `/json/planetary_k_index_1m.json`, `/products/summary/solar-wind-mag-field.json` (Bz, Bt), `/products/summary/solar-wind-speed.json` | None | 5 min | US Gov, **public domain**. The unrestricted foundation. |
 | **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** |
 | **CelesTrak** | `celestrak.org/NORAD/elements/gp.php?GROUP=...&FORMAT=CSV` - groups `stations`, `visual` | None | **2 h, once per update** | Non-profit. 403 on repeat. Firewall on abuse. **OMM CSV, not TLE.** |
-| **MPC** | Comet orbital elements | None | Weekly | Public. Includes H (absolute magnitude) and slope. |
-| **COBS** | `cobs.si/api/obs_list.api` - visual and CCD comet magnitude *observations* | None for reads | Daily at most | **Copyright Observatory Crni Vrh, no open licence stated. Permission not yet sought.** Candidate for Phase 5 - see Sec. 8 and Sec. 15. |
+| **MPC** | `data.minorplanetcenter.net/iau/MPCORB/CometEls.txt` - comet orbital elements, fixed-width | None | Daily | Public. Includes H (absolute magnitude) and slope. **The `data.` host, not `www.`** - see below. |
+| **COBS** | `cobs.si/api/obs_list.api?format=json` - visual and CCD comet magnitude *observations* | None for reads | Daily | **Copyright Observatory Crni Vrh, no open licence stated. Permission requested 2026-08-25, not yet answered** - see Sec. 15. Read at one request a day with a named User-Agent. |
 | **JPL SBDB / Horizons** | Cross-check elements | None | As needed | Public. |
 | **Open-Meteo** | `api.open-meteo.com/v1/forecast` - `cloud_cover`, `cloud_cover_low/mid/high` | None | 1 h max | Non-commercial. **CC BY 4.0 - attribution link next to displayed data.** |
 | **IMO** | Meteor shower calendar | - | Annually | No API exists. Hand-built table (Sec. 8). |
 | **IAU CPS SCORE** | `score.cps.iau.org` - REST API + full CSV dump | None for reads | Monthly at most | **CC-BY**, acknowledgement text mandatory. Satellite brightness *observations*, not standard magnitudes. **Not used in v1** - see Sec. 6. |
+
+**`www.minorplanetcenter.net` is not reliably reachable and `data.minorplanetcenter.net`
+is.** The `www` host times out entirely from some networks and answers 403 to others, and
+its `/data` path redirects somewhere that refuses common clients. The data host serves the
+same `CometEls.txt` over HTTP/2 with an ETag, a `Last-Modified` and a permissive CORS
+header. Checked before a line of the fetcher was written, which is the lesson of ADR-0008 -
+Cloudflare's egress could not reach CelesTrak and a whole phase had to move because nobody
+had tried it first.
 
 **Aurora is the only feature with a live upstream.** Everything else is deterministic or
 near-deterministic: passes are computed, eclipses and conjunctions are known centuries
@@ -836,32 +844,69 @@ state vectors.
 6. Magnitude: `m = H + 5*log10(delta) + 2.5*K*log10(r)`, delta = Earth distance, r = Sun distance,
    K = activity slope from the elements.
 
-Two-body propagation is accurate to arcminutes over months, which is well beyond the
-requirement ("is it up, is it dark, is it brighter than 6"). Roughly 150-200 lines
-including Barker's.
+Built as described. Three things the building settled that the sketch did not anticipate:
 
-The H/slope formula is unreliable - comets outburst, fragment and disappoint. Predicted
-magnitude is presented as a hint and labelled as one. This is why `comets.json` was to be
-curated rather than scraped: "which comets are worth telling someone about" is a weekly
-judgement call.
+- **The perihelion passage is Terrestrial Time and the phone's clock is UTC.** They differ
+  by about seventy seconds, and a comet moving a degree a day covers an arcminute in that -
+  the whole error budget, spent on a units mistake. The published `comets.json` therefore
+  carries the perihelion as a Julian date in TT rather than converting to a unix timestamp
+  and back, and the device converts once, in one place.
+- **The parabolic band is a millionth rather than a rounding guard**, because inside it the
+  parabola is the *more accurate* branch. The ellipse computes `a(1 - e cos E)` with
+  `a = q/(1 - e)`, so as e approaches one, a grows without bound while the bracket vanishes,
+  and a double loses eight of its sixteen digits to that cancellation at `e = 1 - 1e-8`.
+  Barker's has no such subtraction. The two error curves cross near `5e-7`.
+- **A hyperbolic branch is needed as well.** Of the 957 orbits in the file, 118 are unbound
+  - interstellar visitors and badly determined orbits alike, up to `e = 6.1`.
 
-**Challenged 2026-08-25, and the reasoning above may not survive it.** The argument for
-hand-curation is entirely that the *prediction* is unreliable - but the fix for an
+Two-body propagation was measured against JPL Horizons rather than assumed: drift from
+osculating elements stays under half an arcsecond over ninety days and reaches six at a
+hundred and eighty, even for a comet passing as close to the sun as Hale-Bopp. Weekly
+republishing is ample. The solver came to about 250 lines including Barker's.
+
+The H/slope formula is unreliable - comets outburst, fragment and disappoint. This is why
+`comets.json` was to be curated rather than scraped: "which comets are worth telling
+someone about" looked like a weekly judgement call.
+
+**Resolved 2026-08-26: it is not, and nothing is hand-curated.** The argument for
+hand-curation was entirely that the *prediction* is unreliable - but the fix for an
 unreliable prediction is a measurement, and the measurements exist. **COBS**, the Comet
 OBservation database run by Crni Vrh Observatory since 2010, holds over 288,700 visual and
 CCD magnitude observations of more than 1,640 comets, with a public JSON API and no
-authentication for reads. Recent versions also fit light curves with a Henyey-Greenstein
-model specifically to predict visual magnitude better than H/slope does.
+authentication for reads.
 
-The case that makes the point: **220P/McNaught outburst from about magnitude 18 to 8.2 in
-late May 2026** and was around magnitude 6 by August, the brightest comet in the sky. The
-H/slope formula had it at 18 and would have said nothing. COBS observers had it within
-days, because thousands of people are looking - which is more eyes than a weekly judgement
-call has.
+The case that made the point held up in the live data. On 2026-08-25 the H/slope law put
+220P/McNaught at magnitude 15.7 at best; thirty-nine COBS observers had it at 9.3. The same
+day it put 161P/Hartley-IRAS at 7.1 while nine observers had it at 15.0. A prediction can
+be six magnitudes wrong in either direction, so it can neither be trusted to include a
+comet nor to exclude one.
 
-So the curation does not disappear, it moves: from "which comets matter this week" to a
-threshold set once, which is a setting rather than a chore. What it costs is a fourth
-permission question - see Sec. 15.
+So the curation moved rather than disappearing: from "which comets matter this week" to a
+threshold the user sets once. What is built:
+
+- The fetcher reads the MPC element file and a fortnight of COBS observations daily, and
+  publishes about 30 comets in under 6 kB.
+- A measured magnitude decides, in both directions. The prediction is the fallback, and
+  only for a comet near enough to perihelion in time for it to mean anything - without that
+  window the file publishes Hale-Bopp forever, since it has the brightest absolute
+  magnitude in the catalogue and a perihelion in March 1997.
+- The reduction is a **median over at least two independent observers**. Both halves are
+  load-bearing. On 2026-08-25 a single COBS observer was reporting C/2020 F3 (NEOWISE) at
+  magnitude 1.2 - six years after it faded - and C/2014 UN271, which is out past Saturn, at
+  0.5. Seven reports, one person, all nonsense. A median over that observer's own numbers
+  still says 1.5; only requiring independent agreement rejects it.
+- On the device the measurement also **corrects the prediction**: the difference between
+  what was measured and what the law predicted for that same night is carried across to
+  every other night, which is what an observer means by refitting a light curve, done with
+  one point instead of a hundred. Without it the app would say 9.3 tonight and 15.7 next
+  week. On the live document it turns 220P's published H of 15.0 into 6.9.
+- Past a staleness the user sets, the measurement stops counting and the text says it is
+  quoting a prediction.
+
+Magnitude is therefore quoted, which is not a reversal of the refusal to quote satellite
+magnitudes (Sec. 6). That refusal is because the data is stale, incomplete and in two
+incompatible conventions. Neither applies to a magnitude somebody measured last Tuesday.
+The rule is that the app always says which kind of number it is showing.
 
 ### Meteor showers
 
@@ -1187,10 +1232,31 @@ advance one, because a forecast two days out says nothing useful about the sky.
 | `status.json` | ~1 KB | 3 min | AuroraWatch level (UK) + Kp + solar wind + `global_activity` + `oval_etag`. Latency-critical. |
 | `oval.bin` | ~5-10 KB gz | 5 min | **Packed OVATION grid**: 1 byte/cell, row-major, 360x181. Global aurora probability. Fetched conditionally (Sec. 4). |
 | `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes and any Starlink trains. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
-| `comets.json` | ~2 KB | weekly | Curated MPC elements + H/slope. |
+| `comets.json` | ~6 KB | daily | MPC elements + H/slope, with the median magnitude COBS observers have reported. Not curated - see below. |
 | `showers.json` | - | never | **Shipped in the APK, no remote override.** Not a hosted file at all - see below. |
 
 ~40 KB total. The backend is a cron job and an object store.
+
+**`comets.json`, as built.** About 30 comets in 5.8 kB, republished daily. Nothing in it is
+hand-picked: the fetcher keeps a comet if observers have measured it brighter than magnitude
+10, or - failing any measurement - if its perihelion falls within a year behind or two years
+ahead and the magnitude law puts it inside the same bar at best. That bar sits far below
+anything the app offers as a setting, so the device does the filtering the user can see and
+change.
+
+```json
+{"key": "220P", "name": "220P/McNaught",
+ "q": 1.559302, "e": 0.500328, "i": 8.1208, "node": 150.084, "peri": 180.5616,
+ "perihelion_jd_tt": 2461205.6174, "magnitude_h": 15.0, "slope": 4.0,
+ "observed": {"magnitude": 9.5, "atMillis": 1787667216000, "reports": 124, "observers": 39}}
+```
+
+`perihelion_jd_tt` is a Julian date in **Terrestrial Time**, not a unix timestamp. The MPC
+states the perihelion passage in TT, the two scales differ by over a minute, and a comet
+near the Earth moves an arcminute in that - so converting to UTC here and back on the device
+would spend the whole error budget twice for no gain. `observers` is carried because it is
+the number that makes the magnitude trustworthy, not `reports`: one person can file a dozen
+and be wrong in all of them, which is exactly what one COBS observer was doing on 2026-08-25.
 
 **Why the shower table needs no remote override.** The plan left one open in case the table
 went stale annually. Storing peaks as solar longitude rather than as dates (Sec. 8) means it
@@ -1563,6 +1629,19 @@ obvious rather than because the plan called for them:*
 25. Kepler solver including Barker's equation, magnitude estimate, `comets.json` curation
     workflow.
 
+*Built as of 2026-08-26, and the third item turned out not to exist: nothing is curated.
+COBS replaced the weekly judgement call with a threshold the user sets once - see Sec. 8.
+What was built beyond the item: a hyperbolic branch as well as the two named, since 118 of
+the 957 published orbits are unbound; the correction of the prediction by measurement, which
+is what makes a comet's brightness consistent from one night to the next; four settings
+covering brightness, altitude, staleness and moonlight; a comets notification channel; and
+one closing notice when a comet fades, which is the other half of a story the app starts.*
+
+*Unverifiable against the sky for now, and honestly so: on the day it was finished the
+brightest comet anywhere was 10P/Tempel at magnitude 8.3, so the app correctly shows nothing
+at its default threshold of 6. Most years have no naked-eye comet. The positions are checked
+against JPL Horizons instead, which is a stronger check than a clear night would be.*
+
 ### Candidate: noctilucent clouds
 
 Worth considering for Phase 4. NLCs peak June-August at roughly 50-60°N - exactly the
@@ -1617,11 +1696,19 @@ technical or product decision the project can settle on its own.
   All rights reserved" and states no open licence - so on this project's own precedent,
   which asked AuroraWatch UK, Open-Meteo and CelesTrak first and now has three
   load-bearing permissions because of it, the answer is to ask before writing the code.
-  What to ask for: a daily read of magnitude observations for a shortlist of comets, an
-  attribution line beside anything derived from it, and confirmation that non-commercial
-  use is acceptable. Worth asking early: it changes the shape of Phase 5, because with it
-  the app can say what a comet **is** doing and without it only what the elements
-  **predict** it should be doing.
+  What to ask for: a daily read of magnitude observations, an attribution line beside
+  anything derived from it, and confirmation that non-commercial use is acceptable.
+
+  **Asked 2026-08-25; not yet answered.** Phase 5 was built on the explicit instruction to
+  proceed as though permission were granted, on the grounds that the app is not public and
+  a refusal is therefore adjustable rather than expensive. What a refusal would cost, so
+  the decision is a known one: the fetcher drops one request a day and publishes elements
+  alone, every comet falls back to the H/slope prediction, and the app says so - it already
+  says so for any comet nobody has measured recently, so the wording exists and the code
+  path is exercised. What would be lost is accuracy of the kind that matters: the law had
+  220P/McNaught six magnitudes too faint and 161P/Hartley-IRAS eight too bright on the same
+  day. Nothing is cached beyond the reduced median, and no observation is republished, so
+  withdrawal is a configuration change rather than a migration.
 
 - **Does anything block 6-digit objects from entering the `visual` group?** If the group is
   curated by legacy tooling it may lag reality exactly when it matters, leaving the app
@@ -1662,7 +1749,12 @@ technical or product decision the project can settle on its own.
   coverage of the `visual` group specifically rather than of the catalogue in general, and
   see whether the reduction to standard magnitudes produces anything defensible for the
   classic bright objects or only for Starlink. If only Starlink, the answer is no. Sec. 6.
-- **`comets.json` curation** - magnitude cutoff or manual? A recurring weekly chore.
+- ~~**`comets.json` curation** - magnitude cutoff or manual? A recurring weekly chore.~~
+  **Closed 2026-08-26: a cutoff, and not a chore at all.** Reading COBS turns "which comets
+  matter this week" into a threshold the user sets once. The fetcher keeps anything
+  observers have measured brighter than magnitude 10, or - with no measurement - anything
+  near enough to perihelion that the prediction means something. The device filters against
+  the user's own threshold on top. See Sec. 8 and Sec. 10.
   Automate the cutoff, keep a manual override.
 - **Shetland alerting** - per-region AuroraWatch site, or is Lancaster-default adequate for
   v1? Sec. 4.

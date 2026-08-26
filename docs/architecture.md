@@ -66,7 +66,13 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   |---|---|---|
   | `*/3 * * * *` | AuroraWatch UK (UK layer) | UK fields of `status.json` |
   | `*/5 * * * *` | SWPC OVATION grid + Kp + solar wind | `oval.bin`, space-weather fields of `status.json` |
-  | `0 3 * * 1` | MPC comet elements (Phase 5) | `comets.json` |
+
+  **This table used to carry a third row, `0 3 * * 1` for MPC comet elements. It was wrong
+  and Phase 5 corrected it**, on exactly the ADR-0008 precedent: the MPC is a similarly
+  old-school academic host and COBS is a small observatory in Slovenia, and betting a phase
+  on Cloudflare's egress reaching either is the bet that already cost a phase once. Comets
+  are fetched from the same machine as CelesTrak. See "Not CelesTrak" below, which now
+  covers comets too.
 
 - **`status.json` composition.** Two crons contribute to `status.json` on
   different cadences, so neither may PUT the whole object or it clobbers the
@@ -81,10 +87,28 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 - **`oval.bin` packer.** The SWPC OVATION 360x181 grid is packed to one byte per
   cell (probability 0-100), row-major, then gzipped at PUT. The pack/unpack pair
   is covered by a round-trip unit test.
-- **Not CelesTrak.** That source moved out of the Worker entirely; see ADR-0008
-  and the note on OMM normalisation below, which now happens in `fetcher/`.
-  `celestrak` is still listed among the Worker's sources so that the health
-  record the fetcher writes keeps appearing in `health.json`.
+- **Not CelesTrak, and not comets either.** Both are fetched from outside Cloudflare;
+  see ADR-0008 for the first and ADR-0010 for the second. `celestrak` and `comets` are
+  still listed among the Worker's sources so that the health records the fetcher writes
+  keep appearing in `health.json` - the Worker composes them without needing to know where
+  either came from.
+- **Comet normalisation** (in the fetcher). The MPC publishes comet elements as fixed-width
+  Fortran and COBS publishes observations as JSON; the fetcher reduces both into one small
+  `comets.json`. Column positions come from the MPC's own format document rather than from
+  counting a sample, for the same reason CelesTrak's columns are read by name: a
+  fixed-width field read one place out does not fail, it publishes a plausible orbit for
+  the wrong comet.
+
+  Two rules do the work that a weekly human judgement was going to do:
+
+  - **A median over at least two independent observers.** Both halves earn their place. On
+    2026-08-25 one COBS observer was reporting C/2020 F3 (NEOWISE) at magnitude 1.2 - six
+    years after it faded - and C/2014 UN271, which is out past Saturn, at 0.5. Seven
+    reports, one person. A median over that observer's own numbers still says 1.5.
+  - **A measurement decides and the prediction is only the fallback**, and then only for a
+    comet near enough to perihelion in time for it to mean anything. Without the second
+    clause the file publishes Hale-Bopp forever: it has the brightest absolute magnitude in
+    the catalogue and a perihelion in March 1997.
 - **OMM normalisation** (in the fetcher, not the Worker). CelesTrak publishes GP
   data as OMM in CSV, never TLE for the 6-digit catalogue numbers issued since
   July 2026 - and the `visual` group acquired its first one, `SOYUZ-MS 29`, by
@@ -781,6 +805,93 @@ errors; the sourcing document is strong.
     same ephemeris as the code, so they agreed with each other perfectly. It
     took comparing against something outside the project.
 
+25. **A continuity test that could not fail, and the mutation that found it.
+    Phase 5.** The comet solver has three branches - ellipse, parabola,
+    hyperbola - which are separately derived and must agree where they meet at
+    `e = 1`. The test asserting that used `e = 1 +/- 1e-9`, which is *inside*
+    the parabolic band, so all three calls took the parabolic branch and the
+    test compared it against itself. It passed with the constant in Barker's
+    equation deliberately altered.
+
+    Found by mutation rather than by review: changing `sqrt(2)` to `2` and
+    expecting a failure that did not come. The test now straddles the band, and
+    a second test asserts that it does, so widening the band later cannot
+    silently disarm it. The general lesson is that a test whose subject is
+    "these two paths agree" is worthless unless something proves two paths were
+    taken.
+
+26. **JPL Horizons answers in a different time scale than it labels, and a
+    geocentric position is not a topocentric one. Phase 5.** Getting the comet
+    positions cross-checked took three attempts, and the two failures are worth
+    keeping because both looked like bugs in the app.
+
+    Asking Horizons for an ephemeris at a stated Terrestrial Time applies TT to
+    the body but reports a sidereal time on the other clock, which put the
+    azimuth 0.18 degrees out. That was chased as far as computing GMST from the
+    IAU expression by hand, which agreed with the vendored library and not with
+    Horizons' own column. Requesting plain UT removes the ambiguity, and is the
+    app's real code path anyway.
+
+    The remaining 15 arcseconds on Halley were the observer's displacement from
+    the centre of the Earth. The app computes geocentric positions and does not
+    model diurnal parallax; it is 7 arcseconds for a comet at 1.3 AU and 21 for
+    one at 0.4, and it does not matter to an app asking how high something is.
+    Against Horizons' *geocentric* answer the residual is 1.4 arcseconds, which
+    is the library's Earth against the one JPL integrates.
+
+27. **A position test is a weak guard for a time scale, and the fix was to test
+    the conversion instead. Phase 5.** The Minor Planet Center publishes
+    perihelion passage in Terrestrial Time; the phone's clock is UTC; they
+    differ by about seventy seconds. The test meant to catch that mix-up used
+    the fastest-moving fixture available - Halley at 0.42 AU, crossing six
+    degrees of sky a day - and still could not: the mistake moves it under eight
+    arcseconds, which sits inside any tolerance loose enough to survive the
+    difference between two solar system ephemerides. It passed with the
+    conversion deliberately broken.
+
+    The conversion is now one line with a test of its own, asserting the offset
+    is the 55.2 seconds TT actually ran ahead of UTC in April 1986. That fails
+    when broken. Where a quantity is small in its effect but categorical in its
+    correctness, assert the quantity rather than its consequences.
+
+28. **Two settings shipped without ever being written to disk, and the second
+    was invisible to the test added for the first. Phase 5.** Phase 4 shipped
+    four calendar settings that were never persisted; the round-trip test was
+    widened to compare the whole settings object, which fixed those. It did not
+    fix `hiddenEventKinds`, which was also never persisted: a field the test
+    fixture leaves at its default reads back as its default whether the store
+    wrote it or not, so the two compare equal and the test passes.
+
+    The fixture now has a guard of its own, asserting by reflection that it
+    differs from the defaults in *every* field. Adding a setting and forgetting
+    to persist it fails, and so does adding one and forgetting to put it in the
+    fixture. The same guard was applied to the alert state, which passed as it
+    stood.
+
+29. **The first thing with no moment of its own broke two pieces of correct
+    machinery. Phase 5.** Every event the app had until comets has a moment
+    fixed by orbital mechanics: an eclipse is at its instant whenever you ask.
+    A comet has none, so the calendar invents one - the best night from now -
+    which moves every time the calendar is recomputed.
+
+    Starring keyed on kind and time, which for a comet meant a star lost within
+    a day of being set: exactly the control somebody would most want on a comet,
+    since an unmeasured one is always marginal. Worse, the announced record is
+    pruned by parsing the key's second field as a timestamp, and a name does not
+    parse - so an announced comet was discarded immediately and would have been
+    announced afresh on every wake, twice a day, for as long as it was up.
+
+    Both were found by asking what the identity of a comet actually is rather
+    than by a failing test. Comet keys now carry the name, and are kept until
+    the comet fades.
+
+30. **The Starlink train alerting worked overnight, unprompted. 2026-08-26.**
+    A train notification arrived on the device without anybody watching for it,
+    which is the first end-to-end confirmation of the Phase 3 train work outside
+    a test: the fetcher publishing the supplemental list, the device reading it,
+    `TrainFinder` predicting a pass from two elements sets, and the pass poller
+    waking to speak. Item 20 was previously verified only against fixtures.
+
 The open questions the sourcing document already lists in Sec. 15 - default alert
 thresholds, adaptive-polling escalation values, storm-mode exit condition,
 OVATION storm-time gzip size, Shetland per-region alerting - are calibration and
@@ -797,3 +908,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0007 - keep the vendored propagator in its own source tree.
 - ADR-0008 - fetch CelesTrak from outside Cloudflare.
 - ADR-0009 - three specific pollers, not one event engine.
+- ADR-0010 - fetch the comet sources outside Cloudflare, and without a breaker.
