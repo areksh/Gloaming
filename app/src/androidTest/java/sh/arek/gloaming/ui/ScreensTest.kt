@@ -22,6 +22,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
@@ -75,6 +78,8 @@ class ScreensTest {
     private var locationMode: LocationMode? = null
     private var detected = 0
     private var everyEvent: Boolean? = null
+    private var cometMagnitude: Int? = null
+    private var cometMoon: Int? = null
     private var logRetention: Int? = null
     private var exported = 0
     private var cleared = 0
@@ -159,6 +164,10 @@ class ScreensTest {
                     onEventLeadChange = { eventLead = it },
                     onEclipseFollowMaxChange = {},
                     onNotifyEveryEventChange = { everyEvent = it },
+                    onCometMagnitudeChange = { cometMagnitude = it },
+                    onCometAltitudeChange = {},
+                    onCometStaleChange = {},
+                    onCometMoonChange = { cometMoon = it },
                     onLocationModeChange = { locationMode = it },
                     onDetectLocation = { detected++ },
                     onSave = {},
@@ -841,6 +850,7 @@ class ScreensTest {
                 passes = listOf(station),
                 bestPasses = listOf(station),
                 events = emptyList(),
+                comets = emptyList(),
                 noctilucent = null,
             ),
         )
@@ -859,7 +869,9 @@ class ScreensTest {
                 darkUntil = now + 8 * 3_600_000L,
                 passes = emptyList(),
                 bestPasses = emptyList(),
-                events = emptyList(),                noctilucent = null,
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
             ),
         )
 
@@ -877,11 +889,120 @@ class ScreensTest {
                 darkUntil = null,
                 passes = emptyList(),
                 bestPasses = emptyList(),
-                events = emptyList(),                noctilucent = null,
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
             ),
         )
 
         compose.onNodeWithText("It does not get properly dark here at this time of year.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    // --- comets ---
+
+    /**
+     * The four comet controls report what was picked, and picking one does not
+     * quietly move another. The testTag carries the label, which is what makes
+     * that provable - picking by tree order is how an earlier version of this
+     * suite ended up clicking the watch duration instead of the aurora
+     * interval when a card moved to another tab.
+     */
+    @Test
+    fun reportsTheCometBrightnessTheUserPicked() {
+        show()
+
+        compose.onNodeWithTag(choiceTag("Faintest worth telling me", "magnitude 8"))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(8, cometMagnitude)
+        assertEquals(null, cometMoon)
+        assertEquals(null, eventLead)
+    }
+
+    /**
+     * The moonlight control, which matters more for a comet than for anything
+     * else the app covers: a comet is a smudge rather than a point, so a bright
+     * moon washes it out where it would barely dim a planet.
+     */
+    @Test
+    fun reportsTheCometMoonToleranceTheUserPicked() {
+        show()
+
+        compose.onNodeWithTag(choiceTag("Moonlight I will put up with", "25 per cent"))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(25, cometMoon)
+        assertEquals(null, cometMagnitude)
+    }
+
+    /** A comet up tonight is listed with where to look. */
+    @Test
+    fun listsACometThatIsUpTonight() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = listOf(
+                    SkyEvent(
+                        kind = EventKind.Comet,
+                        at = now + 3_600_000L,
+                        from = now,
+                        until = now + 8 * 3_600_000L,
+                        title = "Comet 220P/McNaught",
+                        detail = "Magnitude 9.5, from 39 observers within the last few days. " +
+                            "Highest at 46 degrees in the south.",
+                        visibility = Visibility.Good,
+                    ),
+                ),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Comet 220P/McNaught").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("46 degrees in the south", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * The reason is shown where there is one. "Washed out by the moon" is the
+     * difference between a wasted walk and a good one, so it belongs on the
+     * card rather than only in the verdict.
+     */
+    @Test
+    fun saysWhyACometIsOnlyMarginal() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = listOf(
+                    SkyEvent(
+                        kind = EventKind.Comet,
+                        at = now + 3_600_000L,
+                        from = now,
+                        until = now + 8 * 3_600_000L,
+                        title = "Comet 10P/Tempel",
+                        detail = "Magnitude 8.3, predicted rather than measured.",
+                        visibility = Visibility.Marginal(
+                            "It only reaches 4 degrees, low in the south.",
+                        ),
+                    ),
+                ),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("It only reaches 4 degrees", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
     }
