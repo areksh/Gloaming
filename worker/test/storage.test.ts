@@ -7,11 +7,13 @@ describe("CACHE_CONTROL", () => {
   // revalidates against R2 - the whole read-path cost model depends on these
   // exact values, so they are pinned rather than left to drift.
   it("matches the documented caching contract", () => {
+    // comets.json is deliberately absent: the fetcher publishes it and
+    // carries its own cache-control constant (ADR-0010), so an entry here
+    // would be dead config waiting to disagree with the real one.
     expect(CACHE_CONTROL).toEqual({
       "index.json": "public, max-age=3600",
       "status.json": "public, max-age=60, stale-while-revalidate=120",
       "oval.bin": "public, max-age=120, stale-while-revalidate=180",
-      "comets.json": "public, max-age=21600",
       "health.json": "public, max-age=60",
     });
   });
