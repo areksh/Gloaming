@@ -173,7 +173,12 @@ object Twilight {
         var cursor = aroundMillis - DAY_MILLIS
         val windows = mutableListOf<LongRange>()
 
-        repeat(CANDIDATE_NIGHTS) {
+        // A plain loop rather than `repeat`, because the last branch has to
+        // stop the search and `return@repeat` inside `repeat` is a continue:
+        // it left the cursor where it was and asked the same question twice
+        // more, at up to a day and a half of ephemeris search each time, which
+        // is exactly the polar summer this branch exists for.
+        for (candidate in 0 until CANDIDATE_NIGHTS) {
             when (val found = darkness(latitude, longitude, cursor, belowDegrees)) {
                 is Darkness.Now -> {
                     val ends = found.endsAt ?: (cursor + DAY_MILLIS)
@@ -189,7 +194,7 @@ object Twilight {
 
                 // No darkness within the horizon searched, and none of the
                 // later candidates can find any either.
-                Darkness.None -> return@repeat
+                Darkness.None -> break
             }
         }
 
