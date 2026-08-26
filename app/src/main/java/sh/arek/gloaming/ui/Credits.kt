@@ -95,6 +95,41 @@ fun credits(fromAuroraWatch: Boolean): List<Credit> = buildList {
 
     add(
         Credit(
+            name = "Minor Planet Center",
+            body = "The orbital elements every comet in this app is computed from. The " +
+                "IAU's clearing house for small bodies, operating at the Smithsonian " +
+                "Astrophysical Observatory and funded by NASA.",
+            links = listOf(
+                CreditLink("Minor Planet Center", "https://www.minorplanetcenter.net/"),
+            ),
+        ),
+    )
+
+    add(
+        Credit(
+            name = "COBS Comet Observation Database",
+            // Their own suggested wording, and the licence named in full. The
+            // brightness this app quotes for a comet is not a calculation - it
+            // is thousands of people going outside and looking, which is the
+            // one thing here no amount of arithmetic could replace.
+            body = "Credit: COBS Comet Observation Database - CC BY-NC-SA 4.0. Run by " +
+                "Crni Vrh Observatory in Slovenia since 2010. Every measured comet " +
+                "brightness in this app comes from volunteer observers worldwide who " +
+                "reported what they saw; where nobody has looked recently, the app says " +
+                "it is quoting a prediction instead.",
+            links = listOf(
+                CreditLink("COBS", "https://cobs.si/"),
+                CreditLink("Data usage guidelines", "https://cobs.si/help/data_policy/"),
+                CreditLink(
+                    "CC BY-NC-SA 4.0",
+                    "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+                ),
+            ),
+        ),
+    )
+
+    add(
+        Credit(
             name = "astronomy-engine",
             body = "Don Cross's astronomy library, which computes the darkness windows " +
                 "and the moon phase on this phone. Vendored into the app under the MIT " +

@@ -247,19 +247,28 @@ export interface CometRunResult {
  *
  * The timer that drives this fires every two hours, because that is what
  * CelesTrak's policy requires of the satellite elements. Comets need nothing
- * like it - elements are republished weekly and magnitudes daily - so without
- * this the same document would be rebuilt twelve times a day, and the MPC and
- * COBS would each be asked for a megabyte twelve times for an answer that
- * changed once.
+ * like it, so without this the same document would be rebuilt twelve times a
+ * day and both hosts asked for about a megabyte each time.
  *
- * Twenty hours rather than twenty-four so the daily run cannot drift later and
- * later, skipping a day whenever the timer lands a few minutes shy.
+ * **Eleven hours, which makes it twice a day**, and the number is set by the
+ * consumer rather than by the upstreams. COBS states no rate limit at all, so
+ * the question is not what they permit but what could reach anybody: the app's
+ * calendar poller sleeps up to twelve hours between wakes and this object is
+ * cached at the edge for six, so data fetched more often than twice a day
+ * cannot reach a phone any sooner. Eleven rather than twelve so the cycle
+ * cannot drift later and later and drop to once a day whenever the timer lands
+ * a few minutes shy.
+ *
+ * Measured before choosing it: across every comet COBS carries, reports arrive
+ * at about 1.65 an hour, and for the two comets currently bright enough to
+ * matter, removing a whole report moves the fortnight median by 0.000
+ * magnitudes. Hourly polling would transfer a megabyte to change nothing.
  *
  * The age comes from the published document itself rather than from local
  * state, which keeps the machine disposable - the same reasoning that puts the
  * breaker and the health record in R2.
  */
-const COMETS_MIN_AGE_MILLIS = 20 * 60 * 60 * 1000;
+const COMETS_MIN_AGE_MILLIS = 11 * 60 * 60 * 1000;
 
 /**
  * A plain fetch with a name attached.

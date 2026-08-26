@@ -137,4 +137,48 @@ class CreditsTest {
 
         assertEquals(vendored.readText().trim(), named("astronomy-engine")!!.licence!!.trim())
     }
+
+    // --- comets ---
+
+    /**
+     * CC BY-NC-SA 4.0 requires appropriate credit, a link to the licence, and
+     * an indication that changes were made. The app does change the data: it
+     * takes a median over a fortnight of reports and corrects the published
+     * absolute magnitude by it, so what is shown is derived rather than
+     * quoted, and the credit has to survive somebody rewording this screen.
+     */
+    @Test
+    fun `credits COBS with the licence and a link to it`() {
+        val credit = named("COBS Comet Observation Database")!!
+
+        assertTrue(credit.body, credit.body.contains("CC BY-NC-SA 4.0"))
+        assertTrue(
+            credit.links.toString(),
+            credit.links.any { it.url == "https://creativecommons.org/licenses/by-nc-sa/4.0/" },
+        )
+        assertTrue(
+            credit.links.toString(),
+            credit.links.any { it.url == "https://cobs.si/" },
+        )
+    }
+
+    /** The orbits are the MPC's, and are a separate debt from the brightnesses. */
+    @Test
+    fun `credits the Minor Planet Center for the orbits`() {
+        val credit = named("Minor Planet Center")!!
+
+        assertTrue(
+            credit.links.toString(),
+            credit.links.any { it.url.contains("minorplanetcenter.net") },
+        )
+    }
+
+    /** Neither credit depends on which aurora reading happens to be on screen. */
+    @Test
+    fun `credits both comet sources whatever else is showing`() {
+        for (fromAuroraWatch in listOf(true, false)) {
+            assertNotNull(named("COBS Comet Observation Database", fromAuroraWatch))
+            assertNotNull(named("Minor Planet Center", fromAuroraWatch))
+        }
+    }
 }

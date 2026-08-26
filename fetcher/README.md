@@ -365,9 +365,15 @@ degrades pass prediction rather than breaking it.
 Minor Planet Center and COBS. It needs no configuration: both URLs have
 defaults, they use the same `USER_AGENT`, and there is no breaker to clear (see
 ADR-0010). It is deliberately **not** on the two-hourly cadence - a run leaves
-the document alone unless it is at least twenty hours old, so both hosts are
-asked once a day. Eleven runs in twelve therefore log `comets.json is still
+the document alone unless it is at least eleven hours old, so both hosts are
+asked twice a day. Ten runs in twelve therefore log `comets.json is still
 current` and do nothing, which is the expected output rather than a fault.
+
+Twice a day is set by what can reach a phone, not by what the hosts allow: COBS
+states no rate limit, but the app's calendar poller sleeps up to twelve hours
+and the object is cached at the edge for six, so fetching more often cannot
+arrive any sooner. COBS data is CC BY-NC-SA 4.0 and `comets.json` carries the
+required credit in an `attribution` block.
 
 A comet run that fails does not fail the satellites, or the reverse: the two
 share only the bucket, and each records its own health under its own source

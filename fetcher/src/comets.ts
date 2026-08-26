@@ -24,6 +24,32 @@
 export const COMETS_SCHEMA = 1;
 
 /**
+ * The credit COBS's data usage guidelines ask for, carried in the document
+ * itself.
+ *
+ * Their licence is CC BY-NC-SA 4.0, which asks three things of anybody who
+ * redistributes: credit with a link to the licence, no commercial use, and that
+ * derivatives go out under the same terms. This file *is* a derivative - the
+ * magnitudes in it are medians over a fortnight of reports rather than
+ * observations as filed - and it is served from a public CDN, so the obligation
+ * attaches to the object and not only to the app that reads it. Somebody who
+ * finds this URL on its own should be able to see whose work it is.
+ *
+ * The app credits them on its own screen as well; this is the copy that travels
+ * with the data.
+ */
+export const COMETS_ATTRIBUTION = {
+  observations: "Credit: COBS Comet Observation Database - CC BY-NC-SA 4.0",
+  observations_licence: "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+  observations_source: "https://cobs.si/",
+  elements: "Orbital elements: IAU Minor Planet Center",
+  elements_source: "https://www.minorplanetcenter.net/",
+  changes:
+    "Observed magnitudes are the median of reports from at least two independent " +
+    "observers within a 14-day window, not observations as filed.",
+} as const;
+
+/**
  * How faint a comet may be and still be published.
  *
  * Deliberately far below anything the app offers as a setting - the faintest
@@ -142,6 +168,8 @@ export interface CometsDocument {
   schema: number;
   /** Unix seconds, matching `sats.json`. */
   updated: number;
+  /** Who the data belongs to and on what terms - see [COMETS_ATTRIBUTION]. */
+  attribution: typeof COMETS_ATTRIBUTION;
   comets: PublishedComet[];
 }
 
@@ -515,6 +543,7 @@ export function buildComets(
   return {
     schema: COMETS_SCHEMA,
     updated: Math.floor(nowMillis / 1000),
+    attribution: COMETS_ATTRIBUTION,
     comets: published,
   };
 }

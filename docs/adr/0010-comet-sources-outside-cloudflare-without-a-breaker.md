@@ -50,15 +50,23 @@ They get **no circuit breaker**. What they get instead is what any polite client
 owes: a named User-Agent, redirects not followed, one request a day, and a
 failure recorded and alerted on rather than retried.
 
-"One request a day" is enforced rather than assumed, and that took a second
-look. The fetcher runs on a two-hourly timer because CelesTrak's policy demands
-that cadence of the satellite elements, and comets were simply added to the same
-run - which would have asked both hosts for about a megabyte twelve times a day
-for an answer that changes once. The comet half now skips unless the published
-`comets.json` is at least twenty hours old, reading that age from the object
-itself so the machine stays disposable. Twenty rather than twenty-four so the
-daily run cannot drift later and later and skip a day whenever the timer lands
-a few minutes shy.
+The cadence is enforced rather than assumed, and that took a second look. The
+fetcher runs on a two-hourly timer because CelesTrak's policy demands that
+cadence of the satellite elements, and comets were simply added to the same run
+- which would have asked both hosts for about a megabyte twelve times a day for
+an answer that changes once. The comet half now skips unless the published
+`comets.json` is at least eleven hours old, reading that age from the object
+itself so the machine stays disposable.
+
+**Eleven hours makes it twice a day, and that number comes from the consumer
+rather than from the upstreams.** COBS states no rate limit anywhere, so the
+question was never what they permit. It is what could reach anybody: the app's
+calendar poller sleeps up to twelve hours between wakes and the object is cached
+at the edge for six, so data fetched more often than twice a day cannot arrive
+at a phone any sooner. Measured before choosing it - across every comet COBS
+carries, reports arrive at about 1.65 an hour, and for the two comets currently
+bright enough to matter, removing an entire report moves the fortnight median by
+0.000 magnitudes. Polling hourly would transfer a megabyte to change nothing.
 
 ## Consequences
 

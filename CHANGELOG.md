@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that only announces arrivals teaches you its comets never amount to anything.
 - A separate notification channel for comets, so you can silence them alone or
   keep only them.
+- COBS and the Minor Planet Center are credited on the Credits screen, with a
+  link to the licence the comet brightnesses are published under. Every measured
+  comet brightness in the app comes from volunteer observers who went outside
+  and looked, which is the one thing here no amount of arithmetic could replace.
 - Your position can now be detected by the phone as well as typed in, with a
   switch between the two you can change at any time. It asks for coarse
   location only, only while the app is open, and never in the background: it

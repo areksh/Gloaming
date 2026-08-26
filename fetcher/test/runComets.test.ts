@@ -270,9 +270,10 @@ describe("runComets", () => {
   /**
    * The fetcher shares a two-hourly timer with the satellite elements, because
    * CelesTrak's policy demands that cadence. Comets need nothing like it -
-   * elements are republished weekly and magnitudes daily - so without a guard
-   * the same document is rebuilt twelve times a day and both hosts are asked
-   * for a megabyte twelve times for an answer that changed once.
+   * elements are republished weekly and magnitudes arrive at about 1.65 an hour
+   * across every comet in the database - so without a guard the same document
+   * is rebuilt twelve times a day and both hosts asked for a megabyte each
+   * time, for an answer that has not moved.
    */
   it("leaves a recent document alone rather than asking again", async () => {
     const store = new MemoryStore();
@@ -288,13 +289,13 @@ describe("runComets", () => {
     expect(requests).toEqual([]);
   });
 
-  it("refreshes once the document is a day old", async () => {
+  it("refreshes once the document is half a day old", async () => {
     const store = new MemoryStore();
     const { alerting } = network({});
     await runComets(store, alerting, config, now);
 
-    const nextDay = () => new Date(now().getTime() + 21 * 60 * 60 * 1000);
-    const result = await runComets(store, alerting, config, nextDay);
+    const halfADayLater = () => new Date(now().getTime() + 12 * 60 * 60 * 1000);
+    const result = await runComets(store, alerting, config, halfADayLater);
 
     expect(result.published).toBe(true);
     expect(result.skipped).toBeUndefined();

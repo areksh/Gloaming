@@ -43,7 +43,7 @@ inbound push of any kind (Sec. 9.3).
 
 ## 1. The load-bearing constraint: the app stays non-commercial
 
-This is a technical constraint rather than a business decision. Two of the best available
+This is a technical constraint rather than a business decision. Three of the best available
 sources forbid commercial use, and that propagates through the whole design.
 
 - **AuroraWatch UK** - "Use of the API is restricted to non-commercial purposes. Use in
@@ -52,14 +52,20 @@ sources forbid commercial use, and that propagates through the whole design.
   websites or apps that have subscriptions or advertisements" as commercial, and "private
   or non-profit websites or apps that do not have subscriptions or advertising" as
   non-commercial.
+- **COBS** - CC BY-NC-SA 4.0, added 2026-08-26 with Phase 5. Their published licence rather
+  than a permission granted to this project. The NonCommercial term is the same bar as the
+  other two; what it adds is **ShareAlike**, which binds the data this project republishes
+  rather than the code that reads it. See Sec. 15.
 
 A Ko-fi or Codeberg donation link falls between the two definitions. Creative Commons'
 NC test is "primarily intended for or directed towards commercial advantage or private
 monetary compensation"; voluntary donations are a grey case CC has never definitively
 resolved.
 
-**All three permissions were sought and granted in July 2026.** Nothing on the critical
-path is now waiting on a third party. The conditions attached are recorded below and are
+**All three permissions were sought and granted in July 2026.** A fourth question - COBS,
+for Phase 5 - was asked in August 2026 and has not been answered, but did not need to be:
+their published guidelines place the data under a public CC licence, which is a standing
+grant rather than a favour. Nothing on the critical path is waiting on a third party. The conditions attached are recorded below and are
 binding; the correspondence should be kept, since the people who gave these answers will
 not necessarily be the ones fielding a question about them in three years.
 
@@ -540,7 +546,7 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 | **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** |
 | **CelesTrak** | `celestrak.org/NORAD/elements/gp.php?GROUP=...&FORMAT=CSV` - groups `stations`, `visual` | None | **2 h, once per update** | Non-profit. 403 on repeat. Firewall on abuse. **OMM CSV, not TLE.** |
 | **MPC** | `data.minorplanetcenter.net/iau/MPCORB/CometEls.txt` - comet orbital elements, fixed-width | None | Daily | Public. Includes H (absolute magnitude) and slope. **The `data.` host, not `www.`** - see below. |
-| **COBS** | `cobs.si/api/obs_list.api?format=json` - visual and CCD comet magnitude *observations* | None for reads | Daily | **Copyright Observatory Crni Vrh, no open licence stated. Permission requested 2026-08-25, not yet answered** - see Sec. 15. Read at one request a day with a named User-Agent. |
+| **COBS** | `cobs.si/api/obs_list.api?format=json` - visual and CCD comet magnitude *observations* | None for reads | Twice daily | **CC BY-NC-SA 4.0.** Attribution with a link to the licence, non-commercial only, and derivatives under the same terms. No rate limit stated. Sec. 1. |
 | **JPL SBDB / Horizons** | Cross-check elements | None | As needed | Public. |
 | **Open-Meteo** | `api.open-meteo.com/v1/forecast` - `cloud_cover`, `cloud_cover_low/mid/high` | None | 1 h max | Non-commercial. **CC BY 4.0 - attribution link next to displayed data.** |
 | **IMO** | Meteor shower calendar | - | Annually | No API exists. Hand-built table (Sec. 8). |
@@ -1232,7 +1238,7 @@ advance one, because a forecast two days out says nothing useful about the sky.
 | `status.json` | ~1 KB | 3 min | AuroraWatch level (UK) + Kp + solar wind + `global_activity` + `oval_etag`. Latency-critical. |
 | `oval.bin` | ~5-10 KB gz | 5 min | **Packed OVATION grid**: 1 byte/cell, row-major, 360x181. Global aurora probability. Fetched conditionally (Sec. 4). |
 | `sats.json` | ~50 KB | 2 h | OMM elements: `stations` + `visual`, plus hardcoded standard magnitudes and any Starlink trains. Measured 51.6 KB for 176 satellites on 2026-08-24; the 20 KB here was optimistic. |
-| `comets.json` | ~6 KB | daily | MPC elements + H/slope, with the median magnitude COBS observers have reported. Not curated - see below. |
+| `comets.json` | ~6 KB | twice daily | MPC elements + H/slope, with the median magnitude COBS observers have reported, and the attribution CC BY-NC-SA requires. Not curated - see below. |
 | `showers.json` | - | never | **Shipped in the APK, no remote override.** Not a hosted file at all - see below. |
 
 ~40 KB total. The backend is a cron job and an object store.
@@ -1250,6 +1256,12 @@ change.
  "perihelion_jd_tt": 2461205.6174, "magnitude_h": 15.0, "slope": 4.0,
  "observed": {"magnitude": 9.5, "atMillis": 1787667216000, "reports": 124, "observers": 39}}
 ```
+
+The document also carries an `attribution` block naming COBS, the licence and the fact that
+the magnitudes are medians rather than observations as filed. That is a condition of CC
+BY-NC-SA 4.0 and it belongs on the object rather than only in the app, because the object is
+served from a public CDN and somebody who finds the URL alone should be able to see whose
+work it is.
 
 `perihelion_jd_tt` is a Julian date in **Terrestrial Time**, not a unix timestamp. The MPC
 states the perihelion passage in TT, the two scales differ by over a minute, and a comet
@@ -1705,16 +1717,37 @@ technical or product decision the project can settle on its own.
   What to ask for: a daily read of magnitude observations, an attribution line beside
   anything derived from it, and confirmation that non-commercial use is acceptable.
 
-  **Asked 2026-08-25; not yet answered.** Phase 5 was built on the explicit instruction to
-  proceed as though permission were granted, on the grounds that the app is not public and
-  a refusal is therefore adjustable rather than expensive. What a refusal would cost, so
-  the decision is a known one: the fetcher drops one request a day and publishes elements
-  alone, every comet falls back to the H/slope prediction, and the app says so - it already
-  says so for any comet nobody has measured recently, so the wording exists and the code
-  path is exercised. What would be lost is accuracy of the kind that matters: the law had
-  220P/McNaught six magnitudes too faint and 161P/Hartley-IRAS eight too bright on the same
-  day. Nothing is cached beyond the reduced median, and no observation is republished, so
-  withdrawal is a configuration change rather than a migration.
+  **Resolved 2026-08-26 - by finding the answer, not by receiving one.** COBS have not
+  replied and may never; the question was settled instead by their published data usage
+  guidelines at `cobs.si/help/data_policy/`, which place the whole database under **CC
+  BY-NC-SA 4.0**.
+
+  That is a better outcome than the reply would have been, and worth being precise about
+  why. A bilateral permission is a favour from whoever happens to read the email, revocable
+  and undocumented; a public licence is a standing grant to everybody, on terms that do not
+  depend on this project being remembered in three years. It also means the premise of the
+  question was wrong. The site's "All rights reserved" footer is what prompted asking, and
+  it sits on a page that also carries an explicit CC licence for the data - so the answer
+  had been public the whole time and nobody needed to grant anything.
+
+  The email was still the right thing to send, and the project's asked-first record is
+  intact. But the licence is what the project now relies on, and the correspondence is not
+  load-bearing. Three obligations come with it rather than none:
+
+  - **Attribution.** Credit with a link to the licence, and an indication that changes were
+    made. The app credits them on its own screen, and `comets.json` carries the same credit
+    in an `attribution` block so that the object standing alone on a public CDN says whose
+    work it is. Changes are declared: the magnitudes are medians over a fortnight from at
+    least two independent observers, not observations as filed.
+  - **NonCommercial.** No new constraint in practice - Sec. 1 already binds the project
+    three times over - but it is now a fourth source that would have to be dropped if that
+    ever changed.
+  - **ShareAlike.** The COBS-derived part of `comets.json` is a derivative and goes out
+    under the same licence. This is the one genuinely new obligation, and it applies to the
+    published object rather than to the app: the code stays GPL-3.0, the data does not
+    become GPL, and the two travel together without conflicting.
+
+  No rate limit is stated anywhere in the guidelines or the API documentation.
 
 - **Does anything block 6-digit objects from entering the `visual` group?** If the group is
   curated by legacy tooling it may lag reality exactly when it matters, leaving the app
