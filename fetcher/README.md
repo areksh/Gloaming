@@ -361,6 +361,18 @@ The next timer run will query again. `sats.json` keeps serving its last good
 copy throughout, and elements stay usable for days, so a tripped breaker
 degrades pass prediction rather than breaking it.
 
+**Comets.** From Phase 5 the same run also publishes `comets.json`, from the
+Minor Planet Center and COBS. It needs no configuration: both URLs have
+defaults, they use the same `USER_AGENT`, and there is no breaker to clear (see
+ADR-0010). It is deliberately **not** on the two-hourly cadence - a run leaves
+the document alone unless it is at least twenty hours old, so both hosts are
+asked once a day. Eleven runs in twelve therefore log `comets.json is still
+current` and do nothing, which is the expected output rather than a fault.
+
+A comet run that fails does not fail the satellites, or the reverse: the two
+share only the bucket, and each records its own health under its own source
+name. `health.json` gains a `comets` entry alongside `celestrak`.
+
 **Updating.** Rebuild, copy, done - there is no migration and no local state:
 
 ```sh

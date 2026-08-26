@@ -237,8 +237,29 @@ export interface CometRunResult {
   comets: number;
   /** How many of them carry a magnitude somebody actually measured. */
   measured: number;
+  /** True when the published document was recent enough to leave alone. */
+  skipped?: boolean;
   error?: string;
 }
+
+/**
+ * How recent the published document has to be for a run to leave it alone.
+ *
+ * The timer that drives this fires every two hours, because that is what
+ * CelesTrak's policy requires of the satellite elements. Comets need nothing
+ * like it - elements are republished weekly and magnitudes daily - so without
+ * this the same document would be rebuilt twelve times a day, and the MPC and
+ * COBS would each be asked for a megabyte twelve times for an answer that
+ * changed once.
+ *
+ * Twenty hours rather than twenty-four so the daily run cannot drift later and
+ * later, skipping a day whenever the timer lands a few minutes shy.
+ *
+ * The age comes from the published document itself rather than from local
+ * state, which keeps the machine disposable - the same reasoning that puts the
+ * breaker and the health record in R2.
+ */
+const COMETS_MIN_AGE_MILLIS = 20 * 60 * 60 * 1000;
 
 /**
  * A plain fetch with a name attached.
@@ -314,11 +335,34 @@ async function readObservations(
 }
 
 /**
+ * How old the published document is, or null if there is none or it cannot be
+ * read.
+ *
+ * A document that cannot be parsed is treated as absent, so a corrupt object
+ * gets replaced on the next run rather than freezing the source forever.
+ */
+async function publishedAgeMillis(store: ObjectStore, now: Date): Promise<number | null> {
+  try {
+    const stored = await store.get(COMETS_KEY);
+    if (stored === null) return null;
+    const updated = Number((JSON.parse(stored) as { updated?: unknown }).updated);
+    if (!Number.isFinite(updated)) return null;
+    return now.getTime() - updated * 1000;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * One comet run: elements, observations, published document.
  *
  * Sequential like the CelesTrak run, and for a milder version of the same
  * reason: two academic hosts should not be asked for large documents at the
  * same instant by the same client.
+ *
+ * Does nothing at all if the published document is recent enough. This shares
+ * a two-hourly timer with the satellite elements, which need that cadence and
+ * comets do not - see [COMETS_MIN_AGE_MILLIS].
  */
 export async function runComets(
   store: ObjectStore,
@@ -327,6 +371,11 @@ export async function runComets(
   now: () => Date = () => new Date(),
 ): Promise<CometRunResult> {
   try {
+    const age = await publishedAgeMillis(store, now());
+    if (age !== null && age >= 0 && age < COMETS_MIN_AGE_MILLIS) {
+      return { published: false, comets: 0, measured: 0, skipped: true };
+    }
+
     const elements = parseCometEls(
       await fetchText(alerting, config.elementsUrl, config.userAgent),
     );

@@ -266,4 +266,63 @@ describe("runComets", () => {
       cacheControl: "public, max-age=21600",
     });
   });
+
+  /**
+   * The fetcher shares a two-hourly timer with the satellite elements, because
+   * CelesTrak's policy demands that cadence. Comets need nothing like it -
+   * elements are republished weekly and magnitudes daily - so without a guard
+   * the same document is rebuilt twelve times a day and both hosts are asked
+   * for a megabyte twelve times for an answer that changed once.
+   */
+  it("leaves a recent document alone rather than asking again", async () => {
+    const store = new MemoryStore();
+    const { requests, alerting } = network({});
+    await runComets(store, alerting, config, now);
+    requests.length = 0;
+
+    const twoHoursLater = () => new Date(now().getTime() + 2 * 60 * 60 * 1000);
+    const result = await runComets(store, alerting, config, twoHoursLater);
+
+    expect(result.skipped).toBe(true);
+    expect(result.published).toBe(false);
+    expect(requests).toEqual([]);
+  });
+
+  it("refreshes once the document is a day old", async () => {
+    const store = new MemoryStore();
+    const { alerting } = network({});
+    await runComets(store, alerting, config, now);
+
+    const nextDay = () => new Date(now().getTime() + 21 * 60 * 60 * 1000);
+    const result = await runComets(store, alerting, config, nextDay);
+
+    expect(result.published).toBe(true);
+    expect(result.skipped).toBeUndefined();
+  });
+
+  /**
+   * An unreadable object is treated as absent, so a corrupt document is
+   * replaced on the next run rather than freezing the source for good.
+   */
+  it("republishes over a document it cannot read", async () => {
+    const store = new MemoryStore();
+    await store.put("v1/comets.json", "{ truncated");
+    const { alerting } = network({});
+
+    const result = await runComets(store, alerting, config, now);
+
+    expect(result.published).toBe(true);
+  });
+
+  /** A clock that has gone backwards must not wedge the source shut. */
+  it("republishes when the document appears to be from the future", async () => {
+    const store = new MemoryStore();
+    const { alerting } = network({});
+    await runComets(store, alerting, config, now);
+
+    const earlier = () => new Date(now().getTime() - 48 * 60 * 60 * 1000);
+    const result = await runComets(store, alerting, config, earlier);
+
+    expect(result.published).toBe(true);
+  });
 });

@@ -118,11 +118,16 @@ async function main(): Promise<number> {
       `published comets.json with ${comet.comets} comet(s), ` +
         `${comet.measured} carrying a measured magnitude`,
     );
+  } else if (comet.skipped) {
+    // Not a failure and not worth stderr: this happens eleven times out of
+    // twelve, because comets share the satellites' two-hourly timer and need
+    // nothing like that cadence.
+    console.log("comets.json is still current; not asking the MPC or COBS again");
   } else {
     console.error(`did not publish comets.json: ${comet.error}`);
   }
 
-  return result.published && comet.published ? 0 : 1;
+  return result.published && (comet.published || comet.skipped) ? 0 : 1;
 }
 
 main()

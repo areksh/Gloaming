@@ -50,6 +50,16 @@ They get **no circuit breaker**. What they get instead is what any polite client
 owes: a named User-Agent, redirects not followed, one request a day, and a
 failure recorded and alerted on rather than retried.
 
+"One request a day" is enforced rather than assumed, and that took a second
+look. The fetcher runs on a two-hourly timer because CelesTrak's policy demands
+that cadence of the satellite elements, and comets were simply added to the same
+run - which would have asked both hosts for about a megabyte twelve times a day
+for an answer that changes once. The comet half now skips unless the published
+`comets.json` is at least twenty hours old, reading that age from the object
+itself so the machine stays disposable. Twenty rather than twenty-four so the
+daily run cannot drift later and later and skip a day whenever the timer lands
+a few minutes shy.
+
 ## Consequences
 
 A transient 500 from either host costs one day's refresh and nothing else. Under
