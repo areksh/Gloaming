@@ -185,6 +185,7 @@ object Graph {
 
         return EventPoller(
             calendar = EventPoller.REAL,
+            comets = CometRepository(http, FileCometCache(cacheDirectory(application))),
             manifests = ManifestRepository(
                 http = http,
                 store = FileManifestStore(cacheDirectory(application)),

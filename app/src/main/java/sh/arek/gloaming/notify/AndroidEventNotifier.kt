@@ -60,6 +60,37 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
     }
 
     /**
+     * One quiet notice that a comet is over.
+     *
+     * Deliberately low priority: this is the app closing a loop it opened
+     * rather than asking anybody to go outside, and it should not buzz a phone
+     * at four in the morning to report that nothing is happening. It goes on
+     * the comets channel all the same, so somebody who wants none of this can
+     * silence the lot in one place.
+     */
+    override fun notifyCometFaded(name: String) {
+        ensureChannel(EventChannel.Comets)
+
+        val text = "It has dropped below the brightness you asked about, so this is the " +
+            "last you will hear of it unless it brightens again."
+
+        val notification = NotificationCompat.Builder(context, EventChannel.Comets.id)
+            .setSmallIcon(R.drawable.ic_notification_aurora)
+            .setContentTitle("$name has faded")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .build()
+
+        runCatching {
+            NotificationManagerCompat.from(context).notify(name.hashCode(), notification)
+        }
+    }
+
+    /**
      * The title carries the timing, because that is what differs between the
      * two notices about the same event - the body is identical.
      */

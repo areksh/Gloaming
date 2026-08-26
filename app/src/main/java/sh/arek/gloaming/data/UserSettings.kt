@@ -470,12 +470,6 @@ data class UserSettings(
         val ECLIPSE_FOLLOW_MAX_CHOICES = listOf(60, 120, 180, 240)
 
         /**
-         * Magnitude 6, which is roughly what an unaided eye reaches from a
-         * genuinely dark site - so the default is "tell me about anything I
-         * could see without equipment", and the fainter settings are for people
-         * willing to fetch binoculars.
-         */
-        /**
          * The moon's quarters, folded away to begin with.
          *
          * There are as many of them as of every other kind put together, and
@@ -486,6 +480,12 @@ data class UserSettings(
          */
         val DEFAULT_HIDDEN_EVENT_KINDS = setOf("MoonQuarter")
 
+        /**
+         * Magnitude 6, which is roughly what an unaided eye reaches from a
+         * genuinely dark site - so the default is "tell me about anything I
+         * could see without equipment", and the fainter settings are for people
+         * willing to fetch binoculars.
+         */
         const val DEFAULT_COMET_MAGNITUDE = 6
 
         /** What the brightness control offers. Lower is stricter. */
@@ -605,6 +605,23 @@ data class AlertState(
 
     /** When the calendar poller asked to be woken next. */
     val nextEventCheckAt: Long? = null,
+
+    /**
+     * The comets the app has spoken about, by name, so it can say when one is
+     * over.
+     *
+     * Kept apart from [announcedEvents] because a comet ends differently from
+     * everything else. An eclipse finishes at a known moment and needs no
+     * closing remark; a comet simply stops being worth going out for, on no
+     * particular night. Having told somebody to look, the app owes them the
+     * other half of the story - and comets disappointing is the normal case
+     * rather than the exception.
+     *
+     * The name rather than the MPC designation, because the name is what the
+     * closing notice has to print and a comet that has dropped out of the
+     * published document leaves nothing else to print it from.
+     */
+    val announcedComets: Set<String> = emptySet(),
     /**
      * The pass the live tracker has been asked to follow, if any.
      *

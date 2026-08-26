@@ -177,8 +177,19 @@ object EventPlanner {
      *
      * Kind and time rather than the title, because a title is prose and prose
      * gets reworded - a star should survive that.
+     *
+     * **A comet is the exception, and has to be.** Every other event here has a
+     * moment fixed by orbital mechanics: an eclipse is at its instant whenever
+     * you ask. A comet has no such moment, so the calendar invents one - the
+     * best night from now - which moves every time the calendar is recomputed.
+     * Keyed on time, a star would be lost within a day of being set and a comet
+     * would be announced afresh on every wake. Its name is the stable thing, so
+     * that is what it is keyed on.
      */
-    fun starKey(event: SkyEvent): String = "${event.kind}|${event.at}"
+    fun starKey(event: SkyEvent): String = when (event.kind) {
+        EventKind.Comet -> "${event.kind}|${event.title}"
+        else -> "${event.kind}|${event.at}"
+    }
 
     /** Identifies one notice about one event, so neither phase repeats. */
     fun key(event: SkyEvent, phase: Phase): String = "${starKey(event)}|$phase"
@@ -319,7 +330,16 @@ object EventPlanner {
      * preferences file.
      */
     fun prune(keys: Set<String>, now: Long): Set<String> = keys.filterTo(mutableSetOf()) { key ->
+        // A comet's key carries its name where everything else carries a time,
+        // so there is no age to compare and dropping it would be wrong twice
+        // over: the star would vanish, and the comet would be announced again
+        // on the very next wake. Comets are kept until they fade, which the
+        // poller handles separately through the announced-comets record.
+        if (key.startsWith(COMET_PREFIX)) return@filterTo true
+
         val at = key.split("|").getOrNull(1)?.toLongOrNull() ?: return@filterTo false
         now - at <= REMEMBER_FOR_MILLIS
     }
+
+    private val COMET_PREFIX = "${EventKind.Comet}|"
 }

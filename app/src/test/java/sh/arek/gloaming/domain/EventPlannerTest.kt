@@ -462,4 +462,67 @@ class EventPlannerTest {
             EventPlanner.pruneStars(setOf(old), at("2027-08-02T12:00:00Z")),
         )
     }
+
+    // --- comets, whose moment moves ---
+
+    private fun cometEvent(at: Long, title: String = "Comet C/1995 O1 (Hale-Bopp)") = SkyEvent(
+        kind = EventKind.Comet,
+        at = at,
+        from = at - 30L * 24 * 60 * 60 * 1000,
+        until = at + 30L * 24 * 60 * 60 * 1000,
+        title = title,
+        detail = "Magnitude 1.0, from 20 observers within the last few days.",
+        visibility = Visibility.Good,
+    )
+
+    /**
+     * Every other event has a moment fixed by orbital mechanics; a comet's is
+     * invented by the calendar - the best night from now - and so moves every
+     * time the calendar is recomputed. Keyed on time, a star would be lost
+     * within a day of being set.
+     */
+    @Test
+    fun `keys a comet by its name so a star survives recomputation`() {
+        val tonight = cometEvent(1_700_000_000_000)
+        val tomorrow = cometEvent(1_700_086_400_000)
+
+        assertEquals(EventPlanner.starKey(tonight), EventPlanner.starKey(tomorrow))
+    }
+
+    @Test
+    fun `still tells two different comets apart`() {
+        val one = cometEvent(1_700_000_000_000, "Comet C/1995 O1 (Hale-Bopp)")
+        val two = cometEvent(1_700_000_000_000, "Comet 220P/McNaught")
+
+        assertTrue(EventPlanner.starKey(one) != EventPlanner.starKey(two))
+    }
+
+    /**
+     * The other half of the same problem, and the worse one. A comet's key
+     * carries a name where every other key carries a time, so the age check
+     * finds nothing to parse - and dropping it would mean the comet was
+     * announced afresh on every single wake.
+     */
+    @Test
+    fun `keeps a comet in the announced record rather than forgetting it every wake`() {
+        val key = EventPlanner.key(cometEvent(1_700_000_000_000), EventPlanner.Phase.Tonight)
+
+        val kept = EventPlanner.prune(setOf(key), 1_700_000_000_000 + 400L * 24 * 60 * 60 * 1000)
+
+        assertEquals(setOf(key), kept)
+    }
+
+    /** A starred comet survives the same pruning, for the same reason. */
+    @Test
+    fun `keeps a starred comet`() {
+        val key = EventPlanner.starKey(cometEvent(1_700_000_000_000))
+
+        assertEquals(setOf(key), EventPlanner.pruneStars(setOf(key), 1_900_000_000_000))
+    }
+
+    /** And a comet can still be starred, which is the point of all of it. */
+    @Test
+    fun `lets a comet be starred`() {
+        assertTrue(EventPlanner.canBeStarred(cometEvent(1_700_000_000_000)))
+    }
 }

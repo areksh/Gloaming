@@ -3,7 +3,9 @@ package sh.arek.gloaming.domain
 import sh.arek.gloaming.astronomy.Noctilucent
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.data.AlertStateStore
+import sh.arek.gloaming.data.CometRepository
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.SettingsStore
@@ -13,6 +15,17 @@ import sh.arek.gloaming.data.WeatherSource
 /** Posts a calendar notification. Local, like everything else the app announces. */
 interface EventNotifier {
     fun notifyEvent(event: SkyEvent, phase: EventPlanner.Phase)
+
+    /**
+     * The closing half of a story the app started.
+     *
+     * Having told somebody a comet was worth going out for, it owes them the
+     * news that it no longer is - once, and then silence. Comets disappointing
+     * is the normal case rather than the exception, and an app that only ever
+     * announces arrivals quietly teaches people that its comets never amount to
+     * anything.
+     */
+    fun notifyCometFaded(name: String)
 }
 
 /**
@@ -49,6 +62,15 @@ data class EventPollResult(
  */
 class EventPoller(
     private val calendar: CalendarSource,
+    /**
+     * The published comets, refreshed on the calendar's own wake.
+     *
+     * Here rather than on a wake of its own because comets are calendar events
+     * and the document changes far more slowly than this poller runs: elements
+     * are republished weekly, magnitudes daily, and the dormant interval caps
+     * this at twelve hours. Most refreshes will be a 304.
+     */
+    private val comets: CometRepository,
     private val manifests: ManifestRepository,
     private val weather: WeatherSource,
     private val settings: SettingsStore,
@@ -84,12 +106,21 @@ class EventPoller(
             return EventPollResult(EventPlanner.Decision.Resting, due)
         }
 
+        // Comets come from a published document rather than from arithmetic,
+        // so they are worked out separately and merged in. Kept against the
+        // comet that produced each, because saying one has faded means knowing
+        // which comet an announcement was about.
+        val published = runCatching { comets.refresh(manifests.refresh()) }
+            .getOrElse { comets.cached() }
+        val byComet = Comets.byComet(published, latitude, longitude, user, at)
+
         // Tonight's noctilucent prompt is merged in here rather than coming
         // from the calendar, because it is a condition rather than a dated
         // occasion: it holds most clear nights for three months, and ninety
         // identical entries would bury the things worth scrolling to.
         val events = calendar.events(latitude, longitude, at) +
-            listOfNotNull(Noctilucent.event(latitude, longitude, at))
+            listOfNotNull(Noctilucent.event(latitude, longitude, at)) +
+            byComet.values
         val pending = EventPlanner.due(events, at, user, held)
 
         // The forecast is only worth a radio wake when something is about to be
@@ -119,6 +150,7 @@ class EventPoller(
             ?: held.announcedEvents
 
         val remembered = EventPlanner.prune(told, at)
+        val comets = closeOffFadedComets(held, byComet, announced)
         val wake = EventPlanner.nextWake(
             events,
             at,
@@ -129,10 +161,37 @@ class EventPoller(
         state.write(
             held.copy(
                 announcedEvents = remembered,
+                announcedComets = comets,
                 nextEventCheckAt = wake,
             ),
         )
         return EventPollResult(decision, wake)
+    }
+
+    /**
+     * Says goodbye to any comet that has stopped being worth going out for, and
+     * remembers any newly spoken about.
+     *
+     * A comet leaves the list either by fading below the threshold or by
+     * dropping out of the published document, and both mean the same thing to
+     * somebody who was told to look for it. Exactly one notice each way: the
+     * name is forgotten as the notice goes out, so a comet cannot say goodbye
+     * twice, and a comet that brightens again is announced again from scratch.
+     */
+    private fun closeOffFadedComets(
+        held: sh.arek.gloaming.data.AlertState,
+        byComet: Map<String, SkyEvent>,
+        announced: EventPlanner.Decision.Announce?,
+    ): Set<String> {
+        for (name in held.announcedComets - byComet.keys) {
+            notifier.notifyCometFaded(name)
+        }
+
+        val surviving = held.announcedComets intersect byComet.keys
+        val spokenAbout = announced
+            ?.let { decision -> byComet.entries.firstOrNull { it.value === decision.event }?.key }
+
+        return surviving + listOfNotNull(spokenAbout)
     }
 
     private suspend fun cloudCover(

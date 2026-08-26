@@ -198,8 +198,27 @@ object Comets {
         longitude: Double,
         settings: UserSettings,
         nowMillis: Long,
-    ): List<SkyEvent> {
-        val comets = document?.comets ?: return emptyList()
+    ): List<SkyEvent> =
+        byComet(document, latitude, longitude, settings, nowMillis).values.sortedBy { it.at }
+
+    /**
+     * The same entries, kept against the comet that produced each.
+     *
+     * The poller needs this rather than the plain list: to say a comet has
+     * faded it has to know which comet an announcement was about, and a
+     * [SkyEvent] deliberately carries no identity beyond its kind and its
+     * moment. Keyed on the name rather than the MPC designation because the
+     * name is what a fade notice has to print, and a comet that has dropped out
+     * of the document altogether leaves nothing else to print it from.
+     */
+    fun byComet(
+        document: CometsDocument?,
+        latitude: Double,
+        longitude: Double,
+        settings: UserSettings,
+        nowMillis: Long,
+    ): Map<String, SkyEvent> {
+        val comets = document?.comets ?: return emptyMap()
         val threshold = settings.cometMagnitudeThreshold.toDouble()
 
         return comets.mapNotNull { comet ->
@@ -221,13 +240,13 @@ object Comets {
             // peak is found by searching a night and the edges by sampling a
             // week at a time, so the two can disagree by a few hours at either
             // end - which reads as a calendar entry dated outside its own span.
-            event(
+            comet.name to event(
                 night,
                 settings,
                 from = minOf(window.from, night.best.atMillis),
                 until = maxOf(window.until, night.best.atMillis),
             )
-        }.sortedBy { it.at }
+        }.toMap()
     }
 
     /**

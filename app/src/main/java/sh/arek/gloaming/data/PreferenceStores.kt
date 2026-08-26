@@ -66,6 +66,7 @@ private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
 private const val KEY_HIDDEN_KINDS = "hidden_event_kinds"
+private const val KEY_ANNOUNCED_COMETS = "announced_comets"
 private const val KEY_COMET_MAGNITUDE = "comet_magnitude_threshold"
 private const val KEY_COMET_ALTITUDE = "minimum_comet_altitude_degrees"
 private const val KEY_COMET_STALE = "comet_observation_stale_days"
@@ -303,6 +304,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
                 .takeIf { it != UNSET },
             nextPassCheckAt = prefs.getLong(KEY_NEXT_PASS_CHECK_AT, UNSET).takeIf { it != UNSET },
             announcedEvents = prefs.getStringSet(KEY_ANNOUNCED_EVENTS, emptySet()).orEmpty(),
+            announcedComets = prefs.getStringSet(KEY_ANNOUNCED_COMETS, emptySet()).orEmpty(),
             nextEventCheckAt = prefs.getLong(KEY_NEXT_EVENT_CHECK_AT, UNSET).takeIf { it != UNSET },
             lastPassCatalogue = prefs.getInt(KEY_LAST_PASS_CATALOGUE, -1).takeIf { it >= 0 },
             followingCatalogue = prefs.getInt(KEY_FOLLOWING_CATALOGUE, -1).takeIf { it >= 0 },
@@ -335,6 +337,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             // it and hands the same instance back on read, so a later mutation
             // of ours would silently rewrite what is on disk.
             putStringSet(KEY_ANNOUNCED_EVENTS, state.announcedEvents.toSet())
+            putStringSet(KEY_ANNOUNCED_COMETS, state.announcedComets.toSet())
             state.nextEventCheckAt?.let { putLong(KEY_NEXT_EVENT_CHECK_AT, it) }
                 ?: remove(KEY_NEXT_EVENT_CHECK_AT)
             state.nextPassCheckAt?.let { putLong(KEY_NEXT_PASS_CHECK_AT, it) }

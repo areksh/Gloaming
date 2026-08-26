@@ -209,22 +209,62 @@ class PreferenceStoresTest {
         assertNull(store.read().longitude)
     }
 
+    /**
+     * Every field of the alert state, each away from its default.
+     *
+     * Held to the same bar as the settings above, and for the same reason: this
+     * is where the app remembers what it has already said, so a field that
+     * silently fails to persist means saying it all again after a reboot.
+     */
+    private fun everyAlertFieldChanged() = AlertState(
+        lastAlertAt = 1_700_000_000_000,
+        lastAlertProbability = 62,
+        armed = false,
+        lastPollAt = 1_700_000_100_000,
+        lastProbability = 41,
+        lastError = "offline",
+        lastFromAuroraWatch = true,
+        lastPassPeakAt = 1_700_000_150_000,
+        lastPassCatalogue = 25544,
+        lastIssAlertAt = 1_700_000_160_000,
+        lastBrightAlertAt = 1_700_000_170_000,
+        lastTrainAlertAt = 1_700_000_180_000,
+        nextPassCheckAt = 1_700_000_200_000,
+        announcedEvents = setOf("SolarEclipse|1700000000000|Tonight"),
+        nextEventCheckAt = 1_700_000_300_000,
+        announcedComets = setOf("C/1995 O1 (Hale-Bopp)"),
+        followingCatalogue = 25544,
+        followingPeakAt = 1_700_000_400_000,
+        followingRisesAt = 1_700_000_350_000,
+    )
+
     @Test
     fun `round-trips alert state`() {
         val store = PreferencesAlertStateStore(FakeSharedPreferences())
-        val state = AlertState(
-            lastAlertAt = 1_700_000_000_000,
-            lastAlertProbability = 62,
-            armed = false,
-            lastPollAt = 1_700_000_100_000,
-            lastProbability = 41,
-            lastError = "offline",
-            lastFromAuroraWatch = true,
-        )
+        val state = everyAlertFieldChanged()
 
         store.write(state)
 
         assertEquals(state, store.read())
+    }
+
+    /** The same guard the settings fixture has, for the same failure. */
+    @Test
+    fun `the alert state fixture leaves no field at its default`() {
+        val defaults = AlertState()
+        val changed = everyAlertFieldChanged()
+
+        val untouched = AlertState::class.java.declaredFields
+            .filterNot { it.isSynthetic || java.lang.reflect.Modifier.isStatic(it.modifiers) }
+            .onEach { it.isAccessible = true }
+            .filter { it.get(changed) == it.get(defaults) }
+            .map { it.name }
+
+        assertEquals(
+            "these are left at their default, so the round-trip test cannot see them",
+            emptyList<String>(),
+            untouched,
+        )
     }
 
     @Test
