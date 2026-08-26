@@ -76,6 +76,10 @@ fun SettingsContent(
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
     onNotifyEveryEventChange: (Boolean) -> Unit,
+    onCometMagnitudeChange: (Int) -> Unit,
+    onCometAltitudeChange: (Int) -> Unit,
+    onCometStaleChange: (Int) -> Unit,
+    onCometMoonChange: (Int) -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
     onDetectLocation: () -> Unit,
     onSave: () -> Unit,
@@ -116,6 +120,13 @@ fun SettingsContent(
         onEventLeadChange,
         onEclipseFollowMaxChange,
         onNotifyEveryEventChange,
+    )
+    CometCard(
+        state,
+        onCometMagnitudeChange,
+        onCometAltitudeChange,
+        onCometStaleChange,
+        onCometMoonChange,
     )
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
@@ -884,6 +895,85 @@ const val EVENT_ALERTS_SWITCH_TAG = "event-alerts-switch"
  * and Android's own per-channel switch already covers "keep eclipses, silence
  * conjunctions".
  */
+/**
+ * The four numbers that decide what a person hears about comets.
+ *
+ * Its own card rather than four more rows on the calendar's, because comets ask
+ * a different question. Everything else in the calendar either happens or does
+ * not - an eclipse is at a time, a planet is at an elongation - whereas a comet
+ * is a judgement about whether a faint smudge is worth going outside for, and
+ * the answer depends entirely on the person and the sky they have.
+ */
+@Composable
+private fun CometCard(
+    state: MainUiState,
+    onCometMagnitudeChange: (Int) -> Unit,
+    onCometAltitudeChange: (Int) -> Unit,
+    onCometStaleChange: (Int) -> Unit,
+    onCometMoonChange: (Int) -> Unit,
+) {
+    Card {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Comets", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Orbits come from the Minor Planet Center and brightnesses from what " +
+                    "observers have actually reported, because the formula for how bright " +
+                    "a comet should be is routinely a magnitude out in either direction.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ChoiceRow(
+                label = "Faintest worth telling me",
+                value = describeMagnitude(state.settings.cometMagnitudeThreshold),
+                choices = UserSettings.COMET_MAGNITUDE_CHOICES,
+                render = ::describeMagnitude,
+                onChange = onCometMagnitudeChange,
+            )
+            Text(
+                "Magnitude 6 is about the limit of an unaided eye from a properly dark " +
+                    "site. Setting it fainter brings in comets you would need binoculars " +
+                    "for, which in most years is the only kind there is.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ChoiceRow(
+                label = "Must get this high",
+                value = describeDegrees(state.settings.minimumCometAltitudeDegrees),
+                choices = UserSettings.COMET_ALTITUDE_CHOICES,
+                render = ::describeDegrees,
+                onChange = onCometAltitudeChange,
+            )
+            ChoiceRow(
+                label = "Moonlight I will put up with",
+                value = describePercent(state.settings.cometMoonTolerance),
+                choices = UserSettings.COMET_MOON_CHOICES,
+                render = ::describePercent,
+                onChange = onCometMoonChange,
+            )
+            Text(
+                "Moonlight matters more for a comet than for anything else here. A comet " +
+                    "is a smudge spread across a patch of sky rather than a point, so a " +
+                    "bright moon washes it out where it would barely dim a planet.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ChoiceRow(
+                label = "Trust a report for",
+                value = describeDays(state.settings.cometObservationStaleDays),
+                choices = UserSettings.COMET_STALE_CHOICES,
+                render = ::describeDays,
+                onChange = onCometStaleChange,
+            )
+            Text(
+                "After that the app goes back to the predicted brightness and says so. " +
+                    "Comets change fast enough that a month-old report of one in outburst " +
+                    "says nothing about tonight.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
 @Composable
 private fun CalendarCard(
     state: MainUiState,

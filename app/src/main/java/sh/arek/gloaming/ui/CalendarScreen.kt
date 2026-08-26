@@ -225,6 +225,7 @@ internal fun labelFor(kind: EventKind): String = when (kind) {
     EventKind.MoonQuarter -> "Moon quarters"
     EventKind.Season -> "Equinoxes and solstices"
     EventKind.Noctilucent -> "Noctilucent clouds"
+    EventKind.Comet -> "Comets"
 }
 
 /** How a star is reached from a test, and kept stable across reworded titles. */

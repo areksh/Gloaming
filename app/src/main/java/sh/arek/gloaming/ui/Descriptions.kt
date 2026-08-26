@@ -189,3 +189,12 @@ internal fun describeDuration(minutes: Int): String = when {
     minutes % 60 == 0 -> "${minutes / 60} hours"
     else -> "$minutes minutes"
 }
+
+/** A magnitude, where smaller means brighter and the scale surprises people. */
+internal fun describeMagnitude(magnitude: Int): String = "magnitude $magnitude"
+
+/** Degrees above the horizon, for the controls that set a bar. */
+internal fun describeDegrees(degrees: Int): String = "$degrees degrees"
+
+/** A share, written the way the cloud tolerance already writes one. */
+internal fun describePercent(percent: Int): String = "$percent per cent"

@@ -5,6 +5,8 @@ import java.io.File
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.FileManifestStore
+import sh.arek.gloaming.data.CometRepository
+import sh.arek.gloaming.data.FileCometCache
 import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.FileWeatherCache
@@ -121,6 +123,21 @@ object Graph {
         return SatelliteRepository(
             OkHttpFetcher(httpClient),
             FileSatelliteCache(cacheDirectory(application)),
+        )
+    }
+
+    /**
+     * The comets as last fetched.
+     *
+     * Read-only like [satellites], and for a stronger version of the same
+     * reason: a comet's elements are good for months, so the screen has no
+     * business fetching to draw a list.
+     */
+    fun comets(context: Context): CometRepository {
+        val application = context.applicationContext
+        return CometRepository(
+            OkHttpFetcher(httpClient),
+            FileCometCache(cacheDirectory(application)),
         )
     }
 

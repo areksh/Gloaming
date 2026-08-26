@@ -8,6 +8,7 @@ import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.comets.CometsDocument
 import sh.arek.gloaming.data.UserSettings
 
 /**
@@ -38,8 +39,18 @@ class TonightTest {
         visibility = visibility,
     )
 
-    private fun tonight(now: String, calendar: List<SkyEvent> = emptyList(), user: UserSettings = settings) =
-        Tonight.of(satellites = null, calendar = calendar, settings = user, nowMillis = at(now))
+    private fun tonight(
+        now: String,
+        calendar: List<SkyEvent> = emptyList(),
+        user: UserSettings = settings,
+        comets: CometsDocument? = null,
+    ) = Tonight.of(
+        satellites = null,
+        comets = comets,
+        calendar = calendar,
+        settings = user,
+        nowMillis = at(now),
+    )
 
     /** Without a location there is nothing that could be about tonight. */
     @Test
@@ -130,6 +141,7 @@ class TonightTest {
     fun `carries the noctilucent prompt in season`() {
         val list = Tonight.of(
             satellites = null,
+            comets = null,
             calendar = emptyList(),
             settings = settings,
             nowMillis = at("2027-06-21T18:00:00Z"),
@@ -153,6 +165,7 @@ class TonightTest {
     fun `has no window where there is no night`() {
         val list = Tonight.of(
             satellites = null,
+            comets = null,
             calendar = emptyList(),
             settings = UserSettings(latitude = 78.2, longitude = 15.6),
             nowMillis = at("2027-06-21T12:00:00Z"),

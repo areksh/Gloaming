@@ -1,10 +1,13 @@
 package sh.arek.gloaming.domain
 
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.Noctilucent
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.comets.Comets
+import sh.arek.gloaming.comets.CometsDocument
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassFinder
@@ -23,11 +26,20 @@ data class TonightList(
     val bestPasses: List<SatellitePass>,
     /** Calendar events whose window falls inside tonight. */
     val events: List<SkyEvent>,
+    /**
+     * Comets up tonight, worked out for tonight rather than taken from the
+     * calendar.
+     *
+     * The calendar entry for a comet is about the best night of the year, which
+     * is the wrong thing to read standing in a garden: what is wanted here is
+     * where to look now. Same comet, different question.
+     */
+    val comets: List<SkyEvent>,
     /** Tonight's noctilucent prompt, in season and at the right latitude. */
     val noctilucent: SkyEvent?,
 ) {
     val isEmpty: Boolean
-        get() = passes.isEmpty() && events.isEmpty() && noctilucent == null
+        get() = passes.isEmpty() && events.isEmpty() && comets.isEmpty() && noctilucent == null
 }
 
 /**
@@ -66,6 +78,7 @@ object Tonight {
 
     fun of(
         satellites: SatellitesDocument?,
+        comets: CometsDocument?,
         calendar: List<SkyEvent>,
         settings: UserSettings,
         nowMillis: Long,
@@ -73,7 +86,7 @@ object Tonight {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
-            return TonightList(null, null, emptyList(), emptyList(), emptyList(), null)
+            return TonightList(null, null, emptyList(), emptyList(), emptyList(), emptyList(), null)
         }
 
         val night = Twilight.nightNearest(latitude, longitude, nowMillis)
@@ -96,9 +109,17 @@ object Tonight {
             // decided to go out, and "the moon is low at maximum" is what they
             // need to plan around rather than a reason to be told nothing.
             // Only what cannot be seen from here at all is dropped.
+            // The calendar's own comet entries are dropped here rather than
+            // listed twice: they describe the best night of the year, and the
+            // list below answers the same comet for tonight.
             events = calendar.filter {
-                it.overlaps(from, until) && it.visibility !is Visibility.NotFromHere
+                it.overlaps(from, until) &&
+                    it.visibility !is Visibility.NotFromHere &&
+                    it.kind != EventKind.Comet
             },
+            comets = Comets
+                .tonight(comets, latitude, longitude, settings, nowMillis)
+                .filter { it.visibility !is Visibility.NotFromHere },
             noctilucent = Noctilucent.event(latitude, longitude, nowMillis),
         )
     }

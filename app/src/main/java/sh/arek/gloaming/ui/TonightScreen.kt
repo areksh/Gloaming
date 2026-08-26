@@ -22,6 +22,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.StormMode
 import sh.arek.gloaming.satellites.SatellitePass
@@ -275,6 +276,19 @@ private fun TonightCard(state: MainUiState) {
             for (event in list.events) {
                 Text(event.title, style = MaterialTheme.typography.titleSmall)
                 Text(event.detail, style = MaterialTheme.typography.bodySmall)
+            }
+
+            // Comets come before the passes and after the dated events, which
+            // is roughly their standing: rarer than anything crossing tonight,
+            // and less of an occasion than an eclipse. The reason is printed
+            // where there is one, because "washed out by the moon" is the
+            // difference between a wasted walk and a good one.
+            for (comet in list.comets) {
+                Text(comet.title, style = MaterialTheme.typography.titleSmall)
+                Text(comet.detail, style = MaterialTheme.typography.bodySmall)
+                (comet.visibility as? Visibility.Marginal)?.let {
+                    Text(it.reason, style = MaterialTheme.typography.bodySmall)
+                }
             }
 
             if (list.passes.isEmpty()) {

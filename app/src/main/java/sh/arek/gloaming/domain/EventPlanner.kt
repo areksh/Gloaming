@@ -99,6 +99,10 @@ object EventPlanner {
      */
     private fun wantsHeadsUp(kind: EventKind): Boolean = when (kind) {
         EventKind.SolarEclipse, EventKind.LunarEclipse, EventKind.MeteorShower -> true
+        // A comet is the strongest case of all for advance notice: it is the
+        // one thing here somebody might take a night off work or drive to a
+        // dark site for, and unlike an eclipse it is not in the newspaper.
+        EventKind.Comet -> true
         EventKind.Conjunction,
         EventKind.Elongation,
         EventKind.MoonPhase,

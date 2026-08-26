@@ -49,6 +49,14 @@ enum class EventKind {
     Season,
 
     /**
+     * A comet, which is neither dated nor nightly but something in between: it
+     * arrives, hangs about for weeks moving a little each night, brightens and
+     * fades. It appears in the calendar once, for the window worth planning
+     * around, and on the tonight list whenever it is actually up.
+     */
+    Comet,
+
+    /**
      * Not a dated occasion like the rest, but a condition that holds most clear
      * nights for three months. Kept out of the calendar for that reason and
      * produced only for tonight - see [Noctilucent].

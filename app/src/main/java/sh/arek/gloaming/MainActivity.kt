@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyCalendar
+import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.AndroidLocationSource
@@ -380,7 +381,20 @@ private fun GloamingApp() {
         calendarLoading = true
         calendar = withContext(Dispatchers.Default) {
             runCatching {
-                SkyCalendar.events(latitude, longitude, System.currentTimeMillis())
+                val now = System.currentTimeMillis()
+                // Comets come from a document rather than from the ephemeris,
+                // so they are worked out separately and merged in by date. A
+                // device that has never fetched one simply has none, which is
+                // also what most years look like.
+                val sky = SkyCalendar.events(latitude, longitude, now)
+                val comets = Comets.calendar(
+                    Graph.comets(context).cached(),
+                    latitude,
+                    longitude,
+                    settings,
+                    now,
+                )
+                (sky + comets).sortedBy { it.at }
             }.getOrElse {
                 Log.w("Gloaming", "could not work out the calendar", it)
                 emptyList()
@@ -403,6 +417,7 @@ private fun GloamingApp() {
             runCatching {
                 Tonight.of(
                     satellites = Graph.satellites(context).cached(),
+                    comets = Graph.comets(context).cached(),
                     calendar = calendar,
                     settings = settings,
                     nowMillis = System.currentTimeMillis(),
@@ -583,6 +598,30 @@ private fun GloamingApp() {
                 onNotifyEveryEventChange = {
                     settings = settings.copy(notifyAboutEveryEvent = it)
                     BootAware.saveSettings(context, settings)
+                },
+                // The four comet controls bump the calendar nonce as well as
+                // saving, because all four change which comets belong in the
+                // list and how they are described - unlike every other setting
+                // here, which only changes when the app speaks.
+                onCometMagnitudeChange = {
+                    settings = settings.copy(cometMagnitudeThreshold = it)
+                    BootAware.saveSettings(context, settings)
+                    calendarNonce++
+                },
+                onCometAltitudeChange = {
+                    settings = settings.copy(minimumCometAltitudeDegrees = it)
+                    BootAware.saveSettings(context, settings)
+                    calendarNonce++
+                },
+                onCometStaleChange = {
+                    settings = settings.copy(cometObservationStaleDays = it)
+                    BootAware.saveSettings(context, settings)
+                    calendarNonce++
+                },
+                onCometMoonChange = {
+                    settings = settings.copy(cometMoonTolerance = it)
+                    BootAware.saveSettings(context, settings)
+                    calendarNonce++
                 },
                 onToggleStar = { event ->
                     val key = EventPlanner.starKey(event)

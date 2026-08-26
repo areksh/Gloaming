@@ -299,7 +299,6 @@ object Showers {
         var bestAt = peaksAt
         var highest = Double.NEGATIVE_INFINITY
         var azimuth = 0.0
-        var moonUp = 0
         var samples = 0
 
         if (night != null) {
@@ -318,7 +317,6 @@ object Showers {
                     azimuth = above.azimuth
                     bestAt = at
                 }
-                if (Twilight.moonAltitude(latitude, longitude, at) > 0.0) moonUp++
                 samples++
                 at += SAMPLE_MILLIS
             }
@@ -333,7 +331,13 @@ object Showers {
             radiantAzimuth = azimuth,
             bestAt = bestAt,
             moonIllumination = Twilight.moon(peaksAt).illumination,
-            moonUpFraction = if (samples == 0) 0.0 else moonUp.toDouble() / samples,
+            // Shared with the comets, which need exactly the same figure - see
+            // [Twilight.moonUpFraction].
+            moonUpFraction = if (night == null) {
+                0.0
+            } else {
+                Twilight.moonUpFraction(latitude, longitude, night)
+            },
         )
     }
 }

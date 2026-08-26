@@ -25,6 +25,14 @@ enum class EventChannel(val id: String) {
      * want this one and no other.
      */
     Noctilucent("noctilucent"),
+
+    /**
+     * The channel Sec. 9.5's taxonomy named from the start and nothing filled
+     * until now. Its own rather than folded in with conjunctions, because the
+     * appetite is quite different: a good comet is a handful of times a decade,
+     * and somebody who wants to be woken for one may well want nothing else.
+     */
+    Comets("comets"),
     ;
 
     companion object {
@@ -38,6 +46,7 @@ enum class EventChannel(val id: String) {
             EventKind.GreatestBrightness,
             -> Conjunctions
             EventKind.Noctilucent -> Noctilucent
+            EventKind.Comet -> Comets
             EventKind.MoonPhase, EventKind.MoonQuarter, EventKind.Season -> null
         }
     }

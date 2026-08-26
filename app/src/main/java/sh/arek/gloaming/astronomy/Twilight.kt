@@ -196,6 +196,44 @@ object Twilight {
         return windows.minByOrNull { kotlin.math.abs((it.first + it.last) / 2 - aroundMillis) }
     }
 
+    /**
+     * How much of a night's darkness the moon spoils, from 0 to 1.
+     *
+     * The product of how much of the disc is lit and the share of the dark
+     * hours it is above the horizon, because brightness alone is the wrong
+     * measure: a full moon that has set by midnight costs far less than a half
+     * moon up all night.
+     *
+     * Here rather than in either caller because both meteor showers and comets
+     * need exactly this number, and two implementations of it would eventually
+     * be two different numbers. It matters most to comets - a comet is a
+     * diffuse smudge, so what moonlight destroys is its contrast against the
+     * sky rather than its brightness.
+     *
+     * Zero where there is no darkness at all: nothing faint can be seen then
+     * anyway, and that is answered by the absence of a window rather than here.
+     */
+    fun moonInterference(latitude: Double, longitude: Double, aroundMillis: Long): Double {
+        val night = nightNearest(latitude, longitude, aroundMillis) ?: return 0.0
+        return moon(aroundMillis).illumination * moonUpFraction(latitude, longitude, night)
+    }
+
+    /** The share of [night] the moon spends above the horizon. */
+    fun moonUpFraction(latitude: Double, longitude: Double, night: LongRange): Double {
+        var up = 0
+        var samples = 0
+        var at = night.first
+        while (at <= night.last) {
+            if (moonAltitude(latitude, longitude, at) > 0.0) up++
+            samples++
+            at += MOON_SAMPLE_MILLIS
+        }
+        return if (samples == 0) 0.0 else up.toDouble() / samples
+    }
+
+    /** Ten minutes, matching every other sweep of a night in the app. */
+    private const val MOON_SAMPLE_MILLIS: Long = 10L * 60 * 1000
+
     /** When the sun next crosses [degrees] going the given way, if it does. */
     private fun cross(observer: Observer, direction: Direction, from: Time, degrees: Double): Long? =
         searchAltitude(Body.Sun, observer, direction, from, SEARCH_DAYS, degrees)
