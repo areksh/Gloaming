@@ -70,11 +70,20 @@ Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
 of binoculars, it is out of scope, which is why there are no Uranus oppositions
 and no transits of Mercury.
 
-A third tab answers the question the calendar structurally cannot: what is
-crossing tonight. A year of eclipses fits in a list, but a clear night here has
-hundreds of satellite passes, so the split is by shape - dated and sparse in the
-calendar, nightly and dense on Tonight, which leads with the best few rather
-than the earliest and always finds room for the space station.
+A third tab answers the questions the calendar structurally cannot. A year of
+eclipses fits in a list, but a clear night here has hundreds of satellite
+passes, so the split is by shape - dated and sparse in the calendar, nightly and
+dense on Tonight, which leads with the best few rather than the earliest and
+always finds room for the space station. Beside them it puts the three things
+that decide whether any of it is worth going outside for: the cloud overhead and
+the next gap in it, the moon and how much of the night it spoils, and how dark
+the sky actually gets - both civil twilight, which an aurora shows through, and
+proper astronomical darkness, which at this latitude does not arrive at all
+between May and August. The planets are there too, with how high each gets and
+which way to look.
+
+Any dated event can be shared as a message or exported as an `.ics` for whatever
+calendar you keep. Neither needs a permission.
 
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system

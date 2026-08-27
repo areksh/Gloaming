@@ -74,6 +74,8 @@ fun GloamingTabs(
     onNotifyEveryEventChange: (Boolean) -> Unit,
     onToggleStar: (SkyEvent) -> Unit,
     onToggleKind: (EventKind) -> Unit,
+    onShareEvent: (SkyEvent) -> Unit,
+    onExportEvent: (SkyEvent) -> Unit,
     onCometMagnitudeChange: (Int) -> Unit,
     onCometAltitudeChange: (Int) -> Unit,
     onCometStaleChange: (Int) -> Unit,
@@ -126,6 +128,8 @@ fun GloamingTabs(
                     onPollNow = onPollNow,
                     onRequestBatteryExemption = onRequestBatteryExemption,
                     onRequestNotifications = onRequestNotifications,
+                    onShareEvent = onShareEvent,
+                    onExportEvent = onExportEvent,
                 )
 
                 1 -> CalendarContent(
@@ -136,6 +140,8 @@ fun GloamingTabs(
                     onToggleStar = onToggleStar,
                     hiddenKinds = state.settings.hiddenEventKinds,
                     onToggleKind = onToggleKind,
+                    onShareEvent = onShareEvent,
+                    onExportEvent = onExportEvent,
                 )
 
                 else -> SettingsContent(

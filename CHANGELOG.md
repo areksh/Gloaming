@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Send an event to somebody, or export it as a calendar file.** Every entry
+  in the calendar, and every dated event on Tonight, now has a Share button and
+  an Export button. Share sends the event as plain text, so it arrives as a
+  message somebody will actually read rather than an attachment they will not
+  open; Export writes a standard `.ics` that any calendar app will import. The
+  caveat travels with the message where there is one - "it only reaches 4
+  degrees, low in the south" is the difference between a wasted evening and a
+  good one. Neither button asks for any permission at all.
+
 - **The planets up tonight**, with how high each gets, which way to look, when
   it is highest, how bright it is, and when it rises or sets if it does either
   inside the night. The calendar has always dated the one night a year each

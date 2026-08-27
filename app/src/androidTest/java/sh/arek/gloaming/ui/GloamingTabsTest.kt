@@ -46,6 +46,10 @@ class GloamingTabsTest {
         visibility = Visibility.Good,
     )
 
+    /** What the two ways out of the app were asked to send. */
+    private val shared = mutableListOf<SkyEvent>()
+    private val exported = mutableListOf<SkyEvent>()
+
     private fun show(
         settings: UserSettings = located,
         calendar: List<SkyEvent> = listOf(eclipse),
@@ -98,6 +102,8 @@ class GloamingTabsTest {
                 onNotifyEveryEventChange = {},
                 onToggleStar = { starred += it },
                 onToggleKind = { hiddenKind = it },
+                onShareEvent = { shared += it },
+                onExportEvent = { exported += it },
                 onCometMagnitudeChange = {},
                 onCometAltitudeChange = {},
                 onCometStaleChange = {},
@@ -360,5 +366,54 @@ class GloamingTabsTest {
         compose.onNodeWithTag(kindTag(EventKind.Comet)).performScrollTo().performClick()
 
         assertEquals(EventKind.Comet, hiddenKind)
+    }
+
+    /**
+     * The two ways an event leaves the app.
+     *
+     * Neither needs a permission: sharing is an ACTION_SEND of text, and the
+     * .ics goes out through the file provider the log already uses. Here
+     * rather than in ScreensTest because the calendar is only reachable
+     * through the tab bar.
+     */
+    @Test
+    fun offersToShareAnEvent() {
+        show()
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(shareTag(eclipse)).performScrollTo().performClick()
+
+        assertEquals(listOf(eclipse), shared)
+        assertEquals(emptyList<SkyEvent>(), exported)
+    }
+
+    @Test
+    fun offersToExportAnEventAsACalendarFile() {
+        show()
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(exportTag(eclipse)).performScrollTo().performClick()
+
+        assertEquals(listOf(eclipse), exported)
+        assertEquals(emptyList<SkyEvent>(), shared)
+    }
+
+    /**
+     * Offered on an event that cannot be seen from here, unlike the star.
+     * "The sun will already have set on this one" is a perfectly good thing to
+     * send somebody, and an eclipse that misses Edinburgh may well be why
+     * somebody is looking up flights.
+     */
+    @Test
+    fun offersToShareAnEventThatCannotBeSeenFromHere() {
+        val elsewhere = eclipse.copy(
+            visibility = Visibility.NotFromHere("The sun has set here before it starts."),
+        )
+        show(calendar = listOf(elsewhere))
+
+        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(shareTag(elsewhere)).performScrollTo().performClick()
+
+        assertEquals(listOf(elsewhere), shared)
     }
 }

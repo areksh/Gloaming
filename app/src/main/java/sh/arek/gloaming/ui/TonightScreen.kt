@@ -12,6 +12,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.StormMode
@@ -49,6 +51,8 @@ fun TonightContent(
     onPollNow: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
     onRequestNotifications: () -> Unit,
+    onShareEvent: (SkyEvent) -> Unit = {},
+    onExportEvent: (SkyEvent) -> Unit = {},
 ) {
     StatusCard(state)
 
@@ -62,7 +66,7 @@ fun TonightContent(
         DarknessCard(tonight)
         MoonCard(tonight)
         PlanetsCard(tonight)
-        EventsCard(tonight)
+        EventsCard(tonight, onShareEvent, onExportEvent)
         CometsCard(tonight)
         SatellitesCard(tonight)
     }
@@ -442,10 +446,17 @@ private fun PlanetsCard(list: TonightList) {
  * answers the question with silence.
  */
 @Composable
-private fun EventsCard(list: TonightList) {
+private fun EventsCard(
+    list: TonightList,
+    onShareEvent: (SkyEvent) -> Unit,
+    onExportEvent: (SkyEvent) -> Unit,
+) {
     if (list.noctilucent == null && list.events.isEmpty()) return
 
     SectionCard("Events tonight") {
+        // No buttons on this one. Noctilucent conditions are worked out for
+        // tonight rather than dated, so there is no event to put in a calendar
+        // - only a suggestion to look north-west after sunset.
         list.noctilucent?.let {
             Text(it.title, style = MaterialTheme.typography.titleSmall)
             Text(it.detail, style = MaterialTheme.typography.bodySmall)
@@ -454,6 +465,16 @@ private fun EventsCard(list: TonightList) {
         for (event in list.events) {
             Text(event.title, style = MaterialTheme.typography.titleSmall)
             Text(event.detail, style = MaterialTheme.typography.bodySmall)
+            FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    onClick = { onShareEvent(event) },
+                    modifier = Modifier.testTag(shareTag(event)),
+                ) { Text("Share") }
+                TextButton(
+                    onClick = { onExportEvent(event) },
+                    modifier = Modifier.testTag(exportTag(event)),
+                ) { Text("Export") }
+            }
         }
     }
 }

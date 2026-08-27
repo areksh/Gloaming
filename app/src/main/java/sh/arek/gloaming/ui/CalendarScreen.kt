@@ -49,6 +49,8 @@ fun CalendarContent(
     onToggleStar: (SkyEvent) -> Unit = {},
     hiddenKinds: Set<String> = emptySet(),
     onToggleKind: (EventKind) -> Unit = {},
+    onShareEvent: (SkyEvent) -> Unit = {},
+    onExportEvent: (SkyEvent) -> Unit = {},
 ) {
     if (!hasLocation) {
         Card {
@@ -105,6 +107,8 @@ fun CalendarContent(
             event = event,
             starred = EventPlanner.starKey(event) in starred,
             onToggleStar = { onToggleStar(event) },
+            onShare = { onShareEvent(event) },
+            onExport = { onExportEvent(event) },
         )
     }
 }
@@ -116,7 +120,13 @@ fun CalendarContent(
  * what makes a list of thirty scannable rather than something to be read.
  */
 @Composable
-private fun EventRow(event: SkyEvent, starred: Boolean, onToggleStar: () -> Unit) {
+private fun EventRow(
+    event: SkyEvent,
+    starred: Boolean,
+    onToggleStar: () -> Unit,
+    onShare: () -> Unit,
+    onExport: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp)) {
             Column(Modifier.width(56.dp)) {
@@ -150,15 +160,31 @@ private fun EventRow(event: SkyEvent, starred: Boolean, onToggleStar: () -> Unit
                 // about the one thing the app was going to keep quiet about.
                 // What cannot be starred is what cannot be seen from here at
                 // all, and what has no channel to be told on.
-                if (event.visibility !is Visibility.NotFromHere &&
-                    EventChannel.of(event.kind) != null &&
-                    EventPlanner.canBeStarred(event)
-                ) {
-                    TextButton(
-                        onClick = onToggleStar,
-                        modifier = Modifier.testTag(starTag(event)),
+                // FlowRow, so three buttons and a large system font do not
+                // put the last one past the right edge of the card.
+                FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (event.visibility !is Visibility.NotFromHere &&
+                        EventChannel.of(event.kind) != null &&
+                        EventPlanner.canBeStarred(event)
                     ) {
-                        Text(if (starred) "Starred" else "Star")
+                        TextButton(
+                            onClick = onToggleStar,
+                            modifier = Modifier.testTag(starTag(event)),
+                        ) {
+                            Text(if (starred) "Starred" else "Star")
+                        }
+                    }
+
+                    // Offered on everything, including what cannot be seen
+                    // from here: "the sun will already have set on this one"
+                    // is a perfectly good thing to send somebody, and an
+                    // eclipse that misses Edinburgh may well be the reason
+                    // somebody is looking up flights.
+                    TextButton(onClick = onShare, modifier = Modifier.testTag(shareTag(event))) {
+                        Text("Share")
+                    }
+                    TextButton(onClick = onExport, modifier = Modifier.testTag(exportTag(event))) {
+                        Text("Export")
                     }
                 }
             }
@@ -230,6 +256,11 @@ internal fun labelFor(kind: EventKind): String = when (kind) {
 
 /** How a star is reached from a test, and kept stable across reworded titles. */
 fun starTag(event: SkyEvent): String = "star:${EventPlanner.starKey(event)}"
+
+/** The same, for the two ways an event leaves the app. */
+fun shareTag(event: SkyEvent): String = "share:${EventPlanner.starKey(event)}"
+
+fun exportTag(event: SkyEvent): String = "export:${EventPlanner.starKey(event)}"
 
 /**
  * The span, for the things that have one.

@@ -44,9 +44,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyCalendar
-import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.LocationMode
@@ -54,6 +54,9 @@ import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.share.ics
+import sh.arek.gloaming.share.icsFileName
+import sh.arek.gloaming.share.shareText
 import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
@@ -165,6 +168,50 @@ private fun shareLog(context: Context) {
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
     context.startActivity(Intent.createChooser(send, "Send Gloaming's log").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+/**
+ * Hands one event to whatever the user picks, as a message.
+ *
+ * Text rather than a file, deliberately. The two buttons answer different
+ * questions: this one is for telling somebody about an eclipse, and an
+ * attachment nobody opens is not telling them about it.
+ */
+private fun shareEvent(context: Context, event: SkyEvent) {
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_SUBJECT, event.title)
+        .putExtra(Intent.EXTRA_TEXT, shareText(event))
+
+    context.startActivity(
+        Intent.createChooser(send, "Share this event").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
+}
+
+/**
+ * The same event as a calendar file, for putting in a calendar.
+ *
+ * Through the same export directory and the same provider the log already
+ * uses, so this needs no manifest change and - importantly - no calendar
+ * permission at all. The user chooses where it goes; the app never reads
+ * anything back.
+ */
+private fun exportEvent(context: Context, event: SkyEvent) {
+    val exports = File(context.cacheDir, "exports").apply { mkdirs() }
+    val file = File(exports, icsFileName(event))
+    file.writeText(ics(event))
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.exports", file)
+    val send = Intent(Intent.ACTION_SEND)
+        .setType("text/calendar")
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .putExtra(Intent.EXTRA_SUBJECT, event.title)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+    context.startActivity(
+        Intent.createChooser(send, "Export as a calendar file")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+    )
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -679,6 +726,8 @@ private fun GloamingApp() {
                     )
                     BootAware.saveSettings(context, settings)
                 },
+                onShareEvent = { shareEvent(context, it) },
+                onExportEvent = { exportEvent(context, it) },
                 onLocationModeChange = { mode ->
                     if (mode == LocationMode.Automatic &&
                         !AndroidLocationSource.hasPermission(context)
