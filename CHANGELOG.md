@@ -405,6 +405,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The Tonight tab now carries the caveat that goes with an event, not just the
+  headline. A partial eclipse whose maximum finds the moon 8 degrees up in a sky
+  that never gets fully dark was promised on the home screen and explained only
+  in the calendar - which is the wrong way round, since the home screen is where
+  somebody decides whether to put a coat on. Keeping those events rather than
+  hiding them was always deliberate; carrying the reason with them is what makes
+  that the right call.
+
 - Every part of the Tonight tab now says what it is about. The aurora reading
   was the largest thing on the screen and carried no label at all, so it read as
   the app's headline rather than as one of several things the sky is doing; and

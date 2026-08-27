@@ -1495,6 +1495,48 @@ class ScreensTest {
     }
 
     /**
+     * The caveat travels with a dated event too, not only with a comet.
+     *
+     * This is the whole reason Tonight keeps marginal events rather than
+     * dropping them - "the moon only reaches 8 degrees at maximum, in a sky
+     * that is not fully dark" is what somebody plans around - and the card was
+     * quietly not carrying it. A partial eclipse promised on the home screen
+     * and explained only in the calendar is worse than one not promised at all.
+     */
+    @Test
+    fun saysWhyAnEventTonightIsOnlyMarginal() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = listOf(
+                    SkyEvent(
+                        kind = EventKind.LunarEclipse,
+                        at = now + 3_600_000L,
+                        from = now,
+                        until = now + 4 * 3_600_000L,
+                        title = "Partial eclipse of the moon",
+                        detail = "18 per cent of the moon in shadow at maximum.",
+                        visibility = Visibility.Marginal(
+                            "The moon is only 8 degrees up at maximum, in a sky that is " +
+                                "not fully dark.",
+                        ),
+                    ),
+                ),
+                comets = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Partial eclipse of the moon").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("only 8 degrees up at maximum", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
      * The reason is shown where there is one. "Washed out by the moon" is the
      * difference between a wasted walk and a good one, so it belongs on the
      * card rather than only in the verdict.

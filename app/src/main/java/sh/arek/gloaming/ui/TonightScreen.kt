@@ -522,11 +522,13 @@ private fun EventsCard(
         list.noctilucent?.let {
             Text(it.title, style = MaterialTheme.typography.titleSmall)
             Text(it.detail, style = MaterialTheme.typography.bodySmall)
+            Caveat(it)
         }
 
         for (event in list.events) {
             Text(event.title, style = MaterialTheme.typography.titleSmall)
             Text(event.detail, style = MaterialTheme.typography.bodySmall)
+            Caveat(event)
             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(
                     onClick = { onShareEvent(event) },
@@ -563,11 +565,32 @@ private fun CometsCard(list: TonightList) {
         for (comet in list.comets) {
             Text(comet.title, style = MaterialTheme.typography.titleSmall)
             Text(comet.detail, style = MaterialTheme.typography.bodySmall)
-            (comet.visibility as? Visibility.Marginal)?.let {
-                Text(it.reason, style = MaterialTheme.typography.bodySmall)
-            }
+            Caveat(comet)
         }
     }
+}
+
+/**
+ * Why an event is worth less than its headline suggests, where it is.
+ *
+ * The whole reason [sh.arek.gloaming.domain.Tonight] keeps marginal events
+ * rather than dropping them: somebody reading this has already decided to go
+ * out, and "the moon only reaches 8 degrees at maximum, in a sky that is not
+ * fully dark" is what they need to plan around. Without it the card promises an
+ * eclipse and delivers a disappointment - which is the calendar's own reasoning,
+ * and this card had been quietly failing to carry it.
+ *
+ * Its own composable so the three cards cannot drift into saying it three
+ * different ways, or - as happened here - two of them saying it and one not.
+ */
+@Composable
+private fun Caveat(event: SkyEvent) {
+    val reason = when (val visibility = event.visibility) {
+        is Visibility.Marginal -> visibility.reason
+        is Visibility.NotFromHere -> visibility.reason
+        Visibility.Good -> return
+    }
+    Text(reason, style = MaterialTheme.typography.bodySmall)
 }
 
 /**
