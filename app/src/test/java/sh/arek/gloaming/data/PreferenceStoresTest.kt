@@ -98,6 +98,7 @@ class PreferenceStoresTest {
         notifyAboutEveryEvent = false,
         starredEvents = setOf("SolarEclipse|1817197223000"),
         calendarSync = CalendarSync.OwnCalendar,
+        automaticSettings = true,
         hiddenEventKinds = setOf("Conjunction", "Season"),
         cometMagnitudeThreshold = 8,
         minimumCometAltitudeDegrees = 25,

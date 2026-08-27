@@ -5,6 +5,7 @@ import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
 
 /**
@@ -89,4 +90,12 @@ data class MainUiState(
      * function of resolved state like everything else on the screen.
      */
     val pendingVerdict: Conditions? = null,
+    /**
+     * What the verdicts so far suggest each calibrated setting should be.
+     *
+     * Shown whether or not automatic mode is on: with it off the app still
+     * makes its case underneath each control and the user decides, which is
+     * most of the value of calibration at none of its cost.
+     */
+    val recommendations: Recommendations? = null,
 )

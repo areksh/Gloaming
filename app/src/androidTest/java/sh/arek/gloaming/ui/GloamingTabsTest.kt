@@ -104,6 +104,7 @@ class GloamingTabsTest {
                 onNotifyEveryEventChange = {},
                 onCalendarSyncChange = { calendarSync = it },
                 onVerdict = {},
+                onAutomaticSettingsChange = {},
                 onToggleStar = { starred += it },
                 onToggleKind = { hiddenKind = it },
                 onShareEvent = { shared += it },

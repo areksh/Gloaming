@@ -63,6 +63,7 @@ private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
 private const val KEY_STARRED_EVENTS = "starred_events"
 private const val KEY_CALENDAR_SYNC = "calendar_sync"
+private const val KEY_AUTOMATIC_SETTINGS = "automatic_settings"
 private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
@@ -184,6 +185,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             calendarSync = CalendarSync.entries
                 .firstOrNull { it.name == prefs.getString(KEY_CALENDAR_SYNC, null) }
                 ?: CalendarSync.Off,
+            automaticSettings = prefs.getBoolean(KEY_AUTOMATIC_SETTINGS, false),
             // Read with the default as its fallback rather than an empty set,
             // so a fresh install still starts with the moon's quarters folded
             // away - there are as many of them as every other kind combined.
@@ -274,6 +276,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             // SharedPreferences keeps the very set handed to it.
             putStringSet(KEY_STARRED_EVENTS, settings.starredEvents.toSet())
             putString(KEY_CALENDAR_SYNC, settings.calendarSync.name)
+            putBoolean(KEY_AUTOMATIC_SETTINGS, settings.automaticSettings)
             putStringSet(KEY_HIDDEN_KINDS, settings.hiddenEventKinds.toSet())
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)

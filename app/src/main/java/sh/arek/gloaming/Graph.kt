@@ -20,11 +20,13 @@ import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
+import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.VerdictLog
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
+import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.CalendarWriter
 import sh.arek.gloaming.domain.EventPoller
 import sh.arek.gloaming.domain.PassPoller
@@ -86,6 +88,38 @@ object Graph {
         PreferencesSettingsStore(credentialPreferences(context))
 
     /**
+     * Settings as every decision should actually see them.
+     *
+     * A layer between the store and the pollers rather than a rewrite of the
+     * store, and that distinction is the whole design. With automatic settings
+     * on, the calibrated values are composed over the stored ones here; with it
+     * off, this is the store unchanged. Nothing ever overwrites what the user
+     * typed, so switching automatic mode off restores exactly what they had -
+     * which is what makes the switch safe to try.
+     *
+     * Wrapping [source] rather than taking a context, so the before-unlock
+     * mirror gets the same treatment as the ordinary store: a poll before first
+     * unlock should not quietly use different thresholds from one after it.
+     */
+    fun effectiveSettings(context: Context, source: SettingsStore): SettingsStore {
+        val application = context.applicationContext
+        return object : SettingsStore {
+            override fun read(): UserSettings {
+                val stored = source.read()
+                if (!stored.automaticSettings) return stored
+                return runCatching { Calibration.of(verdicts(application).read()).applyTo(stored) }
+                    .getOrDefault(stored)
+            }
+
+            // Straight through. What is written is what the user chose, never
+            // what was derived from it - otherwise one pass through the
+            // composition would bake the recommendations into the store and
+            // there would be nothing to go back to.
+            override fun write(settings: UserSettings) = source.write(settings)
+        }
+    }
+
+    /**
      * Alert state also lives in device-protected storage. It is a timestamp, a
      * probability and a latch - nothing worth protecting - and keeping it in
      * one place means a poll before unlock and one after share the same
@@ -124,7 +158,7 @@ object Graph {
             weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
             // Whichever store is authoritative for polling: the device-protected
             // mirror when before-unlock alerting is on, the normal one otherwise.
-            settings = BootAware.pollSettings(application),
+            settings = effectiveSettings(application, BootAware.pollSettings(application)),
             state = alertState(application),
             notifier = AndroidAuroraNotifier(application),
             stormRunning = { StormService.running },
@@ -185,7 +219,7 @@ object Graph {
                 FileSatelliteCache(cacheDirectory(application)),
             ),
             weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
-            settings = BootAware.pollSettings(application),
+            settings = effectiveSettings(application, BootAware.pollSettings(application)),
             state = alertState(application),
             notifier = AndroidPassNotifier(application),
             follower = AndroidPassFollower(application),
@@ -213,7 +247,7 @@ object Graph {
                 manifestUrl = GloamingEndpoints.MANIFEST_URL,
             ),
             weather = OpenMeteoWeather(http, FileWeatherCache(weatherDirectory(application))),
-            settings = BootAware.pollSettings(application),
+            settings = effectiveSettings(application, BootAware.pollSettings(application)),
             state = alertState(application),
             notifier = AndroidEventNotifier(application),
             calendarWriter = calendarWriter(application),

@@ -90,6 +90,14 @@ already syncs to. It is off until you choose, the permission is asked for at
 that moment rather than on first run, and unstarring an event takes its entry
 back out again.
 
+Every alert asks, afterwards, whether it was worth going out for, and that
+answer is the one thing in the app that cannot be worked out from a formula. The
+default thresholds have always been guesses - a bar that suits somebody in Kent
+is wrong for somebody in Shetland - and this is how they stop being guesses.
+There is a switch to let the app set them for you from your own nights; with it
+off it still says what it would have chosen and leaves the choice to you. Nothing
+about it leaves the phone.
+
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system
 holds background checks until the phone next wakes, which overnight means hours,

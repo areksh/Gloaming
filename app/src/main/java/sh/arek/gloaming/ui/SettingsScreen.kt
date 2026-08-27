@@ -37,6 +37,7 @@ import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
+import sh.arek.gloaming.domain.Recommendation
 
 /**
  * Everything that is a setting rather than a state of the sky.
@@ -78,6 +79,7 @@ fun SettingsContent(
     onEclipseFollowMaxChange: (Int) -> Unit,
     onNotifyEveryEventChange: (Boolean) -> Unit,
     onCalendarSyncChange: (CalendarSync) -> Unit,
+    onAutomaticSettingsChange: (Boolean) -> Unit,
     onCometMagnitudeChange: (Int) -> Unit,
     onCometAltitudeChange: (Int) -> Unit,
     onCometStaleChange: (Int) -> Unit,
@@ -131,6 +133,7 @@ fun SettingsContent(
         onCometStaleChange,
         onCometMoonChange,
     )
+    AutomaticSettingsCard(state, onAutomaticSettingsChange)
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
     LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
@@ -251,6 +254,8 @@ private fun ThresholdCard(
                 choices = UserSettings.THRESHOLD_CHOICES,
                 render = ::describePercent,
                 onChange = onThresholdChange,
+                note = calibrationNote(state, state.recommendations?.threshold, ::describePercent),
+                enabled = !state.settings.automaticSettings || state.recommendations == null,
             )
             Text(
                 "Higher latitudes want a higher bar.",
@@ -311,6 +316,12 @@ private fun SkyCard(
                     choices = UserSettings.CLOUD_TOLERANCE_CHOICES,
                     render = ::describePercent,
                     onChange = onCloudToleranceChange,
+                    note = calibrationNote(
+                        state,
+                        state.recommendations?.cloudTolerance,
+                        ::describePercent,
+                    ),
+                    enabled = !state.settings.automaticSettings || state.recommendations == null,
                 )
                 Text(
                     "This is the one thing that leaves your phone: a location rounded to " +
@@ -456,7 +467,13 @@ private fun InterruptionCard(
                 style = MaterialTheme.typography.bodySmall,
             )
 
-            IntervalRow("Aurora", state.settings.auroraAlertIntervalMinutes, onAuroraIntervalChange)
+            IntervalRow(
+                "Aurora",
+                state.settings.auroraAlertIntervalMinutes,
+                onAuroraIntervalChange,
+                state,
+                state.recommendations?.auroraInterval,
+            )
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -474,6 +491,8 @@ private fun InterruptionCard(
                     "Space station",
                     state.settings.issPassAlertIntervalMinutes,
                     onIssIntervalChange,
+                    state,
+                    state.recommendations?.passInterval,
                 )
                 // Only where the orbit does not reach, which is nowhere most
                 // people live. The control stays whatever the answer is: the
@@ -513,6 +532,11 @@ private fun InterruptionCard(
                     "Other bright satellites",
                     state.settings.brightPassAlertIntervalMinutes,
                     onBrightIntervalChange,
+                    state,
+                    // The same figure as the station's. The verdict record
+                    // carries the satellite's name, not its channel, so three
+                    // separate recommendations would be two inventions.
+                    state.recommendations?.passInterval,
                 )
                 // Its own answer rather than a share of the bright catalogue's.
                 // A launch is a train for a few nights and then never again,
@@ -522,6 +546,8 @@ private fun InterruptionCard(
                     "Starlink trains",
                     state.settings.trainPassAlertIntervalMinutes,
                     onTrainIntervalChange,
+                    state,
+                    state.recommendations?.passInterval,
                 )
                 Text(
                     "A string of Starlinks in a line, visible for a few nights after a " +
@@ -552,6 +578,11 @@ private fun InterruptionCard(
                     choices = UserSettings.MINIMUM_ELEVATION_CHOICES,
                     render = { "$it deg" },
                     onChange = onMinimumElevationChange,
+                    note = calibrationNote(
+                        state,
+                        state.recommendations?.minimumPassElevation,
+                    ) { "$it degrees" },
+                    enabled = !state.settings.automaticSettings || state.recommendations == null,
                 )
                 Text(
                     "Roughly where roofs and trees stop. Raise it in a city, lower it " +
@@ -600,9 +631,22 @@ private fun ChoiceRow(
     choices: List<Int>,
     render: (Int) -> String,
     onChange: (Int) -> Unit,
+    /** What the app has worked out about this setting, where it has. */
+    note: String? = null,
+    /**
+     * False when the app is setting this itself.
+     *
+     * The choices are removed rather than greyed out. A row of buttons that
+     * cannot be pressed is a row of buttons somebody will press, and then
+     * conclude the app is broken; the note above says who is deciding and the
+     * switch that hands it back is one card away.
+     */
+    enabled: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("$label: $value", style = MaterialTheme.typography.bodyMedium)
+        note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        if (!enabled) return@Column
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -623,15 +667,53 @@ private fun ChoiceRow(
 }
 
 @Composable
-private fun IntervalRow(label: String, minutes: Int, onChange: (Int) -> Unit) {
+private fun IntervalRow(
+    label: String,
+    minutes: Int,
+    onChange: (Int) -> Unit,
+    state: MainUiState? = null,
+    recommendation: Recommendation? = null,
+) {
     ChoiceRow(
         label = label,
         value = describeInterval(minutes),
         choices = UserSettings.ALERT_INTERVAL_CHOICES,
         render = ::shortInterval,
         onChange = onChange,
+        note = calibrationNote(state, recommendation, ::describeInterval),
+        enabled = state?.settings?.automaticSettings != true || recommendation == null,
     )
 }
+
+/**
+ * What the app has worked out about a setting, said in the user's own terms.
+ *
+ * Three states rather than two, and the third is the point. With automatic mode
+ * *off* and something recorded, the app still says what it would have chosen -
+ * which is most of the value of calibration at none of its cost: the app makes
+ * its case and the user decides. Silent when there is nothing recorded and
+ * nothing is being managed, because "not enough nights yet" repeated under
+ * seven controls is noise.
+ */
+private fun calibrationNote(
+    state: MainUiState?,
+    recommendation: Recommendation?,
+    render: (Int) -> String,
+): String? {
+    if (state == null || recommendation == null) return null
+
+    return when {
+        state.settings.automaticSettings ->
+            "Set for you from ${nights(recommendation.sample)}. ${recommendation.reason}"
+
+        recommendation.sample > 0 ->
+            "Your nights suggest ${render(recommendation.value)}. ${recommendation.reason}"
+
+        else -> null
+    }
+}
+
+private fun nights(sample: Int) = if (sample == 1) "1 verdict" else "$sample verdicts"
 
 /**
  * The before-unlock option, with the trade stated rather than buried.
@@ -1041,6 +1123,69 @@ private fun CalendarSyncControl(state: MainUiState, onChange: (CalendarSync) -> 
 
 /** How a destination is reached from a test. */
 fun calendarSyncTag(option: CalendarSync): String = "calendar-sync:${option.name}"
+
+/**
+ * Whether the app sets its own alert thresholds from the verdicts.
+ *
+ * The default thresholds have been guesses since the first version, and the
+ * documents have said so in writing throughout: they need a season of real
+ * nights, and a number that suits somebody in Kent is wrong for somebody in
+ * Shetland. This is the switch that lets the app work them out from the nights
+ * the user actually had.
+ *
+ * Off by default, so no existing install changes behaviour without being asked.
+ * And composed over the stored settings rather than written into them, which is
+ * what makes the switch safe to try: turning it off restores exactly what was
+ * there, because nothing was ever overwritten.
+ */
+@Composable
+private fun AutomaticSettingsCard(state: MainUiState, onChange: (Boolean) -> Unit) {
+    Card {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Set my thresholds for me", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.automaticSettings,
+                    onCheckedChange = onChange,
+                    modifier = Modifier.testTag(AUTOMATIC_SETTINGS_SWITCH_TAG),
+                )
+            }
+            Text(
+                "Every alert asks whether it was worth going out for. With this on, " +
+                    "Gloaming uses those answers to set the alert threshold, the cloud " +
+                    "tolerance, the pass horizon and how often each channel may " +
+                    "interrupt - and says underneath each one what it decided and why.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                if (state.settings.automaticSettings) {
+                    "Your own choices are kept exactly as they were. Switch this off and " +
+                        "they come straight back - nothing here overwrites them."
+                } else {
+                    "Off. Gloaming still says what it would have chosen underneath each " +
+                        "setting, so you can take its word or leave it."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Text(
+                "Until there is enough to go on it sets everything as wide as it goes. " +
+                    "Missing a real aurora is the failure that matters; one look out of " +
+                    "the window is not. Nothing about any of this leaves the phone.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/** The automatic-settings switch, which sits beside a sentence rather than a value. */
+const val AUTOMATIC_SETTINGS_SWITCH_TAG = "automatic-settings-switch"
 
 @Composable
 private fun CalendarCard(

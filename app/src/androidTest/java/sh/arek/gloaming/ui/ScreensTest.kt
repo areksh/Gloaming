@@ -30,6 +30,7 @@ import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Answer
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.CloudCover
@@ -37,7 +38,9 @@ import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
+import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.MoonTonight
+import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
@@ -94,6 +97,7 @@ class ScreensTest {
     private var cloudTolerance: Int? = null
     private var calendarSync: CalendarSync? = null
     private var verdict: Answer? = null
+    private var automatic: Boolean? = null
     private var exported = 0
     private var cleared = 0
 
@@ -111,6 +115,7 @@ class ScreensTest {
         tonight: TonightList? = null,
         calendarName: String? = null,
         pendingVerdict: Conditions? = null,
+        recommendations: Recommendations? = null,
     ) {
         compose.setContent {
             Column(
@@ -138,6 +143,7 @@ class ScreensTest {
                     tonight = tonight,
                     calendarName = calendarName,
                     pendingVerdict = pendingVerdict,
+                    recommendations = recommendations,
                 )
 
                 TonightContent(
@@ -183,6 +189,7 @@ class ScreensTest {
                     onEclipseFollowMaxChange = {},
                     onNotifyEveryEventChange = { everyEvent = it },
                     onCalendarSyncChange = { calendarSync = it },
+                    onAutomaticSettingsChange = { automatic = it },
                     onCometMagnitudeChange = { cometMagnitude = it },
                     onCometAltitudeChange = {},
                     onCometStaleChange = {},
@@ -985,6 +992,97 @@ class ScreensTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    // --- calibration ---
+
+    /**
+     * The default thresholds have been guesses since the first version, and the
+     * documents have said so in writing throughout. This is the switch that
+     * lets the app work them out from the nights the user actually had.
+     */
+    @Test
+    fun offersToSetTheThresholdsAutomatically() {
+        show()
+
+        compose.onNodeWithTag(AUTOMATIC_SETTINGS_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(true, automatic)
+    }
+
+    /**
+     * With automatic mode off the app still says what it would have chosen.
+     * That is most of the value of calibration at none of its cost: the app
+     * makes its case underneath the control and the user decides.
+     */
+    @Test
+    fun saysWhatItWouldHaveChosenEvenWhenItIsNotChoosing() {
+        show(recommendations = calibrated())
+
+        // Several rows carry a note, which is the point - so the assertion is
+        // that at least one is there, not that exactly one is.
+        compose.onAllNodesWithText("Your nights suggest", substring = true).onFirst()
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * With it on, the choices are taken away rather than greyed out. A row of
+     * buttons that cannot be pressed is a row somebody will press and then call
+     * broken.
+     */
+    @Test
+    fun takesTheChoicesAwayWhileItIsSettingThemItself() {
+        show(
+            settings = located.copy(automaticSettings = true),
+            recommendations = calibrated(),
+        )
+
+        // Several rows carry a note, which is the point - so the assertion is
+        // that at least one is there, not that exactly one is.
+        compose.onAllNodesWithText("Set for you from", substring = true).onFirst()
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag(choiceTag("Alert above", "70 per cent")).assertDoesNotExist()
+    }
+
+    /** The reasoning is stated, not merely the number. */
+    @Test
+    fun explainsWhyItChoseWhatItChose() {
+        show(
+            settings = located.copy(automaticSettings = true),
+            recommendations = calibrated(),
+        )
+
+        // Several rows carry a note, which is the point - so the assertion is
+        // that at least one is there, not that exactly one is.
+        compose.onAllNodesWithText("worth going out for", substring = true).onFirst()
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Nothing recorded and nothing being managed: no note under every control. */
+    @Test
+    fun saysNothingUnderTheControlsBeforeAnyVerdicts() {
+        show(recommendations = Calibration.of(emptyList()))
+
+        compose.onNodeWithText("Your nights suggest", substring = true).assertDoesNotExist()
+    }
+
+    /** A calibration built from real verdicts, so the notes have something to say. */
+    private fun calibrated(): Recommendations = Calibration.of(
+        List(8) {
+            Verdict(
+                answeredAtMillis = now + it,
+                answer = if (it < 6) Answer.Worth else Answer.NotWorth,
+                conditions = Conditions(
+                    atMillis = now,
+                    channel = VerdictChannel.Aurora,
+                    probability = 60,
+                    cloudTotal = 20,
+                ),
+            )
+        },
+    )
 
     // --- was it worth it ---
 

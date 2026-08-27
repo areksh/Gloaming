@@ -58,7 +58,9 @@ import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.domain.CalendarSyncer
+import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.share.ics
@@ -307,6 +309,7 @@ private fun GloamingApp() {
     var watching by remember { mutableStateOf(StormService.running) }
     var darkness by remember { mutableStateOf(darknessHere()) }
     var logSize by remember { mutableStateOf(Graph.journal(context).sizeBytes()) }
+    var recommendations by remember { mutableStateOf<Recommendations?>(null) }
     var calendarName by remember { mutableStateOf<String?>(null) }
     var calendarNote by remember { mutableStateOf<String?>(null) }
 
@@ -525,6 +528,18 @@ private fun GloamingApp() {
         calendarLoading = false
     }
 
+    // Recomputed whenever a verdict is given or the switch is moved, and once
+    // on open. Reading the file is off the main thread; the arithmetic over it
+    // is trivial, and it is the same rule the pollers apply so the screen and
+    // the alerts cannot disagree about what the settings are.
+    LaunchedEffect(alertState.pendingVerdict, settings.automaticSettings) {
+        recommendations = withContext(Dispatchers.IO) {
+            runCatching { Calibration.of(Graph.verdicts(context).read()) }
+                .onFailure { Log.w("Gloaming", "could not read the verdicts", it) }
+                .getOrNull()
+        }
+    }
+
     // Whenever the year ahead is recomputed, so a comet whose dates have moved
     // takes its calendar entry with it, and so the name of the calendar being
     // written to is there to be shown. Cheap and skipped entirely when the
@@ -593,6 +608,7 @@ private fun GloamingApp() {
                     calendarName = calendarName,
                     calendarNote = calendarNote,
                     pendingVerdict = Conditions.decode(alertState.pendingVerdict),
+                    recommendations = recommendations,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -805,6 +821,10 @@ private fun GloamingApp() {
                             hidden + kind.name
                         },
                     )
+                    BootAware.saveSettings(context, settings)
+                },
+                onAutomaticSettingsChange = {
+                    settings = settings.copy(automaticSettings = it)
                     BootAware.saveSettings(context, settings)
                 },
                 onVerdict = { answer ->

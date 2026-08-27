@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Gloaming can set its own alert thresholds.** A switch - off unless you turn
+  it on - hands the alert threshold, the cloud tolerance, the pass horizon and
+  how often each channel may interrupt over to the app, which works them out from
+  your own verdicts. The rule is deliberately simple enough to state back to you:
+  the widest setting at which most alerts still turned out to be worth going out
+  for. Until there is enough to go on it opens every gate as wide as it goes -
+  missing a real aurora is the failure that matters, one look out of the window is
+  not. Your own choices are never overwritten, so switching it off brings them
+  straight back. And with it off the app still says what it would have chosen
+  underneath each setting, with its reasoning, so you can take its word or leave
+  it. All of it stays on the phone.
+
 - **"Was it worth it?"** Every aurora, satellite and event alert now carries two
   buttons, and pressing one records what the sky was actually doing at the time -
   the probability, where the reading came from, Kp, Bz, all four cloud layers and

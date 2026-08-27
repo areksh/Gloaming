@@ -349,6 +349,20 @@ data class UserSettings(
     val calendarSync: CalendarSync = CalendarSync.Off,
 
     /**
+     * Whether the app sets its own alert thresholds from your verdicts.
+     *
+     * Off by default, so no existing install changes behaviour without being
+     * asked. With it on, the calibrated settings are composed over the stored
+     * ones rather than written into them - so turning it off restores exactly
+     * what was there before, because it was never overwritten.
+     *
+     * With it off the recommendations are still computed and still shown
+     * underneath each control, which is most of the value at none of the cost:
+     * the app says what it thinks and the user decides.
+     */
+    val automaticSettings: Boolean = false,
+
+    /**
      * How many days of notice an eclipse or a shower peak gets.
      *
      * Only the kinds worth arranging an evening around get this at all. It is

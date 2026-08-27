@@ -1841,6 +1841,14 @@ technical or product decision the project can settle on its own.
   **This does not close the item.** It cannot: what it needs is a season of real nights,
   and that is the release gate rather than something code can shorten. What has changed is
   that the season is now being recorded rather than passing unobserved.
+
+  **And being acted on, optionally.** A setting - off by default - lets the app derive the
+  aurora threshold, the cloud tolerance, the pass elevation bar and the four alert
+  intervals from the record and apply them, composed over the user's own settings rather
+  than written into them (ADR-0011). With it off the recommendation is still shown under
+  each control, so the app states its case and the user decides. Note that this changes
+  what the app *does* with the answer to the open question; the question itself still wants
+  a season before the shipped defaults change.
 - **Adaptive polling thresholds** - which Bz and Kp values trigger escalation to 5 min?
   Same calibration problem, same answer - and now the same collection: the Bz and Kp at the
   moment of every alert are in the verdict record above.  Sec. 9.3.
