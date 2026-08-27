@@ -1,6 +1,9 @@
 package sh.arek.gloaming.ui
 
+import kotlin.math.roundToInt
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
@@ -306,4 +309,23 @@ internal fun describeMoonTimes(moon: MoonTonight): String? {
     val parts = listOfNotNull(rises, sets)
     if (parts.isEmpty()) return null
     return parts.joinToString(", ").replaceFirstChar { it.uppercase() } + "."
+}
+
+/**
+ * One planet in one line: how high, which way, when, and how bright.
+ *
+ * The same shape as [describePassLine], because they answer the same question
+ * about different things and reading two different shapes on one screen is
+ * work the reader should not have to do. The rise or set is appended only when
+ * it falls inside the night - most planets are up throughout or down
+ * throughout, and inventing a time for that would be inventing an event.
+ */
+internal fun describePlanet(planet: PlanetTonight): String {
+    val where = "Highest ${planet.peakAltitude.roundToInt()} degrees " +
+        "${Compass.of(planet.peakAzimuth).label} at ${clock(planet.peakAt)}, " +
+        "magnitude ${"%.1f".format(java.util.Locale.UK, planet.magnitude)}."
+
+    val comes = planet.risesAt?.let { "Rises ${clock(it)}." }
+    val goes = planet.setsAt?.let { "Sets ${clock(it)}." }
+    return listOfNotNull(where, comes, goes).joinToString(" ")
 }

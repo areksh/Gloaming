@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The planets up tonight**, with how high each gets, which way to look, when
+  it is highest, how bright it is, and when it rises or sets if it does either
+  inside the night. The calendar has always dated the one night a year each
+  planet is at opposition; this is the other three hundred and sixty four.
+  Mercury is held to a higher bar than the rest, because it is never far from
+  the sun and would otherwise print a line most nights that nobody could act on.
+
 - **Three things Gloaming already knew and never said.** The Tonight tab now
   shows the cloud overhead - which every alert has been gated on since the first
   version, while only ever appearing inside a notification - alongside the gap in

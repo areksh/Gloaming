@@ -3,6 +3,8 @@ package sh.arek.gloaming.domain
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.Noctilucent
+import sh.arek.gloaming.astronomy.PlanetTonight
+import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.astronomy.Visibility
@@ -85,6 +87,8 @@ data class TonightList(
     val cloud: CloudCover? = null,
     /** The first gap in the cloud inside tonight's darkness, if the forecast has one. */
     val clearSpell: ClearSpell? = null,
+    /** The naked-eye planets above the bar tonight, highest first. */
+    val planets: List<PlanetTonight> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() = passes.isEmpty() && events.isEmpty() && comets.isEmpty() && noctilucent == null
@@ -192,6 +196,7 @@ object Tonight {
             darkestUntil = darkest?.last,
             moon = night?.let { moonTonight(latitude, longitude, it, nowMillis) },
             cloud = cloud,
+            planets = night?.let { Planets.tonight(latitude, longitude, it) }.orEmpty(),
             clearSpell = night?.let {
                 ClearSpell.first(
                     hourly = hourly,

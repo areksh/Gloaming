@@ -23,6 +23,8 @@ import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.PlanetTonight
+import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
@@ -1117,6 +1119,43 @@ class ScreensTest {
         )
 
         compose.onNodeWithText("It never gets fully dark here", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * The one card on the tab whose answer is certain. Cloud is a forecast, an
+     * aurora is a probability and a comet is usually a disappointment; a planet
+     * is where the arithmetic says it is, and will be there.
+     */
+    @Test
+    fun showsThePlanetsUpTonight() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                planets = listOf(
+                    PlanetTonight(
+                        body = SkyBody.Jupiter,
+                        peakAltitude = 46.4,
+                        peakAt = now + 3 * 3_600_000L,
+                        peakAzimuth = 178.0,
+                        magnitude = -2.46,
+                        risesAt = null,
+                        setsAt = null,
+                    ),
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Planets tonight").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Jupiter").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Highest 46 degrees south", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
     }

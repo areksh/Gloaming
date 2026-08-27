@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import sh.arek.gloaming.astronomy.PlanetTonight
+import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
@@ -198,6 +200,52 @@ class TonightWordingTest {
     fun `says nothing when the moon neither rises nor sets`() {
         assertNull(describeMoonTimes(moon(illumination = 0.5, upFraction = 1.0)))
     }
+
+    // --- the planets ---
+
+    @Test
+    fun `says how high a planet gets and which way to look`() {
+        val jupiter = planet(altitude = 46.4, azimuth = 178.0, magnitude = -2.46, peakAt = at(1))
+
+        assertEquals(
+            "Highest 46 degrees south at 01:00, magnitude -2.5.",
+            describePlanet(jupiter),
+        )
+    }
+
+    /** The same shape as a satellite pass, because it answers the same question. */
+    @Test
+    fun `adds a planet's crossings where they fall inside the night`() {
+        val venus = planet(
+            altitude = 12.1,
+            azimuth = 150.0,
+            magnitude = -4.49,
+            peakAt = at(6),
+            risesAt = at(5),
+        )
+
+        assertEquals(
+            "Highest 12 degrees south-east at 06:00, magnitude -4.5. Rises 05:00.",
+            describePlanet(venus),
+        )
+    }
+
+    private fun planet(
+        altitude: Double,
+        azimuth: Double,
+        magnitude: Double,
+        peakAt: Long,
+        risesAt: Long? = null,
+        setsAt: Long? = null,
+    ) = PlanetTonight(
+        body = SkyBody.Jupiter,
+        peakAltitude = altitude,
+        peakAt = peakAt,
+        peakAzimuth = azimuth,
+        magnitude = magnitude,
+        risesAt = risesAt,
+        setsAt = setsAt,
+    )
 
     private fun moon(
         illumination: Double,

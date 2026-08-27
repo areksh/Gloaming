@@ -61,6 +61,7 @@ fun TonightContent(
         SkyNowCard(tonight, state.settings.cloudTolerance)
         DarknessCard(tonight)
         MoonCard(tonight)
+        PlanetsCard(tonight)
         EventsCard(tonight)
         CometsCard(tonight)
         SatellitesCard(tonight)
@@ -406,6 +407,29 @@ private fun MoonCard(list: TonightList) {
         Text(describeMoonlight(moon), style = MaterialTheme.typography.bodySmall)
         describeMoonTimes(moon)?.let {
             Text(it, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/**
+ * What is up tonight, and where to look for it.
+ *
+ * The one card here whose answer is certain. Cloud is a forecast, an aurora is
+ * a probability and a comet is usually a disappointment; a planet is where the
+ * arithmetic says it is, months ahead, and will be there. It is also the
+ * question the calendar structurally cannot answer - "Jupiter at opposition"
+ * dates one night of the year, and this is the other three hundred and sixty
+ * four.
+ */
+@Composable
+private fun PlanetsCard(list: TonightList) {
+    if (list.planets.isEmpty()) return
+
+    SectionCard("Planets tonight") {
+        for (planet in list.planets) {
+            Text(planet.body.label.replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.titleSmall)
+            Text(describePlanet(planet), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
