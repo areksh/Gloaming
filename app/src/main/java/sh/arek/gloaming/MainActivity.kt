@@ -52,9 +52,11 @@ import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.domain.Tonight
@@ -590,6 +592,7 @@ private fun GloamingApp() {
                     locationNote = locationNote,
                     calendarName = calendarName,
                     calendarNote = calendarNote,
+                    pendingVerdict = Conditions.decode(alertState.pendingVerdict),
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -803,6 +806,25 @@ private fun GloamingApp() {
                         },
                     )
                     BootAware.saveSettings(context, settings)
+                },
+                onVerdict = { answer ->
+                    val conditions = Conditions.decode(alertState.pendingVerdict)
+                    if (conditions != null) {
+                        val store = Graph.alertState(context)
+                        Graph.verdicts(context)
+                            .append(Verdict(System.currentTimeMillis(), answer, conditions))
+                        // Cleared here as well as in the receiver, so the card
+                        // and the notification cannot both collect an answer
+                        // about the same night.
+                        alertState = store.read().copy(pendingVerdict = null)
+                        store.write(alertState)
+                        scope.launch {
+                            snackbar.showSnackbar(
+                                "Noted. Gloaming uses this to work out where your alert " +
+                                    "settings should sit, and it stays on this phone.",
+                            )
+                        }
+                    }
                 },
                 onShareEvent = { shareEvent(context, it) },
                 onExportEvent = { exportEvent(context, it) },

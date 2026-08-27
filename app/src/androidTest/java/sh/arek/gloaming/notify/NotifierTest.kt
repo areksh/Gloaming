@@ -97,6 +97,40 @@ class NotifierTest {
             android.app.Notification.FLAG_AUTO_CANCEL != 0)
     }
 
+    /**
+     * The two buttons Sec. 15 has been waiting on since the first version.
+     *
+     * On the notification rather than in the app, because the only moment
+     * somebody knows whether an alert was worth it is the moment they come
+     * back inside - and no new notification at all: two actions on one that was
+     * going out anyway.
+     */
+    @Test
+    fun theAlertAsksWhetherItWasWorthIt() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+
+        val labels = posted!!.notification.actions.orEmpty().map { it.title.toString() }
+        assertTrue(labels.toString(), labels.contains("Worth it"))
+        assertTrue(labels.toString(), labels.contains("Not worth it"))
+    }
+
+    /**
+     * Two, not three. Sec. 9.5 argues attention is the scarcest thing the app
+     * spends, and a notification with three buttons is one that gets dismissed
+     * unread. "Did not look" lives on the Tonight card, where somebody is
+     * already looking at a screen.
+     */
+    @Test
+    fun theAlertDoesNotCarryAThirdButton() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+
+        val posted = postedAlert()
+        assertEquals(2, posted!!.notification.actions.orEmpty().size)
+    }
+
     @Test
     fun postingCreatesTheAuroraChannel() {
         AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
@@ -126,6 +160,15 @@ class NotifierTest {
             ovation(55),
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
+        )
+        // No Kp, no Bz, no cloud and no threshold: every field the verdict
+        // record wants is absent, which is the state a first poll after a
+        // reboot is in.
+        notifier.notifyAurora(
+            ovation(55),
+            status.copy(aurorawatch = null, kp = null, solarWind = null),
+            null,
+            threshold = null,
         )
     }
 }

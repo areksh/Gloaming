@@ -31,6 +31,7 @@ import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.data.Answer
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.StormMode
 import sh.arek.gloaming.domain.TonightList
@@ -53,7 +54,10 @@ fun TonightContent(
     onRequestNotifications: () -> Unit,
     onShareEvent: (SkyEvent) -> Unit = {},
     onExportEvent: (SkyEvent) -> Unit = {},
+    onVerdict: (Answer) -> Unit = {},
 ) {
+    WorthItCard(state, onVerdict)
+
     StatusCard(state)
 
     // Titled cards rather than a single card called "Tonight". That card was
@@ -114,6 +118,64 @@ fun TonightContent(
         style = MaterialTheme.typography.bodySmall,
     )
 }
+
+/**
+ * "Was it worth it?", for an alert that was never answered.
+ *
+ * The second half of the notification's two buttons, and the one that catches
+ * the nights that actually matter: somebody woken at two in the morning swipes
+ * the alert away and forms an opinion about it at nine, by which time the
+ * buttons are gone. This is where that opinion lands.
+ *
+ * It carries the third answer the notification deliberately does not.
+ * "Did not look" is the honest answer for a night somebody slept through, and
+ * without it the alerts nobody answered would be counted as failures by any
+ * naive reading of the record - but a third button on a notification is a
+ * notification that gets dismissed unread. On a screen somebody is already
+ * looking at, it costs nothing.
+ *
+ * At the top of the tab, above the aurora reading, because it is a question
+ * rather than a statement and it is stale in a day. It appears only once the
+ * alert is old enough to have an answer, and disappears the moment there is
+ * one.
+ */
+@Composable
+private fun WorthItCard(state: MainUiState, onVerdict: (Answer) -> Unit) {
+    val pending = state.pendingVerdict ?: return
+    if (state.nowMillis - pending.atMillis < WORTH_IT_DELAY_MILLIS) return
+
+    SectionCard("Was it worth it?") {
+        Text(
+            "Gloaming alerted you at ${clock(pending.atMillis)} about " +
+                "${pending.subject ?: "something in the sky"}. Saying whether it was worth " +
+                "going out for is the one thing that lets it work out where your alert " +
+                "settings should actually sit - and nothing about this leaves the phone.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            for (answer in Answer.entries) {
+                OutlinedButton(
+                    onClick = { onVerdict(answer) },
+                    modifier = Modifier.testTag(verdictTag(answer)),
+                ) { Text(answer.label) }
+            }
+        }
+    }
+}
+
+/**
+ * How long an alert has to have been out before it is worth asking about.
+ *
+ * An hour. Long enough for somebody to have gone out and come back, and short
+ * enough that the question still arrives on the night it is about.
+ */
+private const val WORTH_IT_DELAY_MILLIS: Long = 60 * 60 * 1000L
+
+/** How an answer is reached from a test. */
+fun verdictTag(answer: Answer): String = "verdict:${answer.name}"
 
 /**
  * The aurora reading, which is the one number the app exists for.

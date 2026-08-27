@@ -17,6 +17,8 @@ import sh.arek.gloaming.domain.PassNotifier
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.describeTrain
+import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.work.FollowPassReceiver
 import sh.arek.gloaming.work.PassAlarm
@@ -77,6 +79,11 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .addAction(0, "Follow it", followPass(pass))
+            // Alongside "Follow it" rather than instead of it. A pass verdict
+            // calibrates a different number from an aurora one - the elevation
+            // bar rather than the probability threshold - and there is no way
+            // to learn where that bar belongs without asking.
+            .addWorthItActions(context, conditions(pass), pass.catalogue)
             .setAutoCancel(true)
             // Keyed on the pass rather than the channel, so an alert for one
             // object never quietly replaces another still worth reading.
@@ -86,6 +93,21 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             NotificationManagerCompat.from(context).notify(pass.catalogue, notification)
         }
     }
+
+    /**
+     * What a pass verdict is about: how high it got.
+     *
+     * The elevation is the number a pass alert is judged against, the way the
+     * probability is for an aurora - somebody in a city with buildings all
+     * round wants a far higher bar than somebody with a clear horizon over the
+     * sea, and that is not a fact anybody can be asked in advance.
+     */
+    private fun conditions(pass: SatellitePass) = Conditions(
+        atMillis = System.currentTimeMillis(),
+        channel = VerdictChannel.Pass,
+        peakElevation = pass.peakElevation,
+        subject = pass.name,
+    )
 
     /**
      * Offered on every pass, unlike the setting that does this automatically.

@@ -7,6 +7,8 @@ import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.SkyRepository
@@ -25,7 +27,18 @@ interface AuroraNotifier {
      *   reached - in which case the notification says cloud cover is unknown
      *   rather than implying a clear sky.
      */
-    fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?)
+    /**
+     * @param threshold the bar in force at the moment of the alert, carried so
+     *   the "was it worth it?" record says what the alert was judged against -
+     *   the setting can be changed the next morning, and the record has to mean
+     *   what it meant on the night.
+     */
+    fun notifyAurora(
+        likelihood: Likelihood,
+        status: SkyStatus,
+        cloud: CloudCover?,
+        threshold: Int? = null,
+    )
 }
 
 /** How dark it is where the observer stands, and when that next changes. */
@@ -111,6 +124,8 @@ class SkyPoller(
         val probability: Int? = null,
         /** Which reading produced the probability, or null when none was taken. */
         val source: Likelihood.Source? = null,
+        /** The sky as it was, where an alert went out about it. */
+        val conditions: Conditions? = null,
     )
 
     private suspend fun pollOnce(user: UserSettings, previous: AlertState, at: Long): Attempt {
@@ -166,8 +181,30 @@ class SkyPoller(
             )
         }
 
-        notifier.notifyAurora(likelihood, status, cloud)
-        return Attempt(PollOutcome.Notified(probability), status, probability, likelihood.source)
+        notifier.notifyAurora(likelihood, status, cloud, user.threshold)
+        return Attempt(
+            PollOutcome.Notified(probability),
+            status,
+            probability,
+            likelihood.source,
+            // The same conditions the notification's actions carry, kept here
+            // too so the Tonight card can ask about an alert that was swiped
+            // away at two in the morning. Kp and Bz live nowhere else at all.
+            Conditions(
+                atMillis = now(),
+                channel = VerdictChannel.Aurora,
+                probability = probability,
+                source = likelihood.source.name,
+                kp = status.kp?.value,
+                bz = status.solarWind?.bz,
+                cloudTotal = cloud?.total,
+                cloudLow = cloud?.low,
+                cloudMid = cloud?.mid,
+                cloudHigh = cloud?.high,
+                threshold = user.threshold,
+                subject = "Aurora",
+            ),
+        )
     }
 
     /**
@@ -259,6 +296,11 @@ class SkyPoller(
                 lastProbability = outcome.probability,
                 lastError = null,
                 lastFromAuroraWatch = fromAuroraWatch,
+                // Replaces whatever was there. The card asks about the last
+                // alert, which is the one anybody can still remember - and an
+                // unanswered question from a fortnight ago is not one worth
+                // holding a screen for.
+                pendingVerdict = attempt.conditions?.encode() ?: previous.pendingVerdict,
             )
 
             is PollOutcome.Quiet -> previous.copy(

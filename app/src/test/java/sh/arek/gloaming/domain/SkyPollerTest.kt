@@ -98,10 +98,20 @@ class SkyPollerTest {
         val notified = mutableListOf<Int>()
         val sources = mutableListOf<Likelihood.Source>()
         val clouds = mutableListOf<CloudCover?>()
-        override fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?) {
+
+        /** The bar each alert was judged against, which the verdict record needs. */
+        val thresholds = mutableListOf<Int?>()
+
+        override fun notifyAurora(
+            likelihood: Likelihood,
+            status: SkyStatus,
+            cloud: CloudCover?,
+            threshold: Int?,
+        ) {
             notified += likelihood.probability
             sources += likelihood.source
             clouds += cloud
+            thresholds += threshold
         }
     }
 

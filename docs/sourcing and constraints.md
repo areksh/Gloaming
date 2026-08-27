@@ -1212,6 +1212,22 @@ should be silenceable apart.
   days; what they are for is planning everything else around, and an app that announced
   each one is an app that gets muted.
 
+**"Was it worth it?", added 2026-08-27.** Two actions on every aurora, pass and event
+notification. This is the one addition here that spends attention without giving anything
+back to the person spending it, so it needs the argument made rather than assumed.
+
+- **No new notification.** Two buttons on one that was going out anyway, on a notification
+  the user has already been interrupted by. The marginal cost is a glance.
+- **Two buttons, not three.** "Did not look" is the honest third answer and the one nobody
+  presses in the dark, so it lives on a Tonight card instead. Three actions is where a
+  notification stops being read and starts being dismissed.
+- **Only on the notice for the night itself.** The heads-up two days before an eclipse
+  carries no verdict buttons: asking whether something that has not happened was worth it
+  is noise by construction.
+- **It buys back more than it costs.** Every one of the four calibration questions in
+  Sec. 15 has been waiting on data nobody was collecting, and the alternative to asking is
+  shipping guessed thresholds for another season.
+
 **Starring, added 2026-08-25.** A calendar event can be starred, and one switch decides
 whether everything visible interrupts or only the starred ones. It defaults to everything:
 a list that tells you nothing until you have been through it is a list most people never
@@ -1811,8 +1827,23 @@ technical or product decision the project can settle on its own.
   reading a policy page or writing code. Log aurora activity against a subjective "was it
   worth it?" judgement from Phase 1 onwards, so there is something to calibrate against by
   the time Phase 2 needs it. Sec. 9.2.
+
+  **Now being collected**, as of 2026-08-27. Every aurora, pass and event alert carries
+  "Worth it" and "Not worth it" actions, and an alert that goes unanswered raises a card on
+  Tonight that adds the third answer - "Did not look" - which a notification cannot carry
+  without becoming the sort of notification people dismiss unread. Each verdict is recorded
+  with the sky that prompted it: probability, source, Kp, Bz, all four cloud layers and the
+  threshold in force at the time. Kp and Bz are persisted nowhere else in the app, so they
+  are baked into the notification's action when it is built - `FLAG_IMMUTABLE`, required
+  from Android 12, forbids filling them in later, and in any case the document they came
+  from is replaced every few minutes.
+
+  **This does not close the item.** It cannot: what it needs is a season of real nights,
+  and that is the release gate rather than something code can shorten. What has changed is
+  that the season is now being recorded rather than passing unobserved.
 - **Adaptive polling thresholds** - which Bz and Kp values trigger escalation to 5 min?
-  Same calibration problem, same answer. Sec. 9.3.
+  Same calibration problem, same answer - and now the same collection: the Bz and Kp at the
+  moment of every alert are in the verdict record above.  Sec. 9.3.
 - **Storm mode exit condition** - probability falling below a floor, a fixed timeout, or
   the user dismissing it? Getting this wrong leaves a foreground service running until
   dawn. Sec. 9.3.

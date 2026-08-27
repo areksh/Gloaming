@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **"Was it worth it?"** Every aurora, satellite and event alert now carries two
+  buttons, and pressing one records what the sky was actually doing at the time -
+  the probability, where the reading came from, Kp, Bz, all four cloud layers and
+  the threshold that let the alert through. An alert nobody answered raises a
+  card on the Tonight tab the next time you open it, which adds the third honest
+  answer: you did not look. Nothing about any of this leaves the phone, and no
+  new notification was added to collect it. The app has always shipped guessed
+  alert thresholds and said so; this is what it takes to stop guessing.
+
 - **Starred events can go straight into your calendar.** Three answers rather
   than a switch, because "put it in my calendar" means two different things to
   two reasonable people: a calendar Gloaming creates on the phone with no account

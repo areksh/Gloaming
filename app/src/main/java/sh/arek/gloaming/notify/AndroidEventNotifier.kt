@@ -17,6 +17,8 @@ import sh.arek.gloaming.astronomy.EventChannel
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.domain.EventNotifier
+import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.work.EclipseService
 import sh.arek.gloaming.work.FollowEclipseReceiver
@@ -47,6 +49,14 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .apply { followEclipse(event)?.let { addAction(0, "Follow it", it) } }
+            // Only on the notice for the night itself. Asking whether an
+            // eclipse two days away was worth it is asking about something
+            // that has not happened.
+            .apply {
+                if (phase == EventPlanner.Phase.Tonight) {
+                    addWorthItActions(context, conditions(event), notificationId(event, phase))
+                }
+            }
             .setAutoCancel(true)
             .build()
 
@@ -54,8 +64,7 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
         // silently replace an advance one the user has not read yet, and two
         // events pending at once do not collapse into one.
         runCatching {
-            NotificationManagerCompat.from(context)
-                .notify(EventPlanner.key(event, phase).hashCode(), notification)
+            NotificationManagerCompat.from(context).notify(notificationId(event, phase), notification)
         }
     }
 
@@ -89,6 +98,28 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
             NotificationManagerCompat.from(context).notify(name.hashCode(), notification)
         }
     }
+
+    /**
+     * Keyed on the event and the phase, so the notice on the day does not
+     * silently replace an advance one the user has not read yet, and two events
+     * pending at once do not collapse into one.
+     */
+    private fun notificationId(event: SkyEvent, phase: EventPlanner.Phase): Int =
+        EventPlanner.key(event, phase).hashCode()
+
+    /**
+     * What an event verdict is about.
+     *
+     * Thinner than the aurora one, because an eclipse is judged on nothing the
+     * user set - and it is recorded anyway, because "the app told me about six
+     * things this month and two were worth it" is itself the answer to whether
+     * every event should interrupt or only the starred ones.
+     */
+    private fun conditions(event: SkyEvent) = Conditions(
+        atMillis = System.currentTimeMillis(),
+        channel = VerdictChannel.Event,
+        subject = event.title,
+    )
 
     /**
      * The title carries the timing, because that is what differs between the

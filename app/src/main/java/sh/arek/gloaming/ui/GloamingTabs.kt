@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.data.Answer
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
@@ -78,6 +79,7 @@ fun GloamingTabs(
     onShareEvent: (SkyEvent) -> Unit,
     onExportEvent: (SkyEvent) -> Unit,
     onCalendarSyncChange: (CalendarSync) -> Unit,
+    onVerdict: (Answer) -> Unit,
     onCometMagnitudeChange: (Int) -> Unit,
     onCometAltitudeChange: (Int) -> Unit,
     onCometStaleChange: (Int) -> Unit,
@@ -132,6 +134,7 @@ fun GloamingTabs(
                     onRequestNotifications = onRequestNotifications,
                     onShareEvent = onShareEvent,
                     onExportEvent = onExportEvent,
+                    onVerdict = onVerdict,
                 )
 
                 1 -> CalendarContent(

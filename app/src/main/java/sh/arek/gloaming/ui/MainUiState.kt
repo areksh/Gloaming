@@ -3,6 +3,7 @@ package sh.arek.gloaming.ui
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.TonightList
 
@@ -81,4 +82,11 @@ data class MainUiState(
     val calendarName: String? = null,
     /** What went wrong last time calendar sync was asked for, when it did. */
     val calendarNote: String? = null,
+    /**
+     * An alert nobody has said anything about yet, if there is one.
+     *
+     * Decoded here rather than in the composition, so the card is a plain
+     * function of resolved state like everything else on the screen.
+     */
+    val pendingVerdict: Conditions? = null,
 )

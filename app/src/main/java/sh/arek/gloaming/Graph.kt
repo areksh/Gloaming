@@ -10,6 +10,7 @@ import sh.arek.gloaming.data.FileCometCache
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
+import sh.arek.gloaming.data.FileVerdictLog
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.Journal
@@ -20,6 +21,7 @@ import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.data.VerdictLog
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
@@ -225,6 +227,16 @@ object Graph {
      * permission is not held: every method checks and returns rather than
      * throwing, which is what a background wake needs.
      */
+    /**
+     * The "was it worth it?" record.
+     *
+     * Beside the journal in device-protected storage, so a verdict pressed from
+     * a notification before the phone has been unlocked since boot still lands.
+     * These alerts arrive overnight, which is exactly that state.
+     */
+    fun verdicts(context: Context): VerdictLog =
+        FileVerdictLog(cacheDirectory(context.applicationContext))
+
     fun calendarWriter(context: Context): CalendarWriter =
         AndroidCalendarWriter(context.applicationContext)
 }

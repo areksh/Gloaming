@@ -123,6 +123,12 @@ class ManifestDeclarationTest {
      * foreground service, which cannot be started before the device has been
      * unlocked once, so being delivered early would produce a crash where there
      * is currently nothing at all.
+     *
+     * The verdict receiver must, and can: everything it touches - the verdict
+     * log, the journal and the alert state - already lives in device-protected
+     * storage. Before-unlock alerting is a supported configuration, so an alert
+     * can be posted before first unlock, and a "was it worth it?" button that
+     * silently did nothing would be worse than no button.
      */
     @Test
     fun everyReceiverHasDecidedAboutALockedBoot() {
@@ -141,6 +147,7 @@ class ManifestDeclarationTest {
                 "sh.arek.gloaming.work.PassReceiver" to false,
                 "sh.arek.gloaming.work.FollowPassReceiver" to false,
                 "sh.arek.gloaming.work.FollowEclipseReceiver" to false,
+                "sh.arek.gloaming.work.WorthItReceiver" to true,
             ),
             ours,
         )

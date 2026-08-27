@@ -28,6 +28,9 @@ import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.Answer
+import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.LocationMode
@@ -90,6 +93,7 @@ class ScreensTest {
     private var threshold: Int? = null
     private var cloudTolerance: Int? = null
     private var calendarSync: CalendarSync? = null
+    private var verdict: Answer? = null
     private var exported = 0
     private var cleared = 0
 
@@ -106,6 +110,7 @@ class ScreensTest {
         locationNote: String? = null,
         tonight: TonightList? = null,
         calendarName: String? = null,
+        pendingVerdict: Conditions? = null,
     ) {
         compose.setContent {
             Column(
@@ -132,10 +137,12 @@ class ScreensTest {
                     locationNote = locationNote,
                     tonight = tonight,
                     calendarName = calendarName,
+                    pendingVerdict = pendingVerdict,
                 )
 
                 TonightContent(
                     state = state,
+                    onVerdict = { verdict = it },
                     onWatchingChange = { watchRequest = it },
                     onWatchDurationChange = { watchDuration = it },
                     onPollNow = { polled++ },
@@ -978,6 +985,71 @@ class ScreensTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    // --- was it worth it ---
+
+    /**
+     * The half of the question the notification cannot ask.
+     *
+     * Somebody woken at two in the morning swipes the alert away and forms an
+     * opinion about it at nine, by which time the buttons are gone. Sec. 15
+     * has wanted this record since the first version and nothing was collecting
+     * it.
+     */
+    @Test
+    fun asksWhetherAnUnansweredAlertWasWorthIt() {
+        show(pendingVerdict = alerted(now - 3 * 3_600_000L))
+
+        compose.onNodeWithText("Was it worth it?").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Gloaming alerted you at", substring = true).assertExists()
+    }
+
+    /**
+     * Three answers here where the notification offers two. "Did not look" is
+     * the honest answer for a night somebody slept through, and counting those
+     * as failures would be the single easiest way to draw the wrong conclusion
+     * from the whole record.
+     */
+    @Test
+    fun offersTheAnswerNobodyCanGiveInTheDark() {
+        show(pendingVerdict = alerted(now - 3 * 3_600_000L))
+
+        compose.onNodeWithTag(verdictTag(Answer.DidNotLook)).performScrollTo().performClick()
+
+        assertEquals(Answer.DidNotLook, verdict)
+    }
+
+    @Test
+    fun reportsTheVerdictTheUserGave() {
+        show(pendingVerdict = alerted(now - 3 * 3_600_000L))
+
+        compose.onNodeWithTag(verdictTag(Answer.Worth)).performScrollTo().performClick()
+
+        assertEquals(Answer.Worth, verdict)
+    }
+
+    /** An alert from ten minutes ago has no answer yet, so there is no question. */
+    @Test
+    fun waitsBeforeAskingAboutAnAlertThatHasJustGoneOut() {
+        show(pendingVerdict = alerted(now - 10 * 60_000L))
+
+        compose.onNodeWithText("Was it worth it?").assertDoesNotExist()
+    }
+
+    @Test
+    fun asksNothingWhenEveryAlertHasBeenAnsweredFor() {
+        show()
+
+        compose.onNodeWithText("Was it worth it?").assertDoesNotExist()
+    }
+
+    private fun alerted(at: Long) = Conditions(
+        atMillis = at,
+        channel = VerdictChannel.Aurora,
+        probability = 45,
+        threshold = 30,
+        subject = "Aurora",
+    )
 
     // --- tonight ---
 

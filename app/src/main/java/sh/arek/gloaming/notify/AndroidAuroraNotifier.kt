@@ -12,6 +12,8 @@ import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
 import sh.arek.gloaming.ui.describeCloud
@@ -28,7 +30,41 @@ import sh.arek.gloaming.ui.describeCloud
  */
 class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
 
-    override fun notifyAurora(likelihood: Likelihood, status: SkyStatus, cloud: CloudCover?) {
+    /**
+     * The sky as it was, kept with the question about it.
+     *
+     * Kp and Bz are persisted nowhere in this app - they are read off a
+     * document the Worker replaces every few minutes - so unless they travel
+     * with the notification they are gone by the time anybody answers. The same
+     * goes for the threshold: it is the one in force *now*, and the whole point
+     * of the record is to work out whether it was right.
+     */
+    private fun conditions(
+        likelihood: Likelihood,
+        status: SkyStatus,
+        cloud: CloudCover?,
+        threshold: Int?,
+    ) = Conditions(
+        atMillis = System.currentTimeMillis(),
+        channel = VerdictChannel.Aurora,
+        probability = likelihood.probability,
+        source = likelihood.source.name,
+        kp = status.kp?.value,
+        bz = status.solarWind?.bz,
+        cloudTotal = cloud?.total,
+        cloudLow = cloud?.low,
+        cloudMid = cloud?.mid,
+        cloudHigh = cloud?.high,
+        threshold = threshold,
+        subject = "Aurora",
+    )
+
+    override fun notifyAurora(
+        likelihood: Likelihood,
+        status: SkyStatus,
+        cloud: CloudCover?,
+        threshold: Int?,
+    ) {
         ensureChannel()
 
         val detail = buildString {
@@ -54,6 +90,10 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .setAutoCancel(true)
+            // The highest-leverage two buttons in the app: they turn every real
+            // night into the calibration data the default thresholds have been
+            // waiting on since the first version.
+            .addWorthItActions(context, conditions(likelihood, status, cloud, threshold), NOTIFICATION_ID)
             .build()
 
         // Posting without the runtime permission on API 33+ throws; the user

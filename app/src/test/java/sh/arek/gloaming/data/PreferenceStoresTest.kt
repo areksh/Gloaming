@@ -235,6 +235,7 @@ class PreferenceStoresTest {
         nextEventCheckAt = 1_700_000_300_000,
         announcedComets = setOf("C/1995 O1 (Hale-Bopp)"),
         syncedEvents = setOf("SolarEclipse|1817197223000|42"),
+        pendingVerdict = """{"atMillis":1817197223000,"channel":"Aurora","probability":45}""",
         followingCatalogue = 25544,
         followingPeakAt = 1_700_000_400_000,
         followingRisesAt = 1_700_000_350_000,

@@ -103,6 +103,7 @@ class GloamingTabsTest {
                 onEclipseFollowMaxChange = {},
                 onNotifyEveryEventChange = {},
                 onCalendarSyncChange = { calendarSync = it },
+                onVerdict = {},
                 onToggleStar = { starred += it },
                 onToggleKind = { hiddenKind = it },
                 onShareEvent = { shared += it },

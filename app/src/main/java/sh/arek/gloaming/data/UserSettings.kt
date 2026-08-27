@@ -729,6 +729,21 @@ data class AlertState(
      * deletes somebody's dentist appointment.
      */
     val syncedEvents: Set<String> = emptySet(),
+
+    /**
+     * The most recent alert nobody has said anything about, as encoded
+     * [Conditions].
+     *
+     * The Tonight tab's half of the "was it worth it?" question. The
+     * notification carries the same conditions in its actions, but a
+     * notification that has been swiped away carries them nowhere - and the
+     * nights somebody swipes an alert away at two in the morning and forms an
+     * opinion at nine are exactly the nights worth hearing about.
+     *
+     * One slot rather than a queue. The card asks about the last alert, which
+     * is the one anybody can still remember.
+     */
+    val pendingVerdict: String? = null,
 )
 
 interface AlertStateStore {

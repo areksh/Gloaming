@@ -130,6 +130,16 @@
             android:name=".work.FollowPassReceiver"
             android:exported="false" />
 
+        <!--
+          Takes the "was it worth it?" answer off an alert. Not exported: only
+          the app's own notification may press it, and what it records is the
+          one thing the release gate is waiting on.
+        -->
+        <receiver
+            android:name=".work.WorthItReceiver"
+            android:directBootAware="true"
+            android:exported="false" />
+
         <service
             android:name=".work.PassService"
             android:exported="false"
