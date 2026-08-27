@@ -101,6 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Quiet hours no longer swallow a notice about something that is still
+  happening when they end. A satellite pass or an eclipse whose alert fell due
+  in the last half-hour of the silence was held back and then never mentioned:
+  the app went back to sleep until the pass was over, or for twelve hours,
+  while the thing itself was still going on outside. It now comes back when the
+  silence lifts, and says so then if there is still something to see. Quiet
+  hours are a request not to be woken at 06:30, not a request never to be told
+  about an eclipse that runs until half past nine.
+
 - The manifest now costs one request a day, as designed, instead of two
   requests on every poll. Nothing else changes: a verified copy less than a
   day old is simply the answer, and a moved endpoint still reaches every

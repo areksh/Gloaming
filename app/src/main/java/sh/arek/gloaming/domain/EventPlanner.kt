@@ -78,7 +78,16 @@ object EventPlanner {
 
         data class AlreadyTold(val event: SkyEvent) : Decision
 
-        data class InQuietHours(val event: SkyEvent) : Decision
+        /**
+         * Held back by the user's quiet hours, with when the silence lifts.
+         *
+         * The moment matters because a calendar notice, unlike an aurora
+         * reading, is not offered again on the next poll: its due moment is in
+         * the past by then and it drops out of the reckoning entirely. Carrying
+         * the end of the silence is what lets the planner come back for an
+         * event that is still going on.
+         */
+        data class InQuietHours(val event: SkyEvent, val until: Long) : Decision
 
         data class TooCloudy(val event: SkyEvent) : Decision
 
@@ -260,7 +269,10 @@ object EventPlanner {
 
         val quietHours = settings.quietHours
         if (quietHours != null && quietHours.contains(localMinuteOfDay)) {
-            return Decision.InQuietHours(event)
+            return Decision.InQuietHours(
+                event = event,
+                until = now + quietHours.minutesUntilEnd(localMinuteOfDay) * 60_000L,
+            )
         }
 
         if (phase == Phase.Tonight &&
@@ -302,8 +314,17 @@ object EventPlanner {
      * There is no cadence here at all. Every one of these events was knowable
      * a century ago, so a poll would only ever rediscover what the last one
      * already worked out.
+     *
+     * The exception is a notice quiet hours held back, which is why [decision]
+     * is here. Everything else this looks at is still ahead of [now]; a
+     * suppressed notice is behind it, so it contributes nothing to the
+     * reckoning below and the wake would fall twelve hours later - past the
+     * end of any event it concerned. Coming back when the silence lifts gives
+     * the notice its one remaining chance, and if the event has finished by
+     * then [due] finds nothing and nothing is said.
      */
     fun nextWake(
+        decision: Decision,
         events: List<SkyEvent>,
         now: Long,
         settings: UserSettings,
@@ -319,7 +340,9 @@ object EventPlanner {
             .filter { it > now }
             .minOrNull()
 
-        return minOf(soonest ?: Long.MAX_VALUE, now + DORMANT_INTERVAL_MILLIS)
+        val silenceLifts = (decision as? Decision.InQuietHours)?.until ?: Long.MAX_VALUE
+
+        return minOf(soonest ?: Long.MAX_VALUE, silenceLifts, now + DORMANT_INTERVAL_MILLIS)
     }
 
     /**

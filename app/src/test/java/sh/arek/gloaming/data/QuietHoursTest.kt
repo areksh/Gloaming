@@ -1,5 +1,6 @@
 package sh.arek.gloaming.data
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -65,5 +66,46 @@ class QuietHoursTest {
         assertFalse(quiet.contains(at(23)))
         assertFalse(quiet.contains(at(3)))
         assertFalse(quiet.contains(at(12)))
+    }
+
+    // --- when the silence lifts ---------------------------------------------
+
+    @Test
+    fun `counts the minutes remaining until it ends`() {
+        val quiet = QuietHours(startMinute = at(23), endMinute = at(7))
+
+        assertEquals(60, quiet.minutesUntilEnd(at(6)))
+        assertEquals(1, quiet.minutesUntilEnd(at(6, 59)))
+    }
+
+    // The count has to cross midnight with the period. Measured forwards from
+    // the moment asked about, so 23:30 is seven and a half hours from a 07:00
+    // end rather than sixteen and a half hours back to it.
+    @Test
+    fun `counts forwards across midnight`() {
+        val quiet = QuietHours(startMinute = at(23), endMinute = at(7))
+
+        assertEquals(7 * 60 + 30, quiet.minutesUntilEnd(at(23, 30)))
+        assertEquals(6 * 60 + 59, quiet.minutesUntilEnd(at(0, 1)))
+    }
+
+    @Test
+    fun `counts the minutes remaining in a same-day period`() {
+        val quiet = QuietHours(startMinute = at(13), endMinute = at(14))
+
+        assertEquals(30, quiet.minutesUntilEnd(at(13, 30)))
+    }
+
+    /**
+     * Asked at the end minute itself the answer is none, not a whole day.
+     * Nothing calls it there - the period does not contain its own end - but a
+     * total function beats one with a hole in it, and a stray day of silence
+     * is the expensive way to get this wrong.
+     */
+    @Test
+    fun `is already over at its end minute`() {
+        val quiet = QuietHours(startMinute = at(23), endMinute = at(7))
+
+        assertEquals(0, quiet.minutesUntilEnd(at(7)))
     }
 }

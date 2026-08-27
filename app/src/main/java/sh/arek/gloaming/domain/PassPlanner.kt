@@ -79,7 +79,16 @@ object PassPlanner {
         /** Already announced; nothing more to say about this one. */
         data class AlreadyTold(val pass: SatellitePass) : Decision
 
-        data class InQuietHours(val pass: SatellitePass) : Decision
+        /**
+         * Held back by the user's quiet hours.
+         *
+         * Carries when the silence lifts, in the same way [RateLimited] carries
+         * when the channel is free again, so the planner can come back for a
+         * pass that is still in the sky by then rather than writing the pass
+         * off. Somebody who asked not to be woken at 06:30 has not asked never
+         * to be told about a satellite that is overhead at 07:00.
+         */
+        data class InQuietHours(val pass: SatellitePass, val until: Long) : Decision
 
         data class TooCloudy(val pass: SatellitePass) : Decision
 
@@ -251,7 +260,10 @@ object PassPlanner {
 
         val quietHours = settings.quietHours
         if (quietHours != null && quietHours.contains(localMinuteOfDay)) {
-            return Decision.InQuietHours(pass)
+            return Decision.InQuietHours(
+                pass = pass,
+                until = now + quietHours.minutesUntilEnd(localMinuteOfDay) * 60_000L,
+            )
         }
 
         if (settings.cloudGateEnabled && cloud != null && cloud.total > settings.cloudTolerance) {
@@ -381,7 +393,20 @@ object PassPlanner {
         )
 
         is Decision.AlreadyTold -> decision.pass.setsAt + 1
-        is Decision.InQuietHours -> decision.pass.setsAt + 1
+
+        /*
+         * Whichever comes first: the end of the pass, or the end of the
+         * silence. A pass still in the sky when quiet hours lift is a pass
+         * worth mentioning then - the user declined to be woken at 06:30, not
+         * to be told at 07:00 about something overhead until 07:04. Waiting the
+         * pass out unconditionally, as this used to, threw that away.
+         *
+         * The pass ends first for most of any quiet period, and then this is
+         * the old behaviour exactly. Only the last half-hour of the silence
+         * differs, which is the window where anything was being lost.
+         */
+        is Decision.InQuietHours -> minOf(decision.pass.setsAt + 1, decision.until)
+
         is Decision.TooCloudy -> decision.pass.setsAt + 1
     }
 }

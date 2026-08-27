@@ -291,7 +291,7 @@ class EventPlannerTest {
     @Test
     fun `comes back when the next alert is due`() {
         val now = at("2027-07-31T04:00:00Z")
-        val wake = EventPlanner.nextWake(listOf(eclipse()), now, settings, AlertState())
+        val wake = EventPlanner.nextWake(EventPlanner.Decision.Nothing, listOf(eclipse()), now, settings, AlertState())
 
         assertEquals(at("2027-07-31T08:11:11Z"), wake)
     }
@@ -304,7 +304,7 @@ class EventPlannerTest {
     @Test
     fun `does not sleep past the cap waiting for something far off`() {
         val now = at("2027-07-01T00:00:00Z")
-        val wake = EventPlanner.nextWake(listOf(eclipse()), now, settings, AlertState())
+        val wake = EventPlanner.nextWake(EventPlanner.Decision.Nothing, listOf(eclipse()), now, settings, AlertState())
 
         assertEquals(now + EventPlanner.DORMANT_INTERVAL_MILLIS, wake)
     }
@@ -313,7 +313,7 @@ class EventPlannerTest {
     @Test
     fun `comes back eventually with an empty calendar`() {
         val now = at("2027-01-01T00:00:00Z")
-        val wake = EventPlanner.nextWake(emptyList(), now, settings, AlertState())
+        val wake = EventPlanner.nextWake(EventPlanner.Decision.Nothing, emptyList(), now, settings, AlertState())
 
         assertEquals(now + EventPlanner.DORMANT_INTERVAL_MILLIS, wake)
     }
@@ -524,5 +524,63 @@ class EventPlannerTest {
     @Test
     fun `lets a comet be starred`() {
         assertTrue(EventPlanner.canBeStarred(cometEvent(1_700_000_000_000)))
+    }
+
+    /**
+     * A notice that fell due inside quiet hours was simply lost: its moment is
+     * in the past by the next wake, so it dropped out of the soonest-due
+     * calculation entirely, and the wake fell twelve dormant hours later - long
+     * after an eclipse that was still going on when the silence lifted.
+     *
+     * Quiet hours are a request not to be woken, not a request never to be
+     * told about something that is still happening at breakfast.
+     */
+    @Test
+    fun `comes back when quiet hours end for a notice they held back`() {
+        // Quiet until 08:00 and it is 07:30. The eclipse notice fell due at
+        // 07:11 and the eclipse itself runs until 09:51, so it is still on.
+        val quiet = settings.copy(quietHours = QuietHours(23 * 60, 8 * 60))
+        val now = at("2027-08-02T07:30:00Z")
+        val decision = decide(
+            listOf(eclipse()),
+            "2027-08-02T07:30:00Z",
+            user = quiet,
+            minuteOfDay = 7 * 60 + 30,
+        )
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.InQuietHours)
+
+        val wake = EventPlanner.nextWake(decision, listOf(eclipse()), now, quiet, AlertState())
+
+        assertEquals(at("2027-08-02T08:00:00Z"), wake)
+    }
+
+    /**
+     * And it does not sleep past something else that falls due first. The end
+     * of the silence is a floor on how long to wait, not a replacement for the
+     * calendar.
+     */
+    @Test
+    fun `still prefers a notice due before quiet hours end`() {
+        val quiet = settings.copy(quietHours = QuietHours(23 * 60, 8 * 60))
+        val now = at("2027-08-02T07:30:00Z")
+        val held = eclipse()
+        // A second eclipse whose own notice falls due at 07:45, inside the
+        // silence but before it lifts.
+        val sooner = eclipse(
+            from = "2027-08-02T08:45:00Z",
+            at = "2027-08-02T09:30:00Z",
+            until = "2027-08-02T10:00:00Z",
+        )
+        val decision = decide(
+            listOf(held, sooner),
+            "2027-08-02T07:30:00Z",
+            user = quiet,
+            minuteOfDay = 7 * 60 + 30,
+        )
+        assertTrue(decision.toString(), decision is EventPlanner.Decision.InQuietHours)
+
+        val wake = EventPlanner.nextWake(decision, listOf(held, sooner), now, quiet, AlertState())
+
+        assertEquals(at("2027-08-02T07:45:00Z"), wake)
     }
 }

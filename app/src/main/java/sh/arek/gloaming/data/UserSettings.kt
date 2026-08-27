@@ -21,6 +21,29 @@ data class QuietHours(val startMinute: Int, val endMinute: Int) {
         } else {
             minuteOfDay >= startMinute || minuteOfDay < endMinute
         }
+
+    /**
+     * How many minutes from [minuteOfDay] until the silence lifts.
+     *
+     * Always forwards, wrapping past midnight with the period itself, so 23:30
+     * is seven and a half hours from a 07:00 end rather than sixteen and a half
+     * hours back to it. Zero at the end minute, which the period does not
+     * contain anyway.
+     *
+     * This is how the planners work out when to come back for something quiet
+     * hours held back, and it is wall-clock minutes rather than elapsed ones:
+     * a clock change inside the period moves the answer by an hour. That is
+     * accepted rather than solved. Waking an hour early finds the silence still
+     * in force and simply arms again, and waking an hour late delivers a notice
+     * late rather than not at all - both of which are better than carrying a
+     * time zone into a pure calculation that has no other use for one.
+     */
+    fun minutesUntilEnd(minuteOfDay: Int): Int =
+        Math.floorMod(endMinute - minuteOfDay, MINUTES_PER_DAY)
+
+    private companion object {
+        const val MINUTES_PER_DAY = 24 * 60
+    }
 }
 
 /**

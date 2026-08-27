@@ -500,4 +500,51 @@ class PassPlannerTest {
 
         assertTrue(!PassPlanner.shouldFollow(PassChannel.Bright, settings))
     }
+
+    /**
+     * A pass held back by quiet hours used to arm the next wake for its own
+     * set, and a pass whose alert falls due shortly before the silence lifts is
+     * still in the sky when it does - so the wake landed after the pass was
+     * over and it was never mentioned at all. The user asked not to be woken at
+     * 06:30; they did not ask never to be told about a satellite that is
+     * overhead at 07:00.
+     */
+    @Test
+    fun `comes back when quiet hours end if the pass is still up`() {
+        // Quiet until 07:00, and it is 06:30. The pass is highest at 07:00 and
+        // sets at 07:04, so its alert falls due now and it is still up when the
+        // silence lifts half an hour from now.
+        val quiet = settings.copy(quietHours = QuietHours(23 * 60, 7 * 60))
+        val now = peak - PassPlanner.LEAD_MILLIS
+        val subject = pass()
+        val decision = PassPlanner.decide(
+            listOf(subject), now, quiet, AlertState(), localMinuteOfDay = 6 * 60 + 30, cloud = clear,
+        )
+        assertTrue(decision.toString(), decision is PassPlanner.Decision.InQuietHours)
+        assertTrue("the pass outlasts the silence", subject.setsAt > now + 30 * 60_000L)
+
+        val wake = PassPlanner.nextWake(decision, now, listOf(subject), quiet, AlertState())
+
+        assertEquals("07:00, when the silence lifts", now + 30 * 60_000L, wake)
+    }
+
+    /**
+     * But a pass that has set before the silence lifts is genuinely over, and
+     * waiting it out to consider the one behind it is still right. Waking at
+     * 08:00 for a pass that finished at 07:04 would be a wake for nothing.
+     */
+    @Test
+    fun `still waits out a quiet-hours pass that sets before the silence lifts`() {
+        val quiet = settings.copy(quietHours = QuietHours(23 * 60, 8 * 60))
+        val now = peak - PassPlanner.LEAD_MILLIS
+        val subject = pass()
+        val decision = PassPlanner.decide(
+            listOf(subject), now, quiet, AlertState(), localMinuteOfDay = 6 * 60 + 30, cloud = clear,
+        )
+        assertTrue(decision.toString(), decision is PassPlanner.Decision.InQuietHours)
+
+        val wake = PassPlanner.nextWake(decision, now, listOf(subject), quiet, AlertState())
+
+        assertEquals(subject.setsAt + 1, wake)
+    }
 }

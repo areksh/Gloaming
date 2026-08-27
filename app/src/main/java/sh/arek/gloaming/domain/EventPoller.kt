@@ -152,6 +152,7 @@ class EventPoller(
         val remembered = EventPlanner.prune(told, at)
         val comets = closeOffFadedComets(held, byComet, announced)
         val wake = EventPlanner.nextWake(
+            decision,
             events,
             at,
             user,
