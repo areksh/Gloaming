@@ -20,9 +20,9 @@ This document records the project's external constraints and the decisions that 
 from them: which upstream sources are used, under what terms, what is computed where, and
 what the hosting topology has to look like as a result.
 
-It is not an application architecture document. Module boundaries, the Room schema, DI
-wiring and the Compose structure are out of scope and belong in a separate document that
-does not yet exist. The exception is Sec. 9, which specifies the attention and alerting
+It is not an application architecture document. Module boundaries, storage, DI wiring and
+the Compose structure are out of scope and belong in `docs/architecture.md`, which was the
+separate document this sentence once said did not yet exist. The exception is Sec. 9, which specifies the attention and alerting
 pipeline, because that pipeline is shaped almost entirely by the constraints recorded here.
 
 ## Scope and release gate
@@ -138,16 +138,21 @@ to explain.
 
 ## 2. Shape of the system
 
+Two writers, not one. The Worker takes the sources Cloudflare can reach; the
+rest are fetched from a host with an address of its own, because Cloudflare's
+egress cannot reach CelesTrak at all and the same bet was not taken twice
+(ADR-0008, ADR-0010). Both write to the same bucket, and nothing about the read
+path changes.
+
 ```
-  +----------------------------------------------------+
-  | CLOUDFLARE WORKER (cron only, not in read path)    |
-  |   5 min   -> SWPC OVATION grid + Kp + solar wind   |
-  |   3 min   -> AuroraWatch v0.2 (UK layer only)      |
-  |   2 h     -> CelesTrak OMM (not faster, Sec. 3)    |
-  |   weekly  -> MPC comet elements                    |
-  +-------------------------+--------------------------+
-                            | PUT (Class A ops)
-  +-------------------------v--------------------------+
+  +----------------------------------------------------+   +-------------------------------+
+  | CLOUDFLARE WORKER (cron only, not in read path)    |   | ELEMENTS FETCHER (one host)   |
+  |   5 min   -> SWPC OVATION grid + Kp + solar wind   |   |   2 h  -> CelesTrak OMM       |
+  |   3 min   -> AuroraWatch v0.2 (UK layer only)      |   |           (not faster, Sec. 3)|
+  |   every run -> compose status.json, health.json    |   |   2 x day -> MPC + COBS       |
+  +-------------------------+--------------------------+   +---------------+---------------+
+                            | PUT (Class A ops)                            | PUT (S3 API)
+  +-------------------------v--------------------------+ <----------------+
   | CLOUDFLARE R2 + public custom domain               |
   |   sky.example.tld/v1/...                           |
   |   index, status, oval, sats, comets                |
@@ -780,7 +785,7 @@ wants.
 |---|---|---|---|
 | **astronomy-engine** | **vendored** at `app/src/main/vendor/`, from tag `v2.1.19` | MIT | **None.** The 10,674-line Kotlin source imports `kotlin.math.*` and nothing else - zero `java.*` imports, no `java.time`, no `Calendar`. `Time.fromMillisecondsSince1970(Long)`. No desugaring. |
 | **SGP4/SDP4** | vendored at `app/src/main/vendor/com/rtbishop/look4sat/`, from tag `v4.4.6` | **GPL-3** | None - pure `kotlin.math`. Eleven files: the ten in `predict/` plus `utility/GeoConverter.kt`, which they import two extension functions from. |
-| OkHttp, Room, Compose, coroutines, kotlinx-serialization | | | Standard. |
+| OkHttp, Compose, coroutines, kotlinx-serialization | | | Standard. Room was listed here and is not used: the caches are plain files and the settings plain `SharedPreferences`, for the reasons `docs/architecture.md` records. |
 
 No push, messaging or distributor library is required. See Sec. 9.3.
 
@@ -1256,7 +1261,7 @@ advance one, because a forecast two days out says nothing useful about the sky.
 
 ~40 KB total. The backend is a cron job and an object store.
 
-**`comets.json`, as built.** About 30 comets in 5.8 kB, republished daily. Nothing in it is
+**`comets.json`, as built.** About 30 comets in 5.8 kB, republished twice a day. Nothing in it is
 hand-picked: the fetcher keeps a comet if observers have measured it brighter than magnitude
 10, or - failing any measurement - if its perihelion falls within a year behind or two years
 ahead and the magnitude law puts it inside the same bar at best. That bar sits far below
@@ -1341,7 +1346,12 @@ Only the manifest URL ships in the APK:
 ```
 
 `min_supported_version` is the kill switch; `message` is the broadcast channel. One request
-per day.
+per day, enforced in the repository that fetches it rather than left to the callers: all
+three pollers ask for the manifest on every wake, so a night of five-minute polls would
+otherwise turn one request into hundreds. A verified copy less than a day old is the
+answer. The cost is that a moved endpoint, or the kill switch, reaches a device within a
+day rather than within a poll - which is the latency a document re-fetched daily always
+implied.
 
 `issued_at` is unix seconds at which those contents were first published, and the app
 refuses any manifest older than the one it already holds. A signature does not expire, so

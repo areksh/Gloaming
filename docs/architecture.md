@@ -192,8 +192,8 @@ Cross-checked against Sec. 10 and the caching table in Sec. 2.
 | `status.json` | ~0.5 KB | 3 min | `public, max-age=60, stale-while-revalidate=120` | AuroraWatch UK level + Kp + solar wind + `global_activity` + `max_probability` + `oval_etag`. Latency-critical. |
 | `oval.bin` | 1.6-2.5 KB gz | 5 min | `public, max-age=120, stale-while-revalidate=180` | Packed OVATION grid: 1 byte/cell, row-major by latitude, 360x181, gzipped. Fetched conditionally on `oval_etag` change (Sec. 4). Sizes measured against live data, quiet to simulated severe storm. |
 | `sats.json` | ~50 KB | 2 h | `public, max-age=1800` | OMM elements: `stations` + `visual`, deduplicated by catalogue number and sorted, plus standard magnitudes where one can be stood behind. **Written by the fetcher, not the Worker** (ADR-0008). Measured 2026-08-24: 51.6 KB for 176 satellites, against the 20 KB Sec. 10 budgeted. |
-| `comets.json` | ~2 KB | weekly | `public, max-age=21600` | Curated MPC elements + H/slope. Phase 5. |
-| `showers.json` | ~2 KB | annually | n/a | Shipped in the APK; remote override optional. Phase 4. |
+| `comets.json` | ~6 KB | twice daily | `public, max-age=21600` | MPC elements + H/slope, with the magnitude COBS observers have measured and the attribution CC BY-NC-SA requires. **Written by the fetcher, not the Worker** (ADR-0010). Nothing in it is curated: the cutoff is a threshold, not a weekly judgement (Sec. 8, Sec. 10). Measured 2026-08-26: 5.8 KB for 30 comets. |
+| `showers.json` | - | never | n/a | **Not a hosted file at all.** Shipped in the APK, with no remote override: peaks are stored as solar longitude, so the same rows resolve for any year and there is nothing for an override to correct (Sec. 10). |
 | `health.json` | small | every run | `public, max-age=60` | Per-source state, last success, last error, consecutive failures. World-readable (issue #9). |
 
 The manifest is the only URL in the APK. It carries `schema`,
@@ -213,6 +213,14 @@ nothing, whereas advertising a URL that 404s today would have the app handling a
 failure that means nothing. The Worker republishes it only when the contents
 change, and does so on every cron rather than at deploy time, so a deleted
 manifest repairs itself within one cycle.
+
+"Re-fetched daily" is enforced in `ManifestRepository` rather than assumed of
+its callers. All three pollers ask it for the manifest on every wake, so
+without the gate an elevated night at five-minute polls would spend hundreds of
+requests, and two signature verifications apiece, on a document that changes a
+few times a year. A verified copy younger than a day is simply the answer; a
+copy stamped in the future is treated as stale, so a clock correction cannot
+freeze one in place.
 
 ## 5. Android app
 
@@ -254,11 +262,25 @@ is a file replacement.
 
 ### Layers
 
-- **data:** OkHttp + kotlinx-serialization clients (`ManifestClient`,
-  `StatusClient`, `OvalClient`, `WeatherClient`); Room for cached status, oval
-  and computed events; DataStore (Preferences) for settings. A `WeatherSource`
-  interface is defined from the start (Open-Meteo the only shipped
-  implementation) to leave room for BYO keys without a later refactor (Sec. 15).
+- **data:** one OkHttp boundary (`HttpFetcher`, conditional GET and a bounded
+  read) behind kotlinx-serialization repositories - `ManifestRepository`,
+  `SkyRepository`, `SatelliteRepository`, `CometRepository` - each of which
+  parses before it caches, so an unreadable body never replaces a good one.
+  A `WeatherSource` interface is defined from the start (Open-Meteo the only
+  shipped implementation) to leave room for BYO keys without a later refactor
+  (Sec. 15).
+
+  **Neither Room nor DataStore is used, and neither is a dependency.** Earlier
+  drafts of this document named both; what is built is plain files for the
+  caches and plain `SharedPreferences` for settings and alert state. The reason
+  is the same one that keeps the graph hand-wired: everything here is read on a
+  background wake that wants to be cheap to start, often before the device has
+  been unlocked. The cached documents are opaque blobs served from a public URL
+  and gain nothing from a schema, and the two preference stores have to be named
+  separately at the call site because which one is authoritative - the
+  credential-encrypted store or the device-encrypted mirror a locked wake can
+  reach - is the whole point of the split. `sh.arek.gloaming.data.BootAware`
+  records that split and what may be written to which; it is not repeated here.
 - **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
   horizon-crossing search over the vendored propagator, which offers no search
   of its own), and `PassDescription` (qualitative buckets - never a magnitude).
