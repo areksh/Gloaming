@@ -375,6 +375,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The screen says when a reading came from AuroraWatch rather than the global
   grid. The notification already did, but most polls are quiet and post
   nothing, and the number they produced stays on the screen until the next one.
+- `./go` at the root of the repository, one way in to building, testing and
+  installing. The commands underneath are unchanged and still work by hand;
+  what the wrapper adds is the part that is easy to forget and expensive to
+  get wrong on a device. It holds the screen awake for an instrumented run -
+  waking it on a timer, which keeps working after the charge limit has made
+  `stay_on_while_plugged_in` meaningless - refuses to start against a locked
+  phone rather than failing test by test with a message that blames the code,
+  leaves the app installed afterwards, and puts back everything it changed,
+  including after an interrupt.
 
 ### Changed
 

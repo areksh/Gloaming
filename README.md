@@ -123,11 +123,23 @@ runs its own clock and no alarm policy reaches it.
 Requires JDK 21 and the Android SDK with platform `android-37.0`.
 
 ```sh
-./gradlew :app:assembleDebug          # build the debug APK
-./gradlew :app:testDebugUnitTest      # unit tests, no device needed
-./gradlew :app:connectedDebugAndroidTest  # instrumented tests, needs a device
+./go apk           # build the debug APK
+./go test          # unit tests, no device needed
+./go device-test   # instrumented tests, needs a device
+./go check         # the unit tests and both Node projects, before a commit
+./go help          # every command, and what each option is for
+```
 
-# The same, without wiping the app afterwards - see below
+`./go help` lists the rest: the release build, installing on a phone, and the
+catalogue of nights below. Underneath are ordinary Gradle tasks and nothing
+stops you calling them directly - but on a device the wrapper also does the two
+things that are easy to forget and expensive to get wrong, both explained
+below. It holds the phone awake for the run, and it leaves the app installed
+when the run finishes.
+
+```sh
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
 ./gradlew :app:connectedDebugAndroidTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
 ```
@@ -144,7 +156,8 @@ settings and its battery-optimisation exemption with it. That is easy to miss
 and expensive when it happens: a phone set up for an overnight run and then used
 to run the suite is quietly back to a fresh install, and the night tests
 nothing. Pass `leaveApksInstalledAfterRun` on any device that is also being used
-to watch something.
+to watch something; `./go device-test` passes it unless you ask for the opposite
+with `--uninstall`.
 
 The instrumented tests cover the seams a JVM test cannot reach: that the
 credential- and device-encrypted preference stores really are separate, that the
@@ -154,8 +167,11 @@ USB debugging enabled, and **awake and unlocked**: an activity launched behind
 the keyguard reaches resumed and pauses again without ever drawing, so the
 Compose harness finds no semantics tree and every assertion fails with "No
 compose hierarchies found in the app" - which reads like a broken test setup and
-is not. `adb shell input keyevent KEYCODE_WAKEUP` before a run, and
-`settings put global stay_on_while_plugged_in 7` to keep it that way.
+is not. By hand that is `adb shell input keyevent KEYCODE_WAKEUP` before a run,
+and `settings put global stay_on_while_plugged_in 7` to keep it that way.
+`./go device-test` does both, and stops with the reason rather than starting if
+the keyguard is still up - a phone with a PIN on it is the one case no script
+can get past.
 
 That second one stops working the moment the battery reaches a charge limit.
 GrapheneOS holds at 80 per cent by default, and a phone that has stopped
@@ -171,6 +187,11 @@ adb shell settings get system screen_off_timeout      # note it down first
 adb shell settings put system screen_off_timeout 1800000
 ```
 
+`./go device-test` raises it, puts it back afterwards - including after an
+interrupt - and wakes the screen every few minutes for the length of the run,
+which is the part that still holds once the charge limit has made the setting
+meaningless.
+
 The APK lands in `app/build/outputs/apk/debug/`.
 
 ### Looking at a night that has not happened
@@ -182,10 +203,18 @@ it:
 
 ```sh
 # The nights are still real - the ephemeris is asked, not a fixture
+./go scenarios
+
+# Every night drawn on the phone, and the notification each one would post
+./go scenarios --device
+```
+
+The same by hand. `connectedDebugAndroidTest` takes no `--tests`: the
+instrumentation runner does the filtering, and the class name must be whole.
+
+```sh
 ./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'
 
-# Drawn on the device. connectedDebugAndroidTest takes no --tests; the
-# instrumentation runner does the filtering, and the class name must be whole.
 ./gradlew :app:connectedDebugAndroidTest \
   -Pandroid.testInstrumentationRunnerArguments.class=sh.arek.gloaming.scenarios.ScenarioScreensTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
@@ -218,7 +247,7 @@ and the hardest thing to test. Two harnesses answer it in minutes rather than a
 night:
 
 ```sh
-./gradlew :app:installDebug :app:installDebugAndroidTest
+./go install --test           # the app, and the APK these two harnesses need
 tools/bfu-check.sh --seed     # reboot, hold at the lock screen, report back
 tools/doze-check.sh           # force deep Doze, measure the real poll spacing
 ```
