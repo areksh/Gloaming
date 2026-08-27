@@ -182,8 +182,54 @@ class ScreensTest {
     fun showsTheProbabilityAndItsAge() {
         show(alertState = AlertState(lastProbability = 42, lastPollAt = now - 10 * 60_000L))
 
-        compose.onNodeWithText("42% aurora probability here").assertExists()
+        compose.onNodeWithText("Aurora").assertExists()
+        compose.onNodeWithText("42% probability here").assertExists()
         compose.onNodeWithText("Checked 10 minutes ago").assertExists()
+    }
+
+    /**
+     * Every part of Tonight says what it is about.
+     *
+     * The reported complaint was that the tab was unreadable: an oversized
+     * unlabelled percentage over a card called "Tonight" that was mostly
+     * satellite passes. These are the titles, and the titles are the fix.
+     */
+    @Test
+    fun titlesEveryPartOfTonight() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        for (title in listOf("Aurora", "Darkness", "Satellites")) {
+            compose.onNodeWithText(title).performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    /** A card with nothing to say is absent rather than empty. */
+    @Test
+    fun leavesOutTheCardsWithNothingToSay() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Events tonight").assertDoesNotExist()
+        compose.onNodeWithText("Comets tonight").assertDoesNotExist()
     }
 
     /** The state the reported bug was stuck in. */
@@ -888,7 +934,7 @@ class ScreensTest {
             ),
         )
 
-        compose.onNodeWithText("Tonight").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Satellites").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("ISS (ZARYA)", substring = true).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("68 degrees south", substring = true).performScrollTo().assertIsDisplayed()
     }

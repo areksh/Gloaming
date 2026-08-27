@@ -101,6 +101,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Every part of the Tonight tab now says what it is about. The aurora reading
+  was the largest thing on the screen and carried no label at all, so it read as
+  the app's headline rather than as one of several things the sky is doing; and
+  the card under it, called "Tonight", was mostly satellite passes with the
+  darkness, the events and the comets run together above them in one unlabelled
+  block. It is now one titled card per question - Aurora, Darkness, Events
+  tonight, Comets tonight, Satellites - and a card with nothing to say is absent
+  rather than empty.
+
 - The last button in a row of choices is reachable again. "Dawn" on the Tonight
   tab was rendering one letter to a line, and the widest aurora threshold and
   cloud tolerance were laid out past the right edge of the screen where they

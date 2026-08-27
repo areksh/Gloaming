@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,6 +28,7 @@ import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.StormMode
+import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitePass
 
 /**
@@ -46,7 +49,17 @@ fun TonightContent(
 ) {
     StatusCard(state)
 
-    TonightCard(state)
+    // Titled cards rather than a single card called "Tonight". That card was
+    // mostly satellite passes, so it read as a satellite card with a few other
+    // lines stuck on top of it, and nothing on the screen said which part was
+    // which. Each is absent rather than empty when it has nothing to say.
+    val tonight = state.tonight?.takeIf { state.settings.hasLocation }
+    if (tonight != null) {
+        DarknessCard(tonight)
+        EventsCard(tonight)
+        CometsCard(tonight)
+        SatellitesCard(tonight)
+    }
 
     if (!state.batteryExempt) {
         WarningCard(
@@ -92,56 +105,86 @@ fun TonightContent(
     )
 }
 
+/**
+ * The aurora reading, which is the one number the app exists for.
+ *
+ * Titled like every other card, and a size down from where it started. It was
+ * `headlineSmall` and unlabelled, which made "30% aurora probability here" the
+ * largest thing on the screen by some way - so it read as the app's headline
+ * rather than as one of several things the sky is doing tonight, and the cards
+ * under it looked like footnotes to it rather than answers to their own
+ * questions.
+ */
 @Composable
 private fun StatusCard(state: MainUiState) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            val probability = state.alertState.lastProbability
-            Text(
-                text = when {
-                    !state.settings.hasLocation -> "Set your location to begin"
-                    probability == null -> "No reading yet"
-                    else -> "$probability% aurora probability here"
-                },
-                style = MaterialTheme.typography.headlineSmall,
-            )
+    SectionCard("Aurora", spacing = 4.dp) {
+        val probability = state.alertState.lastProbability
+        Text(
+            text = when {
+                !state.settings.hasLocation -> "Set your location to begin"
+                probability == null -> "No reading yet"
+                else -> "$probability% probability here"
+            },
+            style = MaterialTheme.typography.titleLarge,
+        )
 
-            // Staleness is shown prominently rather than buried: a reading from
-            // three days ago is worse than showing nothing, and a device that
-            // has been quiet is not the same as one that has not looked.
+        // Staleness is shown prominently rather than buried: a reading from
+        // three days ago is worse than showing nothing, and a device that
+        // has been quiet is not the same as one that has not looked.
+        Text(
+            text = describeAge(state.alertState.lastPollAt, state.nowMillis),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        // Immediately under the age, because the two are read together: a
+        // long gap is only alarming until the next line explains it.
+        state.darkness?.let {
             Text(
-                text = describeAge(state.alertState.lastPollAt, state.nowMillis),
+                text = describeSchedule(it),
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
 
-            // Immediately under the age, because the two are read together: a
-            // long gap is only alarming until the next line explains it.
-            state.darkness?.let {
-                Text(
-                    text = describeSchedule(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+        // Beside the number, not at the foot of the screen. AuroraWatch's
+        // conditions tie the credit to their data, and a reader deciding
+        // whether to trust 55% should be able to see where it came from
+        // without scrolling. The attribution they specify is carried in
+        // full by the credits card below.
+        if (state.alertState.lastFromAuroraWatch) {
+            Text(
+                "This reading came from AuroraWatch UK.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
-            // Beside the number, not at the foot of the screen. AuroraWatch's
-            // conditions tie the credit to their data, and a reader deciding
-            // whether to trust 55% should be able to see where it came from
-            // without scrolling. The attribution they specify is carried in
-            // full by the credits card below.
-            if (state.alertState.lastFromAuroraWatch) {
-                Text(
-                    "This reading came from AuroraWatch UK.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+        state.alertState.lastError?.let {
+            Text(
+                "Last check failed: $it",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
 
-            state.alertState.lastError?.let {
-                Text(
-                    "Last check failed: $it",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+/**
+ * A titled card, which is what every part of this screen now is.
+ *
+ * The title is not decoration. Before it there was one card called "Tonight"
+ * holding the darkness, the events, the comets and the passes in a single
+ * unlabelled run of text, and a reader had no way to tell which sentence
+ * belonged to which question.
+ */
+@Composable
+private fun SectionCard(
+    title: String,
+    spacing: Dp = 8.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(spacing)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            content()
         }
     }
 }
@@ -251,72 +294,106 @@ private fun WatchNowCard(
 }
 
 /**
- * What there is to see between now and dawn.
+ * When it is dark enough to be worth going outside.
  *
- * The gap this fills: passes were only ever reachable as a notification, so
- * somebody standing outside at nine wondering what was crossing could do
- * nothing but wait to be interrupted. A year of them cannot go in the calendar
- * - a clear night here has upwards of forty - so the split is by shape: dated
- * and sparse in the calendar, nightly and dense here.
+ * First of the tonight cards because it bounds every other one: a pass at
+ * 22:40 and a comet at 46 degrees both mean something different if the sky
+ * does not get dark until 23:15.
  */
 @Composable
-private fun TonightCard(state: MainUiState) {
-    val list = state.tonight ?: return
-    if (!state.settings.hasLocation) return
+private fun DarknessCard(list: TonightList) {
+    SectionCard("Darkness") {
+        Text(
+            if (list.darkFrom == null) {
+                "It does not get properly dark here at this time of year."
+            } else {
+                "Dark from ${clock(list.darkFrom)} until ${clock(list.darkUntil!!)}."
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Tonight", style = MaterialTheme.typography.titleMedium)
+/**
+ * Dated things falling tonight, and the noctilucent prompt in season.
+ *
+ * Absent rather than empty when there are none. An "Events tonight" card
+ * saying nothing is worse than no card at all - it takes up the same space and
+ * answers the question with silence.
+ */
+@Composable
+private fun EventsCard(list: TonightList) {
+    if (list.noctilucent == null && list.events.isEmpty()) return
 
+    SectionCard("Events tonight") {
+        list.noctilucent?.let {
+            Text(it.title, style = MaterialTheme.typography.titleSmall)
+            Text(it.detail, style = MaterialTheme.typography.bodySmall)
+        }
+
+        for (event in list.events) {
+            Text(event.title, style = MaterialTheme.typography.titleSmall)
+            Text(event.detail, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/**
+ * Comets up tonight, worked out for tonight rather than taken from the
+ * calendar.
+ *
+ * Their own card rather than folded in with the events, because the calendar's
+ * comet entry answers a different question - the best night of the year, not
+ * where to look now - and running the two together is what made the old card
+ * unreadable. The reason is printed where there is one, because "washed out by
+ * the moon" is the difference between a wasted walk and a good one.
+ */
+@Composable
+private fun CometsCard(list: TonightList) {
+    if (list.comets.isEmpty()) return
+
+    // "Comets tonight", not "Comets": the calendar's comet entry is about the
+    // best night of the year and the settings card is about which comets are
+    // worth hearing about at all. Three cards called "Comets" answering three
+    // different questions is the confusion this commit exists to remove.
+    SectionCard("Comets tonight") {
+        for (comet in list.comets) {
+            Text(comet.title, style = MaterialTheme.typography.titleSmall)
+            Text(comet.detail, style = MaterialTheme.typography.bodySmall)
+            (comet.visibility as? Visibility.Marginal)?.let {
+                Text(it.reason, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/**
+ * What crosses tonight, which is the one thing the calendar cannot hold.
+ *
+ * A year of eclipses fits in a list; a year of passes does not - a clear night
+ * here has upwards of forty - so the split is by shape: dated and sparse in the
+ * calendar, nightly and dense here. Unlike the cards above it is present even
+ * when empty, because an empty sky is an answer and a missing card is not.
+ */
+@Composable
+private fun SatellitesCard(list: TonightList) {
+    SectionCard("Satellites") {
+        if (list.passes.isEmpty()) {
             Text(
-                if (list.darkFrom == null) {
-                    "It does not get properly dark here at this time of year."
-                } else {
-                    "Dark from ${clock(list.darkFrom)} until ${clock(list.darkUntil!!)}."
-                },
+                "Nothing crossing tonight that clears the horizon in sunlight.",
                 style = MaterialTheme.typography.bodySmall,
             )
-
-            list.noctilucent?.let {
-                Text(it.title, style = MaterialTheme.typography.titleSmall)
-                Text(it.detail, style = MaterialTheme.typography.bodySmall)
-            }
-
-            for (event in list.events) {
-                Text(event.title, style = MaterialTheme.typography.titleSmall)
-                Text(event.detail, style = MaterialTheme.typography.bodySmall)
-            }
-
-            // Comets come before the passes and after the dated events, which
-            // is roughly their standing: rarer than anything crossing tonight,
-            // and less of an occasion than an eclipse. The reason is printed
-            // where there is one, because "washed out by the moon" is the
-            // difference between a wasted walk and a good one.
-            for (comet in list.comets) {
-                Text(comet.title, style = MaterialTheme.typography.titleSmall)
-                Text(comet.detail, style = MaterialTheme.typography.bodySmall)
-                (comet.visibility as? Visibility.Marginal)?.let {
-                    Text(it.reason, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-
-            if (list.passes.isEmpty()) {
-                Text(
-                    "Nothing crossing tonight that clears the horizon in sunlight.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            } else {
-                Text(
-                    if (list.passes.size > list.bestPasses.size) {
-                        "${list.passes.size} satellites cross tonight. The best of them:"
-                    } else {
-                        "${list.passes.size} satellite ${plural2(list.passes.size)} tonight:"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                for (pass in list.bestPasses) {
-                    Text(describePassLine(pass), style = MaterialTheme.typography.bodySmall)
-                }
+        } else {
+            Text(
+                if (list.passes.size > list.bestPasses.size) {
+                    "${list.passes.size} satellites cross tonight. The best of them:"
+                } else {
+                    "${list.passes.size} satellite ${plural2(list.passes.size)} tonight:"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            for (pass in list.bestPasses) {
+                Text(describePassLine(pass), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
