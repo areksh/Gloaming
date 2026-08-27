@@ -42,6 +42,16 @@ android {
     sourceSets.getByName("main") {
         kotlin.directories.add("src/main/vendor")
     }
+    // The scenario library, in a tree of its own because both test source sets
+    // need it and Gradle gives them nothing in common. It is fixtures only -
+    // no JUnit, no Android - so that the JVM suite and the instrumented suite
+    // describe the same nights rather than each inventing their own.
+    sourceSets.getByName("test") {
+        kotlin.directories.add("src/scenarios/java")
+    }
+    sourceSets.getByName("androidTest") {
+        kotlin.directories.add("src/scenarios/java")
+    }
 }
 
 dependencies {

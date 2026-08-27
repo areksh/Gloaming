@@ -156,6 +156,40 @@ is not. `adb shell input keyevent KEYCODE_WAKEUP` before a run, and
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
+### Looking at a night that has not happened
+
+Most of what this app is for happens a few times a decade. Waiting for a total
+lunar eclipse to find out whether the eclipse card lays out properly is not a
+plan, so `app/src/scenarios/` holds a catalogue of nights, and both suites read
+it:
+
+```sh
+./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'   # the nights are still real
+./gradlew :app:connectedDebugAndroidTest \
+  --tests '*ScenarioScreensTest' \
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
+```
+
+**Nothing in it is fake astronomy.** A scenario supplies arguments - where you
+are standing, what the time is, and the documents the device would already hold
+- and the shipped code does the rest. The total lunar eclipse of December 2029
+is in the catalogue because it really happens then and really is high over
+Edinburgh, not because a fixture says so. What is genuinely invented is the
+small part the sky does not decide: the cloud forecast, the satellite elements
+and the aurora reading.
+
+Each night declares what it is supposed to show, and `ScenariosTest` proves it -
+without that, a screen test against a scenario that had quietly gone empty would
+pass exactly as happily as one against a full one. `ScenarioScreensTest` then
+renders every one of them through the real Tonight tab on the device, and
+`ScenarioNotificationsTest` posts the notification each would produce.
+
+Two dates in the catalogue are not free choices. The satellite nights sit within
+a few days of the station's real element epoch, because SGP4 is a near-epoch
+model. And a scenario has to be set *before* the moment an event peaks: the
+calendar answers "what is ahead", so a shower whose maximum passed this morning
+is already off it.
+
 ### Testing overnight delivery
 
 Whether an alert arrives at three in the morning is the only thing that matters

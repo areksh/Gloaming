@@ -354,6 +354,18 @@ Greenfield, held to the full TDD bar (ADR-0001).
   checklist gate before Phase 3 ships, not an aspiration.
 - **Worker:** Vitest against workerd for the fetchers, `composeStatus()`, the
   packer and the circuit breaker.
+- **A catalogue of nights, shared by both suites.** `app/src/scenarios/` is a
+  third source tree, added to `test` and `androidTest` alike because Gradle
+  gives them nothing in common. It holds no assertions and no framework: each
+  entry is a place, an instant, and the documents a device would already have
+  cached, and the shipped calendar and tonight code produce the rest. That is
+  what makes it worth having rather than a set of canned screens - a stored
+  `TonightList` would go on agreeing with itself long after the engine beneath
+  it had rotted. Each night also declares what it should demonstrate, which the
+  JVM suite checks, so a screen test cannot pass against a scenario that has
+  quietly gone empty. Two of the engine defects found in this way - a shower
+  missing on the night it peaks, a conjunction invisible for the six hours
+  before it - were reachable no other way.
 - **The load-bearing milestone** is overnight delivery on a real phone
   (Sec. 14 step 6). Everything else is decoration on top of it. `tools/` holds
   two harnesses that answer it in minutes rather than a night:
