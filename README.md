@@ -164,9 +164,13 @@ plan, so `app/src/scenarios/` holds a catalogue of nights, and both suites read
 it:
 
 ```sh
-./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'   # the nights are still real
+# The nights are still real - the ephemeris is asked, not a fixture
+./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'
+
+# Drawn on the device. connectedDebugAndroidTest takes no --tests; the
+# instrumentation runner does the filtering, and the class name must be whole.
 ./gradlew :app:connectedDebugAndroidTest \
-  --tests '*ScenarioScreensTest' \
+  -Pandroid.testInstrumentationRunnerArguments.class=sh.arek.gloaming.scenarios.ScenarioScreensTest \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
 ```
 
