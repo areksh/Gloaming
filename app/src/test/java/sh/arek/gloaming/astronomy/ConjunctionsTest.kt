@@ -3,6 +3,7 @@ package sh.arek.gloaming.astronomy
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,6 +33,57 @@ class ConjunctionsTest {
 
     private fun pair(list: List<Approach>, a: SkyBody, b: SkyBody) =
         list.firstOrNull { (it.first == a && it.second == b) || (it.first == b && it.second == a) }
+
+    /**
+     * The hours before it happens are the hours it matters.
+     *
+     * The search samples every six hours and calls a sample a minimum when it
+     * is lower than the ones either side of it, so the first sample never had
+     * anything before it to compare against and an approach in the opening six
+     * hours could not be seen. That is not an obscure corner: the calendar is
+     * worked out from the moment the app is opened, so the six hours it could
+     * not see were always the next six - and somebody opening the app at nine
+     * to ask about a conjunction at eleven was told there was nothing.
+     */
+    @Test
+    fun `finds an approach in the next few hours`() {
+        val approach = pair(
+            found("2026-11-16T00:00:00Z", 5),
+            SkyBody.Mars,
+            SkyBody.Jupiter,
+        )
+
+        assertNotNull("Mars and Jupiter are closest at 01:50 on 16 November", approach)
+        assertEquals(
+            Instant.ofEpochMilli(approach!!.atMillis).toString(),
+            at("2026-11-16T01:50:43Z") / 1000,
+            approach.atMillis / 1000,
+        )
+    }
+
+    /** And the same at the far end, where the last sample had nothing after it. */
+    @Test
+    fun `finds an approach in the last few hours`() {
+        val approach = pair(
+            found("2026-11-11T06:00:00Z", 5),
+            SkyBody.Mars,
+            SkyBody.Jupiter,
+        )
+
+        assertNotNull("the same approach, four hours inside the end", approach)
+    }
+
+    /** What falls outside the window still stays outside it. */
+    @Test
+    fun `leaves out an approach beyond the window`() {
+        val approach = pair(
+            found("2026-11-01T00:00:00Z", 10),
+            SkyBody.Mars,
+            SkyBody.Jupiter,
+        )
+
+        assertNull(approach)
+    }
 
     /**
      * Mars and Jupiter, 16 November 2026: 1.2 degrees apart with both a good way

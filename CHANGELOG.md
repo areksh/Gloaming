@@ -405,6 +405,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A conjunction in the next six hours is no longer invisible.** Close
+  approaches are found by sampling every six hours and picking out the moments
+  lower than the samples either side, and the first sample had nothing before it
+  to be compared against. Since the calendar is worked out from the moment you
+  open the app, the six hours it could not see were always the next six - so
+  opening the app at nine to ask about an occultation at eleven showed nothing.
+
 - **A meteor shower no longer disappears from the calendar on the night it
   peaks.** The peaks are stored as a position in the Earth's orbit rather than a
   date, and the search for when the Earth next reaches one was given a window of

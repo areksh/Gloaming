@@ -112,12 +112,20 @@ object Conjunctions {
         untilMillis: Long,
         withinDegrees: Double = NOTABLE_DEGREES,
     ): List<Approach> {
+        if (untilMillis <= fromMillis) return emptyList()
+
         val observer = Observer(latitude, longitude, 0.0)
-        val steps = ((untilMillis - fromMillis) / STEP_MILLIS).toInt()
-        if (steps < 2) return emptyList()
+        // Sampled one step either side of the window that was asked for.
+        // A minimum is recognised by being lower than the samples on both
+        // sides of it, so without the padding the first and last steps have
+        // nothing to be compared against and an approach inside them is
+        // invisible. That mattered: the calendar is worked out from the moment
+        // the app is opened, so the blind six hours were always the next six.
+        val origin = fromMillis - STEP_MILLIS
+        val steps = (((untilMillis + STEP_MILLIS) - origin) / STEP_MILLIS).toInt()
 
         val samples = Array(steps + 1) { step ->
-            directionsAt(observer, fromMillis + step * STEP_MILLIS)
+            directionsAt(observer, origin + step * STEP_MILLIS)
         }
 
         return buildList {
@@ -133,9 +141,13 @@ object Conjunctions {
                             observer,
                             WATCHED[i],
                             WATCHED[j],
-                            fromMillis + (step - 1) * STEP_MILLIS,
-                            fromMillis + (step + 1) * STEP_MILLIS,
+                            origin + (step - 1) * STEP_MILLIS,
+                            origin + (step + 1) * STEP_MILLIS,
                         )
+                        // The padding is there to see into the window, not to
+                        // widen it, so what it finds outside is dropped.
+                        if (at !in fromMillis..untilMillis) continue
+
                         val apart = separation(WATCHED[i], WATCHED[j], observer, at)
                         if (apart <= withinDegrees) {
                             add(Approach(at, apart, WATCHED[i], WATCHED[j]))
