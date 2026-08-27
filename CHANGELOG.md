@@ -174,82 +174,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Three tabs - Tonight, Calendar and Settings - where the app was one long
   scrolling page.
 
-### Fixed
-
-- Every part of the Tonight tab now says what it is about. The aurora reading
-  was the largest thing on the screen and carried no label at all, so it read as
-  the app's headline rather than as one of several things the sky is doing; and
-  the card under it, called "Tonight", was mostly satellite passes with the
-  darkness, the events and the comets run together above them in one unlabelled
-  block. It is now one titled card per question - Aurora, Darkness, Events
-  tonight, Comets tonight, Satellites - and a card with nothing to say is absent
-  rather than empty.
-
-- The last button in a row of choices is reachable again. "Dawn" on the Tonight
-  tab was rendering one letter to a line, and the widest aurora threshold and
-  cloud tolerance were laid out past the right edge of the screen where they
-  could not be pressed at all. All three rows now wrap, which also means a large
-  system font size costs a line of height rather than the last option.
-
-- Quiet hours no longer swallow a notice about something that is still
-  happening when they end. A satellite pass or an eclipse whose alert fell due
-  in the last half-hour of the silence was held back and then never mentioned:
-  the app went back to sleep until the pass was over, or for twelve hours,
-  while the thing itself was still going on outside. It now comes back when the
-  silence lifts, and says so then if there is still something to see. Quiet
-  hours are a request not to be woken at 06:30, not a request never to be told
-  about an eclipse that runs until half past nine.
-
-- The manifest now costs one request a day, as designed, instead of two
-  requests on every poll. Nothing else changes: a verified copy less than a
-  day old is simply the answer, and a moved endpoint still reaches every
-  device within a day.
-
-- A poll interrupted at the wrong moment can no longer end the overnight
-  schedule. The next alarm used to be armed only after a poll finished, so a
-  process killed - or stalled past its wake lock - between the alarm firing
-  and that reschedule left nothing pending until the next reboot or app open.
-  The wake is now armed before the poll starts and replaced with the computed
-  one when it completes.
-
-- The app's own log now records polls made before the first unlock after a
-  reboot. It was silently empty for exactly that window: the setting that says
-  whether to keep a log was read from storage that is locked until the user
-  unlocks, the failure was swallowed, and every line from a locked poll
-  reached only logcat - whose buffer has rolled over by morning. The journal
-  was built for those nights, and now it covers them.
-
-- One observer filing many reports can no longer set a comet's published
-  brightness. The magnitude is now the median over observers - one voice
-  each, the median of that person's own reports - rather than over the
-  reports themselves, where seven wrong numbers from one person outvoted one
-  right number from another. This closes the remaining half of the wild
-  NEOWISE-reports case that motivated requiring two observers in the first
-  place.
-
-- The calendar's kind filter is now remembered. Hiding meteor showers, or
-  unfolding the moon's quarters, held until the app was next started and then
-  quietly reverted - and hiding a kind also silences its alerts, so the effect
-  was not merely cosmetic.
-
-- "Check now" refreshes everything, not only the aurora. It now runs the
-  satellite passes and the sky calendar too, which is what a button called
-  that should always have done - and it schedules the next background wake for
-  whichever of the three is due first. Before, it used the aurora interval
-  alone, so pressing it on a quiet overcast night could push the next wake out
-  past a pass alert due in half an hour and deliver it after the pass.
-- A pass on one channel could be missed because the app was waiting out a pass
-  on another. Found on the first untouched overnight run: a rocket body was
-  announced at 03:00 and the space station's own alert, due at 03:18, was slept
-  straight through. The channels have separate budgets so that one does not
-  crowd out the other, and this was exactly that.
-- The backend could not tell the difference between a source that was working
-  and a source nobody was asking. One of them stopped for two and a half hours
-  while the health record reported it healthy, because the record only ever
-  described attempts. It now reports a source as stale when its last success is
-  too old to believe, and says so on the alerting channel.
-
-### Added
 
 - Satellite passes. The app predicts when the ISS and other bright satellites
   cross the sky where you are, and tells you half an hour before one is
@@ -481,6 +405,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Every part of the Tonight tab now says what it is about. The aurora reading
+  was the largest thing on the screen and carried no label at all, so it read as
+  the app's headline rather than as one of several things the sky is doing; and
+  the card under it, called "Tonight", was mostly satellite passes with the
+  darkness, the events and the comets run together above them in one unlabelled
+  block. It is now one titled card per question - Aurora, Darkness, Events
+  tonight, Comets tonight, Satellites - and a card with nothing to say is absent
+  rather than empty.
+
+- The last button in a row of choices is reachable again. "Dawn" on the Tonight
+  tab was rendering one letter to a line, and the widest aurora threshold and
+  cloud tolerance were laid out past the right edge of the screen where they
+  could not be pressed at all. All three rows now wrap, which also means a large
+  system font size costs a line of height rather than the last option.
+
+- Quiet hours no longer swallow a notice about something that is still
+  happening when they end. A satellite pass or an eclipse whose alert fell due
+  in the last half-hour of the silence was held back and then never mentioned:
+  the app went back to sleep until the pass was over, or for twelve hours,
+  while the thing itself was still going on outside. It now comes back when the
+  silence lifts, and says so then if there is still something to see. Quiet
+  hours are a request not to be woken at 06:30, not a request never to be told
+  about an eclipse that runs until half past nine.
+
+- The manifest now costs one request a day, as designed, instead of two
+  requests on every poll. Nothing else changes: a verified copy less than a
+  day old is simply the answer, and a moved endpoint still reaches every
+  device within a day.
+
+- A poll interrupted at the wrong moment can no longer end the overnight
+  schedule. The next alarm used to be armed only after a poll finished, so a
+  process killed - or stalled past its wake lock - between the alarm firing
+  and that reschedule left nothing pending until the next reboot or app open.
+  The wake is now armed before the poll starts and replaced with the computed
+  one when it completes.
+
+- The app's own log now records polls made before the first unlock after a
+  reboot. It was silently empty for exactly that window: the setting that says
+  whether to keep a log was read from storage that is locked until the user
+  unlocks, the failure was swallowed, and every line from a locked poll
+  reached only logcat - whose buffer has rolled over by morning. The journal
+  was built for those nights, and now it covers them.
+
+- One observer filing many reports can no longer set a comet's published
+  brightness. The magnitude is now the median over observers - one voice
+  each, the median of that person's own reports - rather than over the
+  reports themselves, where seven wrong numbers from one person outvoted one
+  right number from another. This closes the remaining half of the wild
+  NEOWISE-reports case that motivated requiring two observers in the first
+  place.
+
+- The calendar's kind filter is now remembered. Hiding meteor showers, or
+  unfolding the moon's quarters, held until the app was next started and then
+  quietly reverted - and hiding a kind also silences its alerts, so the effect
+  was not merely cosmetic.
+
+- "Check now" refreshes everything, not only the aurora. It now runs the
+  satellite passes and the sky calendar too, which is what a button called
+  that should always have done - and it schedules the next background wake for
+  whichever of the three is due first. Before, it used the aurora interval
+  alone, so pressing it on a quiet overcast night could push the next wake out
+  past a pass alert due in half an hour and deliver it after the pass.
+- A pass on one channel could be missed because the app was waiting out a pass
+  on another. Found on the first untouched overnight run: a rocket body was
+  announced at 03:00 and the space station's own alert, due at 03:18, was slept
+  straight through. The channels have separate budgets so that one does not
+  crowd out the other, and this was exactly that.
+- The backend could not tell the difference between a source that was working
+  and a source nobody was asking. One of them stopped for two and a half hours
+  while the health record reported it healthy, because the record only ever
+  described attempts. It now reports a source as stale when its last success is
+  too old to believe, and says so on the alerting channel.
+
+
 - The cached cloud reading no longer sits in device-encrypted storage
   unconditionally. It records where the user was at about a kilometre - the
   rounded position the request carried - which is far finer than the whole
@@ -531,6 +529,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not.
 
 ### Notes
+
+*Not one of Keep a Changelog's types, and deliberately so. What is recorded here
+is how a change was verified rather than what changed - which belongs with the
+release it applies to, and would be a lie under any of the headings above.*
 
 - The worked example for provoking a real alert was stale in two ways: it gave
   a longitude in the grid's 0-359 form rather than the -180 to 180 the app
