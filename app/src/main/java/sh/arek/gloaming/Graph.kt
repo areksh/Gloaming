@@ -2,11 +2,12 @@ package sh.arek.gloaming
 
 import android.content.Context
 import java.io.File
+import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.BootAware
-import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.CometRepository
 import sh.arek.gloaming.data.FileCometCache
+import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
 import sh.arek.gloaming.data.FileWeatherCache
@@ -14,14 +15,15 @@ import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.Journal
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
-import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
 import sh.arek.gloaming.data.devicePreferences
+import sh.arek.gloaming.domain.CalendarWriter
 import sh.arek.gloaming.domain.EventPoller
 import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
@@ -212,6 +214,17 @@ object Graph {
             settings = BootAware.pollSettings(application),
             state = alertState(application),
             notifier = AndroidEventNotifier(application),
+            calendarWriter = calendarWriter(application),
         )
     }
+
+    /**
+     * Where starred events go, when the user has asked for that.
+     *
+     * Constructed unconditionally and harmless when the feature is off or the
+     * permission is not held: every method checks and returns rather than
+     * throwing, which is what a background wake needs.
+     */
+    fun calendarWriter(context: Context): CalendarWriter =
+        AndroidCalendarWriter(context.applicationContext)
 }

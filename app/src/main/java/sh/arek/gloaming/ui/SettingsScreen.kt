@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
@@ -76,6 +77,7 @@ fun SettingsContent(
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
     onNotifyEveryEventChange: (Boolean) -> Unit,
+    onCalendarSyncChange: (CalendarSync) -> Unit,
     onCometMagnitudeChange: (Int) -> Unit,
     onCometAltitudeChange: (Int) -> Unit,
     onCometStaleChange: (Int) -> Unit,
@@ -120,6 +122,7 @@ fun SettingsContent(
         onEventLeadChange,
         onEclipseFollowMaxChange,
         onNotifyEveryEventChange,
+        onCalendarSyncChange,
     )
     CometCard(
         state,
@@ -971,6 +974,74 @@ private fun CometCard(
     }
 }
 
+/**
+ * Whether starred events are written into the phone's own calendar.
+ *
+ * Three answers rather than a switch, because "put it in my calendar" means two
+ * different things to two reasonable people - and choosing for them would be
+ * wrong either way. What each one costs is stated here rather than left to be
+ * discovered, since one of them sends these entries to whatever server the
+ * user's calendar already syncs to.
+ *
+ * The permission is asked for at the moment somebody picks a destination, never
+ * on first run. It is the most invasive thing this app could ask for, and the
+ * Share and Export buttons on every event need none of it.
+ */
+@Composable
+private fun CalendarSyncControl(state: MainUiState, onChange: (CalendarSync) -> Unit) {
+    Text("In your calendar", style = MaterialTheme.typography.titleSmall)
+    Text(
+        "Events you star can be written into a calendar on this phone. Nothing is " +
+            "read back, and only the entries Gloaming wrote are ever changed or " +
+            "removed - unstarring one takes it out again.",
+        style = MaterialTheme.typography.bodySmall,
+    )
+
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for (option in CalendarSync.entries) {
+            OutlinedButton(
+                onClick = { onChange(option) },
+                modifier = Modifier.testTag(calendarSyncTag(option)),
+            ) { Text(option.label) }
+        }
+    }
+
+    Text(
+        when (state.settings.calendarSync) {
+            CalendarSync.Off -> "Off. Nothing is written anywhere, and the app holds no " +
+                "calendar permission."
+
+            CalendarSync.OwnCalendar -> "Writing to a calendar Gloaming makes on this phone. " +
+                "It has no account behind it, so nothing syncs it anywhere - it simply " +
+                "appears alongside your others."
+
+            CalendarSync.DeviceCalendar -> "Writing to your default calendar. If that is a " +
+                "Google or work account, these entries go to that server like everything " +
+                "else in it - which is your existing arrangement rather than something " +
+                "Gloaming introduces, but worth knowing."
+        },
+        style = MaterialTheme.typography.bodySmall,
+    )
+
+    // Named where it could be found, because "writing to your default calendar"
+    // on a phone with four of them is not an answer. Absent is also an answer:
+    // a phone with no writable calendar at all is a real configuration, and
+    // silently writing nowhere would look exactly like a broken feature.
+    state.calendarName?.let {
+        Text("Entries go into \"$it\".", style = MaterialTheme.typography.bodySmall)
+    }
+
+    state.calendarNote?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
+}
+
+/** How a destination is reached from a test. */
+fun calendarSyncTag(option: CalendarSync): String = "calendar-sync:${option.name}"
+
 @Composable
 private fun CalendarCard(
     state: MainUiState,
@@ -979,6 +1050,7 @@ private fun CalendarCard(
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
     onNotifyEveryEventChange: (Boolean) -> Unit,
+    onCalendarSyncChange: (CalendarSync) -> Unit,
 ) {
     Card {
         Column(
@@ -1061,6 +1133,9 @@ private fun CalendarCard(
                     onChange = onEclipseFollowMaxChange,
                 )
             }
+
+            HorizontalDivider()
+            CalendarSyncControl(state, onCalendarSyncChange)
         }
     }
 }

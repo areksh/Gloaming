@@ -91,6 +91,10 @@ class ManifestDeclarationTest {
             "android.permission.POST_NOTIFICATIONS",
             "android.permission.FOREGROUND_SERVICE",
             "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+            // Calendar sync, which is off by default and asked for only when
+            // somebody switches it on.
+            android.Manifest.permission.READ_CALENDAR,
+            android.Manifest.permission.WRITE_CALENDAR,
         )
 
         val addedByTheSystem = setOf(

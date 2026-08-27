@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,8 +51,11 @@ import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
+import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
@@ -214,6 +219,15 @@ private fun exportEvent(context: Context, event: SkyEvent) {
     )
 }
 
+/** Both, because the provider needs a read to find where to write. */
+private val CALENDAR_PERMISSIONS = listOf(
+    Manifest.permission.READ_CALENDAR,
+    Manifest.permission.WRITE_CALENDAR,
+)
+
+private fun granted(context: Context, permission: String): Boolean =
+    ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
@@ -291,6 +305,8 @@ private fun GloamingApp() {
     var watching by remember { mutableStateOf(StormService.running) }
     var darkness by remember { mutableStateOf(darknessHere()) }
     var logSize by remember { mutableStateOf(Graph.journal(context).sizeBytes()) }
+    var calendarName by remember { mutableStateOf<String?>(null) }
+    var calendarNote by remember { mutableStateOf<String?>(null) }
 
     // Permission and exemption state changes outside the app, so re-read it
     // whenever the user comes back rather than trusting a stale snapshot.
@@ -366,6 +382,53 @@ private fun GloamingApp() {
             longitudeInput = fix.longitude.toString()
             BootAware.saveSettings(context, settings)
             locationNote = null
+        }
+    }
+
+    /**
+     * Brings the phone's calendar into line with the stars, here and now.
+     *
+     * Off the main thread: the calendar provider is another process, and a
+     * user who has starred a dozen things is a dozen round trips through
+     * Binder. The poller does the same thing on its own wake, so this is about
+     * the entry appearing while somebody is still looking at the screen rather
+     * than about correctness.
+     */
+    fun syncCalendar(user: UserSettings) {
+        scope.launch {
+            val writer = Graph.calendarWriter(context)
+            val store = Graph.alertState(context)
+            withContext(Dispatchers.IO) {
+                val held = store.read()
+                val record = CalendarSyncer.sync(
+                    writer = writer,
+                    destination = user.calendarSync,
+                    starred = user.starredEvents,
+                    events = calendar,
+                    synced = held.syncedEvents,
+                )
+                if (record != held.syncedEvents) {
+                    store.write(store.read().copy(syncedEvents = record))
+                }
+                calendarName = writer.destinationName(user.calendarSync)
+            }
+        }
+    }
+
+    val calendarPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { granted ->
+        if (granted.values.all { it }) {
+            calendarNote = null
+            syncCalendar(settings)
+        } else {
+            // Straight back to off rather than leaving a destination selected
+            // that cannot do anything. A control that silently does nothing is
+            // worse than one that says why.
+            settings = settings.copy(calendarSync = CalendarSync.Off)
+            BootAware.saveSettings(context, settings)
+            calendarNote = "Calendar permission was declined, so nothing is being written. " +
+                "Share and Export on each event still work without it."
         }
     }
 
@@ -460,6 +523,14 @@ private fun GloamingApp() {
         calendarLoading = false
     }
 
+    // Whenever the year ahead is recomputed, so a comet whose dates have moved
+    // takes its calendar entry with it, and so the name of the calendar being
+    // written to is there to be shown. Cheap and skipped entirely when the
+    // feature is off, which is the default.
+    LaunchedEffect(calendar, settings.calendarSync) {
+        if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
+    }
+
     // Worked out from the calendar and the elements already on the device, so
     // it costs no network. Recomputed when the calendar is, and on the clock
     // tick, because "tonight" moves as the evening does.
@@ -517,6 +588,8 @@ private fun GloamingApp() {
                     tonight = tonight,
                     detectingLocation = detectingLocation,
                     locationNote = locationNote,
+                    calendarName = calendarName,
+                    calendarNote = calendarNote,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -706,6 +779,11 @@ private fun GloamingApp() {
                     // when putting one on: somebody removing a star already
                     // knows they are curating, and being told twice is worse
                     // than not being told.
+                    // Both ways round: a star puts the entry in and taking one
+                    // off takes it out again, which is the only reading of the
+                    // control that does not leave rubbish in somebody's diary.
+                    if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
+
                     if (starring && settings.notifyAboutEveryEvent) {
                         scope.launch {
                             snackbar.showSnackbar(
@@ -741,6 +819,26 @@ private fun GloamingApp() {
                         BootAware.saveSettings(context, settings)
                         locationNote = null
                         if (mode == LocationMode.Automatic) detectLocation()
+                    }
+                },
+                onCalendarSyncChange = { destination ->
+                    val missing = CALENDAR_PERMISSIONS.filterNot { granted(context, it) }
+                    if (destination != CalendarSync.Off && missing.isNotEmpty()) {
+                        // Asked at the moment somebody picks a destination,
+                        // never on first run. This is the most invasive thing
+                        // the app could ask for, and the request arrives with
+                        // its reason visible on the screen behind it.
+                        settings = settings.copy(calendarSync = destination)
+                        BootAware.saveSettings(context, settings)
+                        calendarPermission.launch(missing.toTypedArray())
+                    } else {
+                        // Written before the sync runs, so that switching to
+                        // Off is what the syncer reads and takes back.
+                        settings = settings.copy(calendarSync = destination)
+                        BootAware.saveSettings(context, settings)
+                        calendarNote = null
+                        if (destination == CalendarSync.Off) calendarName = null
+                        syncCalendar(settings)
                     }
                 },
                 onDetectLocation = { detectLocation() },

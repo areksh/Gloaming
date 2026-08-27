@@ -69,4 +69,16 @@ data class MainUiState(
      * saying: a refused permission, or no fix the phone was willing to give.
      */
     val locationNote: String? = null,
+    /**
+     * The calendar starred events are being written into, by name.
+     *
+     * Named because "your default calendar" on a phone with four of them is not
+     * an answer. Null when there is none to name - no permission, nothing
+     * selected, or a phone with no writable calendar at all, which is a real
+     * configuration and one that would otherwise look exactly like a broken
+     * feature.
+     */
+    val calendarName: String? = null,
+    /** What went wrong last time calendar sync was asked for, when it did. */
+    val calendarNote: String? = null,
 )

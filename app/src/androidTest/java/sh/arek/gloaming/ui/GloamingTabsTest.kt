@@ -16,6 +16,7 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.EventPlanner
 
@@ -47,6 +48,7 @@ class GloamingTabsTest {
     )
 
     /** What the two ways out of the app were asked to send. */
+    private var calendarSync: CalendarSync? = null
     private val shared = mutableListOf<SkyEvent>()
     private val exported = mutableListOf<SkyEvent>()
 
@@ -100,6 +102,7 @@ class GloamingTabsTest {
                 onEventLeadChange = {},
                 onEclipseFollowMaxChange = {},
                 onNotifyEveryEventChange = {},
+                onCalendarSyncChange = { calendarSync = it },
                 onToggleStar = { starred += it },
                 onToggleKind = { hiddenKind = it },
                 onShareEvent = { shared += it },

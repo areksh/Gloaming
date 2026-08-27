@@ -46,6 +46,21 @@
       app does not qualify. It runs for the duration of an event, or of a watch
       the user started, and not otherwise.
     -->
+    <!--
+      Calendar, for the one optional feature that needs it: writing starred
+      events into the phone's calendar. Off by default and requested at the
+      moment somebody turns it on, never on first run - the app is fully
+      functional with both denied forever, and the Share and Export buttons on
+      every event need neither.
+
+      READ is needed alongside WRITE and is not a fishing licence: the provider
+      requires a read to find which calendar to write to and to confirm a row
+      the app itself created is still there. Nothing in the app ever reads an
+      event it did not write.
+    -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 

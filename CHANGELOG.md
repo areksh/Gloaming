@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Starred events can go straight into your calendar.** Three answers rather
+  than a switch, because "put it in my calendar" means two different things to
+  two reasonable people: a calendar Gloaming creates on the phone with no account
+  behind it, so nothing syncs it anywhere, or your default calendar, wherever
+  that already syncs to - which the settings screen says plainly rather than
+  leaving you to find out. It is off until you pick one, the calendar permission
+  is asked for at that moment and never on first run, and taking a star off takes
+  the entry back out. Only entries Gloaming wrote are ever touched, by the row
+  ids it recorded itself; nothing searches your calendar for anything.
+
 - **Send an event to somebody, or export it as a calendar file.** Every entry
   in the calendar, and every dated event on Tonight, now has a Share button and
   an Export button. Share sends the event as plain text, so it arrives as a

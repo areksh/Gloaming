@@ -76,6 +76,16 @@ class EventPoller(
     private val settings: SettingsStore,
     private val state: AlertStateStore,
     private val notifier: EventNotifier,
+    /**
+     * Where starred events go, when the user has asked for that.
+     *
+     * Null where nothing can write to a calendar, which is the default and is
+     * also what the two other pollers pass. Here rather than on a wake of its
+     * own because this is the poller that already recomputes the year ahead:
+     * a comet's dates move on every recompute, and the entry has to move with
+     * them.
+     */
+    private val calendarWriter: CalendarWriter? = null,
     private val now: () -> Long = System::currentTimeMillis,
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
 ) {
@@ -159,11 +169,23 @@ class EventPoller(
             held.copy(announcedEvents = remembered),
         )
 
+        // After the announcement rather than before it: the calendar is a
+        // convenience and the notification is the thing the app is for, so a
+        // provider that hangs must not be able to delay one.
+        val synced = CalendarSyncer.sync(
+            writer = calendarWriter,
+            destination = user.calendarSync,
+            starred = user.starredEvents,
+            events = events,
+            synced = held.syncedEvents,
+        )
+
         state.write(
             held.copy(
                 announcedEvents = remembered,
                 announcedComets = comets,
                 nextEventCheckAt = wake,
+                syncedEvents = synced,
             ),
         )
         return EventPollResult(decision, wake)

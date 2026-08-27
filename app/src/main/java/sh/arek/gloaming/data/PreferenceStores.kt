@@ -62,11 +62,13 @@ private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
 private const val KEY_STARRED_EVENTS = "starred_events"
+private const val KEY_CALENDAR_SYNC = "calendar_sync"
 private const val KEY_EVENT_HEADS_UP = "event_heads_up_days"
 private const val KEY_EVENT_LEAD = "event_alert_lead_minutes"
 private const val KEY_ECLIPSE_FOLLOW_MAX = "eclipse_follow_max_minutes"
 private const val KEY_HIDDEN_KINDS = "hidden_event_kinds"
 private const val KEY_ANNOUNCED_COMETS = "announced_comets"
+private const val KEY_SYNCED_EVENTS = "synced_events"
 private const val KEY_COMET_MAGNITUDE = "comet_magnitude_threshold"
 private const val KEY_COMET_ALTITUDE = "minimum_comet_altitude_degrees"
 private const val KEY_COMET_STALE = "comet_observation_stale_days"
@@ -175,6 +177,12 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
             starredEvents = prefs.getStringSet(KEY_STARRED_EVENTS, emptySet()).orEmpty(),
+            // By name rather than by ordinal: an ordinal is a position in a
+            // list, and inserting a destination in the middle of that list
+            // would silently move everybody's setting to a different one.
+            calendarSync = CalendarSync.entries
+                .firstOrNull { it.name == prefs.getString(KEY_CALENDAR_SYNC, null) }
+                ?: CalendarSync.Off,
             // Read with the default as its fallback rather than an empty set,
             // so a fresh install still starts with the moon's quarters folded
             // away - there are as many of them as every other kind combined.
@@ -264,6 +272,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             // A defensive copy, for the reason the announced record carries one:
             // SharedPreferences keeps the very set handed to it.
             putStringSet(KEY_STARRED_EVENTS, settings.starredEvents.toSet())
+            putString(KEY_CALENDAR_SYNC, settings.calendarSync.name)
             putStringSet(KEY_HIDDEN_KINDS, settings.hiddenEventKinds.toSet())
             putInt(KEY_EVENT_HEADS_UP, settings.eventHeadsUpDays)
             putInt(KEY_EVENT_LEAD, settings.eventAlertLeadMinutes)
@@ -305,6 +314,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             nextPassCheckAt = prefs.getLong(KEY_NEXT_PASS_CHECK_AT, UNSET).takeIf { it != UNSET },
             announcedEvents = prefs.getStringSet(KEY_ANNOUNCED_EVENTS, emptySet()).orEmpty(),
             announcedComets = prefs.getStringSet(KEY_ANNOUNCED_COMETS, emptySet()).orEmpty(),
+            syncedEvents = prefs.getStringSet(KEY_SYNCED_EVENTS, emptySet()).orEmpty(),
             nextEventCheckAt = prefs.getLong(KEY_NEXT_EVENT_CHECK_AT, UNSET).takeIf { it != UNSET },
             lastPassCatalogue = prefs.getInt(KEY_LAST_PASS_CATALOGUE, -1).takeIf { it >= 0 },
             followingCatalogue = prefs.getInt(KEY_FOLLOWING_CATALOGUE, -1).takeIf { it >= 0 },
@@ -338,6 +348,7 @@ class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertSt
             // of ours would silently rewrite what is on disk.
             putStringSet(KEY_ANNOUNCED_EVENTS, state.announcedEvents.toSet())
             putStringSet(KEY_ANNOUNCED_COMETS, state.announcedComets.toSet())
+            putStringSet(KEY_SYNCED_EVENTS, state.syncedEvents.toSet())
             state.nextEventCheckAt?.let { putLong(KEY_NEXT_EVENT_CHECK_AT, it) }
                 ?: remove(KEY_NEXT_EVENT_CHECK_AT)
             state.nextPassCheckAt?.let { putLong(KEY_NEXT_PASS_CHECK_AT, it) }

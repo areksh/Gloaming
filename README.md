@@ -83,7 +83,12 @@ between May and August. The planets are there too, with how high each gets and
 which way to look.
 
 Any dated event can be shared as a message or exported as an `.ics` for whatever
-calendar you keep. Neither needs a permission.
+calendar you keep. Neither needs a permission. If you would rather the starred
+ones simply appeared in your calendar, that is a setting - into a local calendar
+Gloaming creates and nothing syncs, or into your default one, wherever that
+already syncs to. It is off until you choose, the permission is asked for at
+that moment rather than on first run, and unstarring an event takes its entry
+back out again.
 
 Gloaming needs Android's battery-optimisation exemption, and asks for it on
 first run. That is a requirement rather than a refinement: without it the system

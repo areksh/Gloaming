@@ -63,6 +63,40 @@ data class QuietHours(val startMinute: Int, val endMinute: Int) {
  * somewhere you are not - "will Shetland be clear on Tuesday?" is a question
  * device GPS cannot answer.
  */
+/**
+ * Where starred events go, if anywhere.
+ *
+ * Three answers rather than a switch, because "put it in my calendar" means two
+ * genuinely different things to two reasonable people. Somebody whose calendar
+ * syncs to an employer's server may want these entries and may very much not
+ * want them leaving the phone; somebody who lives out of one calendar wants
+ * them exactly where everything else is. Choosing for them would be wrong
+ * either way.
+ */
+enum class CalendarSync(val label: String) {
+    /** Nothing is written, and nothing is read. The default. */
+    Off("Off"),
+
+    /**
+     * A calendar Gloaming creates and owns, local to this phone.
+     *
+     * Registered with no account, so nothing syncs it anywhere: it shows up
+     * alongside the others in a calendar app and stays on the device. This is
+     * the one that keeps the privacy posture the rest of the app has.
+     */
+    OwnCalendar("A Gloaming calendar on this phone"),
+
+    /**
+     * The phone's own primary calendar, wherever that syncs to.
+     *
+     * Worth being plain about: if that calendar is a Google or Exchange
+     * account, these entries go to that server like everything else in it.
+     * That is the user's existing arrangement rather than something the app
+     * introduces, but it is their choice to make knowingly.
+     */
+    DeviceCalendar("Your default calendar"),
+}
+
 enum class LocationMode {
     /** Typed in. The default, and the one that always works. */
     Manual,
@@ -303,6 +337,16 @@ data class UserSettings(
      * so a second set here would be the same control twice.
      */
     val eventAlertsEnabled: Boolean = true,
+
+    /**
+     * Whether starred events are written to the phone's calendar, and where.
+     *
+     * Off by default and asked for at the moment it is switched on, not on
+     * first run: calendar permission is the most invasive thing this app could
+     * ask for, and it should only ever be asked for by somebody who has just
+     * said they want the feature it buys.
+     */
+    val calendarSync: CalendarSync = CalendarSync.Off,
 
     /**
      * How many days of notice an eclipse or a shower peak gets.
@@ -671,6 +715,20 @@ data class AlertState(
      * needed to put the request back after a reboot.
      */
     val followingRisesAt: Long? = null,
+
+    /**
+     * The calendar rows Gloaming has written, as "star key|row id".
+     *
+     * In [AlertState] rather than in [UserSettings] on the same reasoning that
+     * puts the stars in the other one: a star is a choice the user made, and
+     * this is a record of what the app did about it.
+     *
+     * It exists so the app can delete only its own rows, by the ids it put here
+     * itself. The alternative - searching the calendar for entries that look
+     * like Gloaming's - is a heuristic, and a heuristic that goes wrong here
+     * deletes somebody's dentist appointment.
+     */
+    val syncedEvents: Set<String> = emptySet(),
 )
 
 interface AlertStateStore {

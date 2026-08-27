@@ -28,6 +28,7 @@ import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
@@ -88,6 +89,7 @@ class ScreensTest {
     private var logRetention: Int? = null
     private var threshold: Int? = null
     private var cloudTolerance: Int? = null
+    private var calendarSync: CalendarSync? = null
     private var exported = 0
     private var cleared = 0
 
@@ -103,6 +105,7 @@ class ScreensTest {
         logSizeBytes: Long = 0L,
         locationNote: String? = null,
         tonight: TonightList? = null,
+        calendarName: String? = null,
     ) {
         compose.setContent {
             Column(
@@ -128,6 +131,7 @@ class ScreensTest {
                     logSizeBytes = logSizeBytes,
                     locationNote = locationNote,
                     tonight = tonight,
+                    calendarName = calendarName,
                 )
 
                 TonightContent(
@@ -171,6 +175,7 @@ class ScreensTest {
                     onEventLeadChange = { eventLead = it },
                     onEclipseFollowMaxChange = {},
                     onNotifyEveryEventChange = { everyEvent = it },
+                    onCalendarSyncChange = { calendarSync = it },
                     onCometMagnitudeChange = { cometMagnitude = it },
                     onCometAltitudeChange = {},
                     onCometStaleChange = {},
@@ -551,12 +556,17 @@ class ScreensTest {
         compose.onNodeWithText("2 KB recorded.").assertExists()
     }
 
+    /**
+     * By tag, not by tree order. "Off" reached this by position for as long as
+     * it was the only such button on the screen, and stopped being right the
+     * moment the calendar destinations added another one above it - which is
+     * exactly the failure the tagged choice rows exist to prevent.
+     */
     @Test
     fun reportsTheRetentionTheUserPicked() {
         show(logSizeBytes = 2048)
 
-        compose.onNodeWithText("Gloaming's own log").performScrollTo()
-        compose.onAllNodesWithText("Off").onFirst().performScrollTo().performClick()
+        compose.onNodeWithTag(choiceTag("Keep", "Off")).performScrollTo().performClick()
 
         assertEquals(0, logRetention)
     }
@@ -904,6 +914,69 @@ class ScreensTest {
         compose.onNodeWithTag(EVERY_EVENT_SWITCH_TAG).performScrollTo().performClick()
 
         assertEquals(false, everyEvent)
+    }
+
+    /**
+     * Three destinations rather than a switch. "Put it in my calendar" means
+     * two different things to two reasonable people - a local calendar that
+     * syncs nowhere, or the one they already live out of - and choosing for
+     * them would be wrong either way.
+     */
+    @Test
+    fun offersEveryCalendarDestination() {
+        show()
+
+        for (option in CalendarSync.entries) {
+            compose.onNodeWithTag(calendarSyncTag(option)).performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun reportsTheCalendarDestinationTheUserPicked() {
+        show()
+
+        compose.onNodeWithTag(calendarSyncTag(CalendarSync.OwnCalendar))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(CalendarSync.OwnCalendar, calendarSync)
+    }
+
+    /**
+     * The trade is stated rather than discovered. Writing to a calendar that
+     * syncs to a work account sends these entries to that server, which is the
+     * user's existing arrangement but still their choice to make knowingly.
+     */
+    @Test
+    fun saysWhereTheEntriesWouldActuallyGo() {
+        show(settings = located.copy(calendarSync = CalendarSync.DeviceCalendar))
+
+        compose.onNodeWithText("go to that server", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** A phone with four calendars needs to be told which one it found. */
+    @Test
+    fun namesTheCalendarItIsWritingTo() {
+        show(
+            settings = located.copy(calendarSync = CalendarSync.OwnCalendar),
+            calendarName = "Gloaming sky events",
+        )
+
+        compose.onNodeWithText("Gloaming sky events", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Off is the default, and says so rather than saying nothing. */
+    @Test
+    fun saysNothingIsBeingWrittenWhenSyncIsOff() {
+        show()
+
+        compose.onNodeWithText("Nothing is written anywhere", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     // --- tonight ---

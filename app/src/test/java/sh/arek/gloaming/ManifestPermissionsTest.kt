@@ -35,6 +35,12 @@ class ManifestPermissionsTest {
         // Storm mode only: following a display that is overhead right now.
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+        // The one optional feature that needs a permission: writing starred
+        // events into the phone's calendar. Off by default, requested only when
+        // somebody turns it on, and the Share and Export buttons on every event
+        // need neither of these.
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR",
     )
 
     private fun manifestSource(): File =
@@ -98,6 +104,26 @@ class ManifestPermissionsTest {
         val location = declaredPermissions().filter { it.contains("LOCATION") }
 
         assertEquals(listOf("android.permission.ACCESS_COARSE_LOCATION"), location)
+    }
+
+    /**
+     * Calendar access is write-shaped, not read-shaped.
+     *
+     * The app writes rows it created and deletes rows it created, by ids it
+     * recorded itself. READ_CALENDAR comes with WRITE because the provider
+     * needs a read to find which calendar to write to - not because anything
+     * here wants to know what is in somebody's diary. If a future change ever
+     * reads an event the app did not write, this test is where the argument for
+     * it has to be made.
+     */
+    @Test
+    fun `asks for calendar access only alongside the ability to write`() {
+        val declared = declaredPermissions()
+
+        assertEquals(
+            "android.permission.READ_CALENDAR" in declared,
+            "android.permission.WRITE_CALENDAR" in declared,
+        )
     }
 
     /**
