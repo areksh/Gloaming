@@ -44,6 +44,12 @@ object CalendarSyncer {
 
         plan.remove.forEach { writer.remove(it) }
 
+        // Off means off. Leaving an empty calendar named after the app in
+        // somebody's calendar list is not what anybody reading that switch
+        // expects, and it is the app's own calendar to remove - it holds
+        // nothing the user put there.
+        if (destination == CalendarSync.Off) writer.discardOwnCalendar()
+
         val written = plan.write.mapNotNull { event ->
             val key = EventPlanner.starKey(event)
             writer.write(event, destination, plan.keep[key])?.let { key to it }

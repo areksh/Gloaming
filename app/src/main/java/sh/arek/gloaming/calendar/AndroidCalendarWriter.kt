@@ -70,10 +70,40 @@ class AndroidCalendarWriter(context: Context) : CalendarWriter {
         }
     }
 
+    override fun discardOwnCalendar() {
+        if (!isPermitted()) return
+        guarded("discard") {
+            val id = ownCalendarId() ?: return@guarded null
+            // As a sync adapter, with the account repeated in the URI. A
+            // calendar deleted any other way is marked rather than removed, and
+            // for a local calendar there is no sync adapter that would ever
+            // come along to finish the job.
+            val uri = ContentUris.withAppendedId(CalendarContract.Calendars.CONTENT_URI, id)
+                .buildUpon()
+                .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+                .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, ACCOUNT_NAME)
+                .appendQueryParameter(
+                    CalendarContract.Calendars.ACCOUNT_TYPE,
+                    CalendarContract.ACCOUNT_TYPE_LOCAL,
+                )
+                .build()
+            context.contentResolver.delete(uri, null, null)
+        }
+    }
+
     override fun destinationName(destination: CalendarSync): String? {
         if (destination == CalendarSync.Off || !isPermitted()) return null
         return guarded("name") {
-            val id = calendarId(destination) ?: return@guarded null
+            // Read-only, unlike [calendarId]. Asking what a calendar is called
+            // must not create one - the settings screen asks on every open, and
+            // a query with a side effect meant the app made a calendar for
+            // somebody who had only glanced at the switch, and made it again
+            // the instant after deleting it.
+            val id = when (destination) {
+                CalendarSync.Off -> null
+                CalendarSync.OwnCalendar -> ownCalendarId()
+                CalendarSync.DeviceCalendar -> primaryCalendarId()
+            } ?: return@guarded null
             context.contentResolver.query(
                 CalendarContract.Calendars.CONTENT_URI,
                 arrayOf(CalendarContract.Calendars.CALENDAR_DISPLAY_NAME),

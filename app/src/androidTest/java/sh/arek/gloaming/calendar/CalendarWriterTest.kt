@@ -1,6 +1,7 @@
 package sh.arek.gloaming.calendar
 
 import android.Manifest
+import android.provider.CalendarContract
 import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -150,6 +151,57 @@ class CalendarWriterTest {
         writer.remove("999999999")
 
         assertTrue(writer.isPermitted())
+    }
+
+    /**
+     * The provider will not remove a calendar for an ordinary caller - it marks
+     * it and waits for a sync adapter that, for a local calendar, is never
+     * coming. Doing it as a sync adapter is the only thing that works, and no
+     * fake would have said so.
+     */
+    @Test
+    fun discardsTheCalendarItMade() {
+        write(event(title = "Eclipse before the discard"))!!
+        written.clear()
+        assertNotNull(ownCalendarId())
+
+        writer.discardOwnCalendar()
+
+        assertNull("the calendar is still there", ownCalendarId())
+        // And makes it again on the next write, rather than being stuck.
+        assertNotNull(write(event(title = "Eclipse after the discard")))
+        assertNotNull(ownCalendarId())
+    }
+
+    /**
+     * Asking what a calendar is called must not create one. The settings screen
+     * asks on every open, so a query with a side effect made a calendar for
+     * somebody who had only glanced at the switch - and made it again the
+     * instant after it had been deleted.
+     */
+    @Test
+    fun namingTheCalendarDoesNotCreateOne() {
+        writer.discardOwnCalendar()
+
+        assertNull(writer.destinationName(CalendarSync.OwnCalendar))
+        assertNull("naming it brought it into being", ownCalendarId())
+    }
+
+    /** Straight from the provider, rather than through the code under test. */
+    private fun ownCalendarId(): Long? = context.contentResolver.query(
+        CalendarContract.Calendars.CONTENT_URI,
+        arrayOf(CalendarContract.Calendars._ID),
+        "${CalendarContract.Calendars.ACCOUNT_NAME} = ?",
+        arrayOf(AndroidCalendarWriter.ACCOUNT_NAME),
+        null,
+    )?.use { if (it.moveToFirst()) it.getLong(0) else null }
+
+    @Test
+    fun discardingIsHarmlessWhenThereIsNoCalendar() {
+        writer.discardOwnCalendar()
+        writer.discardOwnCalendar()
+
+        assertNotNull(write(event(title = "Eclipse after two discards")))
     }
 
     @Test

@@ -49,6 +49,12 @@ class CalendarSyncerTest {
             removed += rowId
         }
 
+        var discarded = 0
+
+        override fun discardOwnCalendar() {
+            discarded++
+        }
+
         override fun isPermitted() = permitted
 
         override fun destinationName(destination: CalendarSync) = "Test calendar"
@@ -120,6 +126,21 @@ class CalendarSyncerTest {
 
         assertEquals(listOf("42"), writer.removed)
         assertEquals(emptySet<String>(), record)
+        // And the calendar itself goes, so "off" does not leave an empty one
+        // named after the app sitting in somebody's calendar list.
+        assertEquals(1, writer.discarded)
+    }
+
+    @Test
+    fun `leaves the calendar alone while the destination is still set`() {
+        val eclipse = event()
+        val writer = FakeWriter()
+
+        CalendarSyncer.sync(
+            writer, CalendarSync.OwnCalendar, setOf(key(eclipse)), listOf(eclipse), emptySet(),
+        )
+
+        assertEquals(0, writer.discarded)
     }
 
     /** Nothing is written twice, however many polls go past. */

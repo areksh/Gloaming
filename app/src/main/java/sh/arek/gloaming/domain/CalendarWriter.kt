@@ -38,6 +38,18 @@ interface CalendarWriter {
      */
     fun remove(rowId: String)
 
+    /**
+     * Removes the calendar this app created, if it made one.
+     *
+     * Only ever its own: the local calendar registered under Gloaming's name
+     * with no account behind it, which by construction holds nothing the user
+     * put there. The phone's own calendar is never touched by this.
+     *
+     * Called when the destination goes to Off, so that off means off rather
+     * than "stops adding to the empty calendar it left in your list".
+     */
+    fun discardOwnCalendar()
+
     /** Whether the app currently holds what it needs to do any of this. */
     fun isPermitted(): Boolean
 

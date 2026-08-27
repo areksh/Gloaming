@@ -419,6 +419,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed every entry and recreated it, losing any reminder you had set on one.
   What is in your calendar now follows your stars alone.
 
+- Turning calendar sync off now removes the calendar Gloaming made, rather than
+  leaving an empty one named after the app sitting in your calendar list. Only
+  ever its own local one - your own calendars are never touched.
+
 - Unstarring an event removes its calendar entry again. Two copies of the same
   preferences file were being kept in memory at once, so the row Gloaming
   recorded writing was invisible to the code that later had to delete it.
