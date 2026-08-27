@@ -2,6 +2,7 @@ package sh.arek.gloaming.domain
 
 import sh.arek.gloaming.astronomy.EventChannel
 import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
@@ -49,13 +50,21 @@ object EventPlanner {
     const val DORMANT_INTERVAL_MILLIS: Long = 12 * 60 * 60 * 1000L
 
     /**
-     * How long an announced event is remembered after it has finished.
+     * How long an announced event is remembered after its date.
      *
      * Long enough that a device which sleeps through the event itself does not
      * wake afterwards and announce it retrospectively, short enough that the
      * record stays a handful of entries. Events arrive about weekly at most.
+     *
+     * A week of that, and the rest is the longest an entry can still be worth
+     * looking at once its date has passed. The calendar keeps an entry while
+     * any part of it is still ahead, so an opposition is on the list for three
+     * weeks afterwards - and a record forgotten inside that would announce the
+     * same one a second time in the same season. Taken from the calendar rather
+     * than written out again, because the two have to move together.
      */
-    const val REMEMBER_FOR_MILLIS: Long = 7 * 24 * 60 * 60 * 1000L
+    const val REMEMBER_FOR_MILLIS: Long =
+        SkyCalendar.LONGEST_WINDOW_MILLIS + 7 * 24 * 60 * 60 * 1000L
 
     /**
      * How late a heads-up may be and still be one.

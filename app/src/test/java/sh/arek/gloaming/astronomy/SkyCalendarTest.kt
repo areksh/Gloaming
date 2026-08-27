@@ -36,6 +36,69 @@ class SkyCalendarTest {
     private fun onlyKind(from: String, days: Int, kind: EventKind) =
         events(from, days).filter { it.kind == kind }
 
+    // --- what is still going on ---
+
+    /**
+     * The night of a shower is not over when its peak instant passes.
+     *
+     * The calendar used to keep only what peaked after the moment it was asked
+     * about, and it is asked from the moment the app is opened. The Quadrantids
+     * of 2026 reach their maximum early on 3 January and are worth going out
+     * for that night and the next - so opening the app that evening dropped the
+     * one shower somebody was opening it to check.
+     */
+    @Test
+    fun `keeps a shower whose night is still to come`() {
+        val shower = onlyKind("2026-01-03T18:00:00Z", 5, EventKind.MeteorShower)
+            .firstOrNull { it.title.contains("Quadrantids") }
+
+        assertNotNull("the Quadrantids run through the night of 3 January", shower)
+        assertTrue(shower!!.title, shower.until >= at("2026-01-03T18:00:00Z"))
+    }
+
+    /**
+     * An opposition says in its own text that it is worth looking on any clear
+     * night for a few weeks either side, so it has to still be there a few
+     * weeks either side.
+     */
+    @Test
+    fun `keeps a planet at opposition through its season`() {
+        val opposition = onlyKind("2026-01-24T18:00:00Z", 5, EventKind.Opposition)
+            .firstOrNull { it.title.contains("Jupiter") }
+
+        assertNotNull("Jupiter is at opposition on 10 January 2026", opposition)
+        assertTrue(
+            Instant.ofEpochMilli(opposition!!.at).toString(),
+            opposition.at < at("2026-01-24T18:00:00Z"),
+        )
+    }
+
+    /**
+     * And drops it once the season really has ended, so "still going on" does
+     * not quietly become "for ever".
+     */
+    @Test
+    fun `drops a planet whose season is over`() {
+        val opposition = onlyKind("2026-02-15T18:00:00Z", 5, EventKind.Opposition)
+            .firstOrNull { it.title.contains("Jupiter") }
+
+        assertNull(opposition?.title, opposition)
+    }
+
+    /**
+     * A moon phase is an instant rather than a window, so a full moon this
+     * morning is not something still happening this evening.
+     */
+    @Test
+    fun `drops a moon phase once its moment has passed`() {
+        val phases = onlyKind("2026-01-03T18:00:00Z", 5, EventKind.MoonPhase)
+
+        assertTrue(
+            phases.map { Instant.ofEpochMilli(it.at).toString() }.toString(),
+            phases.all { it.at >= at("2026-01-03T18:00:00Z") },
+        )
+    }
+
     // --- solar eclipses ---
 
     /**

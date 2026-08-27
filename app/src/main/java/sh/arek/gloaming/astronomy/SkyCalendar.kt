@@ -106,11 +106,35 @@ object SkyCalendar {
     private const val WIDTHS_WORTH_COUNTING = 4
 
     /**
+     * The longest an entry here goes on being worth looking at after its date.
+     *
+     * Nothing in the calendar is an instant except the moon phases and the
+     * seasons. An eclipse has contacts an hour apart, a shower has a night, and
+     * an opposition says in its own words that it is worth looking on any clear
+     * night for a few weeks either side - so the opposition's three weeks is the
+     * longest tail any of them has.
+     *
+     * Two things depend on knowing it. The search below has to reach back this
+     * far to find what is already under way, and [sh.arek.gloaming.domain.EventPlanner]
+     * has to remember having announced something for at least this long, or it
+     * would announce the same opposition twice in one season.
+     */
+    const val LONGEST_WINDOW_MILLIS: Long = OPPOSITION_SEASON_DAYS.toLong() * DAY_MILLIS
+
+    /**
      * Everything worth knowing about between [fromMillis] and [horizonDays]
      * later, in time order.
      *
      * A year by default: eclipses are the headline and they are sparse, so a
      * shorter horizon would usually show none at all.
+     *
+     * **Judged by window rather than by moment.** What decides whether an event
+     * belongs here is whether any part of it is still to come, not whether its
+     * peak is - and those are not the same question. The calendar is worked out
+     * from the moment the app is opened, so keeping only what peaked later
+     * meant an event dropped off the list at the instant it started being worth
+     * looking at: the Quadrantids reach maximum before dawn and vanished from
+     * the list for the evening people were opening the app to check them.
      */
     fun events(
         latitude: Double,
@@ -119,21 +143,25 @@ object SkyCalendar {
         horizonDays: Int = 365,
     ): List<SkyEvent> {
         val until = fromMillis + horizonDays.toLong() * DAY_MILLIS
+        val searchFrom = fromMillis - LONGEST_WINDOW_MILLIS
         val observer = observer(latitude, longitude)
-        val start = Time.fromMillisecondsSince1970(fromMillis)
+        val start = Time.fromMillisecondsSince1970(searchFrom)
 
         return buildList {
             addAll(solarEclipses(observer, start, until))
             addAll(lunarEclipses(observer, start, until))
             addAll(elongations(latitude, longitude, start, until))
-            addAll(conjunctions(latitude, longitude, fromMillis, until))
-            addAll(showers(latitude, longitude, fromMillis, until))
+            addAll(conjunctions(latitude, longitude, searchFrom, until))
+            addAll(showers(latitude, longitude, searchFrom, until))
             addAll(oppositions(latitude, longitude, start, until))
             addAll(greatestBrightness(latitude, longitude, start, until))
-            addAll(seasons(fromMillis, until))
+            addAll(seasons(searchFrom, until))
             addAll(moonPhases(start, until))
         }
-            .filter { it.at in fromMillis..until }
+            // Its peak inside the horizon, and some part of it still ahead.
+            // A moon phase and a solstice are instants, so for those the two
+            // halves say the same thing and nothing lingers.
+            .filter { it.at <= until && it.until >= fromMillis }
             .let(::withoutPhasesThatAreEclipses)
             .sortedBy { it.at }
     }

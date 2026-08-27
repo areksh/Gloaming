@@ -338,6 +338,35 @@ class EventPlannerTest {
         assertEquals(setOf(recent), kept)
     }
 
+    /**
+     * An opposition is on the calendar for three weeks after its date, so the
+     * record of having announced it has to outlast that.
+     *
+     * The calendar keeps an entry while any part of it is still ahead rather
+     * than only while its moment is, which is what lets an eclipse under way
+     * stay on the screen. It also means the longest entries - an opposition,
+     * a greatest brilliancy - are still there weeks after their date, and a
+     * record forgotten sooner than that would announce one of them a second
+     * time in the same season.
+     */
+    @Test
+    fun `remembers an announcement for as long as the entry can last`() {
+        val opposition = SkyEvent(
+            kind = EventKind.Opposition,
+            at = at("2026-01-10T08:29:31Z"),
+            from = at("2025-12-20T08:29:31Z"),
+            until = at("2026-01-31T08:29:31Z"),
+            title = "Jupiter at its best for the year",
+            detail = "Opposite the sun, so it is up all night.",
+            visibility = Visibility.Good,
+        )
+        val key = EventPlanner.key(opposition, EventPlanner.Phase.Tonight)
+
+        val kept = EventPlanner.prune(setOf(key), at("2026-01-30T20:00:00Z"))
+
+        assertEquals(setOf(key), kept)
+    }
+
     /** A key that cannot be read is dropped rather than kept forever. */
     @Test
     fun `drops a key it cannot parse`() {

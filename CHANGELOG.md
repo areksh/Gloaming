@@ -405,6 +405,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An eclipse stopped disappearing from the calendar at the moment it began.**
+  The list kept an entry while its *peak* was still ahead, and it is worked out
+  from the moment you open the app - so an event dropped off at the instant it
+  became worth looking at. The Quadrantids reach their maximum before dawn and
+  vanished for the evening people were opening the app to check them; Jupiter's
+  opposition says it is worth looking on any clear night for a few weeks either
+  side and then left the list on the day. An entry now stays while any part of
+  it is still to come.
+
 - **A conjunction in the next six hours is no longer invisible.** Close
   approaches are found by sampling every six hours and picking out the moments
   lower than the samples either side, and the first sample had nothing before it
