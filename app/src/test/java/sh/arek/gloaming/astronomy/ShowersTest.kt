@@ -232,6 +232,52 @@ class ShowersTest {
         assertEquals(0, peak.hourlyRateFromHere)
     }
 
+    // --- the night itself ---
+
+    /**
+     * The night of a shower is the one night the app most has to get right, and
+     * it was the one night it got wrong.
+     *
+     * The search for the moment the sun reaches a given longitude was handed a
+     * window of 366 days. The function it searches is a sawtooth with a year's
+     * period, and the root finder inside it fits a parabola through three
+     * samples - so over a whole period the fit is meaningless. Asked on
+     * 13 December for a peak on the 14th it returned nothing at all, and asked
+     * on the 14th it returned the following December. Either way the shower
+     * vanished from the calendar for the two days either side of its peak,
+     * which is exactly when somebody opens the app to ask about it.
+     */
+    @Test
+    fun `finds a shower peaking within a day`() {
+        val peak = named("2026-12-13T00:00:00Z", 5, "Geminids")
+
+        assertNotNull("the Geminids peak on 14 December 2026", peak)
+        assertEquals("2026-12-14", dayOf(peak!!.peaksAt).toString())
+    }
+
+    /** And on the day itself, hours before it happens. */
+    @Test
+    fun `finds a shower peaking later the same night`() {
+        val peak = named("2026-12-14T00:30:00Z", 5, "Geminids")
+
+        assertNotNull("the Geminids peak at 04:52 UTC on 14 December 2026", peak)
+        assertEquals("2026-12-14", dayOf(peak!!.peaksAt).toString())
+    }
+
+    /**
+     * It also has to keep working across a year boundary rather than merely at
+     * short range: the calendar asks for a year at a time, and a shower found
+     * only in the first months of it would be a different bug of the same shape.
+     */
+    @Test
+    fun `finds every yearly peak across a long horizon`() {
+        val geminids = peaks("2026-06-01T00:00:00Z", 3 * 365)
+            .filter { it.shower.name.contains("Geminids") }
+            .map { dayOf(it.peaksAt).year }
+
+        assertEquals(listOf(2026, 2027, 2028), geminids)
+    }
+
     /** Illumination and the share of the night it is up are both fractions. */
     @Test
     fun `keeps the moon figures inside their range`() {

@@ -5,6 +5,7 @@ import io.github.cosinekitty.astronomy.Refraction
 import io.github.cosinekitty.astronomy.Time
 import io.github.cosinekitty.astronomy.horizon
 import io.github.cosinekitty.astronomy.searchSunLongitude
+import io.github.cosinekitty.astronomy.sunPosition
 
 /**
  * One annual shower, as the IMO publishes it.
@@ -118,8 +119,24 @@ object Showers {
     /** Ten minutes, matching the sampling used for everything else on one night. */
     private const val SAMPLE_MILLIS: Long = 10L * 60 * 1000
 
-    /** A year and a day, so a search from any starting point finds the next one. */
-    private const val SEARCH_DAYS: Double = 366.0
+    /**
+     * How wide a window the sun's longitude is searched in.
+     *
+     * Small, and that is the whole point. The engine's search fits a parabola
+     * through three samples of the function it is given, and the function here
+     * is a sawtooth with a period of a year: over any window approaching that,
+     * the fit is meaningless and the answer is either nothing or the wrong
+     * year's crossing. It was 366 days, and the effect was that a shower
+     * disappeared from the calendar for the two days either side of its peak.
+     *
+     * Ten days rather than one, so that [approximateDaysAhead] only has to be
+     * roughly right - it treats the Earth's orbit as circular, which is out by
+     * up to a couple of days at the extremes.
+     */
+    private const val SEARCH_DAYS: Double = 10.0
+
+    /** Mean degrees of solar longitude a day, for aiming the search window. */
+    private const val DEGREES_A_DAY: Double = 360.0 / 365.256
 
     val TABLE: List<Shower> = listOf(
         Shower(
@@ -270,21 +287,51 @@ object Showers {
         .map { (shower, peaksAt) -> peak(shower, peaksAt, latitude, longitude) }
         .sortedBy { it.peaksAt }
 
+    /**
+     * Every peak of one shower between the two instants.
+     *
+     * Each is found by working out roughly when the Earth next reaches that
+     * point in its orbit, then searching a short window around it. Aiming the
+     * window rather than widening it is what keeps the search inside the one
+     * rising stretch of the sawtooth it can actually solve.
+     */
     private fun maxima(
         shower: Shower,
         fromMillis: Long,
         untilMillis: Long,
     ): List<Pair<Shower, Long>> = buildList {
         var cursor = Time.fromMillisecondsSince1970(fromMillis)
-        while (true) {
-            val found = searchSunLongitude(shower.solarLongitude, cursor, SEARCH_DAYS) ?: return@buildList
+        while (cursor.toMillisecondsSince1970() <= untilMillis) {
+            val ahead = approximateDaysAhead(shower.solarLongitude, cursor)
+            // Half the window before the estimate, so the crossing sits in the
+            // middle of it however far the estimate is out.
+            val aimed = cursor.addDays(ahead - SEARCH_DAYS / 2)
+            val found = searchSunLongitude(shower.solarLongitude, aimed, SEARCH_DAYS)
+                ?: return@buildList
+
             val at = found.toMillisecondsSince1970()
             if (at > untilMillis) return@buildList
-            add(shower to at)
+            // The window opens before the cursor, so a peak that has already
+            // gone can come back. It is stepped over rather than reported: the
+            // caller asked what is ahead.
+            if (at >= fromMillis) add(shower to at)
             // Stepped a day past, because the search returns the longitude at or
             // after its start and would otherwise return the same peak forever.
             cursor = found.addDays(1.0)
         }
+    }
+
+    /**
+     * Roughly how many days until the sun next reaches [targetLongitude].
+     *
+     * A circular orbit at a constant rate, which is wrong by up to a couple of
+     * days over half a year - fine, because this only has to aim a ten-day
+     * window rather than answer the question.
+     */
+    private fun approximateDaysAhead(targetLongitude: Double, from: Time): Double {
+        val now = sunPosition(from).elon
+        val ahead = ((targetLongitude - now) % 360.0 + 360.0) % 360.0
+        return ahead / DEGREES_A_DAY
     }
 
     private fun peak(

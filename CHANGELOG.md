@@ -405,6 +405,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A meteor shower no longer disappears from the calendar on the night it
+  peaks.** The peaks are stored as a position in the Earth's orbit rather than a
+  date, and the search for when the Earth next reaches one was given a window of
+  366 days - a whole year of a quantity that repeats yearly, which the search
+  underneath cannot solve. Asked the day before a shower it found nothing at all;
+  asked on the day it found the following year's. So the two days either side of
+  every peak, which are the only two days anybody asks, showed no shower.
+
 - **Changing any setting no longer makes the app forget what it had already
   said.** The settings and the alert state share one preferences file, and saving
   settings cleared the whole file whenever before-unlock alerting was off - which
