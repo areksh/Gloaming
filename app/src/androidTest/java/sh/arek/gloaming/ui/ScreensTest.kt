@@ -26,9 +26,12 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
+import sh.arek.gloaming.domain.ClearSpell
+import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
@@ -955,6 +958,165 @@ class ScreensTest {
         )
 
         compose.onNodeWithText("Nothing crossing tonight", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * The cloud the app gates every alert on, said out loud for the first time.
+     *
+     * "80% cloud" is the wrong summary of a night that is overcast until
+     * midnight and then clear for three hours, so the gap is the line that
+     * matters rather than the number above it.
+     */
+    @Test
+    fun showsTheCloudAndTheGapInIt() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                cloud = CloudCover(total = 80, low = 60, mid = 20, high = 10),
+                clearSpell = ClearSpell(
+                    from = now + 3 * 3_600_000L,
+                    until = now + 5 * 3_600_000L,
+                    underway = false,
+                    allNight = false,
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Sky now").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("80% cloud overhead.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Clearer from about", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * CC BY 4.0 requires the credit beside the data it covers, and this is the
+     * first place in the app that shows a forecast rather than acting on one
+     * out of sight.
+     */
+    @Test
+    fun creditsOpenMeteoBesideTheForecast() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                cloud = CloudCover(total = 10, low = 0, mid = 0, high = 10),
+            ),
+        )
+
+        compose.onNodeWithText("Sky now").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithText("Weather data by Open-Meteo.com").onFirst().assertExists()
+    }
+
+    /** Nothing held and nothing forecast is not a card saying "unknown". */
+    @Test
+    fun leavesOutTheSkyCardWithNoReadingAtAll() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("Sky now").assertDoesNotExist()
+    }
+
+    /**
+     * The moon, which the app has weighed against every comet since comets went
+     * in and never once mentioned. What it reports is how much of the night the
+     * moon spoils rather than how bright it is - a full moon that has set by
+     * midnight costs far less than a half moon up all night.
+     */
+    @Test
+    fun showsTheMoonAndWhatItCostsTheNight() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                moon = MoonTonight(
+                    phaseDegrees = 180.0,
+                    illumination = 0.98,
+                    upFraction = 1.0,
+                    interference = 0.98,
+                    risesAt = null,
+                    setsAt = null,
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("The moon").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Full moon, 98% lit.").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("washes out about 98%", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /**
+     * Both thresholds. Civil twilight is where an aurora starts to show;
+     * astronomical darkness is a different night, and at these latitudes
+     * between May and August it does not arrive at all - which is why a summer
+     * meteor shower disappoints.
+     */
+    @Test
+    fun showsBothDarknessThresholds() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                darkestFrom = now + 3_600_000L,
+                darkestUntil = now + 7 * 3_600_000L,
+            ),
+        )
+
+        compose.onNodeWithText("Dark from", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Fully dark from", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun saysWhenItNeverGetsFullyDark() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+            ),
+        )
+
+        compose.onNodeWithText("It never gets fully dark here", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
     }

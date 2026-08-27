@@ -17,7 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
@@ -55,7 +58,9 @@ fun TonightContent(
     // which. Each is absent rather than empty when it has nothing to say.
     val tonight = state.tonight?.takeIf { state.settings.hasLocation }
     if (tonight != null) {
+        SkyNowCard(tonight, state.settings.cloudTolerance)
         DarknessCard(tonight)
+        MoonCard(tonight)
         EventsCard(tonight)
         CometsCard(tonight)
         SatellitesCard(tonight)
@@ -294,11 +299,64 @@ private fun WatchNowCard(
 }
 
 /**
+ * The cloud, which the app has gated every alert on and never once shown.
+ *
+ * First because it is the question that decides everything under it: a pass at
+ * 68 degrees and a comet at magnitude 8 are both worth nothing under total
+ * overcast. The reading is whatever was last fetched - never a fetch of its
+ * own, because the screen must not spend the one request an hour Open-Meteo's
+ * terms allow.
+ *
+ * The clear-spell line is the point of the card. "80% cloud" is the wrong
+ * summary of a night that is overcast until midnight and then clear for three
+ * hours, and it is the second of those that decides whether anybody stays up.
+ */
+@Composable
+private fun SkyNowCard(list: TonightList, tolerance: Int) {
+    // Absent rather than guessing. With no reading and no forecast there is
+    // nothing to say that is not either "unknown" or an invention.
+    if (list.cloud == null && list.clearSpell == null) return
+
+    SectionCard("Sky now") {
+        Text(
+            describeCloud(list.cloud).replaceFirstChar { it.uppercase() } + " overhead.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        // Only where there is a night to have a gap in. Outside darkness the
+        // question is not "when does it clear" but "when does it get dark",
+        // which the card below answers.
+        if (list.darkFrom != null) {
+            Text(
+                describeClearSpell(list.clearSpell, tolerance),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        // CC BY 4.0 requires attribution beside the data it covers, and this is
+        // the first place in the app that shows a forecast rather than acting
+        // on one behind the scenes.
+        Text(
+            buildAnnotatedString {
+                append("Weather data by ")
+                withLink(LinkAnnotation.Url("https://open-meteo.com/")) {
+                    append("Open-Meteo.com")
+                }
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
  * When it is dark enough to be worth going outside.
  *
- * First of the tonight cards because it bounds every other one: a pass at
- * 22:40 and a comet at 46 degrees both mean something different if the sky
- * does not get dark until 23:15.
+ * Both thresholds, not just the one the app has always shown. Civil twilight is
+ * where the aurora starts to show and is the gate every alert passes; proper
+ * astronomical darkness is a different night, and at these latitudes between
+ * May and August it does not arrive at all - which is the difference between a
+ * usable night and a bright one, and the reason a summer meteor shower
+ * disappoints.
  */
 @Composable
 private fun DarknessCard(list: TonightList) {
@@ -311,6 +369,44 @@ private fun DarknessCard(list: TonightList) {
             },
             style = MaterialTheme.typography.bodySmall,
         )
+
+        Text(
+            if (list.darkestFrom == null) {
+                "It never gets fully dark here at this time of year - the sun stays " +
+                    "too close to the horizon all night for a properly black sky."
+            } else {
+                "Fully dark from ${clock(list.darkestFrom)} until " +
+                    "${clock(list.darkestUntil!!)}, which is when anything faint is " +
+                    "worth looking for."
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
+ * The moon, which the app has weighed against every comet and never mentioned.
+ *
+ * After the cloud and the darkness because it is the third gate on the same
+ * question and the only one of the three known months ahead. What is reported
+ * is how much of the night it spoils rather than how bright it is: a full moon
+ * that has set by midnight costs far less than a half moon up all night, and
+ * that product is what the comet gate has always used.
+ */
+@Composable
+private fun MoonCard(list: TonightList) {
+    val moon = list.moon ?: return
+
+    SectionCard("The moon") {
+        Text(
+            "${describeMoonPhase(moon.phaseDegrees)}, " +
+                "${(moon.illumination * 100).roundToInt()}% lit.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(describeMoonlight(moon), style = MaterialTheme.typography.bodySmall)
+        describeMoonTimes(moon)?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

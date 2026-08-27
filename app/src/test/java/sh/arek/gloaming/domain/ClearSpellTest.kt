@@ -19,14 +19,14 @@ class ClearSpellTest {
 
     private val hour = 60 * 60 * 1000L
 
-    /** Midnight UTC on an arbitrary day, so the arithmetic below reads as hours. */
-    private val midnight = 1_800_000_000_000L / hour * hour
+    /** An arbitrary whole hour, from which [at] counts hours. */
+    private val start = 1_800_000_000_000L / hour * hour
 
-    /** One entry per hour from [midnight], reading the percentages in order. */
+    /** One entry per hour from [start], reading the percentages in order. */
     private fun hours(vararg total: Int): List<HourlyCover> =
-        total.mapIndexed { index, cover -> HourlyCover(midnight + index * hour, cover) }
+        total.mapIndexed { index, cover -> HourlyCover(start + index * hour, cover) }
 
-    private fun at(hourOfDay: Int) = midnight + hourOfDay * hour
+    private fun at(hoursOn: Int) = start + hoursOn * hour
 
     @Test
     fun `finds the first run of hours under the tolerance`() {

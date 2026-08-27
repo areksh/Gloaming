@@ -12,6 +12,7 @@ import io.github.cosinekitty.astronomy.horizon
 import io.github.cosinekitty.astronomy.illumination
 import io.github.cosinekitty.astronomy.moonPhase
 import io.github.cosinekitty.astronomy.searchAltitude
+import io.github.cosinekitty.astronomy.searchRiseSet
 
 /** How much of the moon is lit, and how far round its cycle it has come. */
 data class Moon(
@@ -20,6 +21,14 @@ data class Moon(
     /** Fraction of the disc lit, 0 at new and 1 at full. */
     val illumination: Double,
 )
+
+/**
+ * When the moon crosses the horizon inside a night, where it does.
+ *
+ * Both null on a night the moon is up throughout or down throughout, which are
+ * the two commonest cases and both perfectly ordinary answers.
+ */
+data class MoonTimes(val risesAt: Long?, val setsAt: Long?)
 
 /**
  * Whether it is dark enough to see anything, and when that changes.
@@ -235,6 +244,31 @@ object Twilight {
         }
         return if (samples == 0) 0.0 else up.toDouble() / samples
     }
+
+    /**
+     * When the moon rises and sets inside [night].
+     *
+     * From the engine's own rise-and-set search rather than from the ten-minute
+     * sweep [moonUpFraction] uses, because these are printed on the screen: "the
+     * moon sets at 01:20" has to be the time it sets, not the time the sweep
+     * next looked. The search accounts for the moon's own semi-diameter and for
+     * refraction, which together move a moonset by about two minutes.
+     */
+    fun moonTimes(latitude: Double, longitude: Double, night: LongRange): MoonTimes {
+        val observer = observer(latitude, longitude)
+        val from = Time.fromMillisecondsSince1970(night.first)
+        val days = ((night.last - night.first).toDouble() / DAY_MILLIS).coerceAtLeast(MINIMUM_DAYS)
+
+        fun crossing(direction: Direction): Long? =
+            searchRiseSet(Body.Moon, observer, direction, from, days)
+                ?.toMillisecondsSince1970()
+                ?.takeIf { it <= night.last }
+
+        return MoonTimes(risesAt = crossing(Direction.Rise), setsAt = crossing(Direction.Set))
+    }
+
+    /** `searchRiseSet` rejects a non-positive span, and a zero-length night is one. */
+    private const val MINIMUM_DAYS: Double = 1e-6
 
     /** Ten minutes, matching every other sweep of a night in the app. */
     private const val MOON_SAMPLE_MILLIS: Long = 10L * 60 * 1000

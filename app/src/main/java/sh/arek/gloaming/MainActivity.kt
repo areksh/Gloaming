@@ -425,12 +425,19 @@ private fun GloamingApp() {
         }
         tonight = withContext(Dispatchers.Default) {
             runCatching {
+                // Both of these read the cache and stop. The screen must never
+                // spend the one request an hour Open-Meteo's terms allow: the
+                // poller already fetches it, and a tab that refetched on every
+                // open would take that budget away from the alerts.
+                val weather = Graph.weather(context)
                 Tonight.of(
                     satellites = Graph.satellites(context).cached(),
                     comets = Graph.comets(context).cached(),
                     calendar = calendar,
                     settings = settings,
                     nowMillis = System.currentTimeMillis(),
+                    cloud = weather.lastKnown(latitude, longitude),
+                    hourly = weather.forecast(latitude, longitude),
                 )
             }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()
         }

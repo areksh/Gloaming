@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Three things Gloaming already knew and never said.** The Tonight tab now
+  shows the cloud overhead - which every alert has been gated on since the first
+  version, while only ever appearing inside a notification - alongside the gap in
+  the forecast worth waiting for. It shows the moon: its phase, how much of it is
+  lit, when it rises or sets, and how much of tonight's darkness it actually
+  spoils, which is the figure the comet gate has always used and is not the same
+  as how bright it is. And it distinguishes the two kinds of dark: the twilight an
+  aurora shows through, and proper astronomical darkness, which between May and
+  August at these latitudes does not arrive at all - the reason a summer meteor
+  shower disappoints.
+
 - **The gap in the cloud.** Gloaming already knew the sky was 80% covered; it now
   knows that 80% is overcast until midnight and then clear for three hours, which
   is the thing that actually decides whether a marginal night is worth staying up

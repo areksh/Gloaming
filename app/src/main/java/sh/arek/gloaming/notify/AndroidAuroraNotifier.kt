@@ -14,6 +14,7 @@ import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
+import sh.arek.gloaming.ui.describeCloud
 
 /**
  * Posts the aurora notification.
@@ -38,7 +39,7 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             if (likelihood.source == Likelihood.Source.AURORAWATCH) {
                 append(" (AuroraWatch UK)")
             }
-            append(", ").append(describe(cloud))
+            append(", ").append(describeCloud(cloud))
             status.kp?.let { append(", Kp ${it.value}") }
             status.solarWind?.let { append(", Bz ${it.bz} nT") }
             status.aurorawatch?.let { append(", AuroraWatch ${it.status}") }
@@ -81,26 +82,6 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-
-    /**
-     * What the sky is doing, in words.
-     *
-     * An unreachable forecast says so rather than being left out. Omitting it
-     * would read as a clear sky, and the whole reason the gate notifies on an
-     * unknown reading is that the user should decide whether to go and look.
-     *
-     * Where the cloud is matters as much as how much: high cirrus at 60% still
-     * shows a strong aurora, low stratus at 60% does not.
-     */
-    private fun describe(cloud: CloudCover?): String {
-        if (cloud == null) return "cloud cover unknown"
-        val blocking = cloud.low + cloud.mid
-        return when {
-            cloud.total <= 15 -> "clear"
-            cloud.high >= cloud.total && blocking <= 25 -> "${cloud.total}% cloud, high and thin"
-            else -> "${cloud.total}% cloud"
-        }
-    }
 
     /**
      * Channels exist from API 26. Below that the app runs unchanged and the

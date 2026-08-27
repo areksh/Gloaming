@@ -9,6 +9,8 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.comets.CometsDocument
+import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
 
 /**
@@ -44,13 +46,23 @@ class TonightTest {
         calendar: List<SkyEvent> = emptyList(),
         user: UserSettings = settings,
         comets: CometsDocument? = null,
+        cloud: CloudCover? = null,
+        hourly: List<HourlyCover> = emptyList(),
     ) = Tonight.of(
         satellites = null,
         comets = comets,
         calendar = calendar,
         settings = user,
         nowMillis = at(now),
+        cloud = cloud,
+        hourly = hourly,
     )
+
+    /** One entry an hour from [from], reading the percentages in order. */
+    private fun hours(from: String, vararg total: Int): List<HourlyCover> =
+        total.mapIndexed { index, cover ->
+            HourlyCover(at(from) + index * 3_600_000L, cover)
+        }
 
     /** Without a location there is nothing that could be about tonight. */
     @Test
@@ -172,6 +184,113 @@ class TonightTest {
         )
 
         assertEquals(null, list.darkFrom)
+    }
+
+    // --- the other two gates on a clear night ---
+
+    /**
+     * Proper astronomical darkness, which is a different night from the civil
+     * one the app has always shown. December at Edinburgh has plenty of it.
+     */
+    @Test
+    fun `finds the darker window as well as the civil one`() {
+        val list = tonight("2026-12-14T18:00:00Z")
+
+        assertNotNull(list.darkestFrom)
+        assertNotNull(list.darkestUntil)
+        assertTrue(list.darkestFrom!! > list.darkFrom!!)
+        assertTrue(list.darkestUntil!! < list.darkUntil!!)
+    }
+
+    /**
+     * The one that matters. Edinburgh in late June is dark enough to see an
+     * aurora and never dark enough for anything faint, and until now the app
+     * could not tell the two apart - which is why a summer meteor shower
+     * disappoints.
+     */
+    @Test
+    fun `finds no darker window in a northern midsummer`() {
+        val list = tonight("2027-06-21T22:00:00Z")
+
+        assertNotNull(list.darkFrom)
+        assertEquals(null, list.darkestFrom)
+    }
+
+    @Test
+    fun `weighs the moon against tonight's darkness`() {
+        val list = tonight("2026-12-14T18:00:00Z")
+
+        val moon = assertNotNull(list.moon).let { list.moon!! }
+        assertTrue(moon.illumination in 0.0..1.0)
+        assertTrue(moon.upFraction in 0.0..1.0)
+        assertEquals(moon.illumination * moon.upFraction, moon.interference, 1e-9)
+    }
+
+    /** No night to weigh it against, so there is nothing to say about it. */
+    @Test
+    fun `says nothing about the moon where there is no night`() {
+        val list = Tonight.of(
+            satellites = null,
+            comets = null,
+            calendar = emptyList(),
+            settings = UserSettings(latitude = 78.2, longitude = 15.6),
+            nowMillis = at("2027-06-21T12:00:00Z"),
+        )
+
+        assertEquals(null, list.moon)
+    }
+
+    /** A moon that crosses the horizon during the night is timed to the minute. */
+    @Test
+    fun `times the moon's crossings inside the night`() {
+        val list = tonight("2026-12-14T18:00:00Z")
+
+        val moon = list.moon!!
+        listOfNotNull(moon.risesAt, moon.setsAt).forEach {
+            assertTrue(it in list.darkFrom!!..list.darkUntil!!)
+        }
+    }
+
+    // --- the cloud, and the gap in it ---
+
+    @Test
+    fun `carries the cloud reading it was handed`() {
+        val list = tonight("2026-12-14T18:00:00Z", cloud = CloudCover(80, 60, 20, 10))
+
+        assertEquals(80, list.cloud!!.total)
+    }
+
+    /**
+     * The gap is looked for inside tonight's darkness and against the user's
+     * own tolerance, not against a constant: somebody who will go out under
+     * broken cloud and somebody who wants a clear sky are asking different
+     * questions of the same forecast.
+     */
+    @Test
+    fun `finds the gap in the cloud inside tonight's darkness`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            hourly = hours("2026-12-14T17:00:00Z", 100, 100, 100, 100, 20, 20, 100),
+        )
+
+        val spell = assertNotNull(list.clearSpell).let { list.clearSpell!! }
+        assertEquals(at("2026-12-14T21:00:00Z"), spell.from)
+        assertEquals(at("2026-12-14T23:00:00Z"), spell.until)
+    }
+
+    @Test
+    fun `finds no gap where the forecast has none`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            hourly = hours("2026-12-14T17:00:00Z", 100, 100, 100, 100, 100),
+        )
+
+        assertEquals(null, list.clearSpell)
+    }
+
+    @Test
+    fun `finds no gap without a forecast`() {
+        assertEquals(null, tonight("2026-12-14T18:00:00Z").clearSpell)
     }
 
     // --- which few to lead with ---

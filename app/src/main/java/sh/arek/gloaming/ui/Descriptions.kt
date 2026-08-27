@@ -1,7 +1,10 @@
 package sh.arek.gloaming.ui
 
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.WatchDuration
+import sh.arek.gloaming.domain.ClearSpell
+import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
 import sh.arek.gloaming.satellites.IssCoverage
 
@@ -198,3 +201,109 @@ internal fun describeDegrees(degrees: Int): String = "$degrees degrees"
 
 /** A share, written the way the cloud tolerance already writes one. */
 internal fun describePercent(percent: Int): String = "$percent per cent"
+
+/**
+ * What the sky is doing, in words.
+ *
+ * Here rather than in the notifier that used to own it, because the Tonight
+ * tab now says the same thing and two implementations of "clear" would
+ * eventually be two different definitions of it - the notification saying the
+ * sky is clear while the screen behind it says 20% cloud.
+ *
+ * An unreachable forecast says so rather than being left out. Omitting it would
+ * read as a clear sky, and the whole reason the gate notifies on an unknown
+ * reading is that the user should decide whether to go and look.
+ *
+ * Where the cloud is matters as much as how much: high cirrus at 60% still
+ * shows a strong aurora, low stratus at 60% does not.
+ */
+fun describeCloud(cloud: CloudCover?): String {
+    if (cloud == null) return "cloud cover unknown"
+    val blocking = cloud.low + cloud.mid
+    return when {
+        cloud.total <= CLEAR_PERCENT -> "clear"
+        cloud.high >= cloud.total && blocking <= THIN_PERCENT ->
+            "${cloud.total}% cloud, high and thin"
+        else -> "${cloud.total}% cloud"
+    }
+}
+
+/** At or below this the sky is called clear rather than given a number. */
+private const val CLEAR_PERCENT = 15
+
+/** How much low and mid cloud may be present before "high and thin" is a lie. */
+private const val THIN_PERCENT = 25
+
+/**
+ * The gap in the cloud, as something to plan around.
+ *
+ * Null when there is no forecast to speak from, which is a different thing from
+ * a forecast with no gap in it - the caller says nothing in the first case and
+ * "no clear spell tonight" in the second.
+ */
+internal fun describeClearSpell(spell: ClearSpell?, tolerance: Int): String = when {
+    spell == null -> "No gap in the cloud forecast tonight, at $tolerance% or under."
+
+    spell.allNight -> "Under $tolerance% cloud for the rest of the night."
+
+    spell.underway -> "Clear now, until about ${clock(spell.until)}."
+
+    else -> "Clearer from about ${clock(spell.from)} until ${clock(spell.until)}."
+}
+
+/**
+ * The moon's phase in the words everybody uses for it.
+ *
+ * The named phases get a window of five degrees either side rather than an
+ * instant, because the moon moves about 12 degrees a day and nobody calls a
+ * moon eleven hours off full anything but full.
+ */
+internal fun describeMoonPhase(phaseDegrees: Double): String {
+    val phase = ((phaseDegrees % 360) + 360) % 360
+    return when {
+        phase < NAMED_PHASE_SLACK || phase > 360 - NAMED_PHASE_SLACK -> "New moon"
+        phase < 90 - NAMED_PHASE_SLACK -> "Waxing crescent"
+        phase <= 90 + NAMED_PHASE_SLACK -> "First quarter"
+        phase < 180 - NAMED_PHASE_SLACK -> "Waxing gibbous"
+        phase <= 180 + NAMED_PHASE_SLACK -> "Full moon"
+        phase < 270 - NAMED_PHASE_SLACK -> "Waning gibbous"
+        phase <= 270 + NAMED_PHASE_SLACK -> "Last quarter"
+        else -> "Waning crescent"
+    }
+}
+
+/** About ten hours either side, at the moon's own rate of about 12 degrees a day. */
+private const val NAMED_PHASE_SLACK = 5.0
+
+/**
+ * How much of tonight the moon spoils, which is not the same as how bright it
+ * is.
+ *
+ * A full moon that has set by midnight costs far less than a half moon up all
+ * night, and it is that product the comet gate has always used - so it is that
+ * product the screen reports rather than the illumination on its own.
+ */
+internal fun describeMoonlight(moon: MoonTonight): String {
+    val percent = kotlin.math.round(moon.interference * 100).toInt()
+    return when {
+        moon.upFraction <= 0.0 -> "Below the horizon all night, so it costs you nothing."
+        percent <= 5 -> "Barely there: it spoils about $percent% of tonight's darkness."
+        percent >= 70 -> "It washes out about $percent% of tonight's darkness."
+        else -> "It spoils about $percent% of tonight's darkness."
+    }
+}
+
+/**
+ * When the moon comes and goes, where it does either inside the night.
+ *
+ * Null when it does neither, which is the commonest case by some way: most
+ * nights the moon is either up throughout or down throughout, and inventing a
+ * sentence for that would be inventing an event.
+ */
+internal fun describeMoonTimes(moon: MoonTonight): String? {
+    val rises = moon.risesAt?.let { "rises ${clock(it)}" }
+    val sets = moon.setsAt?.let { "sets ${clock(it)}" }
+    val parts = listOfNotNull(rises, sets)
+    if (parts.isEmpty()) return null
+    return parts.joinToString(", ").replaceFirstChar { it.uppercase() } + "."
+}

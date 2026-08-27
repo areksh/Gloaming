@@ -14,6 +14,7 @@ import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.Journal
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
+import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
@@ -88,6 +89,21 @@ object Graph {
      */
     fun alertState(context: Context): AlertStateStore =
         PreferencesAlertStateStore(devicePreferences(context))
+
+    /**
+     * The cloud source, for anything that only wants what is already held.
+     *
+     * Its cheap reads - the last reading and the hours ahead - touch no network
+     * at all, which is what lets the screen show a forecast without spending
+     * the one request an hour Open-Meteo's terms allow.
+     */
+    fun weather(context: Context): WeatherSource {
+        val application = context.applicationContext
+        return OpenMeteoWeather(
+            OkHttpFetcher(httpClient),
+            FileWeatherCache(weatherDirectory(application)),
+        )
+    }
 
     fun poller(context: Context): SkyPoller {
         val application = context.applicationContext

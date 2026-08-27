@@ -8,12 +8,44 @@ import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.comets.CometsDocument
+import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.satellites.SatellitesDocument
 import sh.arek.gloaming.satellites.TrainFinder
+
+/**
+ * The moon tonight: how much of it there is, and how much of the night it has.
+ *
+ * The app has computed most of this since the comets went in - [Twilight]
+ * weighs moonlight against every comet and every shower - and never once said
+ * so on a screen. Yet it is the single biggest thing about a clear night after
+ * the cloud: a full moon up all night is the difference between a good night
+ * and a wasted drive, and unlike the cloud it is known months ahead.
+ */
+data class MoonTonight(
+    /** 0 at new, 90 at first quarter, 180 at full, 270 at last quarter. */
+    val phaseDegrees: Double,
+    /** Fraction of the disc lit, 0 at new and 1 at full. */
+    val illumination: Double,
+    /** Share of tonight's darkness the moon spends above the horizon, 0 to 1. */
+    val upFraction: Double,
+    /**
+     * How much of the night's darkness the moon actually spoils, 0 to 1.
+     *
+     * Illumination times [upFraction], because brightness alone is the wrong
+     * measure: a full moon that has set by midnight costs far less than a half
+     * moon up all night. The same figure the comet gate already uses.
+     */
+    val interference: Double,
+    /** When it rises inside tonight's darkness, if it does. */
+    val risesAt: Long?,
+    /** When it sets inside tonight's darkness, if it does. */
+    val setsAt: Long?,
+)
 
 /** What there is to see between now and the end of tonight. */
 data class TonightList(
@@ -37,6 +69,22 @@ data class TonightList(
     val comets: List<SkyEvent>,
     /** Tonight's noctilucent prompt, in season and at the right latitude. */
     val noctilucent: SkyEvent?,
+    /**
+     * When the sun is 18 degrees down rather than 6, if it gets there.
+     *
+     * A different night from the civil one the app has always shown, and at UK
+     * latitudes between May and August the difference between a usable night
+     * and a bright one. [Twilight] has taken the threshold as a parameter since
+     * it was written; nothing had ever asked it for this one.
+     */
+    val darkestFrom: Long? = null,
+    val darkestUntil: Long? = null,
+    /** The moon, where there is a night to weigh it against. */
+    val moon: MoonTonight? = null,
+    /** The last cloud reading held for here, never a fetch. */
+    val cloud: CloudCover? = null,
+    /** The first gap in the cloud inside tonight's darkness, if the forecast has one. */
+    val clearSpell: ClearSpell? = null,
 ) {
     val isEmpty: Boolean
         get() = passes.isEmpty() && events.isEmpty() && comets.isEmpty() && noctilucent == null
@@ -76,12 +124,20 @@ object Tonight {
      */
     const val LISTED_BAR_DEGREES: Double = 10.0
 
+    /**
+     * @param cloud the last reading held for here, never fetched. Null is a
+     *   real answer and is said as one - the screen must not spend the one
+     *   request an hour Open-Meteo's terms allow.
+     * @param hourly the hours ahead from that same held reading.
+     */
     fun of(
         satellites: SatellitesDocument?,
         comets: CometsDocument?,
         calendar: List<SkyEvent>,
         settings: UserSettings,
         nowMillis: Long,
+        cloud: CloudCover? = null,
+        hourly: List<HourlyCover> = emptyList(),
     ): TonightList {
         val latitude = settings.latitude
         val longitude = settings.longitude
@@ -95,6 +151,17 @@ object Tonight {
         // lists what crosses rather than going blank.
         val from = maxOf(night?.first ?: nowMillis, nowMillis)
         val until = night?.last ?: (nowMillis + HORIZON_MILLIS)
+
+        // The darker window, searched separately rather than derived from the
+        // civil one: at these latitudes it routinely does not exist at all
+        // between May and August, and that absence is the answer rather than a
+        // failure to find one.
+        val darkest = Twilight.nightNearest(
+            latitude,
+            longitude,
+            nowMillis,
+            Twilight.ASTRONOMICAL_DEGREES,
+        )
 
         val passes = satellites
             ?.let { visiblePasses(it, latitude, longitude, from, until, settings) }
@@ -121,6 +188,38 @@ object Tonight {
                 .tonight(comets, latitude, longitude, settings, nowMillis)
                 .filter { it.visibility !is Visibility.NotFromHere },
             noctilucent = Noctilucent.event(latitude, longitude, nowMillis),
+            darkestFrom = darkest?.first,
+            darkestUntil = darkest?.last,
+            moon = night?.let { moonTonight(latitude, longitude, it, nowMillis) },
+            cloud = cloud,
+            clearSpell = night?.let {
+                ClearSpell.first(
+                    hourly = hourly,
+                    tolerance = settings.cloudTolerance,
+                    darkFrom = it.first,
+                    darkUntil = it.last,
+                    nowMillis = nowMillis,
+                )
+            },
+        )
+    }
+
+    private fun moonTonight(
+        latitude: Double,
+        longitude: Double,
+        night: LongRange,
+        nowMillis: Long,
+    ): MoonTonight {
+        val moon = Twilight.moon(nowMillis)
+        val up = Twilight.moonUpFraction(latitude, longitude, night)
+        val times = Twilight.moonTimes(latitude, longitude, night)
+        return MoonTonight(
+            phaseDegrees = moon.phaseDegrees,
+            illumination = moon.illumination,
+            upFraction = up,
+            interference = moon.illumination * up,
+            risesAt = times.risesAt,
+            setsAt = times.setsAt,
         )
     }
 
