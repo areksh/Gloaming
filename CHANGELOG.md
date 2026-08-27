@@ -635,6 +635,12 @@ release it applies to, and would be a lie under any of the headings above.*
 - The instrumented suite needs the device awake and unlocked. Behind the
   keyguard an activity resumes and pauses without drawing, and every Compose
   assertion fails with "No compose hierarchies found in the app".
+  `stay_on_while_plugged_in` is not enough on its own for a long run: a phone
+  that has reached its charge limit has stopped charging and is no longer
+  plugged in as far as that setting is concerned, so the ordinary screen
+  timeout takes over part-way through and everything from that point fails with
+  the same message. It reads as a real failure in whichever tests were running
+  at the time.
 - Instrumented tests verified on a Pixel 8a running GrapheneOS: storage
   partitioning, permission declarations, scheduling and notifications.
 - Before-unlock alerting verified end to end on a Pixel 8a running GrapheneOS:

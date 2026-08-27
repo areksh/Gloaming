@@ -157,6 +157,20 @@ compose hierarchies found in the app" - which reads like a broken test setup and
 is not. `adb shell input keyevent KEYCODE_WAKEUP` before a run, and
 `settings put global stay_on_while_plugged_in 7` to keep it that way.
 
+That second one stops working the moment the battery reaches a charge limit.
+GrapheneOS holds at 80 per cent by default, and a phone that has stopped
+charging is no longer "plugged in" as far as the setting is concerned - so the
+ordinary screen timeout takes over part-way through a long run and the tests
+from that point on fail with the message above. Nothing in the output says the
+screen went off; it reads as a real failure in whichever tests happened to be
+running. On a run long enough to reach the limit, raise the timeout as well and
+put it back afterwards:
+
+```sh
+adb shell settings get system screen_off_timeout      # note it down first
+adb shell settings put system screen_off_timeout 1800000
+```
+
 The APK lands in `app/build/outputs/apk/debug/`.
 
 ### Looking at a night that has not happened
