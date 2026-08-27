@@ -2,15 +2,18 @@ package sh.arek.gloaming.scenarios
 
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.comets.CometsDocument
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.HourlyCover
+import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
+import sh.arek.gloaming.ui.MainUiState
 
 /**
  * One night, chosen because it shows something the app would otherwise have to
@@ -215,4 +218,39 @@ object Scenarios {
         cloud = scenario.cloud,
         hourly = scenario.hourly,
     )
+
+    /**
+     * The whole screen state for that night.
+     *
+     * Built here rather than in the instrumented suite so that both suites see
+     * the same screen: a test that renders one thing while another asserts
+     * about a different one is worse than either alone.
+     *
+     * The permissions are granted and the phone is exempt, because a scenario
+     * is about the sky rather than about the two warning cards - the states
+     * where they are missing have their own tests already.
+     */
+    fun uiState(scenario: Scenario): MainUiState {
+        val latitude = scenario.latitude
+        val longitude = scenario.longitude
+        return MainUiState(
+            settings = scenario.settings,
+            alertState = scenario.alertState,
+            latitudeInput = latitude?.toString().orEmpty(),
+            longitudeInput = longitude?.toString().orEmpty(),
+            quietFromInput = "23:00",
+            quietUntilInput = "07:00",
+            batteryExempt = true,
+            notificationsAllowed = true,
+            nowMillis = scenario.nowMillis,
+            darkness = if (latitude != null && longitude != null) {
+                Twilight.darkness(latitude, longitude, scenario.nowMillis)
+            } else {
+                null
+            },
+            calendar = calendar(scenario),
+            tonight = tonight(scenario),
+            pendingVerdict = Conditions.decode(scenario.alertState.pendingVerdict),
+        )
+    }
 }

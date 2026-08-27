@@ -599,6 +599,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 is how a change was verified rather than what changed - which belongs with the
 release it applies to, and would be a lie under any of the headings above.*
 
+- A catalogue of nights in `app/src/scenarios/` now drives both suites, so the
+  rare states can be looked at without waiting for the sky: eclipses, an
+  occultation, a Starlink train, a great comet, the polar day and the polar
+  night, a gap in the cloud at one in the morning. Nothing in it is fake
+  astronomy - a scenario supplies the place, the instant and the documents a
+  device would hold, and the shipped code does the rest, so the dates are real
+  and the suite fails if the ephemeris ever disagrees with them. 51 nights,
+  each drawn on a Pixel 8a through the real Tonight tab and each posting the
+  notification it would produce. Two engine defects listed above were found
+  this way and were reachable no other way.
 - The worked example for provoking a real alert was stale in two ways: it gave
   a longitude in the grid's 0-359 form rather than the -180 to 180 the app
   takes, and it predated the darkness and cloud gates, so following it produced
