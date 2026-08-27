@@ -242,16 +242,17 @@ private fun ThresholdCard(
                 Text("Alerts", style = MaterialTheme.typography.titleMedium)
                 Switch(checked = state.settings.alertsEnabled, onCheckedChange = onAlertsEnabledChange)
             }
+            ChoiceRow(
+                label = "Alert above",
+                value = "${state.settings.threshold}% local probability",
+                choices = UserSettings.THRESHOLD_CHOICES,
+                render = ::describePercent,
+                onChange = onThresholdChange,
+            )
             Text(
-                "Alert above ${state.settings.threshold}% local probability. " +
-                    "Higher latitudes want a higher bar.",
+                "Higher latitudes want a higher bar.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (option in listOf(10, 20, 30, 50, 70)) {
-                    OutlinedButton(onClick = { onThresholdChange(option) }) { Text("$option%") }
-                }
-            }
             Spacer(Modifier.height(4.dp))
             Text(
                 "How often Gloaming checks follows the sky: not at all while the sun " +
@@ -301,17 +302,13 @@ private fun SkyCard(
             }
 
             if (state.settings.cloudGateEnabled) {
-                Text(
-                    "Hold alerts back above ${state.settings.cloudTolerance}% cloud.",
-                    style = MaterialTheme.typography.bodySmall,
+                ChoiceRow(
+                    label = "Hold alerts back above",
+                    value = "${state.settings.cloudTolerance}% cloud",
+                    choices = UserSettings.CLOUD_TOLERANCE_CHOICES,
+                    render = ::describePercent,
+                    onChange = onCloudToleranceChange,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (option in listOf(40, 60, 80, 100)) {
-                        OutlinedButton(onClick = { onCloudToleranceChange(option) }) {
-                            Text("$option%")
-                        }
-                    }
-                }
                 Text(
                     "This is the one thing that leaves your phone: a location rounded to " +
                         "about a kilometre, at most once an hour, with no account or " +

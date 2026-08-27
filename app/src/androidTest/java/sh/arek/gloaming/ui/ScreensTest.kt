@@ -81,6 +81,8 @@ class ScreensTest {
     private var cometMagnitude: Int? = null
     private var cometMoon: Int? = null
     private var logRetention: Int? = null
+    private var threshold: Int? = null
+    private var cloudTolerance: Int? = null
     private var exported = 0
     private var cleared = 0
 
@@ -136,12 +138,12 @@ class ScreensTest {
                     state = state,
                     onLatitudeChange = {},
                     onLongitudeChange = {},
-                    onThresholdChange = {},
+                    onThresholdChange = { threshold = it },
                     onAlertsEnabledChange = {},
                     onBeforeUnlockChange = {},
                     onPreciseBeforeUnlockChange = { precise = it },
                     onCloudGateChange = {},
-                    onCloudToleranceChange = {},
+                    onCloudToleranceChange = { cloudTolerance = it },
                     onQuietHoursEnabledChange = {},
                     onQuietFromChange = {},
                     onQuietUntilChange = {},
@@ -398,6 +400,37 @@ class ScreensTest {
         compose.onNodeWithText("Starlink trains: at most every 6 hours", substring = true)
             .performScrollTo()
             .assertExists()
+    }
+
+    /**
+     * The widest choice in each row, which is the one that used to go missing.
+     *
+     * Both of these rows were a plain Row of buttons, so the last one was laid
+     * out past the right edge of the screen and could not be pressed - while
+     * still being present in the semantics tree, which is why nothing caught
+     * it. A press that lands is the assertion; that the row now wraps is not
+     * something the semantics tree can be asked about.
+     */
+    @Test
+    fun offersTheHighestAuroraThreshold() {
+        show()
+
+        compose.onNodeWithTag(choiceTag("Alert above", "70 per cent"))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(70, threshold)
+    }
+
+    @Test
+    fun offersTheMostPermissiveCloudTolerance() {
+        show()
+
+        compose.onNodeWithTag(choiceTag("Hold alerts back above", "100 per cent"))
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(100, cloudTolerance)
     }
 
     /**

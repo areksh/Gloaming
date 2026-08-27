@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -205,7 +206,15 @@ private fun WatchNowCard(
                 "Stops on its own after: ${state.settings.watchDuration.label}",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // FlowRow, not Row. Five buttons across a narrow screen leave the
+            // last one no width to lay its label out in, and Compose does not
+            // clip it - it wraps the text instead, so "Dawn" came out one
+            // letter per line. The same defect the settings screen already hit
+            // with "30 deg" and fixed in only one of the three places it had.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 for (option in WatchDuration.entries) {
                     OutlinedButton(onClick = { onWatchDurationChange(option) }) {
                         Text(shortWatchDuration(option))

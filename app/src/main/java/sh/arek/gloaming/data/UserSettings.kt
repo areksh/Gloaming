@@ -430,6 +430,9 @@ data class UserSettings(
          */
         const val DEFAULT_THRESHOLD = 30
 
+        /** What the threshold control offers, as a percentage. */
+        val THRESHOLD_CHOICES = listOf(10, 20, 30, 50, 70)
+
         /**
          * The fallback interval, used only when there is no position to work a
          * schedule out from. Everything else is decided by
@@ -443,6 +446,9 @@ data class UserSettings(
          * threshold, this wants a season of real data to calibrate against.
          */
         const val DEFAULT_CLOUD_TOLERANCE = 80
+
+        /** What the cloud control offers, as a percentage. 100 is "never hold one back". */
+        val CLOUD_TOLERANCE_CHOICES = listOf(40, 60, 80, 100)
 
         /**
          * Half an hour before the highest point.

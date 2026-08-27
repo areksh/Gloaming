@@ -101,6 +101,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The last button in a row of choices is reachable again. "Dawn" on the Tonight
+  tab was rendering one letter to a line, and the widest aurora threshold and
+  cloud tolerance were laid out past the right edge of the screen where they
+  could not be pressed at all. All three rows now wrap, which also means a large
+  system font size costs a line of height rather than the last option.
+
 - Quiet hours no longer swallow a notice about something that is still
   happening when they end. A satellite pass or an eclipse whose alert fell due
   in the last half-hour of the silence was held back and then never mentioned:
