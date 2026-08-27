@@ -97,8 +97,28 @@ private const val NO_MINUTE = -1
  * Preferences in the ordinary, credential-encrypted store: unreadable until the
  * device has been unlocked after a boot. The precise position lives here.
  */
+@Synchronized
 fun credentialPreferences(context: Context): SharedPreferences =
-    context.applicationContext.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+    credentialCache ?: context.applicationContext
+        .getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+        .also { credentialCache = it }
+
+/**
+ * One instance per file per process, held here rather than left to chance.
+ *
+ * `SharedPreferences` keeps its values in memory and only reconciles with the
+ * file on write, so two instances of the same file in one process are two
+ * caches that silently diverge - the documented behaviour is that this is
+ * unsupported. Every caller here used to build its own from a freshly created
+ * device-protected context, which is a new `Context` each time, and relying on
+ * the framework's own cache to collapse them again is relying on an
+ * implementation detail for correctness.
+ *
+ * This bit: a calendar row id written by the screen was invisible to the very
+ * next read, so unstarring an event could never find the row to delete.
+ */
+private var credentialCache: SharedPreferences? = null
+private var deviceCache: SharedPreferences? = null
 
 /**
  * Preferences in the device-encrypted store: readable before first unlock.
@@ -106,8 +126,11 @@ fun credentialPreferences(context: Context): SharedPreferences =
  * Note the deliberate absence of `applicationContext` - it would undo exactly
  * the property this function exists to provide.
  */
+@Synchronized
 fun devicePreferences(context: Context): SharedPreferences =
-    BootAware.deviceContext(context).getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+    deviceCache ?: BootAware.deviceContext(context)
+        .getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
+        .also { deviceCache = it }
 
 class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsStore {
 
@@ -288,11 +311,73 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
         }.apply()
     }
 
-    /** Removes everything, used when a storage mirror should no longer exist. */
+    /**
+     * Removes everything **this store** wrote, and nothing else.
+     *
+     * Not `edit().clear()`, which it was. The settings and the alert state
+     * share one preferences file, so clearing the file took the whole alert
+     * state with it - the hysteresis latch, the last poll, which events had
+     * already been announced, which comets had said goodbye, the next check
+     * times. That ran on every settings save with before-unlock alerting off,
+     * which is the default: changing any setting made the app forget it had
+     * already told you about tonight's eclipse.
+     *
+     * Found by watching a calendar row id vanish six seconds after it was
+     * written, with the write and the read-back both provably correct.
+     */
     fun clear() {
-        prefs.edit().clear().apply()
+        prefs.edit().apply { SETTINGS_KEYS.forEach(::remove) }.apply()
     }
 }
+
+/**
+ * Every key [PreferencesSettingsStore] owns.
+ *
+ * Written out rather than derived, because the thing it guards against is a key
+ * being added to `write` and forgotten here - which a reflective list would
+ * hide rather than catch. `PreferenceStoresTest` fails if the two drift apart.
+ */
+internal val SETTINGS_KEYS = listOf(
+    KEY_ALERTS_ENABLED,
+    KEY_AURORA_INTERVAL,
+    KEY_AUTOMATIC_SETTINGS,
+    KEY_BEFORE_UNLOCK,
+    KEY_BRIGHT_INTERVAL,
+    KEY_CALENDAR_SYNC,
+    KEY_CLOUD_GATE,
+    KEY_CLOUD_TOLERANCE,
+    KEY_COMET_ALTITUDE,
+    KEY_COMET_MAGNITUDE,
+    KEY_COMET_MOON,
+    KEY_COMET_STALE,
+    KEY_ECLIPSE_FOLLOW_MAX,
+    KEY_EVENT_ALERTS,
+    KEY_EVENT_HEADS_UP,
+    KEY_EVENT_LEAD,
+    KEY_EVERY_EVENT,
+    KEY_FOLLOW_STATION,
+    KEY_HIDDEN_KINDS,
+    KEY_ISS_INTERVAL,
+    KEY_LATITUDE,
+    KEY_LIVE_LEAD,
+    KEY_LIVE_MAX,
+    KEY_LOCATION_AUTOMATIC,
+    KEY_LOG_RETENTION,
+    KEY_LONGITUDE,
+    KEY_MINIMUM_ELEVATION,
+    KEY_NIGHT_VISION,
+    KEY_PASS_ALERTS,
+    KEY_PASS_LEAD,
+    KEY_POLL_MINUTES,
+    KEY_PRECISE_BEFORE_UNLOCK,
+    KEY_QUIET_END,
+    KEY_QUIET_OVERRIDE,
+    KEY_QUIET_START,
+    KEY_STARRED_EVENTS,
+    KEY_THRESHOLD,
+    KEY_TRAIN_INTERVAL,
+    KEY_WATCH_DURATION,
+)
 
 class PreferencesAlertStateStore(private val prefs: SharedPreferences) : AlertStateStore {
 

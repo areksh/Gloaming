@@ -405,6 +405,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Changing any setting no longer makes the app forget what it had already
+  said.** The settings and the alert state share one preferences file, and saving
+  settings cleared the whole file whenever before-unlock alerting was off - which
+  is the default. That took the hysteresis latch, the time of the last check,
+  which events had already been announced, which comets had already said goodbye,
+  and the next scheduled check times with it. Turning on night vision at two in
+  the morning could make the app announce tonight's eclipse a second time.
+
+- Starred events are no longer deleted from your calendar and written back on
+  every launch. The list of events is empty for a moment while the year is worked
+  out again, and that was being read as "every event has gone" - so each start
+  removed every entry and recreated it, losing any reminder you had set on one.
+  What is in your calendar now follows your stars alone.
+
+- Unstarring an event removes its calendar entry again. Two copies of the same
+  preferences file were being kept in memory at once, so the row Gloaming
+  recorded writing was invisible to the code that later had to delete it.
+
+- Calendar files exported for an event that happens at an instant - a new moon,
+  a greatest elongation - no longer carry an end time equal to their start, which
+  the iCalendar standard forbids and stricter calendar apps reject outright.
+
 - The gap in the cloud actually appears now. The forecast was only ever fetched
   once an aurora probability had already cleared the alert threshold, which on a
   quiet night never happens - so nothing was held, and the card that shows when

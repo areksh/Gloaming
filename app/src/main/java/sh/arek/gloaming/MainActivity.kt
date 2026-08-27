@@ -405,7 +405,10 @@ private fun GloamingApp() {
     fun syncCalendar(user: UserSettings) {
         scope.launch {
             val writer = Graph.calendarWriter(context)
-            val store = Graph.alertState(context)
+            // The store this composition already holds, not a fresh one. Two
+            // stores over the same file are two caches that diverge, and a row
+            // id written through one was invisible to the other.
+            val store = stateStore
             withContext(Dispatchers.IO) {
                 val held = store.read()
                 val record = CalendarSyncer.sync(
@@ -416,7 +419,10 @@ private fun GloamingApp() {
                     synced = held.syncedEvents,
                 )
                 if (record != held.syncedEvents) {
-                    store.write(store.read().copy(syncedEvents = record))
+                    // Through the state the screen holds, so the next sync in
+                    // this composition sees what this one wrote.
+                    alertState = store.read().copy(syncedEvents = record)
+                    store.write(alertState)
                 }
                 calendarName = writer.destinationName(user.calendarSync)
             }
@@ -548,7 +554,12 @@ private fun GloamingApp() {
     // written to is there to be shown. Cheap and skipped entirely when the
     // feature is off, which is the default.
     LaunchedEffect(calendar, settings.calendarSync) {
-        if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
+        // Not while the year is still being worked out. The planner no longer
+        // deletes on an empty list, but syncing against one is work with
+        // nothing to do and one fewer way for the two to disagree.
+        if (settings.calendarSync != CalendarSync.Off && !calendarLoading) {
+            syncCalendar(settings)
+        }
     }
 
     /**

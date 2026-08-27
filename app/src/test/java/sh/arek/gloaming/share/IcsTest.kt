@@ -74,6 +74,21 @@ class IcsTest {
         assertTrue(out.toString(), out.contains("DTEND:20281231T043000Z"))
     }
 
+    /**
+     * RFC 5545: DTEND "MUST be greater than" DTSTART. A new moon and a greatest
+     * elongation both happen at an instant, and writing the two equal is how a
+     * file gets rejected by the stricter half of the calendar apps in
+     * existence - with the failure landing in somebody else's app.
+     */
+    @Test
+    fun `leaves out the end of an event that has no duration`() {
+        val instant = ics(event(from = "2028-12-31T01:00:00Z", until = "2028-12-31T01:00:00Z"))
+
+        val out = lines(instant)
+        assertTrue(out.toString(), out.contains("DTSTART:20281231T010000Z"))
+        assertTrue(out.toString(), out.none { it.startsWith("DTEND") })
+    }
+
     @Test
     fun `carries the title and the detail`() {
         val out = lines(ics(event()))

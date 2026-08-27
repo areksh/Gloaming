@@ -35,7 +35,12 @@ fun ics(event: SkyEvent): String = buildString {
     append(fold("UID:${uid(event)}"))
     append(fold("DTSTAMP:${utc(event.at)}"))
     append(fold("DTSTART:${utc(event.from)}"))
-    append(fold("DTEND:${utc(event.until)}"))
+    // Omitted where the event has no duration, which RFC 5545 requires: DTEND
+    // "MUST be greater than" DTSTART, and a new moon or a greatest elongation
+    // happens at an instant. A DATE-TIME start with no end is precisely how the
+    // standard says to write one, and writing DTEND equal to DTSTART is how a
+    // file gets rejected by the stricter half of the calendar apps that exist.
+    if (event.until > event.from) append(fold("DTEND:${utc(event.until)}"))
     append(fold("SUMMARY:${escape(event.title)}"))
     append(fold("DESCRIPTION:${escape(event.detail)}"))
     append("END:VEVENT\r\n")

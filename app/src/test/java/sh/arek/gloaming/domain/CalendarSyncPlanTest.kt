@@ -84,17 +84,55 @@ class CalendarSyncPlanTest {
     }
 
     /**
-     * A star on something no longer in the year ahead - an eclipse that has
-     * happened - takes its calendar entry with it. The entry is Gloaming's, and
-     * leaving orphans behind in somebody's calendar is exactly the behaviour
-     * that gets calendar permission revoked.
+     * The one that mattered, and the one no fake could have caught.
+     *
+     * The event list is empty for a moment on every cold start while the year
+     * is worked out again. Reading that as "every event has gone" deleted the
+     * user's whole calendar and wrote it back a second later - on every launch,
+     * losing any reminder they had set on a row. Found on a real phone by
+     * watching the calendar provider while the app started.
      */
     @Test
-    fun `removes the entry for an event that has dropped out of the calendar`() {
+    fun `removes nothing while the event list is still empty`() {
+        val starred = event()
+
+        val plan = CalendarSyncPlan.of(
+            starred = setOf(key(starred)),
+            events = emptyList(),
+            synced = mapOf(key(starred) to "42"),
+        )
+
+        assertEquals(emptyList<String>(), plan.remove)
+        assertEquals(mapOf(key(starred) to "42"), plan.keep)
+    }
+
+    /**
+     * A star on something that really has dropped out of the year keeps its
+     * entry until the star itself is pruned, which `EventPlanner.pruneStars`
+     * does once it is well past. That is the right order round: an entry for an
+     * eclipse that has already happened is harmless, and one deleted because a
+     * list had not finished loading is not.
+     */
+    @Test
+    fun `keeps the entry for a starred event that has dropped out of the year`() {
         val gone = event()
 
         val plan = CalendarSyncPlan.of(
             starred = setOf(key(gone)),
+            events = listOf(event(from = "2029-06-26T01:00:00Z")),
+            synced = mapOf(key(gone) to "42"),
+        )
+
+        assertEquals(emptyList<String>(), plan.remove)
+    }
+
+    /** And once the star is gone, so is the entry - whatever the list says. */
+    @Test
+    fun `removes the entry once the star is pruned away`() {
+        val gone = event()
+
+        val plan = CalendarSyncPlan.of(
+            starred = emptySet(),
             events = emptyList(),
             synced = mapOf(key(gone) to "42"),
         )

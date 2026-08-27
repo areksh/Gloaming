@@ -294,6 +294,59 @@ class PreferenceStoresTest {
         assertEquals(55.95, credential.read().latitude!!, 0.0)
         assertNotEquals(credential.read().longitude!!, device.read().longitude!!, 0.0)
     }
+
+    // --- the two stores share one file ---
+
+    /**
+     * Clearing the settings must not take the alert state with it.
+     *
+     * They share one preferences file, and `clear()` was `edit().clear()` - so
+     * every settings save with before-unlock alerting off, which is the
+     * default, wiped the hysteresis latch, the last poll, the record of which
+     * events had already been announced, which comets had said goodbye, and the
+     * next check times. Changing any setting made the app forget it had already
+     * told you about tonight's eclipse.
+     */
+    @Test
+    fun `clearing the settings leaves the alert state alone`() {
+        val prefs = FakeSharedPreferences()
+        val settings = PreferencesSettingsStore(prefs)
+        val state = PreferencesAlertStateStore(prefs)
+
+        settings.write(everySettingChanged())
+        state.write(everyAlertFieldChanged())
+
+        settings.clear()
+
+        assertEquals(everyAlertFieldChanged(), state.read())
+    }
+
+    @Test
+    fun `clearing the settings does clear the settings`() {
+        val prefs = FakeSharedPreferences()
+        val settings = PreferencesSettingsStore(prefs)
+
+        settings.write(everySettingChanged())
+        settings.clear()
+
+        assertEquals(UserSettings(), settings.read())
+    }
+
+    /**
+     * The list of keys `clear()` removes is written out by hand, so it can fall
+     * behind `write()`. This is what catches that: anything `write()` puts in
+     * the file must be something `clear()` takes back out.
+     */
+    @Test
+    fun `clearing removes every key the settings store writes`() {
+        val prefs = FakeSharedPreferences()
+        PreferencesSettingsStore(prefs).write(everySettingChanged())
+        val written = prefs.all.keys
+
+        PreferencesSettingsStore(prefs).clear()
+
+        assertEquals(emptySet<String>(), prefs.all.keys intersect written)
+    }
 }
 
 class MirrorSelectionTest {

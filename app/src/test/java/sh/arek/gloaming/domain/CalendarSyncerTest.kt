@@ -190,6 +190,30 @@ class CalendarSyncerTest {
         assertEquals(held, record)
     }
 
+    /**
+     * End to end through the syncer: an empty event list must not cost the user
+     * their calendar entries, and must not report the record as gone either -
+     * because the next pass would then write a second copy of everything.
+     */
+    @Test
+    fun `keeps everything when the event list has not loaded yet`() {
+        val eclipse = event()
+        val writer = FakeWriter()
+        val held = setOf("${key(eclipse)}|42")
+
+        val record = CalendarSyncer.sync(
+            writer = writer,
+            destination = CalendarSync.OwnCalendar,
+            starred = setOf(key(eclipse)),
+            events = emptyList(),
+            synced = held,
+        )
+
+        assertEquals(emptyList<String>(), writer.removed)
+        assertTrue(writer.written.toString(), writer.written.isEmpty())
+        assertEquals(held, record)
+    }
+
     @Test
     fun `does nothing at all without a writer`() {
         val eclipse = event()

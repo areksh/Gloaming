@@ -46,11 +46,20 @@ object CalendarSyncPlan {
         // reminder the user set on the row survives a comet's dates moving.
         val write = wanted.values.toList()
 
-        // Everything the app wrote whose star has gone, or whose event has
-        // dropped out of the year ahead - an eclipse that has happened takes
-        // its entry with it. Orphans left in somebody's calendar are exactly
-        // what gets calendar permission revoked.
-        val orphaned = synced.filterKeys { it !in wanted.keys }
+        // **Decided by the stars alone, never by [events].** The star is what
+        // the user asked for; the event list is a derived view that is empty
+        // for a moment on every cold start while the year is worked out again.
+        // Reading that emptiness as "every event has gone" deleted the user's
+        // whole calendar and wrote it back a second later - on every single
+        // launch, losing any reminder they had set on a row. Seen on a real
+        // phone, and invisible to every test that handed in a populated list.
+        //
+        // A star on something that really has dropped out of the year keeps its
+        // entry until the star itself is pruned, which `EventPlanner.pruneStars`
+        // does once it is well past. That is the right order: an entry for an
+        // eclipse that has already happened is harmless, and an entry deleted
+        // because a list had not finished loading is not.
+        val orphaned = synced.filterKeys { it !in starred }
 
         return Plan(
             write = write.filterNot { EventPlanner.starKey(it) in synced },
