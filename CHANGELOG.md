@@ -405,6 +405,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The gap in the cloud actually appears now. The forecast was only ever fetched
+  once an aurora probability had already cleared the alert threshold, which on a
+  quiet night never happens - so nothing was held, and the card that shows when
+  the sky clears never showed at all. Opening the Tonight tab now fetches it,
+  which costs no more than the poller did: anything under an hour old is served
+  from the cache, the position is still rounded to about a kilometre with no
+  identifier, and with the cloud gate switched off nothing is requested at all.
+
+- The Tonight tab also stopped quoting a cloud tolerance it had not used. Change
+  the tolerance and the gap is worked out again, rather than the new number being
+  printed beside an answer from the old one.
+
+- A moon a few hours short of full is no longer described as "waxing gibbous,
+  100% lit", which is a sentence that argues with itself. The name now comes from
+  the same figure printed beside it.
+
 - The Tonight tab now carries the caveat that goes with an event, not just the
   headline. A partial eclipse whose maximum finds the moon 8 degrees up in a sky
   that never gets fully dark was promised on the home screen and explained only

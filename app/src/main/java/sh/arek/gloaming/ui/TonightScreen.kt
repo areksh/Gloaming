@@ -370,9 +370,10 @@ private fun WatchNowCard(
  *
  * First because it is the question that decides everything under it: a pass at
  * 68 degrees and a comet at magnitude 8 are both worth nothing under total
- * overcast. The reading is whatever was last fetched - never a fetch of its
- * own, because the screen must not spend the one request an hour Open-Meteo's
- * terms allow.
+ * overcast.
+ *
+ * Absent when the user has the cloud gate switched off, which is the same thing
+ * as having switched off the one request that leaves the device.
  *
  * The clear-spell line is the point of the card. "80% cloud" is the wrong
  * summary of a night that is overcast until midnight and then clear for three
@@ -466,7 +467,7 @@ private fun MoonCard(list: TonightList) {
 
     SectionCard("The moon") {
         Text(
-            "${describeMoonPhase(moon.phaseDegrees)}, " +
+            "${describeMoonPhase(moon.phaseDegrees, moon.illumination)}, " +
                 "${(moon.illumination * 100).roundToInt()}% lit.",
             style = MaterialTheme.typography.bodyMedium,
         )

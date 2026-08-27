@@ -2,6 +2,7 @@ package sh.arek.gloaming.domain
 
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -276,6 +277,43 @@ class TonightTest {
         val spell = assertNotNull(list.clearSpell).let { list.clearSpell!! }
         assertEquals(at("2026-12-14T21:00:00Z"), spell.from)
         assertEquals(at("2026-12-14T23:00:00Z"), spell.until)
+    }
+
+    /**
+     * The tolerance the caller passed, not a constant. Two people looking at
+     * the same forecast are asking different questions of it: somebody who will
+     * go out under broken cloud and somebody who wants a clear sky.
+     */
+    @Test
+    fun `finds the whole night clear when the tolerance allows anything`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            user = settings.copy(cloudTolerance = 100),
+            hourly = hours("2026-12-14T15:00:00Z", *IntArray(24) { 100 }),
+        )
+
+        val spell = assertNotNull(list.clearSpell).let { list.clearSpell!! }
+        assertTrue(spell.toString(), spell.allNight)
+    }
+
+    /**
+     * A forecast that stops before the night does must not claim the rest of
+     * it. Two days of hours start at midnight of the day they are asked from,
+     * so a December night at this latitude runs past the end of them - and
+     * "clear for the rest of the night" would then be a promise about hours
+     * nobody has a forecast for.
+     */
+    @Test
+    fun `does not claim the whole night when the forecast runs out first`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            user = settings.copy(cloudTolerance = 100),
+            hourly = hours("2026-12-14T17:00:00Z", *IntArray(8) { 100 }),
+        )
+
+        val spell = assertNotNull(list.clearSpell).let { list.clearSpell!! }
+        assertFalse(spell.toString(), spell.allNight)
+        assertTrue(spell.toString(), spell.until < list.darkUntil!!)
     }
 
     @Test

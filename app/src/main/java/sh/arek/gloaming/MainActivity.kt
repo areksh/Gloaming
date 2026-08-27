@@ -61,6 +61,7 @@ import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.domain.Recommendations
+import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.share.ics
@@ -309,6 +310,8 @@ private fun GloamingApp() {
     var watching by remember { mutableStateOf(StormService.running) }
     var darkness by remember { mutableStateOf(darknessHere()) }
     var logSize by remember { mutableStateOf(Graph.journal(context).sizeBytes()) }
+    /** Bumped when a fetched forecast lands, so tonight is worked out again. */
+    var forecastNonce by remember { mutableIntStateOf(0) }
     var recommendations by remember { mutableStateOf<Recommendations?>(null) }
     var calendarName by remember { mutableStateOf<String?>(null) }
     var calendarNote by remember { mutableStateOf<String?>(null) }
@@ -548,10 +551,65 @@ private fun GloamingApp() {
         if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
     }
 
+    /**
+     * The forecast, fetched rather than merely read.
+     *
+     * The one thing on this tab that touches the network, and it has to. The
+     * poller only pays for a cloud reading once a probability has already
+     * cleared the alert threshold, which on a quiet night never happens - so
+     * nothing was ever held, and the card showing the gap in the cloud never
+     * appeared at all. That was the whole of the clear-spell feature not
+     * working in practice, and it took a real phone on a real evening to see.
+     *
+     * Not a new cost. `OpenMeteoWeather` serves anything under an hour old from
+     * the cache and will not refresh faster than Open-Meteo's terms allow, so
+     * opening this tab twenty times an evening is one request. The position is
+     * rounded to about a kilometre and carries no identifier, exactly as from
+     * the poller.
+     *
+     * Skipped entirely with the cloud gate off: turning that off is also
+     * turning off the one request that leaves the device, and making it anyway
+     * from a screen would be a betrayal of that switch.
+     *
+     * Its own effect, and deliberately. Folded into the one below it held the
+     * entire tab blank while the network was slow - every card, not just the
+     * one waiting on it.
+     */
+    LaunchedEffect(settings.latitude, settings.longitude, settings.cloudGateEnabled) {
+        val latitude = settings.latitude ?: return@LaunchedEffect
+        val longitude = settings.longitude ?: return@LaunchedEffect
+        if (!settings.cloudGateEnabled) return@LaunchedEffect
+
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val endpoint = Graph.manifests(context).refresh()
+                    .endpoints[SkyPoller.ENDPOINT_WEATHER] ?: return@runCatching
+                Graph.weather(context).cloudCover(endpoint, latitude, longitude)
+            }.onFailure { Log.w("Gloaming", "could not read the forecast", it) }
+        }
+        // Recomputed once it has landed, which is the only reason this effect
+        // and the one below are separate rather than sequential.
+        forecastNonce++
+    }
+
     // Worked out from the calendar and the elements already on the device, so
-    // it costs no network. Recomputed when the calendar is, and on the clock
-    // tick, because "tonight" moves as the evening does.
-    LaunchedEffect(calendar, settings.latitude, settings.longitude, shownAt / TONIGHT_STALE_MILLIS) {
+    // it costs no network. Recomputed when the calendar is, when the forecast
+    // arrives, and on the clock tick, because "tonight" moves as the evening
+    // does.
+    LaunchedEffect(
+        calendar,
+        settings.latitude,
+        settings.longitude,
+        // The two settings the night depends on that nothing else here already
+        // keys on. Without them the card kept quoting the new cloud tolerance
+        // against a gap worked out from the old one, which is a sentence that
+        // is simply wrong rather than merely stale. The comet settings reach
+        // this through `calendar`, which they already force a recompute of.
+        settings.cloudTolerance,
+        settings.minimumPassElevationDegrees,
+        forecastNonce,
+        shownAt / TONIGHT_STALE_MILLIS,
+    ) {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
@@ -560,10 +618,9 @@ private fun GloamingApp() {
         }
         tonight = withContext(Dispatchers.Default) {
             runCatching {
-                // Both of these read the cache and stop. The screen must never
-                // spend the one request an hour Open-Meteo's terms allow: the
-                // poller already fetches it, and a tab that refetched on every
-                // open would take that budget away from the alerts.
+                // Both read the cache and stop. The fetch that fills that cache
+                // is its own effect below, so a slow network cannot hold the
+                // whole tab blank waiting for a cloud reading.
                 val weather = Graph.weather(context)
                 Tonight.of(
                     satellites = Graph.satellites(context).cached(),

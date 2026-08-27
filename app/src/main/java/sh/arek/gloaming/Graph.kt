@@ -135,6 +135,22 @@ object Graph {
      * at all, which is what lets the screen show a forecast without spending
      * the one request an hour Open-Meteo's terms allow.
      */
+    /**
+     * The signed manifest, for anything that needs an endpoint from it.
+     *
+     * Refreshing is a no-op for a copy less than a day old, so calling this on
+     * a screen costs nothing on all but the first open of the day.
+     */
+    fun manifests(context: Context): ManifestRepository {
+        val application = context.applicationContext
+        return ManifestRepository(
+            http = OkHttpFetcher(httpClient),
+            store = FileManifestStore(cacheDirectory(application)),
+            publicKey = GloamingEndpoints.MANIFEST_PUBLIC_KEY,
+            manifestUrl = GloamingEndpoints.MANIFEST_URL,
+        )
+    }
+
     fun weather(context: Context): WeatherSource {
         val application = context.applicationContext
         return OpenMeteoWeather(

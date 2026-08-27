@@ -260,8 +260,22 @@ internal fun describeClearSpell(spell: ClearSpell?, tolerance: Int): String = wh
  * The named phases get a window of five degrees either side rather than an
  * instant, because the moon moves about 12 degrees a day and nobody calls a
  * moon eleven hours off full anything but full.
+ *
+ * Full and new are decided by the illumination printed beside the name rather
+ * than by the angle, so the two cannot contradict each other. They very nearly
+ * did: a moon a few hours short of full is 173 degrees round its cycle and
+ * 99.7% lit, which the angle calls waxing gibbous and the rounded percentage
+ * calls 100% - and "Waxing gibbous, 100% lit" is a sentence that argues with
+ * itself. Seen on a real phone on the night of a lunar eclipse, which is the
+ * one night somebody is certain to be reading this card.
+ *
+ * @param illumination fraction of the disc lit, 0 to 1.
  */
-internal fun describeMoonPhase(phaseDegrees: Double): String {
+internal fun describeMoonPhase(phaseDegrees: Double, illumination: Double): String {
+    val percent = kotlin.math.round(illumination * 100).toInt()
+    if (percent >= 100) return "Full moon"
+    if (percent <= 0) return "New moon"
+
     val phase = ((phaseDegrees % 360) + 360) % 360
     return when {
         phase < NAMED_PHASE_SLACK || phase > 360 - NAMED_PHASE_SLACK -> "New moon"

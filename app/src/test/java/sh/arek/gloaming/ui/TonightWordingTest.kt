@@ -112,16 +112,22 @@ class TonightWordingTest {
 
     // --- the moon ---
 
+    /** The illumination each phase carries, so the name and the number agree. */
+    private fun lit(phaseDegrees: Double) =
+        (1 - kotlin.math.cos(Math.toRadians(phaseDegrees))) / 2
+
+    private fun phase(degrees: Double) = describeMoonPhase(degrees, lit(degrees))
+
     @Test
     fun `names the phases everybody uses`() {
-        assertEquals("New moon", describeMoonPhase(0.0))
-        assertEquals("Waxing crescent", describeMoonPhase(45.0))
-        assertEquals("First quarter", describeMoonPhase(90.0))
-        assertEquals("Waxing gibbous", describeMoonPhase(135.0))
-        assertEquals("Full moon", describeMoonPhase(180.0))
-        assertEquals("Waning gibbous", describeMoonPhase(225.0))
-        assertEquals("Last quarter", describeMoonPhase(270.0))
-        assertEquals("Waning crescent", describeMoonPhase(315.0))
+        assertEquals("New moon", phase(0.0))
+        assertEquals("Waxing crescent", phase(45.0))
+        assertEquals("First quarter", phase(90.0))
+        assertEquals("Waxing gibbous", phase(135.0))
+        assertEquals("Full moon", phase(180.0))
+        assertEquals("Waning gibbous", phase(225.0))
+        assertEquals("Last quarter", phase(270.0))
+        assertEquals("Waning crescent", phase(315.0))
     }
 
     /**
@@ -130,16 +136,43 @@ class TonightWordingTest {
      */
     @Test
     fun `gives the named phases a window rather than an instant`() {
-        assertEquals("Full moon", describeMoonPhase(176.0))
-        assertEquals("Full moon", describeMoonPhase(184.0))
-        assertEquals("New moon", describeMoonPhase(357.0))
-        assertEquals("New moon", describeMoonPhase(3.0))
+        assertEquals("Full moon", phase(176.0))
+        assertEquals("Full moon", phase(184.0))
+        assertEquals("New moon", phase(357.0))
+        assertEquals("New moon", phase(3.0))
     }
 
     @Test
     fun `reads a phase outside the circle as the one inside it`() {
-        assertEquals("Full moon", describeMoonPhase(540.0))
-        assertEquals("Full moon", describeMoonPhase(-180.0))
+        assertEquals("Full moon", describeMoonPhase(540.0, 1.0))
+        assertEquals("Full moon", describeMoonPhase(-180.0, 1.0))
+    }
+
+    /**
+     * The name and the number beside it can never contradict each other.
+     *
+     * "Waxing gibbous, 100% lit" is a sentence that argues with itself, and it
+     * was on a real phone on the night of a lunar eclipse - which is the one
+     * night somebody is certain to be reading this card. A moon a few hours
+     * short of full is 173 degrees round its cycle and 99.7% lit: the angle
+     * says gibbous and the rounded percentage says full.
+     */
+    @Test
+    fun `never calls a fully lit moon anything but full`() {
+        assertEquals("Full moon", describeMoonPhase(173.0, 0.997))
+        assertEquals("Full moon", describeMoonPhase(187.0, 0.997))
+    }
+
+    @Test
+    fun `never calls an unlit moon anything but new`() {
+        assertEquals("New moon", describeMoonPhase(8.0, 0.004))
+    }
+
+    /** And still names the ordinary in-between phases from the angle. */
+    @Test
+    fun `keeps naming the phases either side from the angle`() {
+        assertEquals("Waxing gibbous", describeMoonPhase(150.0, 0.93))
+        assertEquals("Waning gibbous", describeMoonPhase(210.0, 0.93))
     }
 
     /**
