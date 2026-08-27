@@ -17,6 +17,7 @@ import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.HttpResult
@@ -77,6 +78,7 @@ class EventPollerTest {
     private object NoWeather : WeatherSource {
         override suspend fun cloudCover(base: String, lat: Double, lon: Double): CloudCover? = null
         override fun lastKnown(latitude: Double, longitude: Double): CloudCover? = null
+        override fun forecast(latitude: Double, longitude: Double) = emptyList<HourlyCover>()
     }
 
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)

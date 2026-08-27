@@ -21,6 +21,16 @@ class OpenMeteoWeatherTest {
           "cloud_cover_low":$low,"cloud_cover_mid":$mid,"cloud_cover_high":$high}}
     """.trimIndent()
 
+    /** The same, with the hours ahead the request now also asks for. */
+    private fun withHourly(total: Int) = """
+        {"latitude":55.94,"longitude":-3.17,
+         "current":{"time":"2026-08-06T18:15","cloud_cover":$total,
+          "cloud_cover_low":0,"cloud_cover_mid":0,"cloud_cover_high":$total},
+         "hourly_units":{"time":"unixtime","cloud_cover":"%"},
+         "hourly":{"time":[1800000000,1800003600,1800007200],
+          "cloud_cover":[90,40,10]}}
+    """.trimIndent()
+
     /** Serves one canned response and records every URL asked for. */
     private class FakeFetcher(private var response: Result<ByteArray>) : HttpFetcher {
         val requested = mutableListOf<String>()
@@ -75,6 +85,141 @@ class OpenMeteoWeatherTest {
         val url = http.requested.single()
         assertTrue(url, url.startsWith("$endpoint?"))
         assertTrue(url, url.contains("current=cloud_cover%2Ccloud_cover_low%2Ccloud_cover_mid%2Ccloud_cover_high"))
+        assertTrue(url, url.contains("hourly=cloud_cover"))
+    }
+
+    /**
+     * Epoch seconds, not a local ISO string with its offset in a sibling field.
+     * The forecast is only ever compared against a darkness window in
+     * milliseconds, so parsing a timezone would be work done solely to create
+     * an opportunity to get it wrong.
+     */
+    @Test
+    fun `asks for the hours as epoch seconds`() = runTest {
+        val http = FakeFetcher.serving(responseJson(total = 10))
+
+        weather(http).cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        assertTrue(http.requested.single(), http.requested.single().contains("timeformat=unixtime"))
+    }
+
+    /**
+     * Two days of them. The array starts at midnight of the day it is asked
+     * from, so one day runs out at 23:00 and loses the second half of every
+     * night that starts at ten in the evening.
+     */
+    @Test
+    fun `asks for enough days to cover a whole night`() = runTest {
+        val http = FakeFetcher.serving(responseJson(total = 10))
+
+        weather(http).cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        assertTrue(http.requested.single(), http.requested.single().contains("forecast_days=2"))
+    }
+
+    @Test
+    fun `keeps the hours ahead alongside the reading`() = runTest {
+        val cache = FakeCache()
+        val http = FakeFetcher.serving(withHourly(total = 30))
+
+        val weather = weather(http, cache, now = 5_000L)
+        weather.cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        val hours = weather.forecast(latitude = 55.94, longitude = -3.17)
+        assertEquals(3, hours.size)
+        assertEquals(1_800_000_000_000L, hours[0].atMillis)
+        assertEquals(90, hours[0].total)
+        assertEquals(10, hours[2].total)
+        assertEquals(3, cache.cached!!.hourly.size)
+    }
+
+    /**
+     * The forecast rides the reading, so it is served from the cache like the
+     * reading is - never a second call against a per-hour limit.
+     */
+    @Test
+    fun `serves the hours ahead without touching the network`() {
+        val cache = FakeCache(
+            CachedCloud(
+                CloudCover(20, 0, 0, 20), 55.94, -3.17, 1_000L,
+                hourly = listOf(HourlyCover(1_800_000_000_000L, 15)),
+            ),
+        )
+        val http = FakeFetcher.failing()
+
+        val hours = weather(http, cache, now = 1_000L + 2 * 60 * 60_000L)
+            .forecast(latitude = 55.94, longitude = -3.17)
+
+        assertEquals(1, hours.size)
+        assertEquals(emptyList<String>(), http.requested)
+    }
+
+    @Test
+    fun `reports no hours ahead once the reading is stale`() {
+        val cache = FakeCache(
+            CachedCloud(
+                CloudCover(20, 0, 0, 20), 55.94, -3.17, 1_000L,
+                hourly = listOf(HourlyCover(1_800_000_000_000L, 15)),
+            ),
+        )
+
+        val hours = weather(FakeFetcher.failing(), cache, now = 1_000L + 4 * 60 * 60_000L)
+            .forecast(latitude = 55.94, longitude = -3.17)
+
+        assertEquals(emptyList<HourlyCover>(), hours)
+    }
+
+    @Test
+    fun `reports no hours ahead for somewhere else`() {
+        val cache = FakeCache(
+            CachedCloud(
+                CloudCover(20, 0, 0, 20), 55.94, -3.17, 1_000L,
+                hourly = listOf(HourlyCover(1_800_000_000_000L, 15)),
+            ),
+        )
+
+        val hours = weather(FakeFetcher.failing(), cache, now = 2_000L)
+            .forecast(latitude = 51.51, longitude = -0.13)
+
+        assertEquals(emptyList<HourlyCover>(), hours)
+    }
+
+    /**
+     * A missing forecast costs a sentence on a screen; a missing layer in the
+     * current reading costs the gate that decides whether to wake somebody. So
+     * an absent hourly block must never throw away a good reading, which is the
+     * opposite of how the current block is treated.
+     */
+    @Test
+    fun `keeps the reading when the response carries no hours at all`() = runTest {
+        val http = FakeFetcher.serving(responseJson(total = 55, low = 20, mid = 5, high = 40))
+
+        val weather = weather(http)
+        val cover = weather.cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        assertEquals(55, cover!!.total)
+        assertEquals(emptyList<HourlyCover>(), weather.forecast(55.94, -3.17))
+    }
+
+    /** Open-Meteo pads the ends of an hourly array where a model produced nothing. */
+    @Test
+    fun `drops an hour the forecast has no value for`() = runTest {
+        val http = FakeFetcher.serving(
+            """
+            {"current":{"cloud_cover":10,"cloud_cover_low":0,"cloud_cover_mid":0,
+             "cloud_cover_high":10},
+             "hourly":{"time":[1800000000,1800003600,1800007200],
+              "cloud_cover":[90,null,10]}}
+            """.trimIndent(),
+        )
+
+        val weather = weather(http)
+        weather.cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        val hours = weather.forecast(55.94, -3.17)
+        assertEquals(2, hours.size)
+        assertEquals(1_800_000_000_000L, hours[0].atMillis)
+        assertEquals(1_800_007_200_000L, hours[1].atMillis)
     }
 
     /**

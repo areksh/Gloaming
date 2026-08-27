@@ -24,6 +24,7 @@ import sh.arek.gloaming.data.SkyCache
 import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.HttpResult
@@ -123,6 +124,8 @@ class SkyPollerTest {
         }
 
         override fun lastKnown(latitude: Double, longitude: Double): CloudCover? = known
+
+        override fun forecast(latitude: Double, longitude: Double) = emptyList<HourlyCover>()
     }
 
     private class Manifests(var stored: CachedManifest?) : ManifestStore {

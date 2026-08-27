@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The gap in the cloud.** Gloaming already knew the sky was 80% covered; it now
+  knows that 80% is overcast until midnight and then clear for three hours, which
+  is the thing that actually decides whether a marginal night is worth staying up
+  for. The hours ahead ride the same once-an-hour request the app was already
+  making - the same endpoint, the same licence, a few hundred more bytes, no new
+  identifier, and nothing revealed that the request did not already carry.
+
 - **Comets.** The app now tracks every comet worth knowing about, working out
   where each one will be from its orbit and how bright it actually is from what
   observers have reported. Each gets one calendar entry for the weeks it is

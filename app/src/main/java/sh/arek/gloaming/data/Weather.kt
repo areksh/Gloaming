@@ -14,12 +14,32 @@ data class CloudCover(
     val high: Int,
 )
 
+/**
+ * Total cloud cover at one hour of the forecast.
+ *
+ * Only the total, unlike [CloudCover]. The layer split earns its keep on a
+ * reading being used as a gate, where high cirrus and low stratus at the same
+ * percentage mean opposite things; across a night it would be forty-eight
+ * numbers to answer one question - when is the gap.
+ *
+ * [atMillis] is the start of the hour, in UTC.
+ */
+data class HourlyCover(val atMillis: Long, val total: Int)
+
 /** A reading, with where and when it was taken. */
 class CachedCloud(
     val cover: CloudCover,
     val latitude: Double,
     val longitude: Double,
     val fetchedAt: Long,
+    /**
+     * The hours ahead, where the response carried them.
+     *
+     * Empty rather than null when there are none, and empty is what an older
+     * cache file deserialises to - a reading that predates the forecast being
+     * asked for is still a perfectly good reading.
+     */
+    val hourly: List<HourlyCover> = emptyList(),
 )
 
 /** Persistence for the last cloud reading. */
@@ -56,4 +76,17 @@ interface WeatherSource {
      * nothing recent is held, or when the reading was taken somewhere else.
      */
     fun lastKnown(latitude: Double, longitude: Double): CloudCover?
+
+    /**
+     * The hours ahead for this place, from the same cached document.
+     *
+     * Never a fetch. The forecast arrives alongside the reading that is fetched
+     * once an hour, so anything that wants it - the screen, in practice - reads
+     * what is already held rather than spending the one request Open-Meteo's
+     * terms allow.
+     *
+     * Empty when nothing useful is held: no reading, a stale one, or one taken
+     * somewhere else. The caller says nothing rather than guessing.
+     */
+    fun forecast(latitude: Double, longitude: Double): List<HourlyCover>
 }

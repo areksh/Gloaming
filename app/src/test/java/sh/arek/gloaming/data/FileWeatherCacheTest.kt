@@ -50,6 +50,46 @@ class FileWeatherCacheTest {
         assertEquals(51.51, read.latitude, 0.0)
     }
 
+    @Test
+    fun `round-trips the hours ahead`() {
+        cache().write(
+            reading.let {
+                CachedCloud(
+                    it.cover, it.latitude, it.longitude, it.fetchedAt,
+                    hourly = listOf(
+                        HourlyCover(1_700_000_000_000L, 90),
+                        HourlyCover(1_700_003_600_000L, 10),
+                    ),
+                )
+            },
+        )
+
+        val read = cache().read()!!
+        assertEquals(2, read.hourly.size)
+        assertEquals(1_700_000_000_000L, read.hourly[0].atMillis)
+        assertEquals(90, read.hourly[0].total)
+        assertEquals(10, read.hourly[1].total)
+    }
+
+    /**
+     * A file written before the forecast was ever asked for.
+     *
+     * It is still a perfectly good reading, and throwing it away would cost an
+     * extra request against a limit of one an hour - on the upgrade, for every
+     * install at once.
+     */
+    @Test
+    fun `reads a file written before the hours ahead existed`() {
+        File(temporaryFolder.root, "weather.json").writeText(
+            """{"total":55,"low":20,"mid":5,"high":40,"latitude":55.95,
+               "longitude":-3.19,"fetchedAt":1700000000000}""",
+        )
+
+        val read = cache().read()!!
+        assertEquals(55, read.cover.total)
+        assertEquals(emptyList<HourlyCover>(), read.hourly)
+    }
+
     /**
      * A truncated write - the device losing power mid-poll - must read back as
      * "no reading" rather than throwing on a wake that has no user to see it.

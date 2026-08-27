@@ -553,7 +553,7 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 | **MPC** | `data.minorplanetcenter.net/iau/MPCORB/CometEls.txt` - comet orbital elements, fixed-width | None | Daily | Public. Includes H (absolute magnitude) and slope. **The `data.` host, not `www.`** - see below. |
 | **COBS** | `cobs.si/api/obs_list.api?format=json` - visual and CCD comet magnitude *observations* | None for reads | Twice daily | **CC BY-NC-SA 4.0.** Attribution with a link to the licence, non-commercial only, and derivatives under the same terms. No rate limit stated. Sec. 1. |
 | **JPL SBDB / Horizons** | Cross-check elements | None | As needed | Public. |
-| **Open-Meteo** | `api.open-meteo.com/v1/forecast` - `cloud_cover`, `cloud_cover_low/mid/high` | None | 1 h max | Non-commercial. **CC BY 4.0 - attribution link next to displayed data.** |
+| **Open-Meteo** | `api.open-meteo.com/v1/forecast` - `current` `cloud_cover`, `cloud_cover_low/mid/high`; `hourly` `cloud_cover` over two days | None | 1 h max | Non-commercial. **CC BY 4.0 - attribution link next to displayed data.** |
 | **IMO** | Meteor shower calendar | - | Annually | No API exists. Hand-built table (Sec. 8). |
 | **IAU CPS SCORE** | `score.cps.iau.org` - REST API + full CSV dump | None for reads | Monthly at most | **CC-BY**, acknowledgement text mandatory. Satellite brightness *observations*, not standard magnitudes. **Not used in v1** - see Sec. 6. |
 
@@ -1421,7 +1421,9 @@ caveat rather than without it:
   finest model Open-Meteo runs, so the forecast loses nothing. The request carries a
   neighbourhood, not an address.
 - **At most one request an hour**, which is also the cap Open-Meteo's terms set. A cached
-  reading answers the rest.
+  reading answers the rest. The hours ahead ride that same request rather than making
+  another: the forecast the Tonight tab shows costs a few hundred extra bytes on a call
+  that was going out regardless, and reveals nothing the call did not already carry.
 - **No identifier travels with it.** There is no account, no key and no device token, so
   the requests are not linkable into a track by anything except the IP address - which for
   most users is CGNAT shared with a whole carrier.

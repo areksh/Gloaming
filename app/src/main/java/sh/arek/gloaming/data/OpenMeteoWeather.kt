@@ -30,8 +30,14 @@ class OpenMeteoWeather(
     private val json = Json { ignoreUnknownKeys = true }
 
     override fun lastKnown(latitude: Double, longitude: Double): CloudCover? =
+        fresh(latitude, longitude)?.cover
+
+    override fun forecast(latitude: Double, longitude: Double): List<HourlyCover> =
+        fresh(latitude, longitude)?.hourly.orEmpty()
+
+    /** The held reading for this place, if it is recent enough to mean anything. */
+    private fun fresh(latitude: Double, longitude: Double): CachedCloud? =
         held(round(latitude) to round(longitude))?.takeIf { now() - it.fetchedAt < STALE_LIMIT_MS }
-            ?.cover
 
     override suspend fun cloudCover(
         baseUrl: String,
@@ -50,8 +56,10 @@ class OpenMeteoWeather(
         }.getOrNull()
 
         if (fetched != null) {
-            cache.write(CachedCloud(fetched, place.first, place.second, now()))
-            return fetched
+            cache.write(
+                CachedCloud(fetched.cover, place.first, place.second, now(), fetched.hourly),
+            )
+            return fetched.cover
         }
 
         // Better a reading past its refresh window than none: losing the gate
@@ -65,8 +73,24 @@ class OpenMeteoWeather(
     private fun held(place: Pair<Double, Double>): CachedCloud? =
         cache.read()?.takeIf { round(it.latitude) to round(it.longitude) == place }
 
+    /**
+     * The same request the app already made, with the hours ahead added.
+     *
+     * Not a second call. The hourly block rides the reading that is fetched
+     * once an hour anyway - a few hundred more bytes on a request that was
+     * going out regardless, on the same endpoint under the same licence, with
+     * no new identifier and nothing extra revealed: the position was already
+     * being sent.
+     *
+     * `timeformat=unixtime` so the hours arrive as epoch seconds. The default
+     * is a local ISO string whose offset lives in a sibling field, which is a
+     * timezone bug waiting to happen for no gain at all.
+     */
     private fun url(baseUrl: String, latitude: Double, longitude: Double): String =
-        "$baseUrl?latitude=$latitude&longitude=$longitude&current=${encode(CURRENT_FIELDS)}"
+        "$baseUrl?latitude=$latitude&longitude=$longitude" +
+            "&current=${encode(CURRENT_FIELDS)}" +
+            "&hourly=${encode(HOURLY_FIELDS)}" +
+            "&forecast_days=$FORECAST_DAYS&timeformat=unixtime"
 
     /**
      * Every field the app asked for, or nothing.
@@ -75,18 +99,50 @@ class OpenMeteoWeather(
      * reading an absent layer as zero would report a clear sky - the one wrong
      * answer that silently suppresses a real alert.
      */
-    private fun parse(body: String): CloudCover? {
-        val current = json.decodeFromString(Response.serializer(), body).current ?: return null
-        return CloudCover(
-            total = current.total ?: return null,
-            low = current.low ?: return null,
-            mid = current.mid ?: return null,
-            high = current.high ?: return null,
+    private fun parse(body: String): Reading? {
+        val response = json.decodeFromString(Response.serializer(), body)
+        val current = response.current ?: return null
+        return Reading(
+            cover = CloudCover(
+                total = current.total ?: return null,
+                low = current.low ?: return null,
+                mid = current.mid ?: return null,
+                high = current.high ?: return null,
+            ),
+            hourly = hours(response.hourly),
         )
     }
 
+    /**
+     * The hours ahead, leniently, unlike [parse] above.
+     *
+     * A missing or ragged hourly block costs a sentence on a screen; a missing
+     * layer in the current reading costs the gate that decides whether to wake
+     * somebody. So the strictness that is right for one is wrong for the other,
+     * and an absent forecast must never throw away a good reading.
+     *
+     * Open-Meteo pads the ends of an hourly array with nulls where a model has
+     * not produced a value; those hours are dropped rather than guessed at.
+     */
+    private fun hours(hourly: Hourly?): List<HourlyCover> {
+        val times = hourly?.time ?: return emptyList()
+        val cover = hourly.total ?: return emptyList()
+        return times.zip(cover).mapNotNull { (at, total) ->
+            if (at == null || total == null) null else HourlyCover(at * 1000L, total)
+        }
+    }
+
+    /** A parsed response: the reading the gate needs, and the hours the screen wants. */
+    private class Reading(val cover: CloudCover, val hourly: List<HourlyCover>)
+
     @Serializable
-    private class Response(val current: Current? = null)
+    private class Response(val current: Current? = null, val hourly: Hourly? = null)
+
+    @Serializable
+    private class Hourly(
+        val time: List<Long?>? = null,
+        @SerialName("cloud_cover") val total: List<Int?>? = null,
+    )
 
     @Serializable
     private class Current(
@@ -99,6 +155,19 @@ class OpenMeteoWeather(
     companion object {
         private const val CURRENT_FIELDS =
             "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
+
+        /** The total only, across the night. See [HourlyCover] for why. */
+        private const val HOURLY_FIELDS = "cloud_cover"
+
+        /**
+         * Two days of hours, which is what "tonight" needs from any point in
+         * it.
+         *
+         * The array starts at midnight of the current day wherever it is asked
+         * from, so one day would run out at 23:00 and lose the whole second
+         * half of a night that starts at ten in the evening.
+         */
+        private const val FORECAST_DAYS = 2
 
         /** Open-Meteo's terms cap refreshes at one an hour. */
         const val REFRESH_INTERVAL_MS: Long = 60 * 60 * 1000L

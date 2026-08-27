@@ -34,6 +34,9 @@ class FileWeatherCache(directory: File) : WeatherCache {
                 latitude = stored.latitude,
                 longitude = stored.longitude,
                 fetchedAt = stored.fetchedAt,
+                hourly = stored.hourAt.zip(stored.hourTotal) { at, total ->
+                    HourlyCover(at, total)
+                },
             )
         }.getOrNull()
     }
@@ -56,6 +59,8 @@ class FileWeatherCache(directory: File) : WeatherCache {
                         latitude = cached.latitude,
                         longitude = cached.longitude,
                         fetchedAt = cached.fetchedAt,
+                        hourAt = cached.hourly.map { it.atMillis },
+                        hourTotal = cached.hourly.map { it.total },
                     ),
                 ),
             )
@@ -71,6 +76,17 @@ class FileWeatherCache(directory: File) : WeatherCache {
         val latitude: Double,
         val longitude: Double,
         val fetchedAt: Long,
+        /**
+         * The hours ahead, as two parallel arrays.
+         *
+         * Flat, like the rest of this class, and the shape Open-Meteo serves
+         * them in. Both default to empty, which is what makes a `weather.json`
+         * written before the forecast was asked for parse rather than being
+         * thrown away - and a discarded cache file is an extra request against
+         * a per-hour limit.
+         */
+        val hourAt: List<Long> = emptyList(),
+        val hourTotal: List<Int> = emptyList(),
     )
 
     companion object {
