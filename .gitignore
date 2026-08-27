@@ -11,6 +11,17 @@ local.properties
 # IDE configuration is per-developer
 /.idea/
 
+# Kotlin 2.x build session state, written beside the sources rather than under
+# build/. Not ignored anywhere else, so without this a `git add -A` sweeps it in.
+.kotlin/
+
+# The wiki is a separate git repository (<repo>.wiki.git), usually checked out
+# in or beside this one. It must never be staged into this tree - its commits
+# belong to it. Nothing is checked out today; this is here so that the day one
+# is, it does not end up here by accident.
+/*.wiki/
+/wiki/
+
 # Local secrets and signing material - never commit
 /secrets/
 *.keystore
