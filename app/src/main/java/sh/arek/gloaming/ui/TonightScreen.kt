@@ -70,7 +70,7 @@ fun TonightContent(
         DarknessCard(tonight)
         MoonCard(tonight)
         PlanetsCard(tonight)
-        EventsCard(tonight, onShareEvent, onExportEvent)
+        EventsCard(tonight, state.nowMillis, onShareEvent, onExportEvent)
         CometsCard(tonight)
         SatellitesCard(tonight)
     }
@@ -511,6 +511,7 @@ private fun PlanetsCard(list: TonightList) {
 @Composable
 private fun EventsCard(
     list: TonightList,
+    nowMillis: Long,
     onShareEvent: (SkyEvent) -> Unit,
     onExportEvent: (SkyEvent) -> Unit,
 ) {
@@ -527,6 +528,19 @@ private fun EventsCard(
         }
 
         for (event in list.events) {
+            // The same phrase the calendar uses, in the same colour. Most of
+            // what is on this card is happening tonight; the point of the mark
+            // is the narrower claim that it is happening as you read it, which
+            // for an eclipse an hour long is the difference between going out
+            // now and going out later.
+            if (event.isUnderWay(nowMillis)) {
+                Text(
+                    HAPPENING_NOW,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Text(event.title, style = MaterialTheme.typography.titleSmall)
             Text(event.detail, style = MaterialTheme.typography.bodySmall)
             Caveat(event)

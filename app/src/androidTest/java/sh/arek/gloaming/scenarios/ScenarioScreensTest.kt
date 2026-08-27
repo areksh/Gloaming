@@ -175,6 +175,27 @@ class ScenarioScreensTest(private val scenario: Scenario) {
     }
 
     /**
+     * An event happening as the screen is read says so, and one that is merely
+     * happening later tonight does not.
+     *
+     * Both halves matter. A mark that appeared on everything would be a label
+     * on the whole card rather than a signal about one entry, and an eclipse
+     * three hours off wearing it would send somebody outside for nothing.
+     */
+    @Test
+    fun marksWhatIsHappeningAsYouRead() {
+        if (scenario.settings.latitude == null) return
+
+        render()
+
+        if (tonight.events.any { it.isUnderWay(scenario.nowMillis) }) {
+            shown("Happening now")
+        } else {
+            absent("Happening now")
+        }
+    }
+
+    /**
      * A night with nothing on it still says so rather than drawing an empty
      * screen. The commonest night of the year, and the one most easily broken
      * by a change to any of the cards above.

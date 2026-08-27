@@ -1,5 +1,6 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -45,6 +46,13 @@ fun CalendarContent(
     events: List<SkyEvent>,
     hasLocation: Boolean,
     loading: Boolean,
+    /**
+     * The moment the list is being read at, for marking what is already going
+     * on. Passed in rather than read from the clock here so the screen stays a
+     * plain function of the state it is given, and without a default because a
+     * forgotten one would silently mean 1970 and mark nothing for ever.
+     */
+    nowMillis: Long,
     starred: Set<String> = emptySet(),
     onToggleStar: (SkyEvent) -> Unit = {},
     hiddenKinds: Set<String> = emptySet(),
@@ -105,6 +113,7 @@ fun CalendarContent(
         }
         EventRow(
             event = event,
+            nowMillis = nowMillis,
             starred = EventPlanner.starKey(event) in starred,
             onToggleStar = { onToggleStar(event) },
             onShare = { onShareEvent(event) },
@@ -112,6 +121,15 @@ fun CalendarContent(
         )
     }
 }
+
+/**
+ * What an entry says when it is happening as you read it.
+ *
+ * One string, shared with the Tonight tab, because the two lists are the same
+ * events seen at different ranges and a reader who learns the phrase on one
+ * should meet the same phrase on the other.
+ */
+internal const val HAPPENING_NOW: String = "Happening now"
 
 /**
  * One entry: when, what, and - when it matters - why it is not worth much.
@@ -122,12 +140,26 @@ fun CalendarContent(
 @Composable
 private fun EventRow(
     event: SkyEvent,
+    nowMillis: Long,
     starred: Boolean,
     onToggleStar: () -> Unit,
     onShare: () -> Unit,
     onExport: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val underWay = event.isUnderWay(nowMillis)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        // Outlined rather than filled differently, so the mark survives the
+        // night-vision theme: that palette is a single red on black by design,
+        // and a card told apart by its background would be told apart by
+        // nothing at all once it was on.
+        border = if (underWay) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else {
+            null
+        },
+    ) {
         Row(Modifier.padding(12.dp)) {
             Column(Modifier.width(56.dp)) {
                 Text(
@@ -141,6 +173,17 @@ private fun EventRow(
                 )
             }
             Column(Modifier.fillMaxWidth()) {
+                // In words as well as in colour. A border alone would say
+                // nothing to somebody who cannot pick it out, and nothing at
+                // all to somebody who has never seen the list without one.
+                if (underWay) {
+                    Text(
+                        HAPPENING_NOW,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 Text(event.title, style = MaterialTheme.typography.titleSmall)
                 Text(
                     "${TIME.format(Date(event.at))}${dash(event)}",

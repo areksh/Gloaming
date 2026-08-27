@@ -46,7 +46,16 @@ internal object Nights {
                 Shows.Moonlight,
                 Shows.AstronomicalNight,
             ),
+            absent = setOf(Shows.UnderWay),
             nowMillis = at("2029-12-20T20:00:00Z"),
+            settings = at(Places.edinburgh),
+        ),
+        Scenario(
+            name = "an-eclipse-already-under-way",
+            about = "The same eclipse forty minutes from totality, with the app " +
+                "opened while it is going on rather than before it starts",
+            shows = setOf(Shows.Events, Shows.Eclipse, Shows.UnderWay, Shows.Moon),
+            nowMillis = at("2029-12-20T22:30:00Z"),
             settings = at(Places.edinburgh),
         ),
         Scenario(

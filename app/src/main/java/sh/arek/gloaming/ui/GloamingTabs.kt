@@ -142,6 +142,7 @@ fun GloamingTabs(
                     events = state.calendar,
                     hasLocation = state.settings.hasLocation,
                     loading = state.calendarLoading,
+                    nowMillis = state.nowMillis,
                     starred = state.settings.starredEvents,
                     onToggleStar = onToggleStar,
                     hiddenKinds = state.settings.hiddenEventKinds,

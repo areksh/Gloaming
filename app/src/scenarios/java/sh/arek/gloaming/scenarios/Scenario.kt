@@ -107,6 +107,13 @@ enum class Shows {
     /** Something in the calendar is visible from here, but with a caveat. */
     Caveat,
 
+    /**
+     * Something on tonight's list is happening as the screen is read, rather
+     * than later tonight - the state the calendar could not reach at all until
+     * it started keeping an entry while any part of it was still ahead.
+     */
+    UnderWay,
+
     /** Something in the calendar cannot be seen from here at all. */
     NotVisibleHere,
 

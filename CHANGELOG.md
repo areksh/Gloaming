@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **What is happening right now is marked as such.** On the calendar it takes a
+  border and the words "Happening now"; on the Tonight tab, the same words above
+  the entry. In words as well as in colour, so it survives the night-vision
+  theme - which is one red on black by design, and would tell nothing apart by
+  background alone. Only for things with a beginning and an end: an eclipse
+  between its contacts, an occultation, a shower on its night. A planet at
+  opposition is at its best for six weeks, and a card claiming to be happening
+  now for six weeks would say nothing at all.
+
 - **Lunar occultations.** When the moon passes in *front* of a bright planet
   rather than merely near it, the calendar now says so, with the minute the
   planet disappears behind the moon's edge and the minute it comes back. It goes

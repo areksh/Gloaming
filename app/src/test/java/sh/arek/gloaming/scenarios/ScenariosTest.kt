@@ -45,6 +45,7 @@ class ScenariosTest {
     ): Boolean = when (shows) {
         Shows.Events -> tonight.events.isNotEmpty()
         Shows.Caveat -> calendar.any { it.visibility is Visibility.Marginal }
+        Shows.UnderWay -> tonight.events.any { it.isUnderWay(scenario.nowMillis) }
         Shows.NotVisibleHere -> calendar.any { it.visibility is Visibility.NotFromHere }
         Shows.Eclipse -> calendar.any {
             it.kind == EventKind.SolarEclipse || it.kind == EventKind.LunarEclipse

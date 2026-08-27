@@ -149,4 +149,40 @@ data class SkyEvent(
     val title: String,
     val detail: String,
     val visibility: Visibility,
-)
+) {
+
+    /**
+     * Whether this is happening at [atMillis], in the sense somebody standing
+     * outside would mean by it.
+     *
+     * The calendar keeps an entry while any part of it is still ahead, so the
+     * list holds things already under way alongside things weeks off, and the
+     * screen has to tell them apart. Being inside [from] and [until] is not
+     * enough on its own to do that: an opposition's window is six weeks, and a
+     * card that claimed to be happening now for six weeks would be a label on
+     * half the calendar rather than a signal about anything.
+     *
+     * So the window has to be short enough for "now" to mean something. The
+     * limit is a night, which admits the eclipses, occultations, showers and
+     * conjunctions - everything with a beginning and an end - and excludes the
+     * entries that are advice about a season rather than an occasion.
+     *
+     * A window of no length at all is never under way. A full moon is an
+     * instant, and an instant is not something anybody can be in the middle of.
+     */
+    fun isUnderWay(atMillis: Long): Boolean =
+        until > from &&
+            until - from <= UNDER_WAY_LIMIT_MILLIS &&
+            atMillis in from..until
+
+    companion object {
+        /**
+         * The longest a window can be and still have a meaningful "now".
+         *
+         * A night. A shower's window is the dark hours and is the longest thing
+         * that is genuinely an occasion; the next longest, an elongation's best
+         * fortnight, is six days and is not.
+         */
+        const val UNDER_WAY_LIMIT_MILLIS: Long = 24 * 60 * 60 * 1000L
+    }
+}

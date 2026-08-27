@@ -44,8 +44,11 @@ showers, close pairings of planets, Mars, Jupiter and Saturn at opposition,
 Venus at its brightest, new and full moon, and the equinoxes and solstices - all
 worked out on the phone for the year ahead and judged against where you are
 standing rather than listed as though everything is visible from everywhere. An
-eclipse that reaches maximum after the sun has set where you are says so. You
-can filter out the kinds you do not care about, and star the ones you do.
+eclipse that reaches maximum after the sun has set where you are says so.
+Anything under way as you read the list is marked as happening now, and stays
+on the list until it is genuinely over rather than dropping off at the moment it
+starts. You can filter out the kinds you do not care about, and star the ones
+you do.
 Eclipses carry a countdown you can follow contact by contact, and summer nights
 carry a prompt for noctilucent clouds - which is a prompt and not a forecast,
 because nothing has been able to forecast those since 2023.
