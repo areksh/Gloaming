@@ -411,6 +411,13 @@ object SkyCalendar {
         latitude: Double,
         longitude: Double,
     ): SkyEvent? {
+        // Before the guards below rather than after them, because an
+        // occultation is judged at a different instant and against different
+        // bars. It replaces this event rather than adding one: it is the same
+        // pairing described properly, and calling the moon passing in front of
+        // Jupiter "passing close to" it is a considerable understatement.
+        occultation(approach, latitude, longitude)?.let { return it }
+
         val seen = Conjunctions.asSeen(approach, latitude, longitude) ?: return null
         val night = Twilight.nightNearest(latitude, longitude, approach.atMillis)
 
@@ -465,6 +472,146 @@ object SkyCalendar {
             visibility = visibility,
         )
     }
+
+    /**
+     * The moon actually passing in front of the other body, where it does.
+     *
+     * Tested at the moment somebody here can see it rather than at the moment
+     * of true minimum, and that is not a shortcut. The moon has up to a degree
+     * of parallax - about two of its own diameters - so whether an occultation
+     * happens at all is a fact about a place, which is why occultation
+     * predictions are published per site. A minimum reached below the horizon
+     * is not an occultation from here however tight it is.
+     *
+     * Null for everything else, including a very close miss, which is by far
+     * the commoner case: `ConjunctionsTest` pins the moon within 0.07 degrees
+     * of Venus on a date when nothing is hidden by anything.
+     */
+    private fun occultation(
+        approach: Approach,
+        latitude: Double,
+        longitude: Double,
+    ): SkyEvent? {
+        val other = when {
+            approach.first == SkyBody.Moon -> approach.second
+            approach.second == SkyBody.Moon -> approach.first
+            else -> return null
+        }
+
+        // At the minimum, which is the only moment an occultation can be
+        // happening. Not at the night's best moment: the moon moves its own
+        // diameter in about an hour, so a sighting taken four hours later has
+        // it degrees away and would report every occultation as a near miss.
+        val seen = Conjunctions.at(SkyBody.Moon, other, latitude, longitude, approach.atMillis)
+
+        if (!AngularSize.moonCovers(other, seen.separationDegrees, latitude, longitude, seen.atMillis)) {
+            return null
+        }
+
+        // Both up, and the sun down. A planet a few degrees from the moon in a
+        // daylit sky is not something anybody is going to see go out, and the
+        // app's whole scope is what can be seen with the naked eye.
+        if (seen.altitude <= 0.0) return null
+        if (!Twilight.isDark(latitude, longitude, seen.atMillis)) return null
+
+        val visibility = if (seen.altitude < LOW_DEGREES) {
+            Visibility.Marginal(
+                "It happens with the pair only ${seen.altitude.roundToInt()} degrees up in " +
+                    "the ${Compass.of(seen.azimuth).label}, so you will need a clear horizon.",
+            )
+        } else {
+            Visibility.Good
+        }
+
+        val edges = occultationEdges(other, latitude, longitude, seen.atMillis)
+
+        return SkyEvent(
+            kind = EventKind.Occultation,
+            at = seen.atMillis,
+            // The event's own span, not the night's. Everything else in the
+            // calendar is a thing that is true for a while; this is a thing
+            // that starts and stops, and the two times are the whole point of
+            // knowing about it.
+            from = edges.first,
+            until = edges.last,
+            title = "The moon passes in front of ${other.label}",
+            detail = buildString {
+                append("${other.label} disappears behind the moon at ${hourAndMinute(edges.first)} ")
+                append("and reappears at ${hourAndMinute(edges.last)}")
+                if (visibility is Visibility.Good) {
+                    append(", ${seen.altitude.roundToInt()} degrees up in the ")
+                    append(Compass.of(seen.azimuth).label)
+                }
+                append(". Worth watching for the moment itself: it goes out at the moon's ")
+                append("edge in a second or two, with no fading.")
+            },
+            visibility = visibility,
+        )
+    }
+
+    /**
+     * When the discs touch, and when they part.
+     *
+     * Swept outward from the middle rather than solved. The separation is not
+     * monotonic near the minimum and the geometry differs for every pairing, so
+     * a closed form would be several pages to save a few hundred arithmetic
+     * operations on an event that happens a handful of times a decade.
+     *
+     * Half a minute is finer than the times are printed to. A planet crosses
+     * the moon's edge in a second or so - the moon moves its own diameter in
+     * about an hour - so what is being located here is the crossing to within
+     * the resolution anybody reads.
+     */
+    private fun occultationEdges(
+        other: SkyBody,
+        latitude: Double,
+        longitude: Double,
+        atMillis: Long,
+    ): LongRange {
+        fun covered(at: Long): Boolean = AngularSize.moonCovers(
+            other,
+            Conjunctions.at(SkyBody.Moon, other, latitude, longitude, at).separationDegrees,
+            latitude,
+            longitude,
+            at,
+        )
+
+        fun edge(direction: Int): Long {
+            var at = atMillis
+            var steps = 0
+            while (steps < OCCULTATION_STEPS) {
+                val next = at + direction * OCCULTATION_STEP_MILLIS
+                if (!covered(next)) return at
+                at = next
+                steps++
+            }
+            return at
+        }
+
+        return edge(-1)..edge(1)
+    }
+
+    /**
+     * Half a minute, which is finer than the times are printed to and coarse
+     * enough that an occultation costs a few hundred positions rather than a
+     * few thousand.
+     */
+    private const val OCCULTATION_STEP_MILLIS: Long = 30_000L
+
+    /**
+     * Three hours of them each way.
+     *
+     * Far longer than any occultation of a planet - the moon crosses its own
+     * diameter in about an hour - so reaching this is the search failing to
+     * find an edge rather than an event that long, and stopping is the right
+     * answer either way.
+     */
+    private const val OCCULTATION_STEPS: Int = 360
+
+    /** The device's own clock and zone, like every other time the app prints. */
+    private fun hourAndMinute(millis: Long): String =
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(millis))
 
     /**
      * The moon leads when it is involved, because that is how it is said aloud:

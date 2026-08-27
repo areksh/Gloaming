@@ -112,6 +112,11 @@ object EventPlanner {
         // one thing here somebody might take a night off work or drive to a
         // dark site for, and unlike an eclipse it is not in the newspaper.
         EventKind.Comet -> true
+        // An occultation gets notice too, unlike the conjunction it replaces.
+        // It lasts under an hour, happens at a specific minute, and a handful
+        // of naked-eye ones reach any one place in a decade - so a notice on
+        // the night is a notice that arrives while it is already half over.
+        EventKind.Occultation -> true
         EventKind.Conjunction,
         EventKind.Elongation,
         EventKind.MoonPhase,

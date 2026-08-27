@@ -41,6 +41,12 @@ enum class EventChannel(val id: String) {
             EventKind.SolarEclipse, EventKind.LunarEclipse -> Eclipses
             EventKind.MeteorShower -> MeteorShowers
             EventKind.Conjunction,
+            // The same channel, deliberately. An occultation replaces a
+            // conjunction notification rather than adding one - it *is* that
+            // pairing, described properly - and somebody who wants to hear
+            // about the moon passing Jupiter wants to hear about it passing in
+            // front of Jupiter rather more.
+            EventKind.Occultation,
             EventKind.Elongation,
             EventKind.Opposition,
             EventKind.GreatestBrightness,

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Lunar occultations.** When the moon passes in *front* of a bright planet
+  rather than merely near it, the calendar now says so, with the minute the
+  planet disappears behind the moon's edge and the minute it comes back. It goes
+  out in a second or two with no fading, which is one of the very few naked-eye
+  events that looks like something happening rather than something being. These
+  are strictly local - the moon's parallax is about two of its own diameters, so
+  two observers a few hundred miles apart genuinely disagree about whether one
+  happens - and it replaces the conjunction entry rather than adding a second
+  one, on the same notification channel.
+
 - **Gloaming can set its own alert thresholds.** A switch - off unless you turn
   it on - hands the alert threshold, the cloud tolerance, the pass horizon and
   how often each channel may interrupt over to the app, which works them out from

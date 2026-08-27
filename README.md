@@ -66,6 +66,12 @@ a report may be. When a comet fades, you get one quiet notice and then silence.
 Most years have no comet you could see without binoculars, and the app will
 honestly show you nothing rather than dressing up a faint one.
 
+When the moon passes in front of a planet rather than merely near it, the
+calendar says so and gives the minute it goes out at the moon's edge and the
+minute it comes back. Those are worked out for where you are standing rather
+than for the Earth: the moon's parallax is about two of its own diameters, so
+whether an occultation happens at all is a fact about a place.
+
 Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
 of binoculars, it is out of scope, which is why there are no Uranus oppositions
 and no transits of Mercury.

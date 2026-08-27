@@ -235,6 +235,34 @@ object Conjunctions {
         return (low + high) / 2
     }
 
+    /**
+     * How a pair looks from here at one particular instant.
+     *
+     * [asSeen] answers a different question - the best moment of the night -
+     * which is the right one for a conjunction and the wrong one for an
+     * occultation. An occultation happens at the minimum or not at all, and
+     * whether it can be seen from here depends on the pair being up *then*,
+     * not on how high they get four hours later.
+     */
+    fun at(
+        first: SkyBody,
+        second: SkyBody,
+        latitude: Double,
+        longitude: Double,
+        atMillis: Long,
+    ): PairSighting {
+        val observer = Observer(latitude, longitude, 0.0)
+        val time = Time.fromMillisecondsSince1970(atMillis)
+        val one = seen(first, observer, time)
+        val other = seen(second, observer, time)
+        return PairSighting(
+            atMillis = atMillis,
+            separationDegrees = angle(direction(one), direction(other)),
+            altitude = minOf(one.altitude, other.altitude),
+            azimuth = one.azimuth,
+        )
+    }
+
     // --- geometry ---
 
     private fun directionsAt(observer: Observer, atMillis: Long): Array<DoubleArray> {

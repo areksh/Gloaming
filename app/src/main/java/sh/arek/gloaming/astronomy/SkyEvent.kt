@@ -13,6 +13,24 @@ enum class EventKind {
     LunarEclipse,
     MeteorShower,
     Conjunction,
+
+    /**
+     * The moon passing in front of a planet, rather than merely near it.
+     *
+     * Kept apart from [Conjunction] rather than marked within it, because they
+     * are not the same event at two magnitudes. A conjunction is two dots close
+     * together for a night; an occultation is a planet visibly going out at the
+     * moon's edge and coming back an hour later, and it is one of the very few
+     * naked-eye events that looks like something *happening*. It is also far
+     * rarer, and rarer things want their own filter chip.
+     *
+     * Strictly local. The moon has up to a degree of parallax - about two of
+     * its own diameters - so two observers a few hundred miles apart genuinely
+     * disagree about whether one is happening, which is why occultation
+     * predictions are published per site.
+     */
+    Occultation,
+
     Elongation,
 
     /**

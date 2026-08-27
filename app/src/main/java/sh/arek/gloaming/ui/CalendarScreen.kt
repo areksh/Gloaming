@@ -244,6 +244,7 @@ internal fun labelFor(kind: EventKind): String = when (kind) {
     EventKind.LunarEclipse -> "Lunar eclipses"
     EventKind.MeteorShower -> "Meteor showers"
     EventKind.Conjunction -> "Conjunctions"
+    EventKind.Occultation -> "Occultations"
     EventKind.Elongation -> "Mercury and Venus"
     EventKind.Opposition -> "Oppositions"
     EventKind.GreatestBrightness -> "Venus at its brightest"
