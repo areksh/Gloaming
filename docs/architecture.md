@@ -414,14 +414,41 @@ errors; the sourcing document is strong.
      to parse, 65,160 cells to pack, then gzip - and measured off-runtime at
      about 5-15 ms depending on JIT warmth, which straddled the limit.
 
-     **Settled in production, 2026-08-04: the free plan carries it.** Across
-     invocations of both schedules on the deployed Worker every outcome was
-     `Ok`, with objects published and `status.json` refreshing on cadence. A
-     Worker over the CPU limit is terminated with an `exceededCpu` outcome and
-     publishes nothing, so completing successfully is the answer. The exact
-     millisecond figure needs the dashboard's Worker metrics; the operational
-     question is closed either way. If a future change pushes it over, the
-     upgrade path is Workers Paid at $5/month.
+     ~~**Settled in production, 2026-08-04: the free plan carries it.**~~
+     Across invocations of both schedules on the deployed Worker every outcome
+     was `Ok`, with objects published and `status.json` refreshing on cadence.
+     A Worker over the CPU limit is terminated with an `exceededCpu` outcome and
+     publishes nothing, so completing successfully was read as the answer.
+
+     **Reopened 2026-08-29: it does not carry it, and the reading was wrong.**
+     The millisecond figures the note above wanted are now in hand, and they
+     settle it the other way:
+
+     | Invocation | CPU per run | Outcome |
+     |---|---|---|
+     | `*/3` AuroraWatch | 7-9 ms | never terminated |
+     | `*/5` SWPC | 32-49 ms | terminated in episodes, at 11-15 ms |
+
+     The SWPC refresh has been three to five times over the limit all along.
+     The limit is not enforced on every invocation, which is why months of `Ok`
+     outcomes meant nothing: the Worker is running on tolerance, and tolerance
+     is not a guarantee. When enforcement does bite it bites for hours at a
+     time - 24 Aug 00:00-08:00, 25 Aug 04:00-07:00, 28 Aug 03:00-10:00, 29 Aug
+     06:20-12:05 UTC, always the SWPC schedule, never AuroraWatch in the same
+     minute, and always ending on its own.
+
+     A terminated invocation records nothing at all, so `health.json` goes on
+     saying `ok` while the grid ages. Only the staleness check in Sec. 3 catches
+     it, an hour later, which is what it is for.
+
+     Optimisation is not a way out. Replacing `JSON.parse` with a byte scan
+     packing straight into the grid measures 11.2 ms -> 5.3 ms off-runtime, so
+     it would take the invocation from roughly 42 ms to 30 ms: a real saving
+     against no useful threshold, since the budget is 10 ms and the manifest
+     step and startup already account for most of an AuroraWatch run. The
+     honest options are Workers Paid at $5/month, or moving the SWPC fetch to
+     the host that already runs CelesTrak (ADR-0008) and accepting that the most
+     time-critical source then depends on a machine at home.
 3. ~~**The CDN does not honour the caching contract.**~~ **Resolved
    2026-08-04 by a Cache Rule on `sky.arek.sh/v1/*`.** Recorded because the
    default behaviour is a trap worth knowing about, and because nothing in the
