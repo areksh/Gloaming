@@ -1,4 +1,5 @@
 import { AwsClient } from "aws4fetch";
+import { explainFailure } from "./network";
 
 /**
  * The handful of R2 operations this needs, over the S3-compatible API.
@@ -67,8 +68,27 @@ export class R2Store implements ObjectStore {
     return `${this.base}/${encodeURI(key)}`;
   }
 
+  /**
+   * A signed request, saying which object it was for if it never gets sent.
+   *
+   * Node reports an unreachable R2 exactly as it reports an unreachable
+   * CelesTrak - `fetch failed`, with the reason nested underneath - and the two
+   * are fixed in entirely different places. Naming the operation and the key
+   * here is what tells them apart in the journal.
+   */
+  private async send(key: string, init: RequestInit): Promise<Response> {
+    try {
+      return await this.client.fetch(this.url(key), init);
+    } catch (error) {
+      throw new Error(
+        `R2 ${init.method ?? "GET"} ${key} could not be sent: ${explainFailure(error)}`,
+        { cause: error },
+      );
+    }
+  }
+
   async get(key: string): Promise<string | null> {
-    const response = await this.client.fetch(this.url(key), { method: "GET" });
+    const response = await this.send(key, { method: "GET" });
     if (response.status === 404) {
       return null;
     }
@@ -87,7 +107,7 @@ export class R2Store implements ObjectStore {
       headers["Cache-Control"] = options.cacheControl;
     }
 
-    const response = await this.client.fetch(this.url(key), { method: "PUT", body, headers });
+    const response = await this.send(key, { method: "PUT", body, headers });
     if (!response.ok) {
       throw new Error(`R2 PUT ${key} returned ${response.status}`);
     }

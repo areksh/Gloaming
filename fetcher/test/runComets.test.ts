@@ -186,6 +186,34 @@ describe("runComets", () => {
   });
 
   /**
+   * The same account a non-200 gets, for the failure that carries no status at
+   * all. Two hosts are asked in a comet run and R2 is a third, so a message
+   * that says only `fetch failed` does not even narrow it down to one of them.
+   */
+  it("says which host could not be reached when nothing answers", async () => {
+    const store = new MemoryStore();
+    const fetcher = (async (url: RequestInfo | URL) => {
+      if (String(url).includes("ntfy")) return new Response("ok");
+      throw new TypeError("fetch failed", {
+        cause: Object.assign(new Error("getaddrinfo ENOTFOUND data.minorplanetcenter.net"), {
+          code: "ENOTFOUND",
+        }),
+      });
+    }) as unknown as typeof fetch;
+
+    const result = await runComets(
+      store,
+      { baseUrl: "https://ntfy.example", topic: "t", fetch: fetcher },
+      config,
+      now,
+    );
+
+    expect(result.error).toBe(
+      `could not reach ${config.elementsUrl}: getaddrinfo ENOTFOUND data.minorplanetcenter.net`,
+    );
+  });
+
+  /**
    * A document that parses to nothing is a moved format, not an empty sky:
    * the file has carried hundreds of comets continuously for decades. Treating
    * it as success would replace a good document with an empty one and take

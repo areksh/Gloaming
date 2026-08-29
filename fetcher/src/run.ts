@@ -9,6 +9,7 @@ import {
   type CobsObservation,
 } from "./comets";
 import { fetchThroughBreaker } from "./breaker";
+import { fetchOrExplain } from "./network";
 import { notifyMaintainer, recordOutcome, type Alerting } from "./health";
 import type { ObjectStore } from "./store";
 
@@ -271,7 +272,8 @@ export interface CometRunResult {
 const COMETS_MIN_AGE_MILLIS = 11 * 60 * 60 * 1000;
 
 /**
- * A plain fetch with a name attached.
+ * A plain fetch with a name attached, which says what went wrong when nothing
+ * answers.
  *
  * Redirects are not followed, for the same reason the breaker does not follow
  * them: a followed 301 arrives as a 200 from wherever it pointed, and the whole
@@ -284,7 +286,7 @@ async function fetchText(
   url: string,
   userAgent: string,
 ): Promise<string> {
-  const response = await alerting.fetch(url, {
+  const response = await fetchOrExplain(alerting.fetch, url, {
     headers: { "User-Agent": userAgent },
     redirect: "manual",
   });

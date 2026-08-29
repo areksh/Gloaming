@@ -265,11 +265,21 @@ describe("run", () => {
    * A refused connection is not a response, so it is not the signal the policy
    * is about. A transient network fault must not need a human before elements
    * can refresh again.
+   *
+   * The failure is thrown in the shape Node really throws it: the reason is
+   * nested in `cause` and the message on top is the same `fetch failed` for
+   * every network fault there is. Reported as it arrives it says nothing - not
+   * which host, not what happened - and on the night CelesTrak went down that
+   * was the whole of the health record.
    */
-  it("leaves the breaker closed when the connection fails outright", async () => {
+  it("says which URL could not be reached and why", async () => {
     const fetcher = (async (url: RequestInfo | URL) => {
       if (String(url).includes("ntfy")) return new Response("ok");
-      throw new Error("ECONNREFUSED");
+      throw new TypeError("fetch failed", {
+        cause: Object.assign(new Error("connect ECONNREFUSED 104.168.149.178:443"), {
+          code: "ECONNREFUSED",
+        }),
+      });
     }) as unknown as typeof fetch;
 
     const result = await run(
@@ -279,9 +289,13 @@ describe("run", () => {
       now,
     );
 
-    expect(result.error).toContain("ECONNREFUSED");
+    expect(result.error).toBe(
+      `could not reach ${config.stationsUrl}: connect ECONNREFUSED 104.168.149.178:443`,
+    );
     expect(await readBreaker(store, CELESTRAK_SOURCE)).toBeNull();
     expect((await health(store)).state).toBe("failing");
+    // And the maintainer is told the same thing, rather than "fetch failed".
+    expect((await health(store)).last_error).toContain("ECONNREFUSED");
   });
 
   /**

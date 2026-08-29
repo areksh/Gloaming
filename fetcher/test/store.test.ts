@@ -89,4 +89,27 @@ describe("R2Store", () => {
 
     await expect(new R2Store(credentials).put("v1/sats.json", "{}")).rejects.toThrow(/500/);
   });
+
+  /**
+   * R2 being unreachable and an upstream being unreachable are reported
+   * identically by Node - `fetch failed`, with the reason nested underneath -
+   * and they are fixed in completely different places. The key names which of
+   * the two a reader is looking at, and the cause says what to do about it.
+   */
+  it("says which object it was reaching for when nothing answers", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("fetch failed", {
+        cause: Object.assign(new Error("getaddrinfo EAI_AGAIN abc123.r2.cloudflarestorage.com"), {
+          code: "EAI_AGAIN",
+        }),
+      });
+    });
+
+    await expect(new R2Store(credentials).get("v1/sats.json")).rejects.toThrow(
+      "R2 GET v1/sats.json could not be sent: getaddrinfo EAI_AGAIN abc123.r2.cloudflarestorage.com",
+    );
+    await expect(new R2Store(credentials).put("v1/sats.json", "{}")).rejects.toThrow(
+      "R2 PUT v1/sats.json could not be sent: getaddrinfo EAI_AGAIN abc123.r2.cloudflarestorage.com",
+    );
+  });
 });

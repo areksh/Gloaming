@@ -300,10 +300,20 @@ in `visual`, minus the overlap - plus two per train. **M is usually 0**, and tha
 is not a fault: a launch is a train for a few nights and then spreads out, so
 most runs find none.
 
-A bad run logs `did not publish: ...` and exits 1, which `systemctl status`
-shows in red. The message says which of the two things went wrong: a non-200
-from CelesTrak (the breaker has tripped and needs a human), or an R2 error
-(check the credentials and the bucket name).
+A bad run logs `did not publish sats.json: ...` and exits 1, which `systemctl
+status` shows in red. The message says which of three things went wrong:
+
+- **A non-200 from CelesTrak** - `celestrak breaker tripped at ...: HTTP 503
+  from ...`. The breaker has tripped and needs a human; see Operations below.
+- **Nothing answered at all** - `could not reach <url>: <reason>`, where the
+  reason is what the network actually reported: `connect ECONNREFUSED ...`, a
+  connect timeout, `getaddrinfo ENOTFOUND ...`. No response arrived, so this is
+  not the signal CelesTrak's policy is about, the breaker is untouched, and the
+  next timer run tries again unaided. Usually the upstream is down; check
+  whether the host can reach it at all before assuming it is this machine.
+- **R2** - `R2 GET|PUT <key> returned <status>` when the bucket refused the
+  request (check the credentials, the token's permissions and the bucket name),
+  or `R2 <op> <key> could not be sent: <reason>` when it never left the host.
 
 A run may also log `no trains this run: ...` and still exit 0. That means the
 supplemental document answered 200 but could not be parsed, which costs that
@@ -360,6 +370,11 @@ npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --re
 The next timer run will query again. `sats.json` keeps serving its last good
 copy throughout, and elements stay usable for days, so a tripped breaker
 degrades pass prediction rather than breaking it.
+
+A site coming back from an outage will often answer 5xx for a while before it is
+really back, which trips the breaker as designed. Check the URL by hand and
+clear the flag once it answers 200, rather than clearing it the moment the site
+starts responding at all.
 
 **Comets.** From Phase 5 the same run also publishes `comets.json`, from the
 Minor Planet Center and COBS. It needs no configuration: both URLs have

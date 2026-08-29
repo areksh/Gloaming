@@ -1,4 +1,5 @@
 import { notifyMaintainer, type Alerting } from "./health";
+import { fetchOrExplain } from "./network";
 import type { ObjectStore } from "./store";
 
 /**
@@ -117,7 +118,9 @@ export interface BreakerQuery {
  * A connection that fails outright is left alone: no response arrived, so it is
  * not the signal the policy is about, and a transient network fault must not
  * demand a human before elements can refresh again. It still fails the run,
- * which is what the health record and its alert exist for.
+ * which is what the health record and its alert exist for - carrying the URL
+ * and the reason, because `fetch failed` on its own does not say even which
+ * host was being asked.
  */
 export async function fetchThroughBreaker(
   store: ObjectStore,
@@ -131,7 +134,7 @@ export async function fetchThroughBreaker(
     throw new BreakerTrippedError(tripped);
   }
 
-  const response = await alerting.fetch(query.url, {
+  const response = await fetchOrExplain(alerting.fetch, query.url, {
     headers: { "User-Agent": query.userAgent },
     redirect: "manual",
   });
