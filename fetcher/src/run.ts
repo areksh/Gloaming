@@ -9,7 +9,7 @@ import {
   type CobsObservation,
 } from "./comets";
 import { fetchThroughBreaker } from "./breaker";
-import { fetchOrExplain } from "../../worker/src/network";
+import { explainFailure, fetchOrExplain } from "../../worker/src/network";
 import { notifyMaintainer, recordOutcome, type Alerting } from "./health";
 import type { ObjectStore } from "./store";
 
@@ -69,7 +69,7 @@ function readTrains(
     const members = parseOmmCsv(csv);
     return { trains: detectTrains(atMillis, members), members };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = explainFailure(error);
     console.warn(`no trains this run: ${message}`);
     return { trains: [], members: [] };
   }
@@ -146,7 +146,7 @@ export async function run(
       trains: document.trains.length,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = explainFailure(error);
 
     // Recording the failure can itself fail - R2 being unreachable is one way
     // for the run to have gone wrong in the first place. If it does, the
@@ -171,7 +171,7 @@ export async function run(
         });
       }
     } catch (recording) {
-      const also = recording instanceof Error ? recording.message : String(recording);
+      const also = explainFailure(recording);
       return {
         published: false,
         satellites: 0,
@@ -337,7 +337,7 @@ async function readObservations(
       }
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = explainFailure(error);
     console.warn(`no observed magnitudes this run: ${message}`);
     return new Map();
   }
@@ -416,7 +416,7 @@ export async function runComets(
       measured: document.comets.filter((comet) => comet.observed !== null).length,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = explainFailure(error);
 
     try {
       const transition = await recordOutcome(
@@ -432,7 +432,7 @@ export async function runComets(
         });
       }
     } catch (recording) {
-      const also = recording instanceof Error ? recording.message : String(recording);
+      const also = explainFailure(recording);
       return {
         published: false,
         comets: 0,

@@ -1,3 +1,4 @@
+import { explainFailure } from "../../worker/src/network";
 import { ensureRuntime } from "./runtime";
 import { run, runComets } from "./run";
 import { R2Store } from "./store";
@@ -136,6 +137,6 @@ main()
   })
   .catch((error: unknown) => {
     // Only misconfiguration reaches here; run() handles everything else.
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(explainFailure(error));
     process.exitCode = 2;
   });

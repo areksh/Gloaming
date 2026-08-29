@@ -232,6 +232,26 @@ describe("run", () => {
   });
 
   /**
+   * The last point at which a nested reason can reach a human. An error that
+   * carries its detail in `cause` - which is how Node reports every network
+   * fault, and how anything wrapping one passes it on - would otherwise be
+   * recorded as whatever bare sentence sat on top of it.
+   */
+  it("records the reason under an error, not just the top of it", async () => {
+    const broken: ObjectStore = {
+      get: async () => null,
+      put: async () => {
+        throw new Error("R2 PUT failed", { cause: new Error("the signing key was rejected") });
+      },
+    };
+    const net = network(200, groups);
+
+    const result = await run(broken, net.alerting, config, now);
+
+    expect(result.error).toContain("the signing key was rejected");
+  });
+
+  /**
    * A run can fail *because* R2 is unreachable, in which case writing the
    * health record fails too. The original problem is the one a human needs to
    * read; losing it behind a complaint about bookkeeping would send them
