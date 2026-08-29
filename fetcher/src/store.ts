@@ -1,5 +1,5 @@
 import { AwsClient } from "aws4fetch";
-import { explainFailure } from "./network";
+import { explainFailure } from "../../worker/src/network";
 
 /**
  * The handful of R2 operations this needs, over the S3-compatible API.

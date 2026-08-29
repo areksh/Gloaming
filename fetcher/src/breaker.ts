@@ -1,5 +1,5 @@
 import { notifyMaintainer, type Alerting } from "./health";
-import { fetchOrExplain } from "./network";
+import { fetchOrExplain } from "../../worker/src/network";
 import type { ObjectStore } from "./store";
 
 /**

@@ -5,7 +5,8 @@ import { build } from "esbuild";
  *
  * The point is the deployment: a seedbox needs a single artefact copied into
  * place, not a source tree, a package manager and a build toolchain it would
- * then have to keep patched. The shared OMM parser is pulled in from the
+ * then have to keep patched. What both components have to agree on - the health
+ * contract, and how a failed request is described - is pulled in from the
  * Worker's source at build time, so there is exactly one copy of it in the
  * project however many places run it.
  */

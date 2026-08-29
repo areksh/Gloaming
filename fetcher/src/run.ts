@@ -9,7 +9,7 @@ import {
   type CobsObservation,
 } from "./comets";
 import { fetchThroughBreaker } from "./breaker";
-import { fetchOrExplain } from "./network";
+import { fetchOrExplain } from "../../worker/src/network";
 import { notifyMaintainer, recordOutcome, type Alerting } from "./health";
 import type { ObjectStore } from "./store";
 

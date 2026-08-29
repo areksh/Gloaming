@@ -1,6 +1,12 @@
 /**
  * Why a request never got a response.
  *
+ * Shared by the Worker and the elements fetcher, and here for the same reason
+ * `contracts.ts` is: it has no imports and touches no globals of its own, so
+ * either side can use it without dragging the other's runtime along. Both fetch
+ * upstreams, both record what went wrong into the same `health.json`, and both
+ * were reporting network failures the same useless way.
+ *
  * Node reports every network-level failure the same way: `TypeError: fetch
  * failed`, with the real reason nested in `cause` and sometimes nested again
  * below that. Nothing else about such a failure exists - no status code and no
