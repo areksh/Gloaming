@@ -5,6 +5,14 @@
   "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Cron only, so there is nothing to serve and nowhere to serve it from. Left
+  // on, `gloaming-data.<subdomain>.workers.dev` answers 1101 to anyone who
+  // finds it - the Worker has no fetch handler - having first been invoked to
+  // do it. That is a billable invocation on somebody else's schedule, and the
+  // whole design is built around this Worker running on its own.
+  "workers_dev": false,
+  "preview_urls": false,
+
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
