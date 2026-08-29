@@ -446,9 +446,22 @@ errors; the sourcing document is strong.
      it would take the invocation from roughly 42 ms to 30 ms: a real saving
      against no useful threshold, since the budget is 10 ms and the manifest
      step and startup already account for most of an AuroraWatch run. The
-     honest options are Workers Paid at $5/month, or moving the SWPC fetch to
+     honest options were Workers Paid at $5/month, or moving the SWPC fetch to
      the host that already runs CelesTrak (ADR-0008) and accepting that the most
      time-critical source then depends on a machine at home.
+
+     **Closed 2026-08-29 by taking Workers Paid.** The CPU ceiling is 30 s per
+     invocation, which the SWPC refresh clears by three orders of magnitude
+     rather than by a hair - it has been observed at 60 ms since, and the point
+     of paying is that the figure no longer has to be watched. SWPC stays on
+     Cloudflare with everything else, so the only source running off a machine
+     at home is still the one that has to (ADR-0008).
+
+     What that buys, beyond the outage: the free plan's 100,000 requests/day
+     and 5 crons per *account* were both live constraints on the design. Neither
+     binds now. Note the Worker sets no `limits.cpu_ms`, so it takes the 30 s
+     default; a lower explicit value would reintroduce exactly this failure,
+     invisibly.
 3. ~~**The CDN does not honour the caching contract.**~~ **Resolved
    2026-08-04 by a Cache Rule on `sky.arek.sh/v1/*`.** Recorded because the
    default behaviour is a trap worth knowing about, and because nothing in the
@@ -496,18 +509,33 @@ errors; the sourcing document is strong.
    `status.json` composition buffer in KV would approach the cap from the 3- and
    5-minute crons alone. Use R2 for the partials and reserve KV for the
    rarely-written breaker flag (Sec. 3 above).
-9. **`health.json` and the `internal/` partials are world-readable** under the
-   public domain. An R2 custom domain serves a whole bucket and cannot be
+9. ~~**`health.json` and the `internal/` partials are world-readable**~~ under
+   the public domain. An R2 custom domain serves a whole bucket, ~~and cannot be
    path-restricted without putting a Worker in the read path, which is the one
-   thing the topology exists to avoid.
+   thing the topology exists to avoid.~~
 
-   **Decided 2026-08-22: accepted.** Everything exposed is derived from public
-   upstreams - per-source error codes, timestamps, and the same space-weather
-   values `status.json` already publishes - so there is nothing here that is
-   secret anywhere else. If that stops being true, the fix is a second R2
-   bucket with no custom domain bound to it, holding `internal/` and the health
-   objects, reached through a second binding. That is provisioning rather than
-   code, and nothing in the pipelines assumes one bucket.
+   ~~**Decided 2026-08-22: accepted.**~~ Everything exposed is derived from
+   public upstreams - per-source error codes, timestamps, and the same
+   space-weather values `status.json` already publishes - so there is nothing
+   here that is secret anywhere else.
+
+   **Resolved 2026-08-29 by a WAF custom rule**, blocking any request to
+   `sky.arek.sh` whose path does not start with `/v1/`. The premise above was
+   wrong: a custom domain is an ordinary hostname on the zone, so the whole
+   ruleset engine applies to it and a path restriction costs one rule and no
+   Worker. Accepting the exposure was the right call on the facts as understood,
+   but the facts were not checked.
+
+   Written as an allowlist rather than a block on `/internal/*`, so a new
+   internal prefix is covered without anyone having to remember. Verified: every
+   `v1/` object answers 200, every `internal/` path and the bucket root answer
+   403, and the Worker is unaffected because it reaches R2 through its binding
+   and never through the edge. Recorded here for the same reason as the Cache
+   Rule in issue 3 - nothing in the Worker's own configuration reveals it, and a
+   rebuild of the zone that omits it silently reopens the bucket.
+
+   The second-bucket option stands unused if the exposure ever needs to be
+   structural rather than a rule: nothing in the pipelines assumes one bucket.
 
 10. **The two-hourly Cron Trigger did not fire with a step in the hours field.
     Confirmed and fixed, 2026-08-22.** The satellites pipeline never ran in production. `0 */2 * * *`
