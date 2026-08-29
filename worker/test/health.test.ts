@@ -197,6 +197,18 @@ describe("reportStaleness", () => {
     return { sent, deps: { fetch: fetcher, now: () => now() } };
   };
 
+  /**
+   * ntfy answering but refusing the message - a rate limit against the shared
+   * egress address, say. The push is lost exactly as if the network had gone,
+   * and the caller is told nothing unless it looks at the status.
+   */
+  const refuses = () => ({
+    deps: {
+      fetch: (async () => new Response("rate limited", { status: 429 })) as unknown as typeof fetch,
+      now: () => now(),
+    },
+  });
+
   const stale = (source: string): Health => ({
     schema: HEALTH_SCHEMA,
     generated: now().toISOString(),
@@ -260,6 +272,35 @@ describe("reportStaleness", () => {
     expect(back.sent[0]?.title).toContain("recovered");
   });
 
+  /**
+   * The latch records what the maintainer has been told, not what the Worker
+   * noticed. On 2026-08-29 the recovery push was lost and the latch cleared
+   * anyway, so the last word on swpc stayed "stopped reporting" for the six
+   * hours after it had come back.
+   */
+  it("says it again when the stale alert did not get through", async () => {
+    const source = "stale-e";
+    await reportStaleness(env, refuses().deps, stale(source));
+
+    const retry = pushes();
+    await reportStaleness(env, retry.deps, stale(source));
+
+    expect(retry.sent).toHaveLength(1);
+    expect(retry.sent[0]?.title).toContain("stopped reporting");
+  });
+
+  it("says it again when the recovery alert did not get through", async () => {
+    const source = "stale-f";
+    await reportStaleness(env, pushes().deps, stale(source));
+    await reportStaleness(env, refuses().deps, healthy(source));
+
+    const retry = pushes();
+    await reportStaleness(env, retry.deps, healthy(source));
+
+    expect(retry.sent).toHaveLength(1);
+    expect(retry.sent[0]?.title).toContain("recovered");
+  });
+
   it("stays quiet about a source that was never stale", async () => {
     const quiet = pushes();
 
@@ -300,7 +341,26 @@ describe("notifyMaintainer", () => {
 
     await expect(
       notifyMaintainer(env, { fetch: fetcher, now }, { title: "t", body: "b" }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe(false);
+  });
+
+  // Whether the alert landed is the caller's business: a latch that records an
+  // alert nobody received strands the source in its last announced state.
+  it("reports an alert ntfy accepted", async () => {
+    const fetcher = (async () => new Response("ok")) as unknown as typeof fetch;
+
+    await expect(
+      notifyMaintainer(env, { fetch: fetcher, now }, { title: "t", body: "b" }),
+    ).resolves.toBe(true);
+  });
+
+  it("reports an alert ntfy refused", async () => {
+    const fetcher = (async () =>
+      new Response("rate limited", { status: 429 })) as unknown as typeof fetch;
+
+    await expect(
+      notifyMaintainer(env, { fetch: fetcher, now }, { title: "t", body: "b" }),
+    ).resolves.toBe(false);
   });
 
   it("does nothing when no topic is configured", async () => {

@@ -183,6 +183,13 @@ async function readStaleLatch(env: Env): Promise<string[]> {
  *
  * Only sources present in [health] are considered, so the latch is never
  * disturbed for a source this invocation knows nothing about.
+ *
+ * The latch records what the maintainer has been *told*, not what was noticed
+ * here, so a push ntfy never accepted leaves the source unlatched and the alert
+ * is made again next cycle. Latching an alert nobody received is worse than not
+ * alerting at all: on 2026-08-29 the recovery push was lost, the latch cleared
+ * regardless, and the last word on swpc stayed "stopped reporting" for the six
+ * hours after it had come back.
  */
 export async function reportStaleness(env: Env, deps: Deps, health: Health): Promise<void> {
   const known = Object.keys(health.sources);
@@ -194,25 +201,40 @@ export async function reportStaleness(env: Env, deps: Deps, health: Health): Pro
   const started = nowStale.filter((source) => !previously.includes(source));
   const ended = previously.filter((source) => !nowStale.includes(source));
 
+  const announced: string[] = [];
   for (const source of started) {
     const last = health.sources[source]?.last_success ?? "never";
-    await notifyMaintainer(env, deps, {
+    const delivered = await notifyMaintainer(env, deps, {
       title: `Gloaming: ${source} has stopped reporting`,
       body:
         `No successful run since ${last}. Nothing is failing - nothing is being ` +
         `attempted, so check that its schedule is still firing.`,
     });
+    if (delivered) {
+      announced.push(source);
+    }
   }
+
+  const cleared: string[] = [];
   for (const source of ended) {
-    await notifyMaintainer(env, deps, {
+    const delivered = await notifyMaintainer(env, deps, {
       title: `Gloaming: ${source} recovered`,
       body: `${source} is reporting again.`,
     });
+    if (delivered) {
+      cleared.push(source);
+    }
   }
 
-  if (started.length > 0 || ended.length > 0) {
+  // Nothing delivered means nothing to remember: leaving the latch as it stands
+  // is what makes the next cycle try again.
+  if (announced.length > 0 || cleared.length > 0) {
     const kept = latch.filter((source) => !known.includes(source));
-    await env.DATA.put(STALE_LATCH_KEY, JSON.stringify({ sources: [...kept, ...nowStale] }));
+    const held = previously.filter((source) => !cleared.includes(source));
+    await env.DATA.put(
+      STALE_LATCH_KEY,
+      JSON.stringify({ sources: [...kept, ...held, ...announced] }),
+    );
   }
 }
 
@@ -227,28 +249,38 @@ export async function publishHealth(env: Env, sources: string[], now: Date): Pro
 }
 
 /**
- * Posts one alert to the maintainer's ntfy topic.
+ * Posts one alert to the maintainer's ntfy topic, and reports whether it landed.
  *
  * Never throws. The alert exists so a human finds out about a problem; if the
  * alerting channel is itself unreachable, that must not fail the refresh that
  * prompted it. `health.json` still records the truth for anyone who looks.
+ *
+ * The return value is for callers that remember having alerted. A refusal is as
+ * silent as an outage - ntfy answers 429 to a rate-limited topic, and the shared
+ * egress address the Worker leaves from is not the maintainer's alone - so the
+ * status has to be read rather than assumed.
+ *
+ * No topic configured means alerting is switched off rather than broken, which
+ * counts as delivered: there is nothing to try again.
  */
 export async function notifyMaintainer(
   env: Env,
   deps: Deps,
   note: { title: string; body: string },
-): Promise<void> {
+): Promise<boolean> {
   if (env.NTFY_TOPIC === "") {
-    return;
+    return true;
   }
 
   try {
-    await deps.fetch(`${env.NTFY_BASE_URL}/${env.NTFY_TOPIC}`, {
+    const response = await deps.fetch(`${env.NTFY_BASE_URL}/${env.NTFY_TOPIC}`, {
       method: "POST",
       headers: { Title: note.title },
       body: note.body,
     });
+    return response.ok;
   } catch {
     // Deliberately swallowed; see the note above.
+    return false;
   }
 }
