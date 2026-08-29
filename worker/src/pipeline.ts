@@ -17,6 +17,7 @@ import {
   signManifest,
   type Manifest,
 } from "./manifest";
+import { fetchOrExplain } from "./network";
 import { packOvalGrid } from "./oval";
 import { parseAuroraWatchStatus } from "./sources/aurorawatch";
 import { parseKp, parseOvation, parseSolarWindMagField, parseSolarWindSpeed } from "./sources/swpc";
@@ -47,9 +48,16 @@ const MANIFEST_SIG_KEY = "v1/index.json.sig";
  * A non-200 must not be smoothed over: a partial or error body that still
  * parsed would publish a grid of zeros, which reads as "no aurora anywhere"
  * and silently suppresses every alert.
+ *
+ * A connection that fails outright says even less on its own. The runtime
+ * reports it as `Network connection lost.`, which names neither the upstream
+ * nor the reason, and that string is what a cron failure used to leave in
+ * `health.json` for a human to work from.
  */
 async function fetchOk(deps: Deps, url: string, userAgent: string): Promise<Response> {
-  const response = await deps.fetch(url, { headers: { "User-Agent": userAgent } });
+  const response = await fetchOrExplain(deps.fetch, url, {
+    headers: { "User-Agent": userAgent },
+  });
   if (!response.ok) {
     throw new Error(`Upstream ${url} returned ${response.status}`);
   }

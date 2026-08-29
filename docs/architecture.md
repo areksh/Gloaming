@@ -151,7 +151,11 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   key is compiled into the APK (Sec. 10, ADR-0003).
 - **Observability.** `health.json` in R2 carries last-success and last-error per
   source. One maintainer-only ntfy topic receives a POST when a breaker trips or
-  a source fails silently.
+  a source fails silently. A recorded error names what was being reached for and
+  the reason underneath it: both runtimes describe every network fault with one
+  generic string of their own - `Network connection lost.` in the Worker,
+  `fetch failed` in Node - which distinguishes neither the host nor the fault,
+  so the URL is added and the nested cause read out before it is recorded.
 
   Sec. 3 asks whether Cloudflare's own alerting covers cron failure first, so as
   not to build what already exists. **Checked 2026-08-05: it does not.** There

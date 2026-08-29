@@ -78,6 +78,23 @@ describe("explainFailure", () => {
     );
   });
 
+  /**
+   * The reason is written into the message at the point the failure is
+   * wrapped, and read again wherever that error is finally recorded. Without
+   * this the health record would carry it twice, once inside the sentence and
+   * once after it.
+   */
+  it("does not repeat a reason the wrapper has already stated", () => {
+    const inner = refused().cause;
+    const wrapped = new Error(`could not reach https://celestrak.org/: ${explainFailure(inner)}`, {
+      cause: inner,
+    });
+
+    expect(explainFailure(wrapped)).toBe(
+      "could not reach https://celestrak.org/: connect ECONNREFUSED 104.168.149.178:443",
+    );
+  });
+
   it("keeps the only message there is when nothing is underneath", () => {
     expect(explainFailure(new Error("fetch failed"))).toBe("fetch failed");
   });

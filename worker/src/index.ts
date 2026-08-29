@@ -14,6 +14,7 @@ import {
   reportStaleness,
   type Outcome,
 } from "./health";
+import { explainFailure } from "./network";
 import { ensureManifest, refreshSpaceWeather, refreshUk, type Deps } from "./pipeline";
 
 /** Which cron expression drives which source. Matches `triggers.crons`. */
@@ -62,7 +63,10 @@ async function runSource(
     outcome = { ok: true };
   } catch (error) {
     failure = error;
-    outcome = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    // Read out rather than taken as it comes: the reason a fetch failed is
+    // nested inside the error, and this is the last point at which it can
+    // reach `health.json` and the maintainer's phone.
+    outcome = { ok: false, error: explainFailure(error) };
   }
 
   const transition = await recordOutcome(env, source, outcome, deps.now());

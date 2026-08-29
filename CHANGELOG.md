@@ -423,15 +423,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **A failed fetch now says what actually failed.** Node reports every
-  network-level failure identically - `fetch failed`, with the real reason
-  nested underneath - and the elements fetcher was passing only that on. When
-  CelesTrak stopped accepting connections, the journal, the health record and
-  the alert on the maintainer's phone all said `fetch failed` and nothing else:
-  not which of the three URLs, not whether it was CelesTrak or R2 that could not
-  be reached, not whether the name failed to resolve or the connection was
-  refused. Each of them now names what was being reached for and the reason
-  underneath it.
+- **A failed fetch now says what actually failed.** Both runtimes describe every
+  network-level failure with one generic string - `fetch failed` in Node, with
+  the real reason nested underneath, and `Network connection lost.` in the
+  Worker - and that was all that was being passed on. When CelesTrak stopped
+  accepting connections, the journal, the health record and the alert on the
+  maintainer's phone all said `fetch failed` and nothing else: not which of the
+  three URLs, not whether it was CelesTrak or R2 that could not be reached, not
+  whether the name failed to resolve or the connection was refused. A Worker
+  source that could not be reached said less still. Each of them now names what
+  was being reached for and the reason underneath it.
 
 - **An eclipse stopped disappearing from the calendar at the moment it began.**
   The list kept an entry while its *peak* was still ahead, and it is worked out

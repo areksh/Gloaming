@@ -74,9 +74,13 @@ function reasons(error: unknown, depth: number): string[] {
 export function explainFailure(error: unknown): string {
   const chain = reasons(error, 0);
 
-  // A repeated message is noise: undici restates the same reason at more than
-  // one level of the chain.
-  const unique = [...new Set(chain)];
+  // A reason already stated is noise: a runtime restates the same one at more
+  // than one level of the chain, and a wrapper that has written the reason into
+  // its own message would otherwise have it repeated back after it.
+  const unique: string[] = [];
+  for (const reason of chain) {
+    if (!unique.some((kept) => kept.includes(reason))) unique.push(reason);
+  }
 
   // The wrapper is worth reporting only when it is all there is.
   const specific = unique.filter((reason) => reason !== GENERIC);

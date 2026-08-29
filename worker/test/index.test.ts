@@ -62,6 +62,22 @@ describe("scheduled", () => {
   });
 
   /**
+   * The failure a scheduled job actually hits: nothing answers. There is no
+   * status code and no body to fall back on, so unless the reason underneath
+   * is read out, `health.json` and the maintainer's phone get the runtime's
+   * generic wrapper and nothing else - not even which upstream it was.
+   */
+  it("records which upstream could not be reached, and why", async () => {
+    const broken = { ...env, ...offline } as unknown as Env;
+
+    await expect(worker.scheduled(controller(SWPC_CRON), broken, context)).rejects.toThrow();
+
+    const recorded = (await readHealthDocument(broken)).sources.swpc?.last_error ?? "";
+    expect(recorded).toContain("http://127.0.0.1:1/ovation");
+    expect(recorded.length).toBeGreaterThan("fetch failed".length);
+  });
+
+  /**
    * One broken thing must not take the others with it. The grid is what
    * answers "is there aurora here"; a manifest that cannot be signed is
    * survivable for a cycle, because the app keeps polling the endpoints it
