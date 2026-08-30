@@ -159,9 +159,16 @@ start_epoch=$(adb shell date +%s 2>/dev/null | tr -d '\r')
 [ -n "$start_epoch" ] || start_epoch="$started"
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
+    # One awk, not grep piped into awk. `grep` exits 1 when it matches nothing,
+    # which under `set -o pipefail` fails the pipeline and under `set -e` ends
+    # the run - and matching nothing is the *normal* state at the start of a
+    # watch, because the buffer holds about twelve minutes and the app polls
+    # less often than that. So the harness aborted seconds in, having printed
+    # the "watching" header, and restored the device as though it had finished a
+    # measurement. awk reports no match by printing nothing and exiting 0.
     adb logcat -d -b all -v epoch 2>/dev/null | tr -d '\r' \
-        | grep -E 'PollReceiver.*(poll outcome|skipping|poll failed)' \
-        | awk -v since="$start_epoch" 'int($1) >= since' \
+        | awk -v since="$start_epoch" \
+            '/PollReceiver.*(poll outcome|skipping|poll failed)/ && int($1) >= since' \
         | while IFS= read -r line; do
             [ -z "$line" ] && continue
             has -Fx -- "$line" "$seen_file" && continue
@@ -189,7 +196,12 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 
 elapsed=$(( ($(date +%s) - started) / 60 ))
-seen=$(grep -c . "$seen_file" 2>/dev/null || printf '0')
+# `wc -l`, not `grep -c .`: grep prints its count *and* exits 1 when that count
+# is zero, so `grep -c . || printf '0'` yielded the two-line string "0\n0". That
+# is not an integer, so the test below errored to stderr, took the branch for a
+# run that saw polls, and divided by it. The run that measured nothing is
+# exactly the one whose reason most needs printing.
+seen=$(wc -l < "$seen_file" | tr -d ' ')
 last_epoch=$(tail -1 "$seen_file" 2>/dev/null | awk '{print $1}' | cut -d. -f1)
 
 printf '\n== Result ==\n'
