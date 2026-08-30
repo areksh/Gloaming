@@ -423,6 +423,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **"Last check failed" now says what failed.** The reason shown on Tonight, and
+  written to the journal, was whatever the exception said on its own - which for
+  a name that will not resolve is the hostname and nothing else, for a call that
+  ran out of time is the word `timeout`, and for a manifest that could not be
+  had was "no usable cached copy exists", the one part of the story that says
+  nothing. A request that cannot be sent now names the URL and the kind of fault,
+  a failure carries the reason underneath it rather than only its top, and where
+  both a fetch and an empty cache failed it is the fetch that is blamed.
+
 - **A failed fetch now says what actually failed.** Both runtimes describe every
   network-level failure with one generic string - `fetch failed` in Node, with
   the real reason nested underneath, and `Network connection lost.` in the

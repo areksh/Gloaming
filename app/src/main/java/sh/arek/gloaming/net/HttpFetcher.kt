@@ -7,6 +7,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import sh.arek.gloaming.describe
 
 /** The outcome of a conditional GET. */
 sealed interface HttpResult {
@@ -65,15 +66,30 @@ class OkHttpFetcher(
             .apply { if (etag != null) header("If-None-Match", etag) }
             .build()
 
-        client.newCall(request).execute().use { response ->
-            when {
-                response.code == HTTP_NOT_MODIFIED -> HttpResult.NotModified
-                response.isSuccessful ->
-                    HttpResult.Ok(bounded(url, response), response.header("ETag"))
-                else -> throw IOException("GET $url returned ${response.code}")
+        try {
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.code == HTTP_NOT_MODIFIED -> HttpResult.NotModified
+                    response.isSuccessful ->
+                        HttpResult.Ok(bounded(url, response), response.header("ETag"))
+                    else -> throw Refusal("GET $url returned ${response.code}")
+                }
             }
+        } catch (refused: Refusal) {
+            // Already says which URL and what came back.
+            throw refused
+        } catch (cause: IOException) {
+            // Everything else is the transport: a name that will not resolve, a
+            // refused connection, a handshake, a call that ran out of time.
+            // Those arrive naming neither this URL nor, in the worst of them,
+            // anything beyond an address - and what catches this records the
+            // message as the reason tonight's check failed.
+            throw IOException("GET $url failed: ${cause.describe()}", cause)
         }
     }
+
+    /** A response this refused, which already carries its URL and its reason. */
+    private class Refusal(message: String) : IOException(message)
 
     /**
      * The body, refusing to buffer more than a published object could be.
@@ -89,7 +105,7 @@ class OkHttpFetcher(
         source.request(MAX_BODY_BYTES + 1)
         val buffered = source.buffer.size
         if (buffered > MAX_BODY_BYTES) {
-            throw IOException("GET $url returned more than $MAX_BODY_BYTES bytes")
+            throw Refusal("GET $url returned more than $MAX_BODY_BYTES bytes")
         }
         return source.buffer.readByteArray()
     }

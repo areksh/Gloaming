@@ -191,6 +191,25 @@ class OkHttpFetcherTest {
     }
 
     /**
+     * A refused connection carries none of the context a non-200 does: OkHttp
+     * reports it as an exception whose message is an address, and the poller
+     * that catches it records that as the reason the check failed. "Last check
+     * failed: example.test" reads as though the app is naming a website rather
+     * than a fault - so the URL and the kind of failure are put back.
+     */
+    @Test
+    fun `names the URL and the fault when the connection is refused`() = runTest {
+        val dead = url()
+        server.shutdown() // nothing is listening on that port now
+
+        val error = runCatching { fetcher.get(dead) }.exceptionOrNull()
+
+        assertTrue("expected an IOException, got $error", error is IOException)
+        assertTrue("did not name the URL: ${error?.message}", error!!.message!!.contains(dead))
+        assertTrue("did not say what happened: ${error.message}", error.cause != null)
+    }
+
+    /**
      * A poll runs inside a receiver holding a wake lock with a timeout of its
      * own, so a stalled connection has to fail rather than hang: without a call
      * timeout, OkHttp's per-stage timeouts can be reset indefinitely by a
