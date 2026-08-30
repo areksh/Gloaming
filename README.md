@@ -152,10 +152,18 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
 ./go apk           # build the debug APK
 ./go test          # unit tests, no device needed
 ./go device-test   # instrumented tests, needs a device
+./go results       # the last run's totals, and every failure grouped by cause
 ./go check         # everything that needs no phone, before a commit
 ./go testall       # all of it, the phone's part too if one is plugged in
 ./go help          # every command, and what each option is for
 ```
+
+`./go results` is worth knowing about before the first red run. Gradle reports a
+failure as a name, the word FAILED and a link to an HTML page, so the assertion
+message - the one thing anybody wants - ends up being dug out of the XML under
+`build/test-results` by hand. It reads that XML, and groups failures by what
+actually went wrong rather than listing the same defect once per test that hit
+it, which is the difference between three hundred lines and one.
 
 `./go help` lists the rest: the release build, installing on a phone, and the
 catalogue of nights below. Underneath are ordinary Gradle tasks and nothing
@@ -315,6 +323,13 @@ the fact rather than over a live connection, because adb is generally
 unreachable while the device is locked - GrapheneOS defaults the USB-C port to
 charging-only in that state. Run it with `--resume` in the morning to read back a
 real overnight run.
+
+`./go verdicts` reads back the other half of an overnight run: what the two
+buttons on each alert were answered, and what the sky was doing at the time.
+That record is what a season of real nights exists to produce - it is what the
+alert thresholds get calibrated against - and it is otherwise invisible, because
+`verdicts.json` lives in device-encrypted storage where no file manager shows it
+and `adb pull` cannot reach it.
 
 `doze-check.sh` reports the measured interval between polls, which Doze rewrites:
 the app's battery-optimisation exemption and its app standby bucket both change

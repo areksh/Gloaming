@@ -481,6 +481,28 @@ keeping installed.
 
 ### Changed
 
+- **`./go results` reads the test results out of the XML, so nobody has to.**
+  Gradle reports a failure as a name, the word FAILED and a link to an HTML
+  page, which leaves the assertion message - the only thing anybody wants - to
+  be dug out of `build/test-results` by hand and unescaped there. This reads
+  that XML for both suites and groups failures by what actually went wrong
+  rather than listing the same defect once per test that hit it. Three hundred
+  and forty-three failures on one missing class is one line, not three hundred
+  pages.
+
+- **`./go verdicts` brings the "was it worth it?" answers off the phone.** They
+  are what a season of real nights exists to produce, and until now nothing
+  could see them: `verdicts.json` sits in device-encrypted storage, which no
+  file manager shows and `adb pull` cannot reach. It prints what was answered
+  and what the sky was doing at the time, with a tally per channel, or the file
+  itself with `--json`.
+
+- **`./go release` says more than where the APK landed.** Its size and how many
+  dex files it needed, which is the regression a new dependency causes and
+  nothing else would report; which key signed it; and which commit it came from,
+  or that it came from none - an APK built over uncommitted changes cannot be
+  rebuilt by anybody, including whoever built it.
+
 - **The release build is a fifth of the size it was.** R8 shrinks it: 8.9 MB of
   APK down to 1.8, and 23.6 MB of dex in two files down to 2.9 in one, which is
   a cold background wake with a fraction of the class loading to do - on the

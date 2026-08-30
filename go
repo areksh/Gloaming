@@ -34,6 +34,16 @@
 #                      watching. With --live, logcat instead, followed and
 #                      filtered to the app's uid and its tags - the tags are
 #                      not ours alone, the system logs under some of them too.
+#   results [which]    The last test run, read out of the XML nobody wants to
+#                      read: totals, and every failure grouped by what actually
+#                      went wrong rather than listed once per test that hit it.
+#                      `unit` or `device` picks one; the default is both.
+#   verdicts           What the "was it worth it?" buttons have recorded, off
+#                      the phone. This is the evidence a season of real nights
+#                      exists to produce, and nothing else can see it:
+#                      verdicts.json sits in device-encrypted storage, which no
+#                      file manager shows and `adb pull` cannot reach. With
+#                      --json, the file as it stands, to feed to something else.
 #   apk                Build the debug APK and say where it landed.
 #   release            Build the signed, shrunk release APK, and say whether the
 #                      key that signed it is the one README.md publishes. It
@@ -64,6 +74,8 @@
 #   --test        install the instrumentation APK too (`install` only)
 #   --minified    run `device-test` against the shrunk build rather than the
 #                 debug one (`device-test` only)
+#   --json        print the verdicts file as it stands rather than a table
+#                 (`verdicts` only)
 #   --uninstall   let an instrumented run uninstall the app when it finishes,
 #                 which is Gradle's default and takes the app's settings and its
 #                 battery-optimisation exemption with it. Without this the app
@@ -87,6 +99,10 @@ PACKAGE="sh.arek.gloaming"
 # Device-encrypted storage, because a poll before first unlock has to be able to
 # write to it. sh.arek.gloaming.data.Journal and BootAware.CACHE_DIRECTORY.
 JOURNAL="/data/user_de/0/${PACKAGE}/files/sky/gloaming.log"
+# Beside the journal and device-encrypted for the same reason: a verdict pressed
+# from a notification before the phone has been unlocked since boot still has to
+# land. sh.arek.gloaming.data.FileVerdictLog.
+VERDICTS="/data/user_de/0/${PACKAGE}/files/sky/verdicts.json"
 
 SERIAL="${ANDROID_SERIAL:-}"
 COMMAND=""
@@ -94,6 +110,7 @@ TARGET=""
 ON_DEVICE=0
 WITH_TEST=0
 MINIFIED=0
+AS_JSON=0
 LEAVE_INSTALLED=1
 LIVE=0
 
@@ -122,6 +139,7 @@ while [ $# -gt 0 ]; do
         --live) LIVE=1; shift ;;
         --test) WITH_TEST=1; shift ;;
         --minified) MINIFIED=1; shift ;;
+        --json) AS_JSON=1; shift ;;
         --uninstall) LEAVE_INSTALLED=0; shift ;;
         -*) die "unknown option: $1" ;;
         *)
@@ -331,6 +349,123 @@ resolve_test_class() {
     printf '%s.%s' "$package" "$name"
 }
 
+# One or more JUnit XML files, reduced to what a reader wants.
+summarise_results() {
+    local program
+    program=$(cat <<'AWK'
+# One test-results XML file, or many, reduced to what a reader wants: the
+# totals, and every failure grouped by the thing that actually went wrong.
+#
+# Gradle and AGP both write JUnit XML and neither writes the same shape. AGP
+# wraps its suites in <testsuites> and gives <failure> no attributes; Gradle
+# writes one <testsuite> per file with message= and type= on the failure. Both
+# are handled by reading the tag rather than the layout.
+function unescape(s) {
+    gsub(/&quot;/, "\"", s); gsub(/&apos;/, "'", s)
+    gsub(/&lt;/, "<", s); gsub(/&gt;/, ">", s)
+    gsub(/&#13;|&#xd;|&#xD;/, "", s)
+    gsub(/&amp;/, "\\&", s)
+    return s
+}
+function attr(line, name,   m) {
+    if (!match(line, name "=\"[^\"]*\"")) return ""
+    m = substr(line, RSTART, RLENGTH)
+    sub(name "=\"", "", m); sub(/"$/, "", m)
+    return unescape(m)
+}
+# <testsuites> carries the same totals as its children added up, so only the
+# children are counted or a wrapped file doubles.
+/<testsuite / {
+    tests += attr($0, "tests"); failures += attr($0, "failures")
+    errors += attr($0, "errors"); skipped += attr($0, "skipped")
+}
+/<testcase / { subject = attr($0, "classname") "." attr($0, "name") }
+/<(failure|error)[ >]/ {
+    capturing = 1; body = ""
+    line = $0
+    sub(/^[^<]*<(failure|error)[^>]*>/, "", line)
+    if (line != "") body = unescape(line) "\n"
+}
+capturing && !/<(failure|error)[ >]/ {
+    line = $0
+    if (line ~ /<\/(failure|error)>/) sub(/<\/(failure|error)>.*$/, "", line)
+    if (line != "" || body != "") body = body unescape(line) "\n"
+}
+capturing && /<\/(failure|error)>/ {
+    capturing = 0
+    # The first line is the cause. Everything under it is the same defect
+    # reported from a different test, which is what makes a wall of hundreds
+    # readable: 343 failures were one missing class.
+    split(body, lines, "\n")
+    cause = lines[1]
+    if (cause == "") cause = "(no message)"
+    if (!(cause in seen)) { order[++causes] = cause; example[cause] = subject; detail[cause] = body }
+    seen[cause]++
+}
+END {
+    printf "  %d tests, %d failures, %d errors, %d skipped\n", tests, failures, errors, skipped
+    for (i = 1; i <= causes; i++) {
+        c = order[i]
+        printf "\n  %d x %s\n", seen[c], c
+        printf "        first: %s\n", example[c]
+        n = split(detail[c], d, "\n")
+        shown = 0
+        for (j = 2; j <= n && shown < 6; j++) {
+            if (d[j] == "") continue
+            printf "        %s\n", d[j]
+            shown++
+        }
+        rest = 0
+        for (k = j; k <= n; k++) if (d[k] != "") rest++
+        if (rest == 1) printf "        ... 1 more line\n"
+        else if (rest > 1) printf "        ... %d more lines\n", rest
+    }
+}
+AWK
+)
+    awk "$program" "$@"
+}
+
+# Bytes, in the units a person reads APK sizes in.
+human() {
+    awk -v b="$1" 'BEGIN {
+        if (b >= 1048576) printf "%.1f MB", b / 1048576
+        else if (b >= 1024) printf "%.0f KB", b / 1024
+        else printf "%d bytes", b
+    }'
+}
+
+# What the APK costs, and in how many dex files. The whole reason R8 is on is a
+# cold background wake, so a dependency that pushes the dex back over the limit
+# into a second file is the regression that matters here and that nothing else
+# would report.
+report_size() {
+    local apk="$1" bytes dex total files plural
+    bytes=$(stat -c%s "$apk" 2>/dev/null || echo 0)
+    dex=$(unzip -l "$apk" 2>/dev/null \
+        | awk '/classes[0-9]*\.dex$/ { total += $1; files++ } END { printf "%d %d", total + 0, files + 0 }')
+    total=${dex% *}
+    files=${dex#* }
+    plural=s
+    [ "$files" != 1 ] || plural=""
+    echo "Size: $(human "$bytes") APK, $(human "$total") of dex in $files file$plural."
+}
+
+# Which commit this APK is, and whether it is a commit at all. One built from
+# uncommitted changes cannot be rebuilt by anybody, including whoever built it,
+# and a published release that no commit corresponds to is one nothing can ever
+# be diffed against or bisected through.
+report_provenance() {
+    local commit
+    commit=$(git rev-parse --short HEAD 2>/dev/null) || return 0
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        echo "Built from $commit with uncommitted changes, so this APK matches no"
+        echo "commit and cannot be rebuilt. Commit before publishing it."
+    else
+        echo "Built from $commit, clean tree."
+    fi
+}
+
 # Where apksigner lives, from whichever of the three places names the SDK.
 find_apksigner() {
     local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
@@ -397,6 +532,12 @@ run_on_device() {
         args+=("$filter")
     fi
     ./gradlew "${args[@]}"
+    if [ "$MINIFIED" -eq 1 ]; then
+        echo
+        echo "The phone is left with the shrunk build, which is not debuggable."
+        echo "./go status, ./go log, ./go verdicts and both harnesses in tools/ all"
+        echo "need run-as, and will say so until ./go install puts the debug one back."
+    fi
 }
 
 run_check() {
@@ -508,6 +649,130 @@ debuggable build, so this is a release APK: ./go install puts the debug one back
         fi
         ;;
 
+    results)
+        unit_dir="app/build/test-results/testDebugUnitTest"
+        found=0
+        if [ -n "$TARGET" ] && [ "$TARGET" != "unit" ] && [ "$TARGET" != "device" ]; then
+            die "results takes 'unit' or 'device', or nothing for both"
+        fi
+        if [ "$TARGET" != "device" ] && compgen -G "$unit_dir/*.xml" > /dev/null; then
+            found=1
+            echo "== Unit tests, JVM ($(date -r "$unit_dir" '+%H:%M on %-d %b')) =="
+            summarise_results "$unit_dir"/*.xml
+            echo
+        fi
+        if [ "$TARGET" != "unit" ]; then
+            # One directory per build type under test, and the interesting one
+            # is whichever ran last rather than whichever sorts first.
+            for dir in $(ls -dt app/build/outputs/androidTest-results/connected/*/ 2>/dev/null); do
+                compgen -G "$dir"TEST-*.xml > /dev/null || continue
+                found=1
+                echo "== Instrumented tests, $(basename "$dir") ($(date -r "$dir" '+%H:%M on %-d %b')) =="
+                summarise_results "$dir"TEST-*.xml
+                echo
+            done
+        fi
+        if [ "$found" -eq 0 ]; then
+            echo "No test results here yet. ./go test, ./go device-test, or ./go check."
+        fi
+        ;;
+
+    verdicts)
+        require_device
+        [ "$(as_app 'echo ok')" = "ok" ] || die "cannot read as $PACKAGE. run-as works only on a
+debuggable build, so this is a release APK: ./go install puts the debug one back."
+
+        recorded=$(as_app "cat $VERDICTS 2>/dev/null")
+        if [ -z "$recorded" ] || [ "$recorded" = "[]" ]; then
+            echo "No verdicts recorded on this phone yet."
+            echo
+            echo "They arrive by somebody pressing one of the two buttons on an alert,"
+            echo "so an empty file means either no alert has been answered or none has"
+            echo "been sent. ./go log says which."
+            exit 0
+        fi
+
+        if [ "$AS_JSON" -eq 1 ]; then
+            printf '%s\n' "$recorded"
+            exit 0
+        fi
+
+        # Records are split on the first field's name rather than on a brace,
+        # because conditions is nested and its closing brace looks identical.
+        # Reading by name is the same rule the upstream parsers follow.
+        rows=$(printf '%s' "$recorded" | awk '
+            function field(rec, name,   m) {
+                if (match(rec, "\"" name "\":\"[^\"]*\"")) {
+                    m = substr(rec, RSTART, RLENGTH)
+                    sub("\"" name "\":\"", "", m); sub(/"$/, "", m)
+                    return m
+                }
+                if (match(rec, "\"" name "\":-?[0-9.]+")) {
+                    m = substr(rec, RSTART, RLENGTH)
+                    sub("\"" name "\":", "", m)
+                    return m
+                }
+                return ""
+            }
+            function part(label, value, suffix) {
+                return value == "" ? "" : label value suffix " "
+            }
+            # The two buttons say "Worth it" and "Not worth it", and the third
+            # answer the app records for an alert nobody answered says "Did not
+            # look". Reading the enum name back would be a different vocabulary
+            # from the one the person pressing them saw.
+            function label(a) {
+                if (a == "Worth") return "Worth it"
+                if (a == "NotWorth") return "Not worth it"
+                if (a == "DidNotLook") return "Did not look"
+                return a
+            }
+            {
+                body = $0
+                gsub(/\},\{"answeredAtMillis"/, "}\n{\"answeredAtMillis\"", body)
+                n = split(body, recs, "\n")
+                for (i = n; i >= 1; i--) {
+                    r = recs[i]
+                    when = field(r, "answeredAtMillis")
+                    if (when == "") continue
+                    detail = part("p=", field(r, "probability"), "") \
+                        part("", field(r, "source"), "") \
+                        part("Kp=", field(r, "kp"), "") \
+                        part("Bz=", field(r, "bz"), "") \
+                        part("peak=", field(r, "peakElevation"), " deg") \
+                        part("mag=", field(r, "magnitude"), "") \
+                        part("cloud=", field(r, "cloudTotal"), "%") \
+                        part("threshold=", field(r, "threshold"), "") \
+                        part("", field(r, "subject"), "")
+                    sub(/ +$/, "", detail)
+                    answer = field(r, "answer")
+                    printf "%d\t%s\t%s\t%s\t%s\n", int(when / 1000), field(r, "channel"),
+                        label(answer), answer, detail
+                }
+            }')
+
+        echo "== What the alerts on this phone were worth =="
+        printf '  %-17s %-8s %-13s %s\n' "ANSWERED" "CHANNEL" "ANSWER" "AT THE TIME"
+        printf '%s\n' "$rows" | while IFS=$'\t' read -r epoch channel answer raw detail; do
+            [ -n "$epoch" ] || continue
+            printf '  %-17s %-8s %-13s %s\n' \
+                "$(date -d "@$epoch" '+%Y-%m-%d %H:%M')" "$channel" "$answer" "$detail"
+        done
+
+        echo
+        printf '%s\n' "$rows" | awk -F'\t' '
+            $1 != "" { total[$2]++; by[$2 "/" $4]++; order[$2] = 1 }
+            END {
+                for (c in order) {
+                    printf "  %-8s %3d: %d worth it, %d not, %d not looked at\n", c, total[c],
+                        by[c "/Worth"] + 0, by[c "/NotWorth"] + 0, by[c "/DidNotLook"] + 0
+                }
+            }' | sort
+        echo
+        echo "Nothing here records where you were. The app keeps what the sky was"
+        echo "doing and what you thought of it, and nothing else - see Verdict.kt."
+        ;;
+
     apk)
         ./gradlew :app:assembleDebug
         echo
@@ -520,7 +785,15 @@ debuggable build, so this is a release APK: ./go install puts the debug one back
         echo
         if [ -n "$built" ]; then
             echo "APK: $built"
-            check_signature "$built"
+            report_size "$built"
+            # The signature verdict is held rather than acted on, so that a
+            # build signed with the wrong key still reports everything else
+            # before it fails. Which commit it came from is exactly what you
+            # want to know at that moment.
+            signed_right=0
+            check_signature "$built" || signed_right=1
+            report_provenance
+            [ "$signed_right" -eq 0 ] || exit 1
         fi
         ;;
 
