@@ -510,6 +510,11 @@ keeping installed.
   publishes, and says which key signed it, because the mistake this guards
   against cannot be undone after anyone has downloaded the result.
 
+- The AuroraWatch UK credit links their conditions of use. Every other source on
+  that screen names its licence in its own sentence, and this one cannot: the
+  body is their attribution word for word, which is a condition of using the
+  data. A link is the one place left to say the data is not for commercial use.
+
 - `./go check` also compiles the app's instrumented sources and builds the
   fetcher's bundle. Compiling needs no phone, and a rename in `main` that breaks
   the instrumented suite otherwise stays invisible until the next time one is

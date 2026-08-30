@@ -67,10 +67,21 @@ fun credits(fromAuroraWatch: Boolean): List<Credit> = buildList {
                     "networks.",
                 // SAMNET and AuroraWatchNet are named above but not linked: the
                 // pages their API still advertises for the two networks are
-                // gone, and a link to a 404 credits nobody.
+                // gone, and a link to a 404 credits nobody. Re-checked
+                // 2026-08-30; AuroraWatch UK's own site has stopped linking
+                // them too, so they are withdrawn rather than moved.
+                //
+                // The terms get a link because they cannot get a sentence. Every
+                // other credit here names its licence in its own words, and this
+                // body is theirs unedited, so the one place left to say the data
+                // is not for commercial use is a link to where they say it.
                 links = listOf(
                     CreditLink("AuroraWatch UK", "https://aurorawatch.lancs.ac.uk/"),
                     CreditLink("Lancaster University", "https://www.lancaster.ac.uk/"),
+                    CreditLink(
+                        "Conditions of use",
+                        "https://aurorawatch.lancs.ac.uk/conditionsofuse/",
+                    ),
                 ),
             ),
         )

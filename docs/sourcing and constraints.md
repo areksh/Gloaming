@@ -548,7 +548,7 @@ at 85°N, and sets again. The library handles the maths. The app handles the nul
 | Source | Endpoint | Auth | Refresh | Licence / terms |
 |---|---|---|---|---|
 | **NOAA SWPC** | `services.swpc.noaa.gov/json/ovation_aurora_latest.json` (global grid), `/json/planetary_k_index_1m.json`, `/products/summary/solar-wind-mag-field.json` (Bz, Bt), `/products/summary/solar-wind-speed.json` | None | 5 min | US Gov, **public domain**. The unrestricted foundation. |
-| **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** |
+| **AuroraWatch UK** | `aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml` (small), `.../alerting-site-activity.xml` (24 h values), `.../all-site-status.xml` (per-site) | None | **>= 3 min** | Non-commercial only. User-Agent must name the app. Thresholds must not be adjusted. Must not be called "official". Attribution required. Contact first. XML only. **UK layer only.** The magnetometer data beneath the alerts carries terms of its own, which differ by network and are not the same thing as the terms on the alerts - Sec. 13. |
 | **CelesTrak** | `celestrak.org/NORAD/elements/gp.php?GROUP=...&FORMAT=CSV` - groups `stations`, `visual` | None | **2 h, once per update** | Non-profit. 403 on repeat. Firewall on abuse. **OMM CSV, not TLE.** |
 | **MPC** | `data.minorplanetcenter.net/iau/MPCORB/CometEls.txt` - comet orbital elements, fixed-width | None | Daily | Public. Includes H (absolute magnitude) and slope. **The `data.` host, not `www.`** - see below. |
 | **COBS** | `cobs.si/api/obs_list.api?format=json` - visual and CCD comet magnitude *observations* | None for reads | Twice daily | **CC BY-NC-SA 4.0.** Attribution with a link to the licence, non-commercial only, and derivatives under the same terms. No rate limit stated. Sec. 1. |
@@ -1505,21 +1505,58 @@ Next to the displayed data, not buried under the donation link:
 
 - **AuroraWatch UK:** "AuroraWatch UK alerts data is provided by Lancaster University, UK
   using data from the SAMNET and/or AuroraWatchNet magnetometer networks." Plus links to
-  AuroraWatch UK, Lancaster University, SAMNET and AuroraWatchNet. Prefer the attribution
-  strings the v0.2 API serves per-site over hardcoding, so they track the source actually in
-  use. Not "official". No implied endorsement. **Shown only when the UK layer is active.**
-  - As built, the sentence is hardcoded and only AuroraWatch UK and Lancaster University are
-    linked. The per-site attribution would have to be carried through `status.json`, which is
-    a schema change and a Worker deploy, and the pages the API advertises for the two
-    magnetometer networks (`/project-info/samnet/`, `/project-info/aurorawatchnet/`) both 404
-    - so both networks are named in the required sentence but not linked, because a link to a
-    404 credits nobody. Checked 2026-08-22.
-  - The per-site documents also declare a licence the table above does not record:
-    **CC BY-NC-SA 3.0**. Non-commercial is already the project's posture, but ShareAlike on
-    the data is a term worth a conscious decision rather than an assumption, and it should be
-    confirmed with Lancaster rather than inferred from an XML element.
+  AuroraWatch UK, Lancaster University, SAMNET and AuroraWatchNet. This originally preferred
+  the attribution strings the v0.2 API serves per-site over hardcoding, so they would track
+  the source actually in use; **superseded 2026-08-30, first sub-bullet below**. Not
+  "official". No implied endorsement. **Shown only when the UK layer is active.**
+  - **Hardcoding the sentence is the decision, taken 2026-08-30.** Reading what the API
+    actually serves is what settles it. Every AuroraWatchNet site returns the *same* three
+    strings - copyright "Lancaster University.", attribution "Space and Plasma Physics group,
+    Department of Physics, Lancaster University, UK.", and the licence below - checked
+    against SUM, LAN3, ASH and WHI. A schema change and a Worker deploy to
+    carry a constant is apparatus for nothing. The SAMNET project does serve different
+    strings, so the two networks are genuinely unalike, but the sentence the conditions of
+    use require already covers both by saying "SAMNET and/or AuroraWatchNet". Revisit if
+    that sentence changes, or if the app ever shows a per-site reading (`all-site-status.xml`
+    and the Shetland question in Sec. 15) rather than the one alerting-site status.
+  - **The two networks stay named but unlinked.** The pages the API still advertises for them
+    (`/project-info/samnet/`, `/project-info/aurorawatchnet/`) both 404, re-checked
+    2026-08-30, and AuroraWatch UK's own site no longer links them from anywhere - so they
+    are withdrawn rather than moved, and there is nothing to point at. The group the
+    attribution names is live at
+    `lancaster.ac.uk/physics/research/astrophysics/space-and-planetary-physics/`, under
+    "Planetary" where the API says "Plasma"; AuroraWatch UK's own footer link to it is
+    broken. Not worth a fourth link on one credit, but it is where the people are.
+  - **The licence question, answered 2026-08-30 out of the July correspondence.** The per-site
+    documents declare a licence the table above did not record, and the two networks do not
+    declare the same one:
+    - **AuroraWatchNet:** Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported.
+    - **SAMNET**, which is the API's `default="true"` project: not a public licence at all.
+      "Data users are not entitled to distribute data to third parties outside their own
+      research teams without requesting permission from Prof. F. Honary. Similarly, SAMNET
+      data should not become part of a distributed database without permission first being
+      sought. Commercial use prohibited."
+
+    Read cold, that second one reads like a blocker: `status.json` on `sky.arek.sh` is a
+    distributed database, and it goes to third parties by design. It is not a blocker,
+    because the permission it asks to be sought was sought. Sec. 1 records that the July 2026
+    approval put "the public redistribution of proxied data" to them explicitly and that it
+    was acceptable. Both documents give the copyright as Lancaster University, so the people
+    who answered are the rights holder, and a rights holder's direct permission is not
+    constrained by the terms of a public licence they also offer. That is what disposes of
+    ShareAlike too: `status.json` does not have to be published under CC BY-NC-SA 3.0.
+
+    Two things follow rather than being closed. **Keep the correspondence** - it is now
+    load-bearing for a licence term and not merely for goodwill, and the fallback if it ever
+    cannot be produced is that AuroraWatchNet-derived values in `status.json` carry
+    CC BY-NC-SA 3.0. And the approval was given to a question about redistribution, not to a
+    question about ShareAlike by name; a one-line confirmation would close the gap between
+    those, and is worth asking for the next time there is a reason to write.
   - Their conditions of use additionally require a robot to publish a way to report problems.
-    The User-Agent carries the repository URL, which satisfies it.
+    The User-Agent carries the repository URL, which satisfies it. The same section asks for
+    reverse DNS that confirms the operator, which a Cloudflare egress address does not give -
+    but that section governs spiders crawling their web site, and this is a documented API
+    read at the documented interval by an app they approved by name.
 - **Open-Meteo (CC BY 4.0):** a link next to displayed weather data, e.g.
   `<a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a>`.
 - **NOAA SWPC:** public domain, no obligation - credited anyway; OVATION is the backbone of

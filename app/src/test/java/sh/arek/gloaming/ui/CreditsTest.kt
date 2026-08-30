@@ -48,16 +48,21 @@ class CreditsTest {
 
     /**
      * Both the university and the alerts themselves have to be reachable from
-     * the credit. The two magnetometer networks are named in the sentence but
-     * not linked: the pages the API still advertises for them are gone, and a
-     * link to a 404 credits nobody.
+     * the credit, and so do the terms: every other source here names its
+     * licence in its own sentence, and this one cannot, because the sentence
+     * is theirs word for word.
+     *
+     * The two magnetometer networks are named in that sentence but not linked.
+     * The pages the API advertises for them are gone - re-checked 2026-08-30,
+     * and AuroraWatch UK's own site no longer links them either, so they have
+     * been withdrawn rather than moved. A link to a 404 credits nobody.
      */
     @Test
-    fun `links AuroraWatch UK and Lancaster University`() {
+    fun `links AuroraWatch UK, Lancaster University and the terms`() {
         val links = named("AuroraWatch UK", fromAuroraWatch = true)!!.links
 
         assertEquals(
-            listOf("AuroraWatch UK", "Lancaster University"),
+            listOf("AuroraWatch UK", "Lancaster University", "Conditions of use"),
             links.map { it.label },
         )
         assertTrue(links.all { it.url.startsWith("https://") })
