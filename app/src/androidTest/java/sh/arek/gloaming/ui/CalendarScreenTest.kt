@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import org.junit.Rule
@@ -101,6 +102,30 @@ class CalendarScreenTest {
                 )
             }
         }
+    }
+
+    /**
+     * The calendar is the app's densest run of jargon - occultation,
+     * elongation, opposition, greatest brightness - and the one screen with no
+     * card to hang an Explain button off. Its words go above the filter, where
+     * somebody deciding what to hide is already looking.
+     */
+    @Test
+    fun explainsTheWordsTheCalendarPutsOnScreen() {
+        show(underWay, later)
+
+        compose.onNodeWithTag(helpTag(HelpTopic.Calendar)).performScrollTo().performClick()
+
+        compose.onNodeWithText("Occultation").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Opposition").performScrollTo().assertIsDisplayed()
+    }
+
+    /** Closed to begin with, so the first month is still the first thing read. */
+    @Test
+    fun keepsTheCalendarsWordsOutOfTheWayUntilTheyAreWanted() {
+        show(underWay, later)
+
+        compose.onNodeWithText("Occultation").assertDoesNotExist()
     }
 
     @Test

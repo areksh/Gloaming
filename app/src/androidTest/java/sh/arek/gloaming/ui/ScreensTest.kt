@@ -1468,6 +1468,63 @@ class ScreensTest {
             .assertIsDisplayed()
     }
 
+    /**
+     * The card that already taught, now able to explain what it taught in.
+     *
+     * Cassiopeia's star-hop is "the far side of Polaris from the Plough",
+     * which is no use whatever to somebody who knows neither - and that is
+     * precisely the reader a star-hop is written for. The words are under the
+     * card that used them rather than a tab away, because the question is
+     * asked while looking at the sentence that raised it.
+     */
+    @Test
+    fun explainsTheWordsTheConstellationsCardUses() {
+        show(tonight = withConstellations(isAtItsBest = false))
+
+        compose.onNodeWithTag(helpTag(HelpTopic.Constellations)).performScrollTo().performClick()
+
+        compose.onNodeWithText("Polaris").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("The Plough").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * Closed until asked for. The card's own answer is what somebody came for,
+     * and a glossary in front of it is a glossary between them and tonight.
+     */
+    @Test
+    fun keepsTheExplanationOutOfTheWayUntilItIsWanted() {
+        show(tonight = withConstellations(isAtItsBest = false))
+
+        compose.onNodeWithText("Polaris").assertDoesNotExist()
+    }
+
+    /** And closes again, or the button is a one-way door. */
+    @Test
+    fun putsTheExplanationAwayAgain() {
+        val explain = compose.onNodeWithTag(helpTag(HelpTopic.Constellations))
+        show(tonight = withConstellations(isAtItsBest = false))
+
+        explain.performScrollTo().performClick()
+        explain.performScrollTo().performClick()
+
+        compose.onNodeWithText("Polaris").assertDoesNotExist()
+    }
+
+    /**
+     * Each card answers for its own words and no others. The satellites card
+     * has no business explaining a star-hop, and a single shared sheet of
+     * every term in the app would be the Guide tab with extra steps.
+     */
+    @Test
+    fun explainsOnlyTheWordsTheCardItselfUses() {
+        show(tonight = withConstellations(isAtItsBest = false))
+
+        compose.onNodeWithTag(helpTag(HelpTopic.Satellites)).performScrollTo().performClick()
+
+        compose.onNodeWithText("A pass").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Polaris").assertDoesNotExist()
+    }
+
     private fun withConstellations(isAtItsBest: Boolean) = TonightList(
         darkFrom = now,
         darkUntil = now + 8 * 3_600_000L,

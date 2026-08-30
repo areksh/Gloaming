@@ -154,6 +154,38 @@ class GloamingTabsTest {
         compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
     }
 
+    /**
+     * The guide is a tab away, and is the same every night.
+     *
+     * It is the one screen here that needs no location, no forecast and no
+     * network, which is why it is worth having somewhere to send a reader who
+     * has not set any of that up yet.
+     */
+    @Test
+    fun showsTheGuideOnItsOwnTab() {
+        show()
+
+        compose.onNodeWithTag(TAB_GUIDE).performClick()
+
+        compose.onNodeWithText("Finding your way round the sky")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Polaris").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * The guide costs nothing without a location, unlike the calendar. A
+     * reader who has not set one up yet is exactly the reader it is for.
+     */
+    @Test
+    fun showsTheGuideWithoutALocation() {
+        show(settings = UserSettings(), calendar = emptyList())
+
+        compose.onNodeWithTag(TAB_GUIDE).performClick()
+
+        compose.onNodeWithText("The Plough").performScrollTo().assertIsDisplayed()
+    }
+
     /** Switching away and back does not lose the tab that was chosen. */
     @Test
     fun staysOnTheTabItWasLeftOn() {
