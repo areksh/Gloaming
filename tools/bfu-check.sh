@@ -459,23 +459,64 @@ if ! device_present; then
     exit 1
 fi
 
+# The app's own journal, read once for every check below that wants a record
+# older than logcat can hold. It lives in device-encrypted storage precisely so
+# a locked poll can write to it. It once could not: the retention setting was
+# read from the credential-encrypted store, which throws before first unlock,
+# and the catch around it swallowed every entry - so the journal was empty for
+# exactly the window this harness exercises while the logcat check looked
+# healthy. Logcat rolls over in minutes, so by morning it is the only record.
+#
+# Entries from before this boot are excluded, or a line from last night's run
+# would satisfy a check for ever. ISO-8601 stamps in UTC compare
+# lexicographically, so the filter is a string comparison.
+journal=$(as_app "cat $DE_CACHE/gloaming.log 2>/dev/null")
+journal_boot=$(boot_epoch_ms)
+booted_iso=""
+if [ -n "$journal_boot" ]; then
+    booted_iso=$(date -u -d "@$((journal_boot / 1000))" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || true)
+fi
+since_boot() {
+    awk -v boot="$booted_iso" 'boot == "" || $1 >= boot'
+}
+
 step "Did the boot receiver re-arm the alarm before unlock?"
 
-# Filtered to our own messages: the platform has a BootReceiver of its own that
-# logs under exactly the same tag. Matched on what this receiver actually says -
-# it rescheduled, it failed to, or alerts are off - because excluding the
-# platform's lines by subject matter left enough of them behind that the
-# "buffer rolled over" branch below could never be reached.
+# The journal first, logcat only as a supplement.
+#
+# This line is written seconds after boot, and the soak plus the wait for
+# somebody to unlock routinely leave it further back than the ring buffer
+# reaches - on a resumed overnight run, hours further. The rollover guard could
+# not catch that by itself, because unlocking makes this same receiver log
+# BOOT_COMPLETED at that moment: a fresh line proving the buffer is alive while
+# the line that matters has already aged out of it. So the most load-bearing
+# link in the whole chain reported itself broken on a run where the journal
+# showed it had done its job 36 seconds after boot.
+#
+# Logcat is still read, because it is there before the journal has been written
+# and its line carries the tag. It is filtered to our own messages: the platform
+# has a BootReceiver of its own logging under exactly the same tag, and matching
+# on what this receiver actually says is what keeps those out.
+journalled_boot=$(printf '%s' "$journal" | grep 'BootReceiver' | since_boot || true)
 boot_log=$(our_log BootReceiver | grep -E 'reschedul' || true)
-if printf '%s' "$boot_log" | has 'LOCKED_BOOT_COMPLETED'; then
+
+if printf '%s' "$journalled_boot" | has 'LOCKED_BOOT_COMPLETED'; then
+    pass "BootReceiver ran on LOCKED_BOOT_COMPLETED"
+    printf '%s\n' "$journalled_boot" | grep 'LOCKED_BOOT_COMPLETED' | tail -2 | sed 's/^/        /'
+elif printf '%s' "$boot_log" | has 'LOCKED_BOOT_COMPLETED'; then
     pass "BootReceiver ran on LOCKED_BOOT_COMPLETED"
     printf '%s\n' "$boot_log" | grep 'LOCKED_BOOT_COMPLETED' | tail -2 | sed 's/^/        /'
-elif [ -z "$boot_log" ]; then
-    skip "no BootReceiver lines in the log buffer" \
-        "The buffer may have rolled over. last_poll_at below is the durable check."
-else
+elif [ -n "$journalled_boot" ]; then
+    # The journal is durable and has recorded this receiver since the boot, so
+    # the absence of the locked broadcast is real rather than a rollover.
     fail "BootReceiver never logged a LOCKED_BOOT_COMPLETED" \
         "Without it no alarm is armed and the app sleeps until someone unlocks."
+elif [ -z "$journal" ]; then
+    skip "no journal, and no LOCKED_BOOT_COMPLETED left in the log buffer" \
+        "Nothing durable to read it from. last_poll_at below is the check that stands."
+else
+    skip "no BootReceiver lines since this boot" \
+        "The buffer may have rolled over. last_poll_at below is the durable check."
 fi
 
 step "Did a poll actually run while the device was locked?"
@@ -508,25 +549,9 @@ fi
 
 step "Did the app's own journal record the locked polls?"
 
-# The journal is the record worth reading after a real overnight run, and it
-# lives in device-encrypted storage precisely so a locked poll can write to
-# it. It once could not: the retention setting was read from the
-# credential-encrypted store, which throws before first unlock, and the catch
-# around it swallowed every entry - so the journal was empty for exactly the
-# window this harness exercises while the logcat check above looked healthy.
-# Logcat rolls over in minutes, so by morning the journal is the only record.
-#
-# Entries from before this boot are excluded, or a journal line from last
-# night's run would satisfy the check for ever. ISO-8601 stamps in UTC compare
-# lexicographically, so the filter is a string comparison.
-journal=$(as_app "cat $DE_CACHE/gloaming.log 2>/dev/null")
-journal_boot=$(boot_epoch_ms)
-booted_iso=""
-if [ -n "$journal_boot" ]; then
-    booted_iso=$(date -u -d "@$((journal_boot / 1000))" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || true)
-fi
+# Read above, with the reasoning for reading it at all.
 journalled_locked=$(printf '%s' "$journal" | grep 'unlocked=false' \
-    | awk -v boot="$booted_iso" 'boot == "" || $1 >= boot' | grep -c . || true)
+    | since_boot | grep -c . || true)
 if [ "${journalled_locked:-0}" -gt 0 ]; then
     pass "$journalled_locked locked poll(s) are in the app's own journal"
 elif [ "${locked_polls:-0}" -gt 0 ]; then
