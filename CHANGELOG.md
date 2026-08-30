@@ -387,6 +387,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A failing test says what it asserted. Gradle's default is the test's name, the
+  word FAILED and a link to an HTML report, which leaves the one fact anybody
+  wants off the screen and sends whoever needs it digging through the XML under
+  `build/test-results`.
+
 - The signed manifest carries `issued_at`, and the app refuses any manifest
   older than the one it already holds. A signature does not expire, so
   verification alone left a replay open: whoever could answer for the domain

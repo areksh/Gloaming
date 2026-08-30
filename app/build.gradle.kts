@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
     // AGP 9 has built-in Kotlin support, so no kotlin-android plugin is applied.
     alias(libs.plugins.android.application)
@@ -79,4 +81,19 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+/**
+ * Say what a failing test actually asserted.
+ *
+ * The default is the test's name, the word FAILED and a pointer to an HTML
+ * report - so the one thing a reader wants, the assertion message, is the one
+ * thing not on the screen. What happens instead is that somebody goes digging
+ * in `build/test-results` for the XML and unescapes it by hand.
+ */
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = TestExceptionFormat.FULL
+    }
 }
