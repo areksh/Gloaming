@@ -313,6 +313,11 @@ private fun GloamingApp() {
     /** Bumped when a fetched forecast lands, so tonight is worked out again. */
     var forecastNonce by remember { mutableIntStateOf(0) }
     var recommendations by remember { mutableStateOf<Recommendations?>(null) }
+    var verdicts by remember { mutableStateOf<List<Verdict>>(emptyList()) }
+    // Bumped when the record is cleared, which is the one change to it that
+    // does not go through a pending verdict and so would otherwise leave the
+    // card and the recommendations showing what was just deleted.
+    var verdictsNonce by remember { mutableIntStateOf(0) }
     var calendarName by remember { mutableStateOf<String?>(null) }
     var calendarNote by remember { mutableStateOf<String?>(null) }
 
@@ -537,16 +542,22 @@ private fun GloamingApp() {
         calendarLoading = false
     }
 
-    // Recomputed whenever a verdict is given or the switch is moved, and once
-    // on open. Reading the file is off the main thread; the arithmetic over it
-    // is trivial, and it is the same rule the pollers apply so the screen and
-    // the alerts cannot disagree about what the settings are.
-    LaunchedEffect(alertState.pendingVerdict, settings.automaticSettings) {
-        recommendations = withContext(Dispatchers.IO) {
-            runCatching { Calibration.of(Graph.verdicts(context).read()) }
+    // Recomputed whenever a verdict is given or taken away, or the switch is
+    // moved, and once on open. Reading the file is off the main thread; the
+    // arithmetic over it is trivial, and it is the same rule the pollers apply
+    // so the screen and the alerts cannot disagree about what the settings are.
+    // The record itself is kept as well as what it adds up to, because the
+    // settings screen now shows the evidence beside the recommendation.
+    LaunchedEffect(alertState.pendingVerdict, settings.automaticSettings, verdictsNonce) {
+        val recorded = withContext(Dispatchers.IO) {
+            runCatching { Graph.verdicts(context).read() }
                 .onFailure { Log.w("Gloaming", "could not read the verdicts", it) }
-                .getOrNull()
+                .getOrDefault(emptyList())
         }
+        verdicts = recorded
+        recommendations = runCatching { Calibration.of(recorded) }
+            .onFailure { Log.w("Gloaming", "could not work the recommendations out", it) }
+            .getOrNull()
     }
 
     // Whenever the year ahead is recomputed, so a comet whose dates have moved
@@ -677,6 +688,7 @@ private fun GloamingApp() {
                     calendarNote = calendarNote,
                     pendingVerdict = Conditions.decode(alertState.pendingVerdict),
                     recommendations = recommendations,
+                    verdicts = verdicts,
                 ),
                 onLatitudeChange = { latitudeInput = it },
                 onLongitudeChange = { longitudeInput = it },
@@ -898,6 +910,10 @@ private fun GloamingApp() {
                 onAutomaticSettingsChange = {
                     settings = settings.copy(automaticSettings = it)
                     BootAware.saveSettings(context, settings)
+                },
+                onClearVerdicts = {
+                    Graph.verdicts(context).clear()
+                    verdictsNonce++
                 },
                 onVerdict = { answer ->
                     val conditions = Conditions.decode(alertState.pendingVerdict)

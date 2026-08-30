@@ -329,7 +329,9 @@ buttons on each alert were answered, and what the sky was doing at the time.
 That record is what a season of real nights exists to produce - it is what the
 alert thresholds get calibrated against - and it is otherwise invisible, because
 `verdicts.json` lives in device-encrypted storage where no file manager shows it
-and `adb pull` cannot reach it.
+and `adb pull` cannot reach it. The app shows the same record in its settings,
+under the automatic-thresholds switch it is the evidence for, which is the
+version that matters to somebody with no laptop to hand.
 
 `doze-check.sh` reports the measured interval between polls, which Doze rewrites:
 the app's battery-optimisation exemption and its app standby bucket both change

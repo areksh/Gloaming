@@ -17,6 +17,20 @@ keeping installed.
 
 ### Added
 
+- **The settings screen shows what your alerts were actually worth.** Every
+  alert has carried two buttons for months, and the app has only ever shown what
+  it concluded from the answers: a threshold that moved, and a sentence saying
+  why. That is the wrong way round for somebody's own account of their own
+  nights. The record now sits directly under the switch it is evidence for -
+  what each channel has come to, and the recent answers with what the sky was
+  doing at the time, in the words the buttons themselves use. An alert nobody
+  answered is counted as its own outcome rather than as a failure, which is the
+  whole reason that third answer exists. It can be cleared, because it is
+  nobody else's record, and clearing it says plainly what that costs: the
+  thresholds go back to their widest, since there is then nothing to narrow them
+  with. None of it has ever left the phone and none of it records where you
+  were.
+
 - **A Guide tab, and cards that explain their own words.** The app has always
   taught in exactly one place - the sentence on each constellation saying how to
   pick it out - and "a flattened W of five stars, on the far side of Polaris from

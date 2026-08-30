@@ -5,6 +5,7 @@ import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
 
@@ -29,6 +30,9 @@ const val PRECISE_BEFORE_UNLOCK_TAG = "precise-before-unlock-switch"
 const val EXPORT_LOG_TAG = "export-log"
 
 const val CLEAR_LOG_TAG = "clear-log"
+
+/** The button that deletes the record of "was it worth it?" answers. */
+const val CLEAR_VERDICTS_TAG = "clear-verdicts"
 
 /** Everything the screen needs, already resolved. */
 data class MainUiState(
@@ -98,4 +102,11 @@ data class MainUiState(
      * most of the value of calibration at none of its cost.
      */
     val recommendations: Recommendations? = null,
+    /**
+     * Every "was it worth it?" answer this phone holds, for the card that shows
+     * them. The recommendations above are what they add up to; this is the
+     * evidence, which somebody who wants to argue with a recommendation has
+     * otherwise no way to see.
+     */
+    val verdicts: List<Verdict> = emptyList(),
 )

@@ -31,6 +31,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
@@ -81,6 +84,7 @@ fun SettingsContent(
     onNotifyEveryEventChange: (Boolean) -> Unit,
     onCalendarSyncChange: (CalendarSync) -> Unit,
     onAutomaticSettingsChange: (Boolean) -> Unit,
+    onClearVerdicts: () -> Unit,
     onCometMagnitudeChange: (Int) -> Unit,
     onCometAltitudeChange: (Int) -> Unit,
     onCometStaleChange: (Int) -> Unit,
@@ -136,6 +140,7 @@ fun SettingsContent(
     )
     ConstellationCard(state, onShowEveryConstellationChange)
     AutomaticSettingsCard(state, onAutomaticSettingsChange)
+    VerdictsCard(state, onClearVerdicts)
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
     LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
@@ -1168,6 +1173,92 @@ private fun CalendarSyncControl(state: MainUiState, onChange: (CalendarSync) -> 
 
 /** How a destination is reached from a test. */
 fun calendarSyncTag(option: CalendarSync): String = "calendar-sync:${option.name}"
+
+/**
+ * What the alerts have been worth, in the user's own answers.
+ *
+ * The buttons on every alert have been collecting these for as long as they
+ * have existed, and the app has only ever shown their consequences: a threshold
+ * that moved, and a sentence saying why. That is the wrong way round. A
+ * recommendation whose evidence cannot be seen is one that can only be taken on
+ * trust, which is exactly what the card above it was written not to ask for -
+ * and the record is somebody's own account of their own nights, which they
+ * should not need a laptop and `run-as` to read.
+ *
+ * Sits directly under the automatic-settings switch because that is what it is
+ * evidence for.
+ */
+@Composable
+private fun VerdictsCard(state: MainUiState, onClear: () -> Unit) {
+    val tallies = tallyVerdicts(state.verdicts)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("What your alerts were worth", style = MaterialTheme.typography.titleMedium)
+
+            if (state.verdicts.isEmpty()) {
+                Text(
+                    "Nothing answered yet. Every alert carries two buttons, and pressing " +
+                        "one records what the sky was doing at the time - which is what " +
+                        "Gloaming works your thresholds out from.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                return@Column
+            }
+
+            for (tally in tallies) {
+                Text(
+                    "${name(tally.channel)} - ${describe(tally)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+
+            HorizontalDivider()
+
+            for (verdict in newestFirst(state.verdicts, limit = VERDICTS_SHOWN)) {
+                Column {
+                    Text(
+                        "${verdict.answer.label} - ${answeredOn(verdict.answeredAtMillis)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        describe(verdict.conditions),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            if (state.verdicts.size > VERDICTS_SHOWN) {
+                Text(
+                    "The $VERDICTS_SHOWN most recent of ${state.verdicts.size}.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            OutlinedButton(onClick = onClear, modifier = Modifier.testTag(CLEAR_VERDICTS_TAG)) {
+                Text("Clear")
+            }
+            Text(
+                "Clearing takes the thresholds back to their widest, because there is " +
+                    "then nothing to narrow them with. Nothing here records where you " +
+                    "were, and none of it leaves the phone.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * Enough to see the shape of a run of alerts without the card becoming the
+ * screen. The whole record is still there, and `./go verdicts` prints it.
+ */
+private const val VERDICTS_SHOWN = 8
+
+/**
+ * `SimpleDateFormat` rather than `java.time`: minSdk 24 without core library
+ * desugaring, the same constraint the calendar screen works under.
+ */
+private val ANSWERED_ON = SimpleDateFormat("d MMM, HH:mm", Locale.getDefault())
+
+private fun answeredOn(millis: Long): String = ANSWERED_ON.format(Date(millis))
 
 /**
  * Whether the app sets its own alert thresholds from the verdicts.

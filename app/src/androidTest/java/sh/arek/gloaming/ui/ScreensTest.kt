@@ -75,6 +75,7 @@ class ScreensTest {
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)
 
     private var polled = 0
+    private var verdictsCleared = 0
 
     /** The last value the watch switch asked for, or null if it was never moved. */
     private var watchRequest: Boolean? = null
@@ -119,6 +120,7 @@ class ScreensTest {
         calendarName: String? = null,
         pendingVerdict: Conditions? = null,
         recommendations: Recommendations? = null,
+        verdicts: List<Verdict> = emptyList(),
     ) {
         compose.setContent {
             Column(
@@ -147,6 +149,7 @@ class ScreensTest {
                     calendarName = calendarName,
                     pendingVerdict = pendingVerdict,
                     recommendations = recommendations,
+                    verdicts = verdicts,
                 )
 
                 TonightContent(
@@ -194,6 +197,7 @@ class ScreensTest {
                     onNotifyEveryEventChange = { everyEvent = it },
                     onCalendarSyncChange = { calendarSync = it },
                     onAutomaticSettingsChange = { automatic = it },
+                    onClearVerdicts = { verdictsCleared++ },
                     onCometMagnitudeChange = { cometMagnitude = it },
                     onCometAltitudeChange = {},
                     onCometStaleChange = {},
@@ -1713,4 +1717,57 @@ class ScreensTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    /**
+     * The record behind the recommendations, on the screen that makes them.
+     *
+     * The app collected these for months and showed only what it concluded from
+     * them, which asks the user to take a moved threshold on trust - the exact
+     * thing the automatic-settings card was written not to do.
+     */
+    @Test
+    fun showsWhatTheAlertsWereWorth() {
+        show(verdicts = listOf(auroraVerdict(Answer.Worth), auroraVerdict(Answer.DidNotLook)))
+
+        compose.onNodeWithText("What your alerts were worth").performScrollTo().assertExists()
+        compose.onNodeWithText(
+            "Aurora - 2 alerts: 1 worth going out for, 1 you did not look at",
+        ).performScrollTo().assertExists()
+        compose.onAllNodesWithText("54% from AuroraWatch UK", substring = true)
+            .onFirst().performScrollTo().assertExists()
+    }
+
+    /** Nothing recorded is a state to explain, not an empty card. */
+    @Test
+    fun saysHowVerdictsGetThereWhenNoneHaveBeenGiven() {
+        show(verdicts = emptyList())
+
+        compose.onNodeWithText("Nothing answered yet.", substring = true)
+            .performScrollTo().assertExists()
+    }
+
+    /** Somebody's own account of their own nights, theirs to delete. */
+    @Test
+    fun clearsTheRecordWhenAsked() {
+        show(verdicts = listOf(auroraVerdict(Answer.Worth)))
+
+        compose.onNodeWithTag(CLEAR_VERDICTS_TAG).performScrollTo().performClick()
+
+        assertEquals(1, verdictsCleared)
+    }
+
+    private fun auroraVerdict(answer: Answer) = Verdict(
+        answeredAtMillis = now,
+        answer = answer,
+        conditions = Conditions(
+            atMillis = now - 100_000L,
+            channel = VerdictChannel.Aurora,
+            probability = 54,
+            source = "AURORAWATCH",
+            kp = 5.3,
+            bz = -8.1,
+            cloudTotal = 22,
+            threshold = 30,
+        ),
+    )
 }
