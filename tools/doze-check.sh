@@ -12,12 +12,24 @@
 # The device is put on simulated battery with the screen off. Everything is put
 # back on exit, including after an interrupt.
 #
+# It reports PASS and FAIL per check and exits non-zero on any failure, so a
+# release gate can depend on it. What it will not decide for you is the spacing:
+# the interval Doze settles on depends on the standby bucket, the exemption and
+# the batching window the system attaches to an inexact alarm, so the measured
+# gap is a failure only when you say what you expected with --expect-within.
+#
 # Usage: tools/doze-check.sh [--serial SERIAL] [--minutes N] [--bucket BUCKET]
 #
 #   --minutes N       how long to watch for (default 30)
 #   --bucket BUCKET   force the standby bucket: active, working_set, frequent,
 #                     rare or restricted. "restricted" is the worst case a
 #                     rarely-opened app lands in, and the one worth proving.
+#   --expect-within N treat an average gap wider than N minutes as a failure.
+#                     Without it the gap is measured and reported but never
+#                     fails, because no single number is right for every bucket
+#                     and exemption. With it, this is a gate: a release can
+#                     refuse to go out on a phone whose alarms Doze has pushed
+#                     out past what the app asked for.
 #
 set -euo pipefail
 
@@ -25,6 +37,7 @@ PACKAGE="sh.arek.gloaming"
 SERIAL="${ANDROID_SERIAL:-}"
 MINUTES=30
 BUCKET=""
+EXPECT_WITHIN=""
 # The bucket the app was in before `--bucket` forced it, so `restore` can put it
 # back. Set before anything is forced, and empty when nothing was.
 ORIGINAL_BUCKET=""
@@ -34,6 +47,7 @@ while [ $# -gt 0 ]; do
         --serial) SERIAL="$2"; shift 2 ;;
         --minutes) MINUTES="$2"; shift 2 ;;
         --bucket) BUCKET="$2"; shift 2 ;;
+        --expect-within) EXPECT_WITHIN="$2"; shift 2 ;;
         # Everything between the shebang and the first line of code, so adding
         # an option cannot leave the help text behind.
         -h|--help) sed -e '1d' -e '/^[^#]/,$d' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -57,6 +71,16 @@ has() {
     grep -c "$@" >/dev/null
 }
 
+# Same shape as tools/bfu-check.sh, and for the same reason: a harness that
+# prints its findings and exits 0 regardless cannot gate anything, and reading
+# the output is exactly the step a release skips.
+PASS=0
+FAIL=0
+SKIP=0
+pass() { PASS=$((PASS + 1)); printf '  PASS  %s\n' "$1"; }
+fail() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; return 0; }
+skip() { SKIP=$((SKIP + 1)); printf '  SKIP  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; return 0; }
+
 DE_PREFS="/data/user_de/0/${PACKAGE}/shared_prefs"
 
 # Runs a command as the app's own uid. The inner `sh -c` matters: without it the
@@ -70,6 +94,64 @@ as_app() {
 last_alert() {
     as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
         | sed -n 's/.*name="last_alert_at" value="\([0-9]*\)".*/\1/p' || true
+}
+
+# The poll interval the app is actually set to, for the reader comparing it
+# against the gap measured below. Device-encrypted, because a poll before first
+# unlock has to be able to read it. Absent on a phone whose settings have never
+# been written, which is not a failure - the default applies and the app polls.
+configured_interval() {
+    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+        | sed -n 's/.*name="poll_minutes" value="\([0-9]*\)".*/\1/p' | head -1 || true
+}
+
+# The pending poll alarm, matched on the receiver rather than the package.
+# `dumpsys alarm` names packages in unrelated bookkeeping, and a bare package
+# match reports an alarm that is not there. The history section is cut off
+# first, or an alarm that has already fired reads as one still to come.
+poll_alarm() {
+    adb shell dumpsys alarm 2>/dev/null | tr -d '\r' \
+        | sed -n '1,/App Alarm history/p' \
+        | grep -A 4 "walarm\*:${PACKAGE}/\.work\.PollReceiver" || true
+}
+
+# The latest the pending alarm can fire, in seconds from now. This is the only
+# honest reference for "should something have fired by now": the configured
+# interval is not it, because adaptive polling backs the real one off to hours
+# when there is nothing to watch.
+#
+# `maxWhenElapsed` in preference to `whenElapsed`, because the two answer
+# different questions. `whenElapsed` is routinely *negative* on a dozing phone -
+# the alarm was due seconds ago and the system is holding it - and reading that
+# as "overdue, so suppression" would fail a device that is about to fire well
+# inside the window the system reserved. `maxWhenElapsed` is the deadline the
+# policies actually allow, so a watch shorter than it proves nothing.
+#
+# The trailing milliseconds are stripped before anything else. Android formats
+# these as `+1d2h3m4s567ms`, and a parser that walks the suffixes left to right
+# reads that final `m` as minutes and adds nine hours to the answer.
+alarm_due_seconds() {
+    printf '%s' "$1" | awk '
+        {
+            field = ""
+            if (match($0, /maxWhenElapsed=[+-][^ ]*/))
+                field = substr($0, RSTART, RLENGTH)
+            else if (match($0, /[^x]whenElapsed=[+-][^ ]*/))
+                field = substr($0, RSTART, RLENGTH)
+            if (field == "") next
+            sub(/.*=/, "", field)
+            # Already past its deadline: due now, not due in the past.
+            if (substr(field, 1, 1) == "-") { print 0; exit }
+            sub(/^\+/, "", field)
+            sub(/[0-9]+ms$/, "", field)
+            d = h = m = sec = 0
+            if (match(field, /[0-9]+d/)) d   = substr(field, RSTART, RLENGTH - 1)
+            if (match(field, /[0-9]+h/)) h   = substr(field, RSTART, RLENGTH - 1)
+            if (match(field, /[0-9]+m/)) m   = substr(field, RSTART, RLENGTH - 1)
+            if (match(field, /[0-9]+s/)) sec = substr(field, RSTART, RLENGTH - 1)
+            print d * 86400 + h * 3600 + m * 60 + sec
+            exit
+        }'
 }
 
 restore() {
@@ -117,6 +199,37 @@ if [ -n "$BUCKET" ]; then
         || printf '  could not force the standby bucket to %s\n' "$BUCKET"
 fi
 printf '  standby bucket: %s\n' "$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')"
+
+CONFIGURED=$(configured_interval)
+if [ -n "$CONFIGURED" ]; then
+    printf '  the app is set to poll every %s minutes\n' "$CONFIGURED"
+fi
+
+# Checked before the watch rather than inferred from its silence afterwards.
+# Half an hour spent measuring a phone with nothing pending reports "nothing
+# fired" and means nothing at all by it, and that is indistinguishable in the
+# output from Doze having suppressed every wake - which is the finding this
+# harness exists to produce. Fail fast instead, as bfu-check does before it
+# spends a reboot.
+ALARM=$(poll_alarm)
+if [ -z "$ALARM" ]; then
+    fail "no alarm is pending" \
+        "Nothing will wake the app, so there is nothing here to measure. Open the app once and check ./go status."
+    printf '\nFix the above before watching.\n'
+    exit 1
+fi
+ALARM_DUE=$(alarm_due_seconds "$ALARM")
+if [ -n "$ALARM_DUE" ]; then
+    pass "an alarm is pending, and must fire within $((ALARM_DUE / 60))m $((ALARM_DUE % 60))s"
+    if [ "$ALARM_DUE" -gt $((MINUTES * 60)) ]; then
+        printf '  NOTE: that is beyond the %sm being watched, so a quiet run proves\n' "$MINUTES"
+        printf '        nothing either way. Adaptive polling backs the interval off when\n'
+        printf '        there is nothing to watch, so seed a shorter one with\n'
+        printf '        bfu-check.sh --seed --interval N, or watch for longer.\n'
+    fi
+else
+    pass "an alarm is pending"
+fi
 
 # Doze needs the device to believe it is unplugged, still and dark. force-idle
 # skips the several minutes it would otherwise spend stepping down through the
@@ -206,30 +319,74 @@ last_epoch=$(tail -1 "$seen_file" 2>/dev/null | awk '{print $1}' | cut -d. -f1)
 
 printf '\n== Result ==\n'
 printf '  %s minutes in forced deep Doze, %s polls\n' "$elapsed" "$seen"
-if [ "${seen:-0}" -eq 0 ]; then
-    printf '  Nothing fired at all. Either no alarm was pending, or Doze suppressed\n'
-    printf '  every one. Check: adb shell dumpsys alarm | grep %s\n' "$PACKAGE"
+
+# An alarm was pending when the watch started - that was checked above - so
+# silence here is Doze suppressing every wake, and there is nothing else it can
+# be. That is the whole finding, and it is a failure.
+average=""
+if [ "${seen:-0}" -eq 0 ] && [ -n "$ALARM_DUE" ] && [ "$ALARM_DUE" -gt $((elapsed * 60)) ]; then
+    # Nothing fired, but nothing was due to. That is the app working exactly as
+    # designed - adaptive polling had backed the interval off past the window -
+    # and it must not read as a failure, or a release gate would block on a
+    # perfectly healthy phone on any quiet night.
+    skip "nothing fired, and the alarm was not due within the ${elapsed}m watched" \
+        "Not evidence either way. Seed a shorter interval or watch for longer than the alarm is out."
+elif [ "${seen:-0}" -eq 0 ]; then
+    fail "nothing fired in $elapsed minutes of deep Doze" \
+        "An alarm was pending throughout, so every wake was suppressed. Check: adb shell dumpsys alarm | grep $PACKAGE"
 elif [ "$elapsed" -gt 0 ]; then
-    printf '  average one poll every %s minutes\n' "$(( elapsed / seen ))"
-    printf '  Compare that against the interval configured in the app. Some of any\n'
-    printf '  excess is the batching window the system attaches to an inexact alarm\n'
-    printf '  rather than Doze: check `window=` and `maxWhenElapsed=` in\n'
-    printf '  `adb shell dumpsys alarm` before concluding the exemption is failing.\n'
+    average=$(( elapsed / seen ))
+    pass "$seen polls fired, one every $average minutes on average"
+else
+    pass "$seen polls fired"
 fi
-[ -n "$last_epoch" ] && printf '  last poll at %s\n' "$(date -d "@$last_epoch" '+%H:%M:%S' 2>/dev/null)"
+
+# The gap is a measurement, not a verdict, until someone says what they
+# expected of it: how far Doze pushes an inexact alarm out depends on the
+# standby bucket, the exemption, and the batching window the system attaches -
+# check `window=` and `maxWhenElapsed=` in `dumpsys alarm` before concluding
+# the exemption is failing. --expect-within is that expectation made explicit.
+if [ -n "$EXPECT_WITHIN" ] && [ -n "$average" ]; then
+    if [ "$average" -le "$EXPECT_WITHIN" ]; then
+        pass "the average gap is within the ${EXPECT_WITHIN}m expected"
+    else
+        fail "the average gap of ${average}m is wider than the ${EXPECT_WITHIN}m expected" \
+            "Doze is deferring the wakes further than the app asked for. Check the exemption and the standby bucket."
+    fi
+elif [ -n "$EXPECT_WITHIN" ]; then
+    skip "no gap to compare against the ${EXPECT_WITHIN}m expected"
+elif [ -n "$CONFIGURED" ] && [ -n "$average" ]; then
+    printf '        against the %sm the app is set to poll at\n' "$CONFIGURED"
+fi
+
+# Not `[ -n "$x" ] && printf`: as a statement of its own that returns 1 when the
+# string is empty, and under `set -e` it ended the run right here - on the
+# zero-poll path, whose empty value is precisely the case whose reasons most
+# need printing, and before the notification check below had run at all.
+if [ -n "$last_epoch" ]; then
+    printf '  last poll at %s\n' "$(date -d "@$last_epoch" '+%H:%M:%S' 2>/dev/null)"
+fi
 
 # Waking up is only half of it. Whether a notification can be posted from deep
 # idle is the part that actually reaches the user, so it is checked separately
 # rather than inferred from the poll having run.
 alert_after=$(last_alert)
 if [ -n "$alert_after" ] && [ "$alert_after" != "$alert_before" ]; then
-    printf '  ALERT raised during the run at %s\n' \
+    printf '  an alert was raised during the run at %s\n' \
         "$(date -d "@$((alert_after / 1000))" '+%H:%M:%S' 2>/dev/null)"
     if adb shell dumpsys notification --noredact 2>/dev/null | has "pkg=$PACKAGE"; then
-        printf '  and the notification posted from deep idle\n'
+        pass "the notification posted from deep idle"
     else
-        printf '  but NO notification is present - posting was swallowed\n'
+        fail "an alert was raised but no notification is present" \
+            "Posting was swallowed - most likely POST_NOTIFICATIONS is denied."
     fi
 else
-    printf '  no alert raised during the run (expected when the sky is quiet)\n'
+    # A quiet sky is the ordinary case and says nothing against the app, so it
+    # is a note rather than a failure. bfu-check draws the same line, and puts
+    # --expect-alert behind provoking one deliberately.
+    skip "no alert raised during the run" \
+        "Expected when the sky is quiet. It leaves posting from deep idle untested."
 fi
+
+printf '\n  %d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
+[ "$FAIL" -eq 0 ]

@@ -344,12 +344,19 @@ version that matters to somebody with no laptop to hand.
 
 `doze-check.sh` reports the measured interval between polls, which Doze rewrites:
 the app's battery-optimisation exemption and its app standby bucket both change
-the answer, so the number worth trusting is the one from the device.
+the answer, so the number worth trusting is the one from the device. Like
+`bfu-check.sh` it reports PASS and FAIL per check and exits non-zero on any
+failure, so a release can gate on it. The spacing is the one thing it will not
+judge for you unless asked: `--expect-within N` makes an average gap wider than
+N minutes a failure, and without it the gap is measured and reported only.
 
 Seed a short interval before running it, or it will honestly report nothing.
 Adaptive polling backs the interval off when there is nothing to watch - a quiet
 sky in daylight reaches several hours - so a thirty-minute window sees no poll at
-all and says so. That is the app working, not the harness failing. Run
+all. That is the app working, not the harness failing, and it is reported as
+untested rather than as a failure: the harness reads the deadline the system has
+actually reserved for the pending alarm, and silence over a window shorter than
+that is no evidence either way. To measure rather than skip, run
 `bfu-check.sh --seed --interval 2` first, or read the pending alarm out of
 `./go status` and pick a window longer than it.
 
