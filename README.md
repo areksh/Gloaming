@@ -491,6 +491,7 @@ on the machine that holds the signing key - which never leaves it.
 ```sh
 ./go push                 # push main, and republish the development release
 ./go push --no-release    # push and stop there
+./go release 1.0.0-rc2    # cut a version: the whole gate, then publish
 ```
 
 `./go push` publishes the tip of `main` as the one development release: a
@@ -506,6 +507,29 @@ A development build carries the version name of the *last* release, because that
 name identifies a release and does not move between them. The commit is what
 identifies the build: it is in the APK's filename, in the release notes, and on
 the settings screen of the phone it is installed on.
+
+`./go release <version>` cuts a real one, and runs everything first:
+
+| | | |
+|---|---|---|
+| 1 | `./go check` | the unit tests and both Node projects |
+| 2 | the instrumented suite | on the phone, the catalogue of nights with it |
+| 3 | the suite again | against what R8 actually ships |
+| 4 | reinstall | the debuggable build, which the harnesses below need |
+| 5 | `bfu-check.sh` | reboot, hold at the lock screen, does an alert arrive |
+| 6 | `doze-check.sh` | force deep Doze, is the poll interval what was asked |
+
+About an hour with the phone plugged in throughout. It is unattended until step
+5 reboots the phone, where it waits with no time limit for you to unlock it.
+Then it bumps the version, cuts the changelog, builds and signs, and asks once
+before anything leaves the machine.
+
+Steps 5 and 6 need a short poll interval to measure anything, and the fixture
+that seeds one writes the whole settings object rather than editing a field. So
+the phone's own position and threshold are read first and passed back in, and
+the interval is put back afterwards. What cannot be put back is that the harness
+switches alerting on: it has no way to know whether it was on before, and
+`./go status` is how you check.
 
 Publishing needs a Codeberg access token with write access to the repository, in
 `secrets/codeberg-token.txt` or `CODEBERG_TOKEN`, and the signing material in

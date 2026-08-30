@@ -45,13 +45,21 @@
 #                      file manager shows and `adb pull` cannot reach. With
 #                      --json, the file as it stands, to feed to something else.
 #   apk                Build the debug APK and say where it landed.
-#   release            Build the signed, shrunk release APK, and say whether the
-#                      key that signed it is the one README.md publishes. It
-#                      refuses to build without the project's key rather than
-#                      emitting something that installs and can then never be
-#                      updated: put the keystore and its passphrase in
-#                      keystore.properties, or in the environment. See
-#                      docs/prerequisites.md.
+#   release [version]  With a version - `./go release 1.0.0-rc2` - cut it: the
+#                      whole gate first (check, the instrumented suite, that
+#                      suite against R8's output, and both overnight harnesses,
+#                      about an hour with the phone plugged in), then the
+#                      version bump, the changelog, the tag, and the release
+#                      published to Codeberg. It asks before anything leaves
+#                      the machine, and the phone's own location and threshold
+#                      are put back after the harnesses have seeded over them.
+#                      Without a version, build the signed, shrunk release APK
+#                      and say whether the key that signed it is the one
+#                      README.md publishes. It refuses to build without the
+#                      project's key rather than emitting something that
+#                      installs and can then never be updated: put the keystore
+#                      and its passphrase in keystore.properties, or in the
+#                      environment. See docs/prerequisites.md.
 #   push               Push main, then publish the tip as the one development
 #                      release: the signed release APK, under a rolling `dev`
 #                      tag that moves with every push, its notes listing every
@@ -115,6 +123,10 @@ JOURNAL="/data/user_de/0/${PACKAGE}/files/sky/gloaming.log"
 # from a notification before the phone has been unlocked since boot still has to
 # land. sh.arek.gloaming.data.FileVerdictLog.
 VERDICTS="/data/user_de/0/${PACKAGE}/files/sky/verdicts.json"
+# Where the settings mirror a locked wake reads lives. The release gate seeds a
+# short poll interval to make the overnight harnesses measurable in minutes, and
+# has to put the phone's own settings back afterwards.
+DE_PREFS="/data/user_de/0/${PACKAGE}/shared_prefs"
 
 SERIAL="${ANDROID_SERIAL:-}"
 COMMAND=""
@@ -694,6 +706,85 @@ version_name() {
     sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1
 }
 
+# One value out of the device-encrypted settings mirror.
+pref_value() {
+    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+        | sed -n "s/.*name=\"$1\" value=\"\([^\"]*\)\".*/\1/p" | head -1
+}
+
+# Coordinates are stored as `Double.toRawBits()`, so the number in the file is
+# not a coordinate and handing it back as one would put the observer in the
+# middle of nowhere. Node rather than a shell arithmetic trick because IEEE-754
+# is not something to reimplement in `expr`.
+bits_to_double() {
+    node -e 'const b = Buffer.alloc(8);
+             b.writeBigInt64BE(BigInt(process.argv[1]));
+             console.log(b.readDoubleBE(0));' "$1"
+}
+
+# The phone's own settings, read before the gate seeds over them.
+#
+# BeforeUnlockFixture writes a whole UserSettings rather than editing fields, so
+# seeding without passing these puts Edinburgh and the default threshold on
+# whatever phone the gate ran on - the same failure the instrumented suite was
+# fixed for once already. Captured here, passed back in on every seed, and put
+# back at the end.
+SAVED_LATITUDE=""
+SAVED_LONGITUDE=""
+SAVED_THRESHOLD=""
+SAVED_INTERVAL=""
+
+capture_device_settings() {
+    local latitude longitude
+    latitude=$(pref_value latitude)
+    longitude=$(pref_value longitude)
+    SAVED_THRESHOLD=$(pref_value threshold)
+    SAVED_INTERVAL=$(pref_value poll_minutes)
+    [ -n "$latitude" ] && SAVED_LATITUDE=$(bits_to_double "$latitude")
+    [ -n "$longitude" ] && SAVED_LONGITUDE=$(bits_to_double "$longitude")
+    if [ -z "$SAVED_LATITUDE" ] || [ -z "$SAVED_LONGITUDE" ]; then
+        die "the phone has no observer position recorded, so seeding the harness
+would invent one and leave it there. Open the app and set a location first."
+    fi
+    echo "  the phone's settings: $SAVED_LATITUDE, $SAVED_LONGITUDE, threshold ${SAVED_THRESHOLD:-default}, every ${SAVED_INTERVAL:-default} min"
+}
+
+# The before-unlock harness, seeded with the phone's own location and threshold
+# so that only the interval changes. ANDROID_SERIAL is exported by this script
+# and both harnesses read it, so there is no --serial to pass on.
+#
+# --reconnect-timeout 0 because the gate is unattended until this point and the
+# soak has already been spent: giving up ten minutes after it, over nobody being
+# in the room yet, would throw the whole run away.
+run_bfu_seeded() {
+    local interval="$1"
+    local args=(--seed --interval "$interval" --reconnect-timeout 0
+                --latitude "$SAVED_LATITUDE" --longitude "$SAVED_LONGITUDE")
+    if [ -n "$SAVED_THRESHOLD" ]; then
+        args+=(--threshold "$SAVED_THRESHOLD")
+    fi
+    tools/bfu-check.sh "${args[@]}"
+}
+
+# Put the interval back. The fixture is invoked directly rather than through
+# `bfu-check.sh --seed`, which would reboot the phone a second time to restore a
+# setting - the reboot is the harness's subject, not part of writing settings.
+restore_device_settings() {
+    local interval="${SAVED_INTERVAL:-15}"
+    local args=(-e interval "$interval"
+                -e latitude "$SAVED_LATITUDE" -e longitude "$SAVED_LONGITUDE")
+    if [ -n "$SAVED_THRESHOLD" ]; then
+        args+=(-e threshold "$SAVED_THRESHOLD")
+    fi
+    echo "  putting the interval back to ${interval} minutes"
+    adb shell am instrument -w \
+        -e class sh.arek.gloaming.harness.BeforeUnlockFixture \
+        "${args[@]}" \
+        "${PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner" 2>&1 \
+        | tr -d '\r' | grep -qE 'OK \(1 test\)' \
+        || echo "  WARNING: could not put the settings back. Check ./go status." >&2
+}
+
 # Checked before anything is pushed rather than at packageRelease, which is
 # several minutes in. The build has the same check and a better message; this
 # one exists only to have it earlier.
@@ -702,6 +793,162 @@ require_signing() {
         || die "No signing material, so no release APK can be built:
     cp keystore.properties.example keystore.properties
 and fill in the passphrase. See docs/prerequisites.md."
+}
+
+# Is there anything under Unreleased to cut a release from? A release whose
+# notes are empty is one nobody can tell from the last.
+changelog_has_unreleased() {
+    awk '/^## \[Unreleased\]/ { inside = 1; next }
+         /^## \[/ { inside = 0 }
+         inside && NF { found = 1 }
+         END { exit !found }' CHANGELOG.md
+}
+
+# What the changelog now says about this version, for the release notes.
+changelog_section() {
+    awk -v heading="## [$1]" '
+        index($0, heading) == 1 { inside = 1; next }
+        inside && /^## \[/ { exit }
+        inside { print }' CHANGELOG.md
+}
+
+# Cut a version: the whole gate, then the bump, then publish.
+#
+# The gate is everything the project can check, in the order the phone allows.
+# The minified suite leaves the shrunk build installed and that build is not
+# debuggable, so `run-as` stops working and both overnight harnesses would fail
+# on a phone that is perfectly healthy - hence the reinstall between them. The
+# screen keeper is let go before the harnesses for the same class of reason:
+# it wakes the screen every four minutes, which is exactly what stops a device
+# reaching deep idle for doze-check to measure.
+run_full_release() {
+    local version="$1" tag date built apk notes prerelease answer
+
+    case "$version" in
+        v*) die "give the version without the leading v: ./go release ${version#v}" ;;
+        [0-9]*.[0-9]*.[0-9]*) ;;
+        *) die "'$version' does not look like a version. Expected 1.0.0, or 1.0.0-rc2." ;;
+    esac
+    tag="v$version"
+
+    # Everything that can refuse, before anything that takes an hour.
+    [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] \
+        || die "releases are cut from main only, and this is $(git rev-parse --abbrev-ref HEAD)"
+    [ -z "$(git status --porcelain)" ] \
+        || die "commit or stash the working tree first: a release must correspond to a commit"
+    ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1 \
+        || die "$tag already exists. Releases are not re-cut; pick the next version."
+    changelog_has_unreleased \
+        || die "CHANGELOG.md has nothing under Unreleased, so this release would say
+nothing about itself. Write the entry first."
+    require_signing
+    require_codeberg
+    require_device
+    capture_device_settings
+
+    cat <<NOTICE
+
+Releasing $version from $(git rev-parse --short HEAD).
+
+Everything runs: the unit tests, the whole instrumented suite, that suite again
+against R8's output, and both overnight harnesses. About an hour, and the phone
+must stay plugged in throughout. It is unattended until the before-unlock
+harness reboots the phone, at which point it waits - with no time limit - for
+you to unlock it.
+
+Nothing is published until you are asked.
+
+NOTICE
+
+    echo "== 1/6  everything that needs no phone =="
+    run_check
+
+    echo
+    echo "== 2/6  the instrumented suite, the catalogue of nights with it =="
+    run_on_device
+
+    echo
+    echo "== 3/6  the same suite against what R8 actually ships =="
+    MINIFIED=1
+    run_on_device
+    MINIFIED=0
+
+    echo
+    echo "== 4/6  putting the debuggable build back =="
+    # The harnesses below read the app's own files through run-as, which the
+    # shrunk build does not allow, and the instrumentation APK is what seeds
+    # the before-unlock settings.
+    ./gradlew :app:installDebug :app:installDebugAndroidTest
+
+    # Let the screen go before anything wants the phone dark or rebooted.
+    restore_device
+
+    echo
+    echo "== 5/6  before first unlock =="
+    run_bfu_seeded 2
+
+    echo
+    echo "== 6/6  the interval the polls really land at =="
+    # Seeded to two minutes above, so half an hour sees several wakes and an
+    # average beyond fifteen means Doze is deferring them, not that the app
+    # asked for little.
+    tools/doze-check.sh --minutes 30 --expect-within 15
+
+    echo
+    echo "== Putting the phone's settings back =="
+    restore_device_settings
+    echo "  Note: the harness switched alerting and before-unlock alerting on,"
+    echo "  and cannot tell whether they were on before. ./go status reads back"
+    echo "  what the phone is set to now."
+
+    echo
+    echo "== The bump =="
+    date=$(date -u '+%Y-%m-%d')
+    sed -i "s/^\( *versionName = \)\".*\"/\1\"$version\"/" app/build.gradle.kts
+    sed -i "0,/^## \[Unreleased\]$/s//## [Unreleased]\n\n## [$version] - $date/" CHANGELOG.md
+    git add app/build.gradle.kts CHANGELOG.md
+    git commit -q -m "chore(app): version $version, and cut the changelog against it"
+    echo "  versionName $version, changelog cut, committed as $(git rev-parse --short HEAD)"
+
+    echo
+    echo "== Building the release APK =="
+    ./gradlew :app:assembleRelease
+    built=$(built_release_apk)
+    [ -n "$built" ] || die "assembleRelease produced no APK"
+    apk="app/build/outputs/apk/release/gloaming-${version}.apk"
+    cp "$built" "$apk"
+    report_size "$apk"
+    check_signature "$apk" || die "refusing to publish an APK signed with the wrong key"
+    report_provenance
+
+    case "$version" in
+        *-*) prerelease=true ;;
+        *) prerelease=false ;;
+    esac
+    notes="$(changelog_section "$version")"
+
+    cat <<CONFIRM
+
+Everything passed. What happens next cannot be undone:
+
+  tag      $tag on $(git rev-parse --short HEAD)
+  push     main and the tag to origin
+  publish  $(basename "$apk") as a $([ "$prerelease" = true ] && echo "pre-release" || echo "release") on Codeberg
+
+CONFIRM
+    printf 'Publish? [y/N] '
+    read -r answer
+    case "$answer" in
+        y|Y|yes|YES) ;;
+        *) die "Stopped. The version bump is committed but nothing was pushed;
+undo it with: git reset --hard HEAD~1" ;;
+    esac
+
+    git tag -a "$tag" -m "Version $version"
+    git push origin main "refs/tags/$tag"
+    echo
+    echo "== Publishing =="
+    publish_release "$tag" "$version" "$notes" "$prerelease" "$apk"
 }
 
 run_check() {
@@ -944,6 +1191,13 @@ debuggable build, so this is a release APK: ./go install puts the debug one back
         ;;
 
     release)
+        # With a version, the whole thing: the gate, the bump, and publishing.
+        # Without one, what this has always done - build the APK and report on
+        # it - which is what you want while working on the release build itself.
+        if [ -n "$TARGET" ]; then
+            run_full_release "$TARGET"
+            exit 0
+        fi
         ./gradlew :app:assembleRelease
         built=$(find app/build/outputs/apk/release -name '*.apk' -print -quit 2>/dev/null || true)
         echo
