@@ -5,7 +5,9 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import sh.arek.gloaming.data.BootAware
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -26,8 +28,8 @@ class SchedulingTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @After
-    fun cancelAlarm() {
-        PollAlarm.cancel(context)
+    fun putTheRealScheduleBack() {
+        RealSchedule.restore(context)
     }
 
     /**
@@ -75,6 +77,32 @@ class SchedulingTest {
         PollAlarm.cancel(context)
 
         assertFalse("the alarm outlived its cancellation", hasRegisteredAlarm())
+    }
+
+    /**
+     * The suite must not leave the phone unwatched.
+     *
+     * These tests cancel and re-arm the app's real alarm, because there is no
+     * seam between the app and AlarmManager and inventing one would be testing
+     * a fake. What they must not do is finish with the alarm cancelled: a suite
+     * run in the evening would then take the phone off watch for the night,
+     * silently, with the app installed, exempt and looking entirely healthy.
+     * The same rule the preference stores already follow - save and restore,
+     * never clear.
+     */
+    @Test
+    fun putsThePhoneSOwnScheduleBack() {
+        PollAlarm.cancel(context)
+        assertFalse("an alarm survived being cancelled", hasRegisteredAlarm())
+
+        RealSchedule.restore(context)
+
+        val settings = BootAware.pollSettings(context).read()
+        assertEquals(
+            "the restored schedule does not match what this phone is set to do",
+            settings.alertsEnabled,
+            hasRegisteredAlarm(),
+        )
     }
 
     /**

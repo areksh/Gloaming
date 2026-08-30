@@ -383,6 +383,14 @@ Greenfield, held to the full TDD bar (ADR-0001).
   shrinks everything around it; `app/proguard-rules.pro` records why, and the
   short of it is that the suite is white-box and there is no crash reporting to
   fall back on. ADR-0013.
+- **The instrumented suite runs against real device state, and puts it back.**
+  The preference stores and the poll alarm both, because neither has a seam
+  worth inventing one for. What matters is the restore: a suite that finishes
+  with the settings cleared or the alarm cancelled takes the phone off watch for
+  the night and says nothing about it, with the app installed, exempt and not
+  stopped. `RealSchedule.restore` re-arms exactly what `BootReceiver` re-arms
+  after an update, so a phone that has just run the suite is in the state a
+  phone that has just taken an update is in.
 - **The load-bearing milestone** is overnight delivery on a real phone
   (Sec. 14 step 6). Everything else is decoration on top of it. `tools/` holds
   two harnesses that answer it in minutes rather than a night:

@@ -184,7 +184,16 @@ puts them back when it finishes. It did not always: clearing them took the
 location off whatever phone the suite ran on, silently, because the app stayed
 installed and the exemption survived - so the next overnight run sat at
 "no location" until morning and tested nothing. If you add a test that writes
-to a real store, save and restore rather than clearing.
+to a real store, save and restore rather than clearing, and change the one field
+you are testing rather than writing a fresh settings object over the rest.
+
+The same rule holds for the **alarm**, and for the same reason. The scheduling
+tests cancel and re-arm the real one, because there is no seam between the app
+and `AlarmManager` and inventing one would test a fake - but they finish by
+putting the phone's own schedule back (`RealSchedule.restore`), not by leaving
+it cancelled. A suite run in the evening would otherwise take the phone off
+watch for the night without a word: installed, exempt, not stopped, and simply
+not going to wake up.
 
 **The plain form uninstalls the app when it finishes**, which takes the app's
 settings and its battery-optimisation exemption with it. That is easy to miss

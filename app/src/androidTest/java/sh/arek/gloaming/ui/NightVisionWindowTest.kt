@@ -12,8 +12,7 @@ import org.junit.runner.RunWith
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.data.BootAware
-import sh.arek.gloaming.data.UserSettings
-import sh.arek.gloaming.work.PollAlarm
+import sh.arek.gloaming.work.RealSchedule
 
 /**
  * That night vision actually dims the screen.
@@ -36,11 +35,20 @@ class NightVisionWindowTest {
     @After
     fun restoreSettings() {
         BootAware.saveSettings(context, original)
-        PollAlarm.cancel(context)
+        // Launching the activity arms an alarm at whatever the settings said at
+        // the time, so the phone's own schedule is put back rather than left
+        // cancelled - a suite must not take a phone off watch for the night.
+        RealSchedule.restore(context)
     }
 
     private fun brightnessWith(nightVision: Boolean): Float {
-        BootAware.saveSettings(context, UserSettings(nightVision = nightVision))
+        // One field changed on this phone's own settings, not a fresh default
+        // object written over them. A default carries every other setting with
+        // it - the location, the thresholds, whether alerting before first
+        // unlock is on - and the restore afterwards is then only as good as
+        // what `original` happened to capture. Changing the one field under
+        // test leaves nothing else to put back.
+        BootAware.saveSettings(context, original.copy(nightVision = nightVision))
 
         var brightness = Float.NaN
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
