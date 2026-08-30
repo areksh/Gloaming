@@ -165,7 +165,13 @@ fun SettingsContent(
 @Composable
 private fun VersionFooter() {
     Text(
-        versionLine(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.DEBUG),
+        versionLine(
+            BuildConfig.VERSION_NAME,
+            BuildConfig.VERSION_CODE,
+            BuildConfig.GIT_COMMIT,
+            BuildConfig.GIT_MODIFIED,
+            BuildConfig.DEBUG,
+        ),
         style = MaterialTheme.typography.bodySmall,
     )
 }

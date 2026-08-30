@@ -35,6 +35,43 @@ val releaseKeyAlias = signingMaterial("keyAlias", "GLOAMING_KEY_ALIAS") ?: "gloa
 val releaseKeyPassword = signingMaterial("keyPassword", "GLOAMING_KEY_PASSWORD")
     ?: releaseKeystorePassword
 
+/**
+ * Run git and hand back what it said, or null if it could not be asked.
+ *
+ * Through `providers.exec` rather than a process started by hand, because that
+ * is the one form the configuration cache understands: it re-runs the command
+ * when it checks a cached entry, so a build after a commit reconfigures instead
+ * of baking yesterday's answer into today's APK. A machine with no git, or a
+ * source archive with no checkout in it, is a build that knows no commit rather
+ * than a build that fails - hence the catch, which covers a process that could
+ * not be started at all.
+ */
+fun gitOutput(vararg arguments: String): String? = try {
+    val git = providers.exec {
+        commandLine("git", *arguments)
+        isIgnoreExitValue = true
+    }
+    if (git.result.get().exitValue != 0) null else git.standardOutput.asText.get().trim()
+} catch (_: Exception) {
+    null
+}
+
+/**
+ * Which commit this APK was built from, for the line the settings screen shows.
+ *
+ * `versionName` does not move between releases, so it identifies a release and
+ * nothing else: every test build in the month before one carries the same name
+ * as the last, and a report quoting it says only which release the build was
+ * somewhere after. The commit is what identifies the source, and the phone is
+ * the only place the person making the report can read it.
+ *
+ * Modified is repo-wide, as `./go release` reports it: the claim is that the
+ * build corresponds to no commit and cannot be rebuilt, and that is the
+ * conservative reading of a tree with anything uncommitted in it.
+ */
+val buildCommit = gitOutput("rev-parse", "--short", "HEAD").orEmpty()
+val buildModified = !gitOutput("status", "--porcelain").isNullOrBlank()
+
 android {
     namespace = "sh.arek.gloaming"
     compileSdk = 37
@@ -45,6 +82,8 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0-rc1"
+        buildConfigField("String", "GIT_COMMIT", "\"$buildCommit\"")
+        buildConfigField("boolean", "GIT_MODIFIED", "$buildModified")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // The harness package seeds device state for tools/bfu-check.sh and
@@ -109,9 +148,9 @@ android {
     }
     buildFeatures {
         compose = true
-        // For the version the settings screen reports. The app is installed
-        // from an APK rather than a store, so the screen is the only place
-        // that can say which build a phone is on.
+        // For the version and the commit the settings screen reports. The app
+        // is installed from an APK rather than a store, so the screen is the
+        // only place that can say which build a phone is on.
         buildConfig = true
     }
     // Vendored third-party source, kept in its own tree so it is never mistaken
