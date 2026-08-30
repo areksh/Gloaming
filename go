@@ -15,7 +15,9 @@
 #                      goes to Gradle as it stands.
 #   device-test [name] Instrumented tests on a connected phone. A bare class
 #                      name is resolved to its package first, so
-#                      `./go device-test ScreensTest` is enough.
+#                      `./go device-test ScreensTest` is enough. With --minified,
+#                      against the shrunk build instead of the debug one, which
+#                      is the only way the code R8 ships is ever run.
 #   scenarios          The catalogue of nights in app/src/scenarios, checked on
 #                      the JVM. With --device, drawn through the real screens
 #                      and posted as real notifications on the phone.
@@ -60,6 +62,8 @@
 #   --device      run `scenarios` on the phone rather than on the JVM
 #   --live        follow logcat rather than printing the app's own log (`log`)
 #   --test        install the instrumentation APK too (`install` only)
+#   --minified    run `device-test` against the shrunk build rather than the
+#                 debug one (`device-test` only)
 #   --uninstall   let an instrumented run uninstall the app when it finishes,
 #                 which is Gradle's default and takes the app's settings and its
 #                 battery-optimisation exemption with it. Without this the app
@@ -89,6 +93,7 @@ COMMAND=""
 TARGET=""
 ON_DEVICE=0
 WITH_TEST=0
+MINIFIED=0
 LEAVE_INSTALLED=1
 LIVE=0
 
@@ -116,6 +121,7 @@ while [ $# -gt 0 ]; do
         --device) ON_DEVICE=1; shift ;;
         --live) LIVE=1; shift ;;
         --test) WITH_TEST=1; shift ;;
+        --minified) MINIFIED=1; shift ;;
         --uninstall) LEAVE_INSTALLED=0; shift ;;
         -*) die "unknown option: $1" ;;
         *)
@@ -377,7 +383,13 @@ run_on_device() {
     require_device
     ensure_awake_and_unlocked
     hold_screen_awake
+    # The task is named after the build type under test, and --minified moves
+    # that from `debug` to the build type that carries R8's output. Nothing else
+    # differs: the same suite, the same phone, the shrunk classes underneath.
     local args=(:app:connectedDebugAndroidTest)
+    if [ "$MINIFIED" -eq 1 ]; then
+        args=(:app:connectedMinifiedAndroidTest -Pgloaming.testBuildType=minified)
+    fi
     if [ "$LEAVE_INSTALLED" -eq 1 ]; then
         args+=(-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true)
     fi

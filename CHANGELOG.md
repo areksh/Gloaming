@@ -473,6 +473,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The release build is a fifth of the size it was.** R8 shrinks it: 8.9 MB of
+  APK down to 1.8, and 23.6 MB of dex in two files down to 2.9 in one, which is
+  a cold background wake with a fraction of the class loading to do - on the
+  code path the whole app exists for. It had been off since the Compose scaffold
+  left it off, which is not the same as anybody having decided anything.
+
+  It keeps this app's own classes and shrinks everything around them. That costs
+  about 90 KB against shrinking the lot, and buys two things worth a great deal
+  more than 90 KB. The instrumented suite is white-box - it reaches into device-encrypted
+  storage and the journal directly, because that is where the questions worth
+  asking about this app live - so a fully shrunk build collapsed after 55
+  tests with 50 of them failed, on classes R8 was entirely right to remove, and
+  the shipped APK would have been the one build nothing had ever run. And nothing is reported off a user's phone
+  by design, so the only stack trace this project will ever see is one somebody
+  copies out by hand; against an obfuscated build that is a page of single
+  letters, useless without the mapping file for that exact release.
+
 - **A release is signed with the project's key, and a build that cannot be is a
   build that fails.** The keystore has existed since August and its fingerprint
   has been in the README since, but nothing connected the two: `./go release`
@@ -766,6 +783,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 *Not one of Keep a Changelog's types, and deliberately so. What is recorded here
 is how a change was verified rather than what changed - which belongs with the
 release it applies to, and would be a lie under any of the headings above.*
+
+- The suite runs against the shrunk build, not only the debug one.
+  `./go device-test --minified` builds a third build type - the release build
+  under the debug key - and runs all 609 instrumented tests against it. Compose's
+  test rule needs an activity that only its own manifest declares, so whichever
+  build the suite runs against has to carry a dependency no released build may;
+  hence a third build type rather than testing `release` directly. What it costs
+  is a list of frameworks kept whole for the harness rather than for the app -
+  Compose, lifecycle, coroutines, the Kotlin standard library, androidx.tracing.
+  An instrumentation APK borrows its libraries from the app it tests instead of
+  carrying its own, and androidx.test and compose-ui-test call a great deal this
+  app never does, so shrinking the app takes the harness apart from underneath.
 
 - A catalogue of nights in `app/src/scenarios/` now drives both suites, so the
   rare states can be looked at without waiting for the sky: eclipses, an

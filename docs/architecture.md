@@ -372,6 +372,17 @@ Greenfield, held to the full TDD bar (ADR-0001).
   quietly gone empty. Two of the engine defects found in this way - a shower
   missing on the night it peaks, a conjunction invisible for the six hours
   before it - were reachable no other way.
+- **The shipped build is shrunk, and the suite runs against that too.** R8 is on
+  for release, which by itself would leave the APK that goes out unlike every
+  build the suite has ever run - the worst possible place for the one difference
+  to be. A third build type closes it: `minified` is the release build under the
+  debug key, and `./go device-test --minified` runs all 609 instrumented tests
+  against R8's output. It is a third build type rather than `release` itself
+  because Compose's test rule needs an activity only its own manifest declares,
+  and no released build may carry that. R8 keeps `sh.arek.gloaming.**` and
+  shrinks everything around it; `app/proguard-rules.pro` records why, and the
+  short of it is that the suite is white-box and there is no crash reporting to
+  fall back on. ADR-0013.
 - **The load-bearing milestone** is overnight delivery on a real phone
   (Sec. 14 step 6). Everything else is decoration on top of it. `tools/` holds
   two harnesses that answer it in minutes rather than a night:
@@ -1052,3 +1063,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0010 - fetch the comet sources outside Cloudflare, and without a breaker.
 - ADR-0011 - a derived-settings layer rather than writing calibrated values.
 - ADR-0012 - constellations as the one exception to the star exclusion.
+- ADR-0013 - R8 on for release, with the app's own classes kept.

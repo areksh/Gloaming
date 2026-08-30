@@ -67,11 +67,42 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // R8. Measured on this app: 8.9 MB of APK down to 1.8, 23.6 MB of
+            // dex down to 2.9, and two dex files down to one - which is a cold
+            // background wake with a fraction of the class loading to do, on
+            // the code path the whole app exists for. proguard-rules.pro holds
+            // the single rule it needs, and why the last 90 KB is deliberately
+            // left on the table.
             optimization {
-                enable = false
+                enable = true
             }
+            proguardFiles("proguard-rules.pro")
+        }
+        // The release build with the debug key in place of the project's, so
+        // the instrumented suite can run against the code R8 actually ships.
+        // Nothing releases it and `./go install` does not touch it; it is built
+        // by `./go device-test --minified` and nothing else. Without it the
+        // shipped APK would be the one build nothing ever runs, and a keep rule
+        // R8 turns out to need would first be heard about from a stranger whose
+        // aurora alert never arrived.
+        create("minified") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            // Two more rule files on top of the release build's own, and
+            // neither of them is about the app: one for what the shrunk app
+            // must keep for the instrumentation runner to start, one for the
+            // instrumentation APK itself. A rule the app needs belongs in
+            // proguard-rules.pro, where it is part of what ships.
+            proguardFiles("minified-proguard-rules.pro")
+            testProguardFiles("test-proguard-rules.pro")
         }
     }
+    // `debug` unless `./go device-test --minified` asks for the other one.
+    // Compose's test rule needs an activity that only its own manifest declares,
+    // so whichever build type the suite runs against has to carry a dependency
+    // no released build may: hence a third build type rather than testing
+    // `release` directly.
+    testBuildType = providers.gradleProperty("gloaming.testBuildType").getOrElse("debug")
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -122,6 +153,9 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    // The activity Compose's test rule launches into. It is a test manifest in
+    // a shipping build type, which is exactly why `minified` is not `release`.
+    "minifiedImplementation"(libs.androidx.ui.test.manifest)
 }
 
 /**

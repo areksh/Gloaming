@@ -221,11 +221,26 @@ meaningless.
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
-`./go release` builds the one that ships. It will not build without the
+`./go release` builds the one that ships. It is shrunk by R8 - 8.9 MB down to
+1.8, and two dex files down to one, which is a cold background wake with a
+fraction of the class loading to do - and it will not build without the
 project's signing key, because an APK signed with anything else installs, runs,
 looks entirely well and can then never be updated from the right key.
 [`docs/prerequisites.md`](docs/prerequisites.md) says where the key and its
 passphrase go.
+
+Shrinking leaves the shipped APK unlike every build the suite has run against,
+so there is a third build type for it: `minified`, which is the release build
+under the debug key. `./go device-test --minified` runs the whole suite against
+that. It is worth doing before a release and at few other times, since it adds a
+full R8 pass to a run that already takes half an hour.
+
+R8 keeps this app's own classes and shrinks everything around them, which costs
+about 90 KB against shrinking the lot. `app/proguard-rules.pro` has the
+reasoning; the short of it is that the instrumented suite is white-box, so a
+fully shrunk build fails most of it on classes R8 was entirely right to remove,
+and that nothing is reported off a user's phone by design, so the only stack
+trace this project will ever see is one somebody copies out by hand.
 
 ### Looking at a night that has not happened
 
