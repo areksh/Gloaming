@@ -28,6 +28,10 @@
 #   check              Everything that runs without a phone: the app's unit tests,
 #                      its instrumented sources compiled but not run, and both
 #                      Node projects' tests, typechecks and builds.
+#   testall            Everything there is: `check`, and then the whole
+#                      instrumented suite - the catalogue of nights with it - on
+#                      the phone, if one is plugged in. If none is, it says so at
+#                      the end rather than reporting a pass for having run less.
 #   clean              Delete the build output.
 #
 # Options:
@@ -115,6 +119,14 @@ require_device() {
     export ANDROID_SERIAL="$SERIAL"
 }
 
+attached_devices() {
+    # How many phones adb can see. Unlike require_device this decides nothing
+    # and stops nothing: `testall` runs with a phone or without one, and needs
+    # to know which before it starts rather than to be halted by the answer.
+    command -v adb >/dev/null 2>&1 || { echo 0; return 0; }
+    command adb devices | sed -e '1d' -e '/^$/d' | grep -c "device$" || true
+}
+
 screen_state() {
     # ON_UNLOCKED, ON_LOCKED, OFF_UNLOCKED or OFF_LOCKED. An odd place to read
     # it from, but it is the one line that reports the screen and the keyguard
@@ -163,6 +175,12 @@ like a broken test setup and is not. Unlock it and run this again."
 }
 
 hold_screen_awake() {
+    # Once per run, whatever calls it. A second call would read the timeout
+    # this one has already put there and save 1800000 as the value to restore,
+    # and would overwrite the keeper's pid with a new one, leaving the first
+    # looping over a screen nobody is going to switch off until the reboot.
+    [ -z "$KEEPER_PID" ] || return 0
+
     local timeout stay_on
     timeout=$(adb shell settings get system screen_off_timeout 2>/dev/null | tr -d '\r' || true)
     stay_on=$(adb shell settings get global stay_on_while_plugged_in 2>/dev/null | tr -d '\r' || true)
@@ -256,6 +274,17 @@ run_on_device() {
     ./gradlew "${args[@]}"
 }
 
+run_check() {
+    # The instrumented sources are compiled but not run: compiling needs no
+    # phone, and a rename in main that breaks them would otherwise stay
+    # invisible until the next time one is plugged in - which is the most
+    # expensive place to find out, and the least likely to be a moment when
+    # anybody wants to be fixing a compile error.
+    ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin
+    node_project worker
+    node_project fetcher
+}
+
 node_project() {
     local directory="$1"
     [ -d "$directory/node_modules" ] || die "$directory: dependencies are not installed - cd $directory && npm install"
@@ -329,14 +358,54 @@ case "$COMMAND" in
         ;;
 
     check)
-        # The instrumented sources are compiled but not run: compiling needs no
-        # phone, and a rename in main that breaks them would otherwise stay
-        # invisible until the next time one is plugged in - which is the most
-        # expensive place to find out, and the least likely to be a moment when
-        # anybody wants to be fixing a compile error.
-        ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin
-        node_project worker
-        node_project fetcher
+        run_check
+        ;;
+
+    testall)
+        # Whether the phone is in is settled before anything runs, and the
+        # screen taken in hand there and then. A locked phone is the one thing
+        # no script can get past, and finding out in the first seconds beats
+        # finding out after the unit tests and both Node projects have had
+        # their minutes; holding the screen from here covers the whole run
+        # rather than only the part that talks to the device.
+        with_device=0
+        if [ -n "$SERIAL" ]; then
+            with_device=1
+        else
+            attached=$(attached_devices)
+            [ "$attached" -lt 2 ] || die "$attached devices attached: say which with --serial, or set ANDROID_SERIAL"
+            [ "$attached" -eq 0 ] || with_device=1
+        fi
+        if [ "$with_device" -eq 1 ]; then
+            require_device
+            ensure_awake_and_unlocked
+            hold_screen_awake
+        fi
+
+        run_check
+
+        if [ "$with_device" -eq 1 ]; then
+            echo
+            echo "== device =="
+            # No filter, so the catalogue of nights is drawn and its
+            # notifications posted as part of it and `scenarios --device` has
+            # nothing left to add. The harness package stays out either way:
+            # it seeds device state for tools/bfu-check.sh and deliberately
+            # leaves it behind, and build.gradle.kts excludes it.
+            run_on_device
+        fi
+
+        echo
+        if [ "$with_device" -eq 1 ]; then
+            echo "Ran everything: the unit tests, both Node projects, and the whole"
+            echo "instrumented suite on the phone. The two overnight harnesses are not"
+            echo "part of it - tools/bfu-check.sh and tools/doze-check.sh reboot the"
+            echo "phone or wait out real Doze windows, and have their own options."
+        else
+            echo "No phone was plugged in, so this was ./go check and nothing more: the"
+            echo "seams only a device can reach - the two preference stores, the manifest,"
+            echo "notifications, the nights drawn on a real screen - were not covered."
+        fi
         ;;
 
     clean)

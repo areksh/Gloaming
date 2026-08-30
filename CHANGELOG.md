@@ -384,6 +384,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phone rather than failing test by test with a message that blames the code,
   leaves the app installed afterwards, and puts back everything it changed,
   including after an interrupt.
+- `./go testall`, for the question "does all of it still pass" rather than "does
+  this change". It is `check`, and then the whole instrumented suite on the
+  phone - the catalogue of nights with it - if one is plugged in. If none is, it
+  says at the end which seams went uncovered rather than reporting a pass for
+  having run less. The screen is taken in hand before the JVM suites start, so a
+  locked phone, the one thing no script can get past, is refused in the first
+  seconds instead of after everything that needed no phone has had its minutes.
+  The overnight harnesses stay outside it: they reboot the phone or sit through
+  real Doze windows, and are nobody's idea of a step in a test run.
 
 ### Changed
 
