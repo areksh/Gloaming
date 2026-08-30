@@ -249,10 +249,20 @@ and the hardest thing to test. Two harnesses answer it in minutes rather than a
 night:
 
 ```sh
+./go status                   # what state the phone is in; reads only, seconds
 ./go install --test           # the app, and the APK these two harnesses need
 tools/bfu-check.sh --seed     # reboot, hold at the lock screen, report back
 tools/doze-check.sh           # force deep Doze, measure the real poll spacing
 ```
+
+`./go status` is the cheap question, and worth asking before an overnight run
+and again the morning after one that produced nothing: whether the app is
+installed and has been opened, whether it is exempt from battery optimisation,
+what standby bucket it is in, whether an alarm is pending and how far out, and
+when a poll last completed. It changes nothing and takes seconds, where the two
+harnesses below each take the phone out of use for as long as they run. It is
+`tools/bfu-check.sh --check-only`, so the checks are the harness's own rather
+than a second copy that can drift from them.
 
 `bfu-check.sh` tests the before-first-unlock path. It gathers its evidence after
 the fact rather than over a live connection, because adb is generally

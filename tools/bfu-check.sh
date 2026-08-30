@@ -43,6 +43,11 @@
 #                   so this is needed more often than it looks.
 #   --resume        skip the reboot and just read the evidence. Use this in the
 #                   morning after a real overnight run.
+#   --check-only    read the device's state and stop: no reboot, no soak, no
+#                   change of any kind. Answers "is this phone set up to alert
+#                   tonight" in seconds, which is worth knowing before an
+#                   overnight run and again the morning after one that produced
+#                   nothing. `./go status` is this.
 #   --serial S      target a specific device
 #
 set -euo pipefail
@@ -58,6 +63,7 @@ LONGITUDE=""
 THRESHOLD=""
 EXPECT_ALERT=0
 PREPARE=0
+CHECK_ONLY=0
 RECONNECT_TIMEOUT=600
 
 while [ $# -gt 0 ]; do
@@ -72,6 +78,7 @@ while [ $# -gt 0 ]; do
         --expect-alert) EXPECT_ALERT=1; shift ;;
         --prepare) PREPARE=1; shift ;;
         --resume) RESUME=1; shift ;;
+        --check-only) CHECK_ONLY=1; shift ;;
         # Everything between the shebang and the first line of code. A fixed
         # line range silently truncated the option list as it grew.
         -h|--help) sed -e '1d' -e '/^[^#]/,$d' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -82,6 +89,14 @@ done
 adb() {
     if [ -n "$SERIAL" ]; then command adb -s "$SERIAL" "$@"; else command adb "$@"; fi
 }
+
+# --check-only promises to change nothing, so it cannot be combined with the
+# flags that exist to change something, and there is nothing for it to resume.
+if [ "$CHECK_ONLY" -eq 1 ] && [ $((SEED + PREPARE + RESUME)) -gt 0 ]; then
+    echo "--check-only reads what is already there and changes nothing, so it" >&2
+    echo "cannot be combined with --seed, --prepare or --resume." >&2
+    exit 2
+fi
 
 # Matches without stopping early. `grep -q` exits at the first match and closes
 # the pipe, which kills whatever is still writing upstream with SIGPIPE - and
@@ -183,10 +198,66 @@ boot_epoch_ms() {
     printf '%s' $(( (now - uptime) * 1000 ))
 }
 
+durable_evidence() {
+    step "Durable evidence in device-encrypted storage"
+
+    # Survives reboots and log rollover, so this is the check that still
+    # works after a genuine overnight run.
+    prefs=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null")
+    last_poll=$(printf '%s' "$prefs" | sed -n 's/.*name="last_poll_at" value="\([0-9]*\)".*/\1/p')
+    if [ -n "$last_poll" ]; then
+        when=$(date -d "@$((last_poll / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$last_poll")
+        age=$(( ($(date +%s) - last_poll / 1000) / 60 ))
+        pass "last poll recorded at $when (${age} minutes ago)"
+    else
+        fail "no last_poll_at recorded" "No poll has ever completed on this device."
+    fi
+
+    # Strings are the one preference type without a `value` attribute: they are
+    # written as `<string name="k">text</string>`, so the numeric form used above
+    # matches nothing here and the last error went unreported.
+    last_error=$(printf '%s' "$prefs" \
+        | sed -n 's|.*<string name="last_error">\(.*\)</string>.*|\1|p')
+    [ -n "$last_error" ] && printf '  NOTE  last error recorded: %s\n' "$last_error"
+
+    listing=$(as_app "ls -l $DE_CACHE 2>/dev/null")
+    if [ -n "$listing" ]; then
+        pass "the cache in device-encrypted storage is populated"
+        printf '%s\n' "$listing" | sed 's/^/        /'
+    else
+        fail "the device-encrypted cache is empty" \
+            "Nothing was ever fetched and stored where a locked wake can reach it."
+    fi
+
+    alarm=$(poll_alarm)
+    if [ -z "$alarm" ]; then
+        fail "no alarm is pending" "The chain stopped; nothing will wake the app again."
+    else
+        # A pending alarm is not the same as an alarm that will fire. The system
+        # records the time the app asked for and the time each policy will actually
+        # allow, and reports the latest of them. An alarm deferred by days is
+        # indistinguishable from a healthy one unless that line is read.
+        when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1 || true)
+        policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//' || true)
+        if printf '%s' "$when" | has -E '^[0-9]+d'; then
+            fail "an alarm is pending but deferred to +$when" \
+                "It will never fire. $policy"
+        elif [ -n "$when" ]; then
+            pass "an alarm is pending and due in $when"
+        else
+            pass "an alarm is pending"
+        fi
+    fi
+}
+
 # ---------------------------------------------------------------- preflight --
 
 if [ "$RESUME" -eq 0 ]; then
-    step "Preconditions"
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        step "Whether this phone is set up to alert"
+    else
+        step "Preconditions"
+    fi
 
     if ! device_present; then
         echo "  no device reachable over adb" >&2
@@ -207,12 +278,20 @@ if [ "$RESUME" -eq 0 ]; then
     # for the wrong reason. This is the most likely way to "test BFU" and learn
     # nothing at all.
     if [ "$(adb shell locksettings get-disabled 2>/dev/null | tr -d '\r')" = "true" ]; then
-        echo "  FAIL  no lock screen credential is set" >&2
-        echo "        Without one the device is never locked after boot, so this" >&2
-        echo "        would pass without testing anything. Set a PIN." >&2
-        exit 1
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            # Nothing below needs one. It is said anyway, because a phone that
+            # is never locked cannot demonstrate the path the alerting rests on.
+            skip "no lock screen credential is set" \
+                "Alerting is unaffected, but this phone is unlocked from the moment it boots, so the before-first-unlock path can never happen on it."
+        else
+            echo "  FAIL  no lock screen credential is set" >&2
+            echo "        Without one the device is never locked after boot, so this" >&2
+            echo "        would pass without testing anything. Set a PIN." >&2
+            exit 1
+        fi
+    else
+        pass "a lock screen credential is set"
     fi
-    pass "a lock screen credential is set"
 
     # Opening the app is not cosmetic: until the user launches it once it sits
     # in the NEVER standby bucket, where alarms are deferred by a year, and a
@@ -309,6 +388,17 @@ if [ "$RESUME" -eq 0 ]; then
     else
         fail "notification permission is not granted" \
             "A poll can decide to alert and still post nothing. Grant it in the app, or: adb shell pm grant $PACKAGE android.permission.POST_NOTIFICATIONS"
+    fi
+
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        # What a poll has already managed is as much of the answer as anything
+        # above: an exemption granted and an alarm pending say it should work,
+        # a poll recorded an hour ago says it does.
+        durable_evidence
+        step "Result"
+        printf '  %d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"
+        [ "$FAIL" -eq 0 ] || exit 1
+        exit 0
     fi
 
     [ "$FAIL" -eq 0 ] || { printf '\nFix the above before rebooting.\n'; exit 1; }
@@ -503,55 +593,7 @@ elif [ "$EXPECT_ALERT" -eq 1 ]; then
     fail "no notification was posted"
 fi
 
-step "Durable evidence in device-encrypted storage"
-
-# Survives reboots and log rollover, so this is the check that still works after
-# a genuine overnight run.
-prefs=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null")
-last_poll=$(printf '%s' "$prefs" | sed -n 's/.*name="last_poll_at" value="\([0-9]*\)".*/\1/p')
-if [ -n "$last_poll" ]; then
-    when=$(date -d "@$((last_poll / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$last_poll")
-    age=$(( ($(date +%s) - last_poll / 1000) / 60 ))
-    pass "last poll recorded at $when (${age} minutes ago)"
-else
-    fail "no last_poll_at recorded" "No poll has ever completed on this device."
-fi
-
-# Strings are the one preference type without a `value` attribute: they are
-# written as `<string name="k">text</string>`, so the numeric form used above
-# matches nothing here and the last error went unreported.
-last_error=$(printf '%s' "$prefs" \
-    | sed -n 's|.*<string name="last_error">\(.*\)</string>.*|\1|p')
-[ -n "$last_error" ] && printf '  NOTE  last error recorded: %s\n' "$last_error"
-
-listing=$(as_app "ls -l $DE_CACHE 2>/dev/null")
-if [ -n "$listing" ]; then
-    pass "the cache in device-encrypted storage is populated"
-    printf '%s\n' "$listing" | sed 's/^/        /'
-else
-    fail "the device-encrypted cache is empty" \
-        "Nothing was ever fetched and stored where a locked wake can reach it."
-fi
-
-alarm=$(poll_alarm)
-if [ -z "$alarm" ]; then
-    fail "no alarm is pending" "The chain stopped; nothing will wake the app again."
-else
-    # A pending alarm is not the same as an alarm that will fire. The system
-    # records the time the app asked for and the time each policy will actually
-    # allow, and reports the latest of them. An alarm deferred by days is
-    # indistinguishable from a healthy one unless that line is read.
-    when=$(printf '%s' "$alarm" | sed -n 's/.*[^x]whenElapsed=+\([^ ]*\).*/\1/p' | head -1 || true)
-    policy=$(printf '%s' "$alarm" | grep -m1 'policyWhenElapsed' | sed 's/^ *//' || true)
-    if printf '%s' "$when" | has -E '^[0-9]+d'; then
-        fail "an alarm is pending but deferred to +$when" \
-            "It will never fire. $policy"
-    elif [ -n "$when" ]; then
-        pass "an alarm is pending and due in $when"
-    else
-        pass "an alarm is pending"
-    fi
-fi
+durable_evidence
 
 step "Result"
 printf '  %d passed, %d failed, %d skipped\n' "$PASS" "$FAIL" "$SKIP"

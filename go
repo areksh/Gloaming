@@ -19,6 +19,13 @@
 #   scenarios          The catalogue of nights in app/src/scenarios, checked on
 #                      the JVM. With --device, drawn through the real screens
 #                      and posted as real notifications on the phone.
+#   status             What state the phone is in: whether the app is installed
+#                      and has been opened, whether it is exempt from battery
+#                      optimisation, what standby bucket it is in, whether an
+#                      alarm is pending and when a poll last completed. Reads
+#                      only; changes nothing. This is tools/bfu-check.sh
+#                      --check-only, which is the part of that harness worth
+#                      having to hand rather than reserved for a soak.
 #   log                The app's own log, off the phone. It keeps one because
 #                      logcat is a ring buffer holding about twelve minutes and
 #                      the hours this app works in are the ones nobody is
@@ -58,9 +65,10 @@
 # interrupt: the screen timeout and the stay-awake setting.
 #
 # The two harnesses for overnight delivery are not wrapped here - they have
-# their own options and their own reasons. See tools/bfu-check.sh (the
-# before-first-unlock path) and tools/doze-check.sh (the interval polls really
-# land at).
+# their own options and their own reasons, and each takes the phone out of use
+# for as long as it runs. See tools/bfu-check.sh (the before-first-unlock path)
+# and tools/doze-check.sh (the interval polls really land at). The one part with
+# none of those reasons is wrapped: `status` is bfu-check's read-only mode.
 #
 set -euo pipefail
 
@@ -381,6 +389,17 @@ case "$COMMAND" in
         else
             ./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'
         fi
+        ;;
+
+    status)
+        require_device
+        # --serial as well as the exported ANDROID_SERIAL, so this does not
+        # depend on which of the two the harness happens to read.
+        status_args=(--check-only)
+        if [ -n "$SERIAL" ]; then
+            status_args+=(--serial "$SERIAL")
+        fi
+        tools/bfu-check.sh "${status_args[@]}"
         ;;
 
     log)

@@ -391,6 +391,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   later as a conflict, which is the worst moment to find out that the file in
   the tree is not the file upstream published. The astronomy-engine licence file
   had no checksum recorded at all, which is how the test first earned its keep.
+- `./go status`, which says whether a phone is actually set up to alert: opened
+  and not stopped, exempt from battery optimisation, in a standby bucket that
+  does not defer, holding a pending alarm, and with a poll recorded recently.
+  Every one of those checks already existed, welded inside the before-first-unlock
+  harness behind a reboot and a six-minute soak - so the question worth asking
+  before a night, and again the morning after one that produced nothing, cost
+  more to ask than most nights are worth. It is that harness's own `--check-only`
+  mode rather than a second copy of the checks, and it changes nothing.
 - `./go log`, which pulls the app's own log off the phone. It has kept one since
   logcat's twelve-minute ring buffer was found to be useless for a fault at three
   in the morning, and until now reading it meant the share sheet on the device or
