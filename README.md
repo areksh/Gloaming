@@ -299,6 +299,13 @@ real overnight run.
 the app's battery-optimisation exemption and its app standby bucket both change
 the answer, so the number worth trusting is the one from the device.
 
+Seed a short interval before running it, or it will honestly report nothing.
+Adaptive polling backs the interval off when there is nothing to watch - a quiet
+sky in daylight reaches several hours - so a thirty-minute window sees no poll at
+all and says so. That is the app working, not the harness failing. Run
+`bfu-check.sh --seed --interval 2` first, or read the pending alarm out of
+`./go status` and pick a window longer than it.
+
 Both can provoke a genuine alert rather than waiting for the sky to oblige.
 Point the observer at the busiest cell in the live grid and set a threshold just
 below its value: the fetch, the grid lookup, the decision and the notification
