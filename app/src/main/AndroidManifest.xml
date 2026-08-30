@@ -205,6 +205,15 @@
             <intent-filter>
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!--
+                  An update cancels this app's alarms exactly as a reboot does,
+                  and the app is installed from stores that update in the
+                  background. Without this the schedule dies at the update and
+                  stays dead until somebody opens the app - which nothing about
+                  the app looks wrong enough to prompt. One of the few implicit
+                  broadcasts a manifest receiver is still delivered.
+                -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>

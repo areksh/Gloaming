@@ -10,7 +10,7 @@ import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.satellites.LivePass
 
 /**
- * Re-arms the schedule after a reboot.
+ * Re-arms the schedule after a reboot or an update.
  *
  * Alarms do not survive a restart, so without this the app stays silent until
  * someone opens it. That is the whole failure this exists to prevent on a phone
@@ -19,12 +19,21 @@ import sh.arek.gloaming.satellites.LivePass
  * Listens for `LOCKED_BOOT_COMPLETED` as well as `BOOT_COMPLETED`: the former
  * arrives before the device is unlocked and is the only one that will be seen
  * for a while if the phone rebooted overnight and nobody has touched it.
+ *
+ * And for `MY_PACKAGE_REPLACED`, because an update cancels the alarms just as a
+ * reboot does. This app is installed from F-Droid and Obtainium, which update in
+ * the background, so without it the app would go quiet after every update and
+ * give no sign of it: the exemption is still granted, the app is not stopped,
+ * and there is simply no alarm.
  */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != Intent.ACTION_LOCKED_BOOT_COMPLETED &&
+            action != Intent.ACTION_MY_PACKAGE_REPLACED
+        ) {
             return
         }
 
@@ -36,7 +45,7 @@ class BootReceiver : BroadcastReceiver() {
         runCatching {
             val settings = BootAware.pollSettings(application).read()
             if (!settings.alertsEnabled) {
-                Notes.i(application, TAG, "alerts are off; not rescheduling after boot")
+                Notes.i(application, TAG, "alerts are off; not rescheduling after $action")
                 return@runCatching
             }
 
@@ -61,7 +70,7 @@ class BootReceiver : BroadcastReceiver() {
      * Kept outside the `alertsEnabled` gate above, and reinstated even though
      * nothing else about the request is re-checked, because it is not a
      * schedule: it is a decision somebody made about one particular pass in the
-     * next half hour, and the reboot is the only thing that lost it. It expires
+     * next half hour, and the restart is the only thing that lost it. It expires
      * on its own - the tracker clears the request when it stops, whether it
      * found the pass or not.
      */
@@ -90,8 +99,8 @@ class BootReceiver : BroadcastReceiver() {
             val lead = runCatching { Graph.settings(context).read().liveFollowLeadMillis }
                 .getOrDefault(LivePass.LEAD_MILLIS)
             PassAlarm.follow(context, catalogue, peaksAt, LivePass.startAt(risesAt, lead))
-            Notes.i(context, TAG, "put the follow of $catalogue back after a reboot")
-        }.onFailure { Notes.e(context, TAG, "failed to put a follow back after a reboot", it) }
+            Notes.i(context, TAG, "put the follow of $catalogue back after a restart")
+        }.onFailure { Notes.e(context, TAG, "failed to put a follow back after a restart", it) }
     }
 
     private companion object {

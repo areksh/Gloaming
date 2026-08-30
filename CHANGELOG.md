@@ -521,6 +521,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **An update no longer leaves the app silent until somebody opens it.** An
+  update cancels every alarm an app holds, exactly as a reboot does, and only
+  the reboot was being listened for. Gloaming is installed from F-Droid and
+  Obtainium, which update in the background, so the app would go quiet at the
+  update and give no sign of it: the battery-optimisation exemption still
+  granted, the app not in the stopped state, an untroubled-looking settings
+  screen, and simply no alarm behind any of it. For an app whose whole job is
+  to wake up overnight without being asked, that is the worst shape a fault can
+  take. The boot receiver now listens for its own package being replaced as
+  well as for the two boot broadcasts, and re-arms the schedule the same way.
+
 - **"Last check failed" now says what failed.** The reason shown on Tonight, and
   written to the journal, was whatever the exception said on its own - which for
   a name that will not resolve is the hostname and nothing else, for a call that

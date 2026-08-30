@@ -106,6 +106,23 @@ class SchedulingTest {
         )
     }
 
+    @Test
+    fun theBootReceiverListensForItsOwnPackageBeingReplaced() {
+        // An update cancels the app's alarms exactly as a reboot does, and this
+        // app is installed from stores that update in the background. Without
+        // this the schedule dies at the update and stays dead until somebody
+        // opens the app - silently, because nothing about the app looks wrong.
+        val intent = Intent(Intent.ACTION_MY_PACKAGE_REPLACED)
+            .setPackage(context.packageName)
+
+        val resolved = context.packageManager.queryBroadcastReceivers(intent, 0)
+
+        assertTrue(
+            "nothing handles MY_PACKAGE_REPLACED",
+            resolved.any { it.activityInfo.name == BootReceiver::class.java.name },
+        )
+    }
+
     /** Whether the alarm manager currently holds a pending alarm for this app. */
     private fun hasRegisteredAlarm(): Boolean =
         pendingAlarms().contains(ourAlarmTag)
