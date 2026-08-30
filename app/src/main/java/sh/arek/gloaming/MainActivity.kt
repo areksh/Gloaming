@@ -737,6 +737,10 @@ private fun GloamingApp() {
                     settings = settings.copy(nightVision = it)
                     BootAware.saveSettings(context, settings)
                 },
+                onShowEveryConstellationChange = {
+                    settings = settings.copy(showEveryConstellation = it)
+                    BootAware.saveSettings(context, settings)
+                },
                 onLogRetentionChange = {
                     settings = settings.copy(logRetentionDays = it)
                     BootAware.saveSettings(context, settings)

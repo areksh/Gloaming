@@ -321,6 +321,23 @@ data class UserSettings(
     val notifyAboutEveryEvent: Boolean = true,
 
     /**
+     * Whether the constellations card lists every pattern up tonight, or the
+     * handful worth leading with.
+     *
+     * Off by default, and the default is the interesting half. Ranked by
+     * height alone the patterns that never set come first on every night of
+     * the year - from Scotland they transit far higher than anything seasonal -
+     * so the untrimmed list runs to seventeen rows whose first seven are the
+     * same in January as in December. Trimmed, the card says what has changed
+     * since last month and names the rest in one line.
+     *
+     * The full list is a setting rather than a lost option because somebody
+     * learning the sky may well want all of it, and the app has no business
+     * deciding they may not.
+     */
+    val showEveryConstellation: Boolean = false,
+
+    /**
      * The events the user has picked out, by kind and time.
      *
      * Kept here rather than in [AlertState] because it is a choice the user

@@ -92,6 +92,7 @@ class ScreensTest {
     private var locationMode: LocationMode? = null
     private var detected = 0
     private var everyEvent: Boolean? = null
+    private var everyConstellation: Boolean? = null
     private var cometMagnitude: Int? = null
     private var cometMoon: Int? = null
     private var logRetention: Int? = null
@@ -173,6 +174,7 @@ class ScreensTest {
                     onQuietUntilChange = {},
                     onQuietHoursOverrideChange = {},
                     onNightVisionChange = {},
+                    onShowEveryConstellationChange = { everyConstellation = it },
                     onLogRetentionChange = { logRetention = it },
                     onExportLog = { exported++ },
                     onClearLog = { cleared++ },
@@ -932,6 +934,16 @@ class ScreensTest {
         assertEquals(false, everyEvent)
     }
 
+    /** Trimmed by default, so the switch turns the full list on. */
+    @Test
+    fun theEveryConstellationSwitchIsReported() {
+        show()
+
+        compose.onNodeWithTag(EVERY_CONSTELLATION_SWITCH_TAG).performScrollTo().performClick()
+
+        assertEquals(true, everyConstellation)
+    }
+
     /**
      * Three destinations rather than a switch. "Put it in my calendar" means
      * two different things to two reasonable people - a local calendar that
@@ -1438,6 +1450,22 @@ class ScreensTest {
         show(tonight = withConstellations(isAtItsBest = false).copy(constellations = emptyList()))
 
         compose.onNodeWithText("Constellations tonight").assertDoesNotExist()
+    }
+
+    /** The ones held back are still said, or the card would simply lose them. */
+    @Test
+    fun namesTheConstellationsThatNeverSet() {
+        show(
+            tonight = withConstellations(isAtItsBest = false)
+                .copy(constellationsAlwaysUp = listOf("Ursa Major", "Cassiopeia")),
+        )
+
+        // Matched on the opening rather than on "every night of the year",
+        // which the settings card explaining this control also says - and
+        // show() renders both screens into one column.
+        compose.onNodeWithText("Also up, as they are", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     private fun withConstellations(isAtItsBest: Boolean) = TonightList(

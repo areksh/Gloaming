@@ -336,19 +336,34 @@ class TonightTest {
 
     // --- the constellations ---
 
-    /**
-     * The season half of the feature. A January night from Edinburgh has the
-     * winter patterns up, and Orion is the one anybody would name.
-     */
+    /** The season half of the feature: a January night has patterns up. */
     @Test
     fun `lists the constellations up tonight`() {
         val list = tonight("2027-01-15T22:00:00Z")
 
         assertTrue(list.constellations.isNotEmpty())
-        assertTrue(
-            list.constellations.map { it.constellation.name }.toString(),
-            list.constellations.any { it.constellation.name == "Orion" },
-        )
+    }
+
+    /**
+     * And each season brings patterns the other does not, which is the whole
+     * reason the ones that never set are held back: ranked by height alone,
+     * January and August led with four of the same six names.
+     *
+     * Not that the two share nothing. Andromeda and Lyra sit a few degrees
+     * off never setting from this latitude, so they are genuinely up most of
+     * the year and saying otherwise would be the card lying to be tidy.
+     */
+    @Test
+    fun `brings different constellations forward in different seasons`() {
+        val winter = tonight("2027-01-15T22:00:00Z").constellations
+            .map { it.constellation.name }
+            .toSet()
+        val summer = tonight("2027-08-15T22:00:00Z").constellations
+            .map { it.constellation.name }
+            .toSet()
+
+        assertTrue("$winter vs $summer", (winter - summer).isNotEmpty())
+        assertTrue("$summer vs $winter", (summer - winter).isNotEmpty())
     }
 
     /**
@@ -380,6 +395,65 @@ class TonightTest {
             list.constellations.map { it.constellation.name to it.isAtItsBest }.toString(),
             list.constellations.any { it.isAtItsBest },
         )
+    }
+
+    /**
+     * Trimmed by default. Ranking by height alone puts the patterns that never
+     * set at the top on every night of the year, because from this latitude
+     * they transit far higher than anything seasonal - so an untrimmed list is
+     * seventeen rows of which the first seven are the same in January and
+     * December.
+     */
+    @Test
+    fun `lists only a handful of constellations by default`() {
+        val list = tonight("2027-01-15T22:00:00Z")
+
+        assertTrue(
+            list.constellations.size.toString(),
+            list.constellations.size <= Tonight.CONSTELLATION_HIGHLIGHTS,
+        )
+        assertTrue(list.constellations.none { it.isCircumpolar })
+    }
+
+    /** The ones that never set are still said, in one line rather than seven rows. */
+    @Test
+    fun `names the constellations that never set separately`() {
+        val list = tonight("2027-01-15T22:00:00Z")
+
+        assertTrue(list.constellationsAlwaysUp.toString(), list.constellationsAlwaysUp.isNotEmpty())
+        assertTrue(list.constellationsAlwaysUp.contains("Ursa Major"))
+    }
+
+    /**
+     * The one at its best leads whatever its height, which is the rule the
+     * station already gets among the passes: it is the one worth going out for
+     * tonight rather than any other night, and from this latitude Orion is
+     * lower than half the sky.
+     */
+    @Test
+    fun `leads with the constellation at its best however low it is`() {
+        val list = tonight("2027-12-16T22:00:00Z")
+
+        val first = list.constellations.first()
+        assertTrue(first.constellation.name, first.isAtItsBest)
+        assertTrue(
+            first.peakAltitude.toString(),
+            list.constellations.any { it.peakAltitude > first.peakAltitude },
+        )
+    }
+
+    /** And the setting hands back everything, in one list with nothing held aside. */
+    @Test
+    fun `lists every constellation when asked to`() {
+        val trimmed = tonight("2027-01-15T22:00:00Z")
+        val full = tonight(
+            "2027-01-15T22:00:00Z",
+            user = settings.copy(showEveryConstellation = true),
+        )
+
+        assertTrue(full.constellations.size > trimmed.constellations.size)
+        assertTrue(full.constellations.any { it.isCircumpolar })
+        assertEquals(emptyList<String>(), full.constellationsAlwaysUp)
     }
 
     private fun pass(

@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   objects are still deliberately absent: that is a catalogue, and Stellarium
   does it better.
 
+  The card leads with a handful rather than listing everything up, because
+  ranking by height alone puts the patterns that never set at the top on every
+  night of the year - from Scotland they transit far higher than anything
+  seasonal, so the full list ran to seventeen rows whose first seven were the
+  same in January as in December. Those are named in one closing line instead,
+  and the places go to what has changed since last month. Whichever is at its
+  best tonight comes first however low it is, the rule the space station
+  already gets among the passes. A setting turns the full list back on.
+
 - **The planets and comets say which constellation they are sitting in.** A
   comet is a faint smudge at a position nobody has memorised, so "in Andromeda"
   is worth more than the altitude and the bearing put together - and a planet

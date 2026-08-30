@@ -327,6 +327,17 @@ internal fun describeMoonTimes(moon: MoonTonight): String? {
 }
 
 /**
+ * The patterns held back for never setting, named in one line.
+ *
+ * A row each would be seven of them, identical every night of the year, above
+ * the handful that have actually changed since last month. Named like this
+ * they still reach somebody who wants the signpost - the Plough points at
+ * Polaris and Polaris points at everything else - without being the card.
+ */
+internal fun describeAlwaysUp(names: List<String>): String =
+    "Also up, as they are every night of the year: ${names.joinToString(", ")}."
+
+/**
  * One constellation in one line: how high, which way, when, and how to find it.
  *
  * The positional half matches [describePlanet] exactly, so the two cards read

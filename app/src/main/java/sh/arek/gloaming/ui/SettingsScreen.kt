@@ -61,6 +61,7 @@ fun SettingsContent(
     onQuietUntilChange: (String) -> Unit,
     onQuietHoursOverrideChange: (Boolean) -> Unit,
     onNightVisionChange: (Boolean) -> Unit,
+    onShowEveryConstellationChange: (Boolean) -> Unit,
     onLogRetentionChange: (Int) -> Unit,
     onExportLog: () -> Unit,
     onClearLog: () -> Unit,
@@ -133,6 +134,7 @@ fun SettingsContent(
         onCometStaleChange,
         onCometMoonChange,
     )
+    ConstellationCard(state, onShowEveryConstellationChange)
     AutomaticSettingsCard(state, onAutomaticSettingsChange)
     BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
     NightVisionCard(state, onNightVisionChange)
@@ -794,6 +796,49 @@ private fun BeforeUnlockCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+        }
+    }
+}
+
+/** How a test reaches the constellation switch. */
+const val EVERY_CONSTELLATION_SWITCH_TAG = "every-constellation-switch"
+
+/**
+ * How much of the sky the constellations card names.
+ *
+ * A setting rather than a decision made for everybody, because the two answers
+ * suit different people. Trimmed, the card leads with what has changed since
+ * last month; in full it is every pattern above the horizon, which is what
+ * somebody working through them all actually wants.
+ */
+@Composable
+private fun ConstellationCard(state: MainUiState, onChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Every constellation", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.showEveryConstellation,
+                    onCheckedChange = onChange,
+                    modifier = Modifier.testTag(EVERY_CONSTELLATION_SWITCH_TAG),
+                )
+            }
+            Text(
+                if (state.settings.showEveryConstellation) {
+                    "Every pattern above the horizon tonight, highest first - about " +
+                        "fifteen of them on a clear winter night."
+                } else {
+                    "The handful worth leading with, and the ones that never set named " +
+                        "in a line at the end. Ranked by height alone the patterns that " +
+                        "are up every night of the year fill the card, and what has " +
+                        "changed since last month never reaches it."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

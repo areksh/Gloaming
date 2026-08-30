@@ -60,9 +60,13 @@ whole.
 - **A curated table of 22 patterns** in `astronomy/Constellations.kt`: name,
   J2000 right ascension and declination, brightest star and its magnitude, an
   approximate extent, and one hand-written sentence saying how to pick it out.
-- **The season goes on Tonight.** A card listing what is up, highest first, with
-  where to look and how to recognise it - the same shape as the planets card
-  beside it.
+- **The season goes on Tonight.** A card leading with the handful worth going
+  out for, with where to look and how to recognise it. Ranked by height alone
+  the patterns that never set fill it on every night of the year, so those are
+  named in a closing line instead and the places go to the seasonal ones;
+  whichever is at its best tonight leads however low it is, the rule the space
+  station already gets among the passes. `showEveryConstellation` turns the
+  full list back on.
 - **The one dated fact goes in the calendar.** `EventKind.Constellation`, one
   entry per pattern per year, for the night it stands highest at midnight. The
   window is that one night, not the season.

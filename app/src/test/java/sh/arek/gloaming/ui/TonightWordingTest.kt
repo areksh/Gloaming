@@ -323,6 +323,15 @@ class TonightWordingTest {
         assertTrue(line, !line.contains("magnitude"))
     }
 
+    /** The seven that never set, in one line rather than seven rows. */
+    @Test
+    fun `names the constellations that never set in one line`() {
+        assertEquals(
+            "Also up, as they are every night of the year: Ursa Major, Cassiopeia, Perseus.",
+            describeAlwaysUp(listOf("Ursa Major", "Cassiopeia", "Perseus")),
+        )
+    }
+
     private fun pattern(
         name: String,
         altitude: Double,

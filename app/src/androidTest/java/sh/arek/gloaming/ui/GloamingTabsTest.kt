@@ -85,6 +85,7 @@ class GloamingTabsTest {
                 onQuietUntilChange = {},
                 onQuietHoursOverrideChange = {},
                 onNightVisionChange = {},
+                onShowEveryConstellationChange = {},
                 onLogRetentionChange = {},
                 onExportLog = {},
                 onClearLog = {},

@@ -92,14 +92,33 @@ data class TonightList(
     /** The naked-eye planets above the bar tonight, highest first. */
     val planets: List<PlanetTonight> = emptyList(),
     /**
-     * The constellations up tonight, highest first.
+     * The constellations to lead with tonight, or all of them where the
+     * setting asks for that.
      *
      * The season half of something whose one dated night is in the calendar.
      * A pattern is up for months at a time, which is exactly the shape that
      * belongs here rather than on a list of occasions.
      */
     val constellations: List<ConstellationTonight> = emptyList(),
+    /**
+     * The ones held back for never setting, named rather than listed.
+     *
+     * Empty when the setting asks for everything, because then nothing is
+     * held back and a closing line about it would be a line about nothing.
+     */
+    val constellationsAlwaysUp: List<String> = emptyList(),
 ) {
+    /**
+     * Whether there is nothing happening tonight.
+     *
+     * **Constellations and planets are deliberately not counted, and neither
+     * is the moon.** They are scenery rather than occasions: on any clear
+     * night from anywhere there are patterns up and usually a planet, so
+     * counting them would make this permanently false and it would stop
+     * meaning anything. What it asks is whether something is *happening* -
+     * a pass, a dated event, a comet, the noctilucent prompt - and "the sky
+     * is quiet tonight" stays a true and useful answer with Orion in it.
+     */
     val isEmpty: Boolean
         get() = passes.isEmpty() && events.isEmpty() && comets.isEmpty() && noctilucent == null
 }
@@ -181,6 +200,10 @@ object Tonight {
             ?.let { visiblePasses(it, latitude, longitude, from, until, settings) }
             .orEmpty()
 
+        val everyConstellation = night
+            ?.let { Constellations.tonight(latitude, longitude, it) }
+            .orEmpty()
+
         return TonightList(
             darkFrom = night?.first,
             darkUntil = night?.last,
@@ -212,9 +235,12 @@ object Tonight {
             moon = night?.let { moonTonight(latitude, longitude, it, nowMillis) },
             cloud = cloud,
             planets = night?.let { Planets.tonight(latitude, longitude, it) }.orEmpty(),
-            constellations = night
-                ?.let { Constellations.tonight(latitude, longitude, it) }
-                .orEmpty(),
+            constellations = worthListing(everyConstellation, settings),
+            constellationsAlwaysUp = if (settings.showEveryConstellation) {
+                emptyList()
+            } else {
+                everyConstellation.filter { it.isCircumpolar }.map { it.constellation.name }
+            },
             clearSpell = night?.let {
                 ClearSpell.first(
                     hourly = hourly,
@@ -279,6 +305,44 @@ object Tonight {
 
     /** How many passes are worth leading with before a list becomes a catalogue. */
     const val HIGHLIGHTS: Int = 6
+
+    /**
+     * The patterns worth leading with, out of everything above the horizon.
+     *
+     * The passes' problem in a different disguise, and it takes the passes'
+     * answer. Ranking by height puts the patterns that never set at the top on
+     * every night of the year - from Scotland they transit at sixty to
+     * eighty-five degrees while Orion never clears forty - so height alone
+     * gives seventeen rows whose first seven are the same in January as in
+     * December, which tells somebody nothing about tonight.
+     *
+     * So the ones that never set are held back and named in a line instead,
+     * and the places go to the patterns that have actually changed since last
+     * month. The one at its best comes first whatever its height, on exactly
+     * the grounds the station gets its place among the passes: it is the one
+     * worth going out for tonight rather than any other night.
+     */
+    fun worthListing(
+        constellations: List<ConstellationTonight>,
+        settings: UserSettings,
+        limit: Int = CONSTELLATION_HIGHLIGHTS,
+    ): List<ConstellationTonight> {
+        if (settings.showEveryConstellation) return constellations
+
+        val seasonal = constellations.filterNot { it.isCircumpolar }
+        val best = seasonal.filter { it.isAtItsBest }
+        val rest = seasonal.filterNot { it.isAtItsBest }
+
+        return (best + rest).take(limit)
+    }
+
+    /**
+     * How many constellations to lead with.
+     *
+     * One fewer than the passes get, because each carries a sentence on how to
+     * find it and six of those is a paragraph rather than a card.
+     */
+    const val CONSTELLATION_HIGHLIGHTS: Int = 5
 
     private fun visiblePasses(
         document: SatellitesDocument,

@@ -256,6 +256,7 @@ internal object Nights {
             shows = setOf(
                 Shows.Constellations,
                 Shows.ConstellationAtItsBest,
+                Shows.ConstellationsAlwaysUp,
                 Shows.AstronomicalNight,
             ),
             nowMillis = at("2027-12-16T20:00:00Z"),

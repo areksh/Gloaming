@@ -1560,6 +1560,16 @@ Two rules the card needs that a notification does not:
   skim past a mediocre pass. The same pass arriving as a notification has interrupted them
   and has to earn it.
 
+**The same rule, applied again 2026-08-30, to the constellations.** Ranking them by height
+turned out to be the passes' problem in a different disguise: from 56 degrees north the
+patterns that never set transit at 60 to 85 degrees while Orion never clears 40, so height
+alone gave a card of seventeen rows whose first seven were identical in January and in
+December - which answers "what is highest" and not "what is up tonight that was not up last
+month". So the circumpolar ones are named in a closing line rather than given a row each,
+the five places go to the seasonal patterns, and whichever is at its best tonight leads
+however low it is, exactly as the station does among the passes. The full list is a setting,
+because somebody working through all of them wants all of them.
+
 ### What counts as an event at all
 
 **Decided 2026-08-25, and it settles most future questions in one line: if it cannot be

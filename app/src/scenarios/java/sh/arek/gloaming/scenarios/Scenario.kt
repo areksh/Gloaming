@@ -174,6 +174,9 @@ enum class Shows {
     /** One of them has its best night of the year tonight. */
     ConstellationAtItsBest,
 
+    /** Some are held back for never setting, and named in a line instead. */
+    ConstellationsAlwaysUp,
+
     /** The noctilucent prompt is in season and at the right latitude. */
     Noctilucent,
 

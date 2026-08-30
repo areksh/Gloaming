@@ -523,6 +523,12 @@ private fun ConstellationsCard(list: TonightList) {
             )
             Text(describeConstellation(seen), style = MaterialTheme.typography.bodySmall)
         }
+        if (list.constellationsAlwaysUp.isNotEmpty()) {
+            Text(
+                describeAlwaysUp(list.constellationsAlwaysUp),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
     }
 }
 

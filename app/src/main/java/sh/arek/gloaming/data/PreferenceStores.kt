@@ -61,6 +61,7 @@ private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
 private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
+private const val KEY_EVERY_CONSTELLATION = "show_every_constellation"
 private const val KEY_STARRED_EVENTS = "starred_events"
 private const val KEY_CALENDAR_SYNC = "calendar_sync"
 private const val KEY_AUTOMATIC_SETTINGS = "automatic_settings"
@@ -201,6 +202,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             },
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
+            showEveryConstellation = prefs.getBoolean(KEY_EVERY_CONSTELLATION, false),
             starredEvents = prefs.getStringSet(KEY_STARRED_EVENTS, emptySet()).orEmpty(),
             // By name rather than by ordinal: an ordinal is a position in a
             // list, and inserting a destination in the middle of that list
@@ -295,6 +297,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putBoolean(KEY_LOCATION_AUTOMATIC, settings.locationMode == LocationMode.Automatic)
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
             putBoolean(KEY_EVERY_EVENT, settings.notifyAboutEveryEvent)
+            putBoolean(KEY_EVERY_CONSTELLATION, settings.showEveryConstellation)
             // A defensive copy, for the reason the announced record carries one:
             // SharedPreferences keeps the very set handed to it.
             putStringSet(KEY_STARRED_EVENTS, settings.starredEvents.toSet())
@@ -354,6 +357,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_EVENT_ALERTS,
     KEY_EVENT_HEADS_UP,
     KEY_EVENT_LEAD,
+    KEY_EVERY_CONSTELLATION,
     KEY_EVERY_EVENT,
     KEY_FOLLOW_STATION,
     KEY_HIDDEN_KINDS,

@@ -94,12 +94,15 @@ which way to look, and which constellation each is sitting in.
 
 The constellations have a card of their own, because which patterns are up is a
 season rather than an occasion and a calendar of them would be an almanac. It
-lists what is up tonight, highest first, with where to look and one sentence on
+leads with a handful worth going out for, with where to look and one sentence on
 how to pick each one out - three stars in a line make Orion's belt, the end of
-the Plough's bowl points at Polaris. Ones that never set from where you are say
-so, and on the one night of the year a pattern is best placed it says that too.
-Individual stars and deep-sky objects are deliberately not here: that is a
-catalogue, and Stellarium does it better.
+the Plough's bowl points at Polaris. The ones that never set from where you are
+get named in a line at the end rather than a row each: they are the same every
+night of the year, and ranked by height they would fill the card and crowd out
+whatever has changed since last month. Whichever pattern is at its best tonight
+comes first however low it is. If you would rather see every one above the
+horizon, that is a setting. Individual stars and deep-sky objects are
+deliberately not here: that is a catalogue, and Stellarium does it better.
 
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
