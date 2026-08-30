@@ -167,6 +167,28 @@ class ManifestRepositoryTest {
         }
     }
 
+    /**
+     * On a fresh install there is nothing cached by definition, so "No cached
+     * manifest" is the least informative true thing that can be said: what a
+     * reader needs is why the fetch did not work. That reason reaches the
+     * Tonight screen as "Last check failed: ...".
+     */
+    @Test
+    fun `blames the failed fetch rather than the empty cache`() {
+        val store = FakeStore(stored = null)
+
+        val failure = assertThrows(ManifestUnavailableException::class.java) {
+            runTest {
+                repository(
+                    fetcher(manifestUrl to Result.failure(IOException("nothing answered"))),
+                    store,
+                ).refresh()
+            }
+        }
+
+        assertEquals("nothing answered", failure.cause?.message)
+    }
+
     @Test
     fun `re-verifies the cached manifest rather than trusting the file`() {
         // A cached pair that does not verify - a corrupted or tampered file.

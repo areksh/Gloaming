@@ -52,13 +52,14 @@ class ManifestRepository(
         val cached = lastKnownGood()
         if (cached != null && heldRecently()) return cached
 
-        val fetched = runCatching { fetchAndVerify() }.getOrNull()
+        val attempt = runCatching { fetchAndVerify() }
+        val fetched = attempt.getOrNull()
 
         if (fetched != null && !isRollback(fetched.manifest, cached)) {
             store.write(fetched.cached)
             return fetched.manifest
         }
-        return cached ?: cachedOrThrow()
+        return cached ?: cachedOrThrow(attempt.exceptionOrNull())
     }
 
     /**
@@ -97,11 +98,21 @@ class ManifestRepository(
         return Verified(parseVerified(body, signature), CachedManifest(body, signature))
     }
 
-    private fun cachedOrThrow(): Manifest =
+    /**
+     * The cached manifest, or a failure that says why there is nothing to
+     * answer with.
+     *
+     * The fetch is blamed ahead of the cache when it failed. With nothing
+     * cached - which is every fresh install - the cache's own complaint is "No
+     * cached manifest", the least informative true thing that could be said,
+     * while the reason the fetch did not work is the one a reader needs. It
+     * reaches them as "Last check failed: ..." on the Tonight screen.
+     */
+    private fun cachedOrThrow(fetchFailure: Throwable?): Manifest =
         runCatching { verifyCached() }.getOrElse { cause ->
             throw ManifestUnavailableException(
                 "No manifest could be verified, and no usable cached copy exists",
-                cause,
+                fetchFailure ?: cause,
             )
         }
 
