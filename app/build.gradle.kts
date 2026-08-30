@@ -109,6 +109,10 @@ android {
     }
     buildFeatures {
         compose = true
+        // For the version the settings screen reports. The app is installed
+        // from an APK rather than a store, so the screen is the only place
+        // that can say which build a phone is on.
+        buildConfig = true
     }
     // Vendored third-party source, kept in its own tree so it is never mistaken
     // for the project's own and can be replaced wholesale on an upgrade. See

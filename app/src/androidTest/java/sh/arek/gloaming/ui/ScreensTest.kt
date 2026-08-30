@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import sh.arek.gloaming.BuildConfig
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
@@ -419,6 +420,24 @@ class ScreensTest {
         compose.onNodeWithText("Gloaming itself is free software under the GPL-3.0", substring = true)
             .assertExists()
         compose.onNodeWithText("Vendored under the GPL-3.0", substring = true).assertExists()
+    }
+
+    /**
+     * Which build the phone is on, at the very bottom.
+     *
+     * The app arrives as an APK rather than from a store, so nothing else can
+     * answer that question: there is no listing to read the version off and no
+     * background update to make it moot. A phone can sit on one build for
+     * months, and the report that comes back about a missed alert is worth
+     * having only if it says which build missed it.
+     */
+    @Test
+    fun showsWhichBuildTheAppIs() {
+        show()
+
+        compose.onNodeWithText(
+            versionLine(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.DEBUG),
+        ).performScrollTo().assertIsDisplayed()
     }
 
     /**

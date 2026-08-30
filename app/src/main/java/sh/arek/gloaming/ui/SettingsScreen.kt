@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import sh.arek.gloaming.BuildConfig
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
@@ -145,6 +146,28 @@ fun SettingsContent(
     NightVisionCard(state, onNightVisionChange)
     LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
     CreditsCard(state)
+    VersionFooter()
+}
+
+/**
+ * Which build this is, at the foot of the settings.
+ *
+ * Outside a card and last of everything, because it is not a setting and
+ * nobody comes looking for it until something has gone wrong - at which point
+ * it is the first thing worth quoting. There is nowhere else to read it: the
+ * app is installed from an APK rather than a store, so no listing carries the
+ * version and nothing updates it in the background, and a phone can sit on one
+ * build for months without a word about it anywhere.
+ *
+ * Read from the build rather than written down here, so it cannot drift from
+ * the APK it is printed in.
+ */
+@Composable
+private fun VersionFooter() {
+    Text(
+        versionLine(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE, BuildConfig.DEBUG),
+        style = MaterialTheme.typography.bodySmall,
+    )
 }
 
 @Composable

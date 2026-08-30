@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The settings screen says which build you are running.** One line at the
+  foot of it: the version as a person reads it, and the build number Android
+  knows it by. The app is installed from an APK rather than from a store, so
+  there was previously nowhere at all to read that - no listing carries the
+  version, nothing updates in the background, and a phone can sit on one build
+  for months without a word about it anywhere. It is the first thing worth
+  quoting when an alert did not arrive, and until now the only way to find it
+  was a laptop and `adb`. A debug build says so, because it is not the release
+  it shares a name with.
+
 ## [1.0.0-rc1] - 2026-08-30
 
 Everything below is the first release candidate: the whole of the aurora scope
