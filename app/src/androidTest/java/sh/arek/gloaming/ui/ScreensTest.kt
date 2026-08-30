@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import sh.arek.gloaming.astronomy.ConstellationTonight
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
@@ -1402,6 +1404,61 @@ class ScreensTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    /**
+     * The other card whose answer is certain, and the only one that tries to
+     * teach rather than report: the star-hop is there for somebody who cannot
+     * yet find the pattern the rest of the line is describing.
+     */
+    @Test
+    fun showsTheConstellationsUpTonight() {
+        show(tonight = withConstellations(isAtItsBest = false))
+
+        compose.onNodeWithText("Constellations tonight").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Orion").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Highest 39 degrees south", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("belt", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    /** The one night of the year says so, because it is why to go out tonight. */
+    @Test
+    fun marksTheConstellationAtItsBestTonight() {
+        show(tonight = withConstellations(isAtItsBest = true))
+
+        compose.onNodeWithText("At its best tonight", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** Absent rather than empty, like every card on the tab but the satellites. */
+    @Test
+    fun leavesOutTheConstellationsCardWhenNoneAreUp() {
+        show(tonight = withConstellations(isAtItsBest = false).copy(constellations = emptyList()))
+
+        compose.onNodeWithText("Constellations tonight").assertDoesNotExist()
+    }
+
+    private fun withConstellations(isAtItsBest: Boolean) = TonightList(
+        darkFrom = now,
+        darkUntil = now + 8 * 3_600_000L,
+        passes = emptyList(),
+        bestPasses = emptyList(),
+        events = emptyList(),
+        comets = emptyList(),
+        noctilucent = null,
+        constellations = listOf(
+            ConstellationTonight(
+                constellation = Constellations.WATCHED.first { it.name == "Orion" },
+                peakAltitude = 39.0,
+                peakAt = now + 3 * 3_600_000L,
+                peakAzimuth = 180.0,
+                isCircumpolar = false,
+                isAtItsBest = isAtItsBest,
+            ),
+        ),
+    )
 
     /** Midsummer at high latitude has no darkness, and the card says that. */
     @Test

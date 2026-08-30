@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
@@ -73,6 +74,17 @@ class CalendarScreenTest {
         visibility = Visibility.Good,
     )
 
+    /** A constellation's one night, which is one night and not one season. */
+    private val pattern = SkyEvent(
+        kind = EventKind.Constellation,
+        at = now + 6 * hour,
+        from = now + 2 * hour,
+        until = now + 12 * hour,
+        title = "Orion at its best",
+        detail = "Highest in the middle of the night, which is the best it is placed all year.",
+        visibility = Visibility.Good,
+    )
+
     private fun show(vararg events: SkyEvent) {
         compose.setContent {
             Column(
@@ -112,5 +124,19 @@ class CalendarScreenTest {
         show(later, season)
 
         compose.onNodeWithText("Happening now").assertDoesNotExist()
+    }
+
+    /**
+     * The chip is how a whole kind is hidden, and hiding a kind silences it as
+     * well as removing it from the list - so a kind with no chip is a kind
+     * nobody can turn off.
+     */
+    @Test
+    fun offersAChipForTheConstellations() {
+        show(underWay, pattern)
+
+        compose.onNodeWithTag(kindTag(EventKind.Constellation))
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 }
