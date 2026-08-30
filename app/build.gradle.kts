@@ -72,6 +72,25 @@ fun gitOutput(vararg arguments: String): String? = try {
 val buildCommit = gitOutput("rev-parse", "--short", "HEAD").orEmpty()
 val buildModified = !gitOutput("status", "--porcelain").isNullOrBlank()
 
+/**
+ * The version code, which Android uses for one thing only: deciding whether an
+ * APK is newer than the one installed. It must increase with every published
+ * build, and nothing else about it is meaningful.
+ *
+ * The commit count, because a rolling development release publishes from every
+ * push and a hand-edited number would have to be remembered every time. On a
+ * linear `main` this only ever goes up, it needs no state outside the
+ * repository, and two builds of the same commit agree on it - which the
+ * reproducible builds F-Droid's main repo wants are going to need.
+ *
+ * Null on a machine that cannot be asked, exactly as the commit is. A debug
+ * build carries on with 1, because nothing upgrades a debug build; the release
+ * build refuses, below, because the wrong number there is an APK that either
+ * cannot be installed over its predecessor or silently replaces something
+ * newer.
+ */
+val buildNumber = gitOutput("rev-list", "--count", "HEAD")?.toIntOrNull()
+
 android {
     namespace = "sh.arek.gloaming"
     compileSdk = 37
@@ -80,7 +99,7 @@ android {
         applicationId = "sh.arek.gloaming"
         minSdk = 24
         targetSdk = 37
-        versionCode = 1
+        versionCode = buildNumber ?: 1
         versionName = "1.0.0-rc1"
         buildConfigField("String", "GIT_COMMIT", "\"$buildCommit\"")
         buildConfigField("boolean", "GIT_MODIFIED", "$buildModified")
@@ -218,11 +237,20 @@ dependencies {
 tasks.matching { it.name == "validateSigningRelease" || it.name == "packageRelease" }.configureEach {
     val keystore = releaseKeystore
     val passphrase = releaseKeystorePassword
+    val number = buildNumber
     doFirst {
         check(keystore != null && passphrase != null) {
             "No signing material for the release build. Put storeFile and " +
                 "storePassword in keystore.properties, or set GLOAMING_KEYSTORE " +
                 "and GLOAMING_KEYSTORE_PASSWORD. See docs/prerequisites.md."
+        }
+        // Falling back to 1 here would publish an APK that no installed copy
+        // will accept as an update, and there is no way to correct that after
+        // the fact for anyone who already has it.
+        check(number != null) {
+            "No version code for the release build: git could not be asked for " +
+                "the commit count. Release builds must come from a checkout, " +
+                "not from a source archive."
         }
     }
 }
