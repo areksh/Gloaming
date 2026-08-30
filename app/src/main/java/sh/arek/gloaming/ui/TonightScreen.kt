@@ -15,6 +15,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -190,7 +194,7 @@ fun verdictTag(answer: Answer): String = "verdict:${answer.name}"
  */
 @Composable
 private fun StatusCard(state: MainUiState) {
-    SectionCard("Aurora", spacing = 4.dp) {
+    SectionCard("Aurora", spacing = 4.dp, help = HelpTopic.Aurora) {
         val probability = state.alertState.lastProbability
         Text(
             text = when {
@@ -252,15 +256,49 @@ private fun StatusCard(state: MainUiState) {
 private fun SectionCard(
     title: String,
     spacing: Dp = 8.dp,
+    help: HelpTopic? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // Keyed on the title so each card remembers its own answer, and keeps it
+    // across a rotation - reading the explanation and losing it to a turn of
+    // the phone is how somebody decides the button is not worth pressing.
+    var explaining by rememberSaveable(title) { mutableStateOf(false) }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(spacing)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (help == null) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(title, style = MaterialTheme.typography.titleMedium)
+                    TextButton(
+                        onClick = { explaining = !explaining },
+                        modifier = Modifier.testTag(helpTag(help)),
+                    ) { Text(if (explaining) "Hide" else "Explain") }
+                }
+            }
+
             content()
+
+            // Under the card's own answer rather than above it. The words come
+            // second: somebody who already knows them should not have to
+            // scroll past a glossary to reach tonight.
+            if (help != null && explaining) HelpNotes(help)
         }
     }
 }
+
+/**
+ * Which cards explain themselves.
+ *
+ * Not all of them. The Sky now card's other sentence is "Clear now, until
+ * about 23:40", which needs no help, and a button over plain English is a
+ * button that teaches the reader the button is not worth pressing.
+ */
 
 @Composable
 private fun WarningCard(title: String, body: String, action: String, onAction: () -> Unit) {
@@ -386,7 +424,7 @@ private fun SkyNowCard(list: TonightList, tolerance: Int) {
     // nothing to say that is not either "unknown" or an invention.
     if (list.cloud == null && list.clearSpell == null) return
 
-    SectionCard("Sky now") {
+    SectionCard("Sky now", help = HelpTopic.SkyNow) {
         Text(
             describeCloud(list.cloud).replaceFirstChar { it.uppercase() } + " overhead.",
             style = MaterialTheme.typography.bodyMedium,
@@ -429,7 +467,7 @@ private fun SkyNowCard(list: TonightList, tolerance: Int) {
  */
 @Composable
 private fun DarknessCard(list: TonightList) {
-    SectionCard("Darkness") {
+    SectionCard("Darkness", help = HelpTopic.Darkness) {
         Text(
             if (list.darkFrom == null) {
                 "It does not get properly dark here at this time of year."
@@ -466,7 +504,7 @@ private fun DarknessCard(list: TonightList) {
 private fun MoonCard(list: TonightList) {
     val moon = list.moon ?: return
 
-    SectionCard("The moon") {
+    SectionCard("The moon", help = HelpTopic.Moon) {
         Text(
             "${describeMoonPhase(moon.phaseDegrees, moon.illumination)}, " +
                 "${(moon.illumination * 100).roundToInt()}% lit.",
@@ -493,7 +531,7 @@ private fun MoonCard(list: TonightList) {
 private fun PlanetsCard(list: TonightList) {
     if (list.planets.isEmpty()) return
 
-    SectionCard("Planets tonight") {
+    SectionCard("Planets tonight", help = HelpTopic.Planets) {
         for (planet in list.planets) {
             Text(planet.body.label.replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleSmall)
@@ -515,7 +553,7 @@ private fun PlanetsCard(list: TonightList) {
 private fun ConstellationsCard(list: TonightList) {
     if (list.constellations.isEmpty()) return
 
-    SectionCard("Constellations tonight") {
+    SectionCard("Constellations tonight", help = HelpTopic.Constellations) {
         for (seen in list.constellations) {
             Text(
                 seen.constellation.name,
@@ -548,7 +586,7 @@ private fun EventsCard(
 ) {
     if (list.noctilucent == null && list.events.isEmpty()) return
 
-    SectionCard("Events tonight") {
+    SectionCard("Events tonight", help = HelpTopic.Events) {
         // No buttons on this one. Noctilucent conditions are worked out for
         // tonight rather than dated, so there is no event to put in a calendar
         // - only a suggestion to look north-west after sunset.
@@ -607,7 +645,7 @@ private fun CometsCard(list: TonightList) {
     // best night of the year and the settings card is about which comets are
     // worth hearing about at all. Three cards called "Comets" answering three
     // different questions is the confusion this commit exists to remove.
-    SectionCard("Comets tonight") {
+    SectionCard("Comets tonight", help = HelpTopic.Comets) {
         for (comet in list.comets) {
             Text(comet.title, style = MaterialTheme.typography.titleSmall)
             Text(comet.detail, style = MaterialTheme.typography.bodySmall)
@@ -649,7 +687,7 @@ private fun Caveat(event: SkyEvent) {
  */
 @Composable
 private fun SatellitesCard(list: TonightList) {
-    SectionCard("Satellites") {
+    SectionCard("Satellites", help = HelpTopic.Satellites) {
         if (list.passes.isEmpty()) {
             Text(
                 "Nothing crossing tonight that clears the horizon in sunlight.",

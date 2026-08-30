@@ -15,6 +15,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -88,6 +92,8 @@ fun CalendarContent(
         )
         return
     }
+
+    CalendarHelp()
 
     KindFilter(events, hiddenKinds, onToggleKind)
 
@@ -276,6 +282,30 @@ private fun KindFilter(
             )
         }
     }
+}
+
+/**
+ * The calendar's own vocabulary, behind one tap.
+ *
+ * Occultation, elongation, opposition and the rest are the app's densest run
+ * of jargon, and unlike the Tonight tab there is no card here to hang an
+ * Explain button off - the calendar is a year in one list. So it goes above
+ * the filter, which is where somebody deciding what to hide is already
+ * looking, and closed by default: a reader who knows the words should reach
+ * the first month without scrolling past a glossary.
+ */
+@Composable
+private fun CalendarHelp() {
+    var explaining by rememberSaveable { mutableStateOf(false) }
+
+    TextButton(
+        onClick = { explaining = !explaining },
+        modifier = Modifier.testTag(helpTag(HelpTopic.Calendar)),
+    ) {
+        Text(if (explaining) "Hide" else "What these words mean")
+    }
+
+    if (explaining) HelpCard(HelpTopic.Calendar)
 }
 
 /** How a kind's chip is reached from a test. */

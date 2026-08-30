@@ -27,19 +27,26 @@ import sh.arek.gloaming.data.WatchDuration
 /** The tabs, reached by tag because a label alone is ambiguous with a heading. */
 const val TAB_TONIGHT = "tab-tonight"
 const val TAB_CALENDAR = "tab-calendar"
+const val TAB_GUIDE = "tab-guide"
 const val TAB_SETTINGS = "tab-settings"
 
 /**
- * Three tabs over one activity.
+ * Four tabs over one activity.
  *
- * No navigation library: three tabs need no back stack, no deep links and no
- * new dependency, and `rememberSaveable` is enough to survive a rotation. The
- * app has been a single screen since Phase 1 and this is the smallest thing
- * that stops being one.
+ * No navigation library: a handful of tabs need no back stack, no deep links
+ * and no new dependency, and `rememberSaveable` is enough to survive a
+ * rotation. The app has been a single screen since Phase 1 and this is the
+ * smallest thing that stops being one.
+ *
+ * Guide sits third, between what is happening and how the app is configured.
+ * It is the one tab that reads the same every night, so it neither competes
+ * with tonight nor gets buried under the settings - and unlike the Explain
+ * button on each card, it can be found by somebody who does not yet know
+ * which word they are stuck on.
  *
  * Each tab owns its own scroll, which is why [TonightContent],
- * [CalendarContent] and [SettingsContent] emit loose children rather than
- * columns of their own.
+ * [CalendarContent], [GuideContent] and [SettingsContent] emit loose children
+ * rather than columns of their own.
  */
 @Composable
 fun GloamingTabs(
@@ -115,6 +122,12 @@ fun GloamingTabs(
             Tab(
                 selected = selected == 2,
                 onClick = { selected = 2 },
+                text = { Text("Guide") },
+                modifier = Modifier.testTag(TAB_GUIDE),
+            )
+            Tab(
+                selected = selected == 3,
+                onClick = { selected = 3 },
                 text = { Text("Settings") },
                 modifier = Modifier.testTag(TAB_SETTINGS),
             )
@@ -151,6 +164,8 @@ fun GloamingTabs(
                     onShareEvent = onShareEvent,
                     onExportEvent = onExportEvent,
                 )
+
+                2 -> GuideContent()
 
                 else -> SettingsContent(
                     state = state,
