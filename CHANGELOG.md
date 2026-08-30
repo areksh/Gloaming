@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A Guide tab, and cards that explain their own words.** The app has always
+  taught in exactly one place - the sentence on each constellation saying how to
+  pick it out - and "a flattened W of five stars, on the far side of Polaris from
+  the Plough" is no use whatever to somebody who knows neither, which is
+  precisely the reader a star-hop is written for. So there is now a guide, in
+  three parts: the landmarks every direction in the app is measured from (the
+  Plough, Polaris, the Pointers, the Summer Triangle, the Pleiades, the Square of
+  Pegasus, the Milky Way, the Southern Cross), the words the other tabs put on
+  screen (magnitude, opposition, occultation, elongation, radiant, perihelion,
+  umbra and penumbra, Kp, circumpolar, noctilucent and the rest), and the part no
+  amount of arithmetic replaces - dark adaptation, averted vision, red light,
+  where to stand, and what an aurora or a comet honestly looks like as against
+  what it looks like in a photograph. Every card on Tonight carries an Explain
+  button that opens the entries for its own words underneath its own answer, and
+  the calendar carries one above its filter; both are closed until asked for, so
+  a reader who knows the words never scrolls past a glossary to reach tonight.
+  Nothing in it needs a location, a forecast or a network, which makes it the one
+  screen that works before anything is set up. A unit test checks that every
+  landmark a star-hop sends you to is a landmark the guide explains, so a pattern
+  added later cannot quietly reintroduce the problem it was written to fix.
+
 - **The constellations, on a card and in the calendar.** Which patterns are up
   tonight, highest first, with where to look and one sentence on how to pick
   each one out - three stars in a line make Orion's belt, the end of the

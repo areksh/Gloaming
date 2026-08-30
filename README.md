@@ -104,6 +104,18 @@ comes first however low it is. If you would rather see every one above the
 horizon, that is a setting. Individual stars and deep-sky objects are
 deliberately not here: that is a catalogue, and Stellarium does it better.
 
+None of which helps if you do not know the words. "On the far side of Polaris
+from the Plough" is a perfectly good direction and useless to somebody who knows
+neither, so there is a Guide tab: the landmarks every direction in the app is
+measured from, the vocabulary the other tabs use - magnitude, opposition,
+occultation, radiant, umbra - and the part nobody tells you, which is that your
+eyes take twenty minutes to adapt to the dark and an aurora rarely looks like
+the photographs. Each card on Tonight will also explain its own words in place,
+underneath its answer rather than in front of it, because the question gets
+asked while looking at the sentence that raised it. None of it needs a location,
+a forecast or a network, so it is the one screen that works before anything is
+set up.
+
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
 ones simply appeared in your calendar, that is a setting - into a local calendar

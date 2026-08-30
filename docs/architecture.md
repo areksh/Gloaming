@@ -316,7 +316,9 @@ is a file replacement.
   path. The two are easily conflated because both are called "notifications".
 - **ui:** Compose screens; a prominent staleness display that distinguishes
   "quiet/dormant" from "not looked recently" (Sec. 10); red night-vision mode
-  and a home-screen widget (Phase 2).
+  and a home-screen widget (Phase 2). Also the guide - `Guide.kt` is pure data
+  like `Credits.kt`, read both by its own tab and by the Explain button on each
+  Tonight card, so a term is worded once and shown in two places.
 
 ### Manifest verification
 
