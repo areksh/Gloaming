@@ -25,8 +25,9 @@
 #                      docs/prerequisites.md.
 #   install            Install the debug APK. With --test, the instrumentation
 #                      APK as well, which tools/bfu-check.sh --seed needs.
-#   check              Everything that runs without a phone: the app's unit
-#                      tests, and both Node projects' tests and typechecks.
+#   check              Everything that runs without a phone: the app's unit tests,
+#                      its instrumented sources compiled but not run, and both
+#                      Node projects' tests, typechecks and builds.
 #   clean              Delete the build output.
 #
 # Options:
@@ -260,7 +261,14 @@ node_project() {
     [ -d "$directory/node_modules" ] || die "$directory: dependencies are not installed - cd $directory && npm install"
     echo
     echo "== $directory =="
-    (cd "$directory" && npm test && npm run typecheck)
+    # The build runs too, where there is one. Partly to catch what the
+    # typechecker cannot - a dependency that resolves for `tsc` but not for the
+    # bundler, or syntax past the build target - but mostly so that what gets
+    # copied to the server is what was just tested: `dist/` is not in the tree,
+    # and nothing else stops a check passing and a stale bundle being shipped a
+    # minute later. `--if-present` is for the Worker, which is deployed from
+    # source and has no build of its own.
+    (cd "$directory" && npm test && npm run typecheck && npm run build --if-present)
 }
 
 case "$COMMAND" in
@@ -321,7 +329,12 @@ case "$COMMAND" in
         ;;
 
     check)
-        ./gradlew :app:testDebugUnitTest
+        # The instrumented sources are compiled but not run: compiling needs no
+        # phone, and a rename in main that breaks them would otherwise stay
+        # invisible until the next time one is plugged in - which is the most
+        # expensive place to find out, and the least likely to be a moment when
+        # anybody wants to be fixing a compile error.
+        ./gradlew :app:testDebugUnitTest :app:compileDebugAndroidTestKotlin
         node_project worker
         node_project fetcher
         ;;

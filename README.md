@@ -126,7 +126,7 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
 ./go apk           # build the debug APK
 ./go test          # unit tests, no device needed
 ./go device-test   # instrumented tests, needs a device
-./go check         # the unit tests and both Node projects, before a commit
+./go check         # everything that needs no phone, before a commit
 ./go help          # every command, and what each option is for
 ```
 

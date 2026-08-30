@@ -387,6 +387,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `./go check` also compiles the app's instrumented sources and builds the
+  fetcher's bundle. Compiling needs no phone, and a rename in `main` that breaks
+  the instrumented suite otherwise stays invisible until the next time one is
+  plugged in - the most expensive place to find out, and the least likely moment
+  to want to be fixing a compile error. Building leaves what would be copied to
+  the server identical to what was just tested.
+
 - A failing test says what it asserted. Gradle's default is the test's name, the
   word FAILED and a link to an HTML report, which leaves the one fact anybody
   wants off the screen and sends whoever needs it digging through the XML under
