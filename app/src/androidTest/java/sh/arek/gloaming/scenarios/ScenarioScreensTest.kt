@@ -152,6 +152,13 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         } else {
             absent("Planets tonight")
         }
+
+        if (tonight.constellations.isNotEmpty()) {
+            shown("Constellations tonight")
+            shown(tonight.constellations.first().constellation.name)
+        } else {
+            absent("Constellations tonight")
+        }
     }
 
     /**

@@ -168,6 +168,12 @@ enum class Shows {
     /** That gap is open now. */
     ClearSpellUnderway,
 
+    /** At least one constellation is up and above the bar. */
+    Constellations,
+
+    /** One of them has its best night of the year tonight. */
+    ConstellationAtItsBest,
+
     /** The noctilucent prompt is in season and at the right latitude. */
     Noctilucent,
 

@@ -246,6 +246,31 @@ internal object Nights {
         ),
     )
 
+    // ----------------------------------------------------------- constellations
+
+    private val constellations = listOf(
+        Scenario(
+            name = "orion-at-its-best",
+            about = "December 2027: the longest nights of the year, with Orion " +
+                "highest at midnight and half the winter sky up with it",
+            shows = setOf(
+                Shows.Constellations,
+                Shows.ConstellationAtItsBest,
+                Shows.AstronomicalNight,
+            ),
+            nowMillis = at("2027-12-16T20:00:00Z"),
+            settings = at(Places.edinburgh),
+        ),
+        Scenario(
+            name = "a-southern-sky-with-no-plough-in-it",
+            about = "May 2027 from Tierra del Fuego: the Southern Cross almost " +
+                "overhead and the patterns a northern observer never sees",
+            shows = setOf(Shows.Constellations),
+            nowMillis = at("2027-05-15T03:00:00Z"),
+            settings = at(Places.ushuaia),
+        ),
+    )
+
     // ------------------------------------------------------------------- comets
 
     private val comets = listOf(
@@ -647,6 +672,6 @@ internal object Nights {
     )
 
     val all: List<Scenario> =
-        eclipses + pairs + showers + planets + comets + satelliteNights + weather +
-            latitudes + aurora + quiet
+        eclipses + pairs + showers + planets + constellations + comets +
+            satelliteNights + weather + latitudes + aurora + quiet
 }

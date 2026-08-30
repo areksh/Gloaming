@@ -64,6 +64,8 @@ class ScenariosTest {
         Shows.Passes -> tonight.passes.isNotEmpty()
         Shows.Train -> tonight.passes.any { it.channel == PassChannel.Trains }
         Shows.Planets -> tonight.planets.isNotEmpty()
+        Shows.Constellations -> tonight.constellations.isNotEmpty()
+        Shows.ConstellationAtItsBest -> tonight.constellations.any { it.isAtItsBest }
         Shows.Moon -> tonight.moon != null
         // Three tenths of the night's darkness lost. Below that the app says
         // the moon "spoils" some of it and the difference is arithmetic; above
