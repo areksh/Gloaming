@@ -19,6 +19,11 @@
 #   scenarios          The catalogue of nights in app/src/scenarios, checked on
 #                      the JVM. With --device, drawn through the real screens
 #                      and posted as real notifications on the phone.
+#   log                The app's own log, off the phone. It keeps one because
+#                      logcat is a ring buffer holding about twelve minutes and
+#                      the hours this app works in are the ones nobody is
+#                      watching. With --live, logcat instead, followed and
+#                      filtered to the app's own tags.
 #   apk                Build the debug APK and say where it landed.
 #   release            Build the release APK. It comes out unsigned: signing is
 #                      deliberately not wired into the build yet, see
@@ -41,6 +46,7 @@
 #
 #   --serial S    target a particular device (or set ANDROID_SERIAL)
 #   --device      run `scenarios` on the phone rather than on the JVM
+#   --live        follow logcat rather than printing the app's own log (`log`)
 #   --test        install the instrumentation APK too (`install` only)
 #   --uninstall   let an instrumented run uninstall the app when it finishes,
 #                 which is Gradle's default and takes the app's settings and its
@@ -60,12 +66,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+PACKAGE="sh.arek.gloaming"
+# Device-encrypted storage, because a poll before first unlock has to be able to
+# write to it. sh.arek.gloaming.data.Journal and BootAware.CACHE_DIRECTORY.
+JOURNAL="/data/user_de/0/${PACKAGE}/files/sky/gloaming.log"
+
 SERIAL="${ANDROID_SERIAL:-}"
 COMMAND=""
 TARGET=""
 ON_DEVICE=0
 WITH_TEST=0
 LEAVE_INSTALLED=1
+LIVE=0
 
 # Device settings as they were before a run, so they can be put back. Empty
 # means nothing was changed and there is nothing to restore.
@@ -89,6 +101,7 @@ while [ $# -gt 0 ]; do
         -h|--help|help) usage; exit 0 ;;
         --serial) SERIAL="$2"; shift 2 ;;
         --device) ON_DEVICE=1; shift ;;
+        --live) LIVE=1; shift ;;
         --test) WITH_TEST=1; shift ;;
         --uninstall) LEAVE_INSTALLED=0; shift ;;
         -*) die "unknown option: $1" ;;
@@ -128,6 +141,43 @@ attached_devices() {
     # to know which before it starts rather than to be halted by the answer.
     command -v adb >/dev/null 2>&1 || { echo 0; return 0; }
     command adb devices | sed -e '1d' -e '/^$/d' | grep -c "device$" || true
+}
+
+as_app() {
+    # As the app's own uid, which is the only one that can read its files. The
+    # inner `sh -c` is not decoration: without it the shell user expands the
+    # glob, cannot stat the app's directory, and the pattern arrives unexpanded
+    # so every read looks like an empty file.
+    adb shell "run-as $PACKAGE sh -c '$1'" 2>/dev/null | tr -d '\r' || true
+}
+
+package_uid() {
+    # The app's uid, or nothing if it is not installed - so this answers both
+    # questions in one call.
+    #
+    # `pm list packages` is given the name to filter on rather than being piped
+    # through a match: the full list runs to hundreds of lines and a reader that
+    # stops early closes the pipe on it, which under pipefail turns a successful
+    # match into a failed pipeline. That filter is a substring match, so
+    # sh.arek.gloaming.test comes back too and the space before `uid:` is what
+    # tells the two apart. A phone with a second user answers with two uids,
+    # comma-separated, which is the form `logcat --uid` wants anyway.
+    local listing escaped
+    escaped=${PACKAGE//./\\.}
+    listing=$(adb shell pm list packages -U "$PACKAGE" 2>/dev/null | tr -d '\r' || true)
+    printf '%s\n' "$listing" | sed -n "s/^package:${escaped} uid://p"
+}
+
+app_log_tags() {
+    # Read out of the source, so a tag added tomorrow is followed tomorrow
+    # rather than the day somebody notices this list is short. AndroidRuntime is
+    # not one of ours and is here anyway: a crash is logged under it, and a
+    # filter that hides the crash is worse than no filter.
+    {
+        grep -rh 'const val TAG = "' app/src/main/java --include='*.kt' \
+            | sed -n 's/.*const val TAG = "\([^"]*\)".*/\1/p'
+        echo AndroidRuntime
+    } | sort -u
 }
 
 screen_state() {
@@ -330,6 +380,48 @@ case "$COMMAND" in
             run_on_device "-Pandroid.testInstrumentationRunnerArguments.package=sh.arek.gloaming.scenarios"
         else
             ./gradlew :app:testDebugUnitTest --tests '*ScenariosTest'
+        fi
+        ;;
+
+    log)
+        require_device
+        uid=$(package_uid)
+        [ -n "$uid" ] || die "$PACKAGE is not installed: ./go install"
+
+        if [ "$LIVE" -eq 1 ]; then
+            tags=$(app_log_tags)
+            echo "Following logcat for: $(printf '%s' "$tags" | tr '\n' ' ')"
+            echo "This is the system's buffer, not the app's: it holds about twelve"
+            echo "minutes, so anything older than that is already gone and ./go log"
+            echo "without --live is the record that is not. Ctrl-C to stop."
+            echo
+            # Filtered by uid as well as by tag. Tags are not ours alone -
+            # the system logs plenty under BootReceiver, and on this phone it
+            # was the loudest thing on the screen - and the uid holds across
+            # the short-lived processes a poll wakes up in, which a --pid
+            # would not.
+            #
+            # Deliberately unquoted: each tag is its own filterspec argument.
+            # shellcheck disable=SC2086
+            adb logcat -b all --uid="$uid" -s $tags
+            exit 0
+        fi
+
+        # An empty read has three quite different causes and one appearance, so
+        # they are told apart rather than reported as "no log".
+        [ "$(as_app 'echo ok')" = "ok" ] || die "cannot read as $PACKAGE. run-as works only on a
+debuggable build, so this is a release APK: ./go install puts the debug one back."
+
+        journal=$(as_app "cat $JOURNAL 2>/dev/null")
+        if [ -n "$journal" ]; then
+            printf '%s\n' "$journal"
+        else
+            echo "The app has no log on this phone."
+            echo
+            echo "Either nothing has been logged yet - a fresh install that has not"
+            echo "polled - or log retention is switched off in the app's settings, in"
+            echo "which case Notes writes to logcat and nowhere else. ./go log --live"
+            echo "shows what is being logged right now either way."
         fi
         ;;
 

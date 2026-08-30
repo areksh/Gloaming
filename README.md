@@ -330,6 +330,16 @@ device-protected storage so a poll before first unlock can reach it. The screen
 exports it through the share sheet and clears it. It records what the app
 decided and why, and never where the user is.
 
+```sh
+./go log          # the app's own log, off the phone
+./go log --live   # logcat instead, followed, filtered to the app's uid and tags
+```
+
+The uid filter is not fussiness. Tag names are not the app's alone - the system
+logs under `BootReceiver` too, and on a Pixel it is the loudest thing on the
+screen - and a uid holds across the short-lived processes each poll wakes up in,
+which a pid would not.
+
 ### Elements fetcher
 
 Fetches CelesTrak orbital elements and publishes `sats.json` to R2. It runs on

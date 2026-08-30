@@ -391,6 +391,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   later as a conflict, which is the worst moment to find out that the file in
   the tree is not the file upstream published. The astronomy-engine licence file
   had no checksum recorded at all, which is how the test first earned its keep.
+- `./go log`, which pulls the app's own log off the phone. It has kept one since
+  logcat's twelve-minute ring buffer was found to be useless for a fault at three
+  in the morning, and until now reading it meant the share sheet on the device or
+  a hand-written `run-as` incantation. `--live` follows logcat instead, filtered
+  by the app's uid as well as its tags: the tags are not ours alone - the system
+  logs under `BootReceiver` too - and a uid holds across the short-lived
+  processes each poll wakes up in, which a pid would not.
 - `./go setup`, which installs the two Node projects from their lockfiles. On a
   fresh clone `check` failed at `worker`, was fixed by hand, and then failed the
   same way at `fetcher`; the message it fails with now names the one command
