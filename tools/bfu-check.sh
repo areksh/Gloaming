@@ -48,6 +48,12 @@
 #                   tonight" in seconds, which is worth knowing before an
 #                   overnight run and again the morning after one that produced
 #                   nothing. `./go status` is this.
+#   --reconnect-timeout N
+#                   how many seconds to wait, after the soak, for the phone to
+#                   be unlocked and come back (default 600). 0 waits with no
+#                   limit, which is what an unattended release gate wants: the
+#                   run has already spent its soak, and giving up ten minutes
+#                   later throws that away over nobody being in the room.
 #   --serial S      target a specific device
 #
 set -euo pipefail
@@ -79,6 +85,7 @@ while [ $# -gt 0 ]; do
         --prepare) PREPARE=1; shift ;;
         --resume) RESUME=1; shift ;;
         --check-only) CHECK_ONLY=1; shift ;;
+        --reconnect-timeout) RECONNECT_TIMEOUT="$2"; shift 2 ;;
         # Everything between the shebang and the first line of code. A fixed
         # line range silently truncated the option list as it grew.
         -h|--help) sed -e '1d' -e '/^[^#]/,$d' "$0" | sed 's/^# \?//'; exit 0 ;;
@@ -439,15 +446,20 @@ if [ "$RESUME" -eq 0 ]; then
     if ! device_present; then
         printf '\n  >>> Unlock the phone now. Waiting for it to come back. <<<\n'
         waited=0
-        while [ "$waited" -lt "$RECONNECT_TIMEOUT" ]; do
-            device_present && break
+        while ! device_present; do
+            if [ "$RECONNECT_TIMEOUT" -ne 0 ] && [ "$waited" -ge "$RECONNECT_TIMEOUT" ]; then
+                echo "  device never came back; nothing to read" >&2
+                exit 1
+            fi
             sleep 5
             waited=$((waited + 5))
+            # An unlimited wait and a hung script look identical from the other
+            # side of the room, so it says where it is once a minute.
+            if [ $((waited % 60)) -eq 0 ]; then
+                printf '  still locked, %sm elapsed; the run resumes on unlock\n' \
+                    $((waited / 60))
+            fi
         done
-        if ! device_present; then
-            echo "  device never came back; nothing to read" >&2
-            exit 1
-        fi
     fi
     printf '  device is back at %s\n' "$(date '+%H:%M:%S')"
 fi
