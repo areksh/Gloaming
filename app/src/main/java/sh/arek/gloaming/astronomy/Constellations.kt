@@ -1,9 +1,13 @@
 package sh.arek.gloaming.astronomy
 
+import io.github.cosinekitty.astronomy.Aberration
+import io.github.cosinekitty.astronomy.Body
+import io.github.cosinekitty.astronomy.EquatorEpoch
 import io.github.cosinekitty.astronomy.Observer
 import io.github.cosinekitty.astronomy.Refraction
 import io.github.cosinekitty.astronomy.Time
 import io.github.cosinekitty.astronomy.constellation
+import io.github.cosinekitty.astronomy.equator
 import io.github.cosinekitty.astronomy.horizon
 
 /**
@@ -244,14 +248,33 @@ object Constellations {
         latitude: Double,
         night: LongRange,
     ): ConstellationTonight {
+        val best = peak(constellation, observer, night)
+        return ConstellationTonight(
+            constellation = constellation,
+            peakAltitude = best.altitude,
+            peakAt = best.atMillis,
+            peakAzimuth = best.azimuth,
+            isCircumpolar = isCircumpolar(constellation, latitude),
+        )
+    }
+
+    /**
+     * The highest a pattern's centre gets inside [night].
+     *
+     * Swept rather than solved, matching [Planets]. The transit could be had
+     * exactly from the hour angle, but the highest it gets *inside a window*
+     * is a different question, and most nights the transit falls outside the
+     * darkness entirely.
+     */
+    private fun peak(
+        constellation: Constellation,
+        observer: Observer,
+        night: LongRange,
+    ): Sighting {
         var peakAt = night.first
         var peakAltitude = Double.NEGATIVE_INFINITY
         var peakAzimuth = 0.0
 
-        // Swept rather than solved, matching Planets. The transit could be had
-        // exactly from the hour angle, but the highest it gets *inside a
-        // window* is a different question, and most nights the transit falls
-        // outside the darkness entirely.
         var at = night.first
         while (at <= night.last) {
             val time = Time.fromMillisecondsSince1970(at)
@@ -270,13 +293,7 @@ object Constellations {
             at += SAMPLE_MILLIS
         }
 
-        return ConstellationTonight(
-            constellation = constellation,
-            peakAltitude = peakAltitude,
-            peakAt = peakAt,
-            peakAzimuth = peakAzimuth,
-            isCircumpolar = isCircumpolar(constellation, latitude),
-        )
+        return Sighting(peakAt, peakAltitude, peakAzimuth)
     }
 
     /**
@@ -293,6 +310,115 @@ object Constellations {
         val lowest = kotlin.math.abs(latitude) + kotlin.math.abs(constellation.dec) - 90.0
         return lowest - constellation.extentDegrees / 2.0 > 0.0
     }
+
+    // --- the one night of the year ---
+
+    /**
+     * A constellation and the night it is best placed from anywhere.
+     *
+     * The date is a fact about the solar system rather than about the
+     * observer: how high it then gets, and whether it rises at all, is what
+     * depends on where somebody is standing.
+     */
+    data class BestPlacement(val constellation: Constellation, val atMillis: Long)
+
+    /** How often the sun's right ascension is sampled when dating the year. */
+    private const val DAY_MILLIS: Long = 24L * 60 * 60 * 1000
+
+    /** Hours of right ascension in a full turn, which is the unit the library uses. */
+    private const val HOURS_IN_A_TURN = 24.0
+
+    /**
+     * When each pattern stands on the meridian at midnight, between
+     * [fromMillis] and [until].
+     *
+     * That is what "at its best" means for something that does not change:
+     * highest in the middle of the darkest part of the night, which is a
+     * different night for each pattern and the same argument an opposition
+     * makes for a planet.
+     *
+     * **Solved from the sun rather than searched per constellation.** A
+     * pattern is opposite the sun when the sun's right ascension is twelve
+     * hours from its own, so one daily sweep of the sun's position dates every
+     * row in the table at once. Searching each one separately would multiply a
+     * year's ephemeris work by the size of the table, and the calendar has a
+     * quarter of a second for everything it does.
+     */
+    fun bestNights(fromMillis: Long, until: Long): List<BestPlacement> {
+        if (until <= fromMillis) return emptyList()
+
+        // The sun's right ascension, sampled a day apart across the span. It
+        // advances about four minutes of right ascension a day and never
+        // reverses, so a day is fine enough to interpolate a crossing from.
+        val days = ((until - fromMillis) / DAY_MILLIS).toInt() + 1
+        val sunRa = DoubleArray(days) { index ->
+            val time = Time.fromMillisecondsSince1970(fromMillis + index * DAY_MILLIS)
+            equator(Body.Sun, time, GEOCENTRIC, EquatorEpoch.J2000, Aberration.Corrected).ra
+        }
+
+        return WATCHED.flatMap { constellation ->
+            crossings(constellation, sunRa, fromMillis)
+                .map { BestPlacement(constellation, it) }
+        }
+    }
+
+    /**
+     * Every moment the sun reaches the right ascension opposite
+     * [constellation] inside the span.
+     *
+     * Measured as a signed gap in hours so the wrap at twenty-four is not a
+     * special case: the gap falls steadily as the sun catches up, and an
+     * answer is where it passes through zero.
+     *
+     * **All of them, not the first.** The calendar searches back three weeks
+     * before the horizon it reports, so a span is a year and a bit and a
+     * pattern whose best night falls in that lookback crosses twice. Returning
+     * only the first dropped Orion out of the whole of 2027, because its
+     * December 2026 night had ended before the horizon began.
+     */
+    private fun crossings(
+        constellation: Constellation,
+        sunRa: DoubleArray,
+        fromMillis: Long,
+    ): List<Long> {
+        val opposite = (constellation.raHours + HOURS_IN_A_TURN / 2) % HOURS_IN_A_TURN
+
+        fun gap(index: Int): Double {
+            val raw = (opposite - sunRa[index] + HOURS_IN_A_TURN * 1.5) % HOURS_IN_A_TURN
+            return raw - HOURS_IN_A_TURN / 2
+        }
+
+        val found = mutableListOf<Long>()
+        for (index in 1 until sunRa.size) {
+            val before = gap(index - 1)
+            val after = gap(index)
+            // Only the fall through zero. The jump back up is the gap wrapping
+            // round, which is the arithmetic turning over rather than a second
+            // night.
+            if (before >= 0.0 && after < 0.0) {
+                val share = before / (before - after)
+                found += fromMillis + ((index - 1) * DAY_MILLIS) + (share * DAY_MILLIS).toLong()
+            }
+        }
+        return found
+    }
+
+    /**
+     * The highest [constellation] gets on the night nearest [aroundMillis],
+     * or null where that night has no darkness in it.
+     */
+    fun bestPlacement(
+        constellation: Constellation,
+        latitude: Double,
+        longitude: Double,
+        aroundMillis: Long,
+    ): Sighting? {
+        val night = Twilight.nightNearest(latitude, longitude, aroundMillis) ?: return null
+        return peak(constellation, Observer(latitude, longitude, 0.0), night)
+    }
+
+    /** The sun's own right ascension barely moves with the observer. */
+    private val GEOCENTRIC = Observer(0.0, 0.0, 0.0)
 
     /**
      * The constellation a point in the sky falls in.

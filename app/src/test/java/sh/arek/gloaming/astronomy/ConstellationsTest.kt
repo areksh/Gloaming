@@ -36,6 +36,18 @@ class ConstellationsTest {
 
     private fun row(name: String) = Constellations.WATCHED.first { it.name == name }
 
+    private fun day(millis: Long) =
+        Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+
+    private fun events(from: String, days: Int) =
+        SkyCalendar.events(latitude, longitude, at(from), days)
+            .filter { it.kind == EventKind.Constellation }
+
+    private fun bestNight(name: String, from: String, days: Int) = Constellations
+        .bestNights(at(from), at(from) + days * 86_400_000L)
+        .first { it.constellation.name == name }
+        .atMillis
+
     // --- how high, and which way ---
 
     /**
@@ -153,6 +165,123 @@ class ConstellationsTest {
     @Test
     fun `says nothing for an empty window`() {
         assertEquals(emptyList<ConstellationTonight>(), Constellations.tonight(78.2, 15.6, 1L..0L))
+    }
+
+    // --- the one night of the year ---
+
+    /**
+     * A pattern is best placed when it stands on the meridian at midnight,
+     * which is when the sun sits opposite it. Orion's centre is at right
+     * ascension 5.58h, so its opposite point is 17.58h. The sun's right
+     * ascension is exactly 18h at the December solstice and is then moving at
+     * its fastest, 24 / 365.25 / cos(23.44 deg) = 0.072h a day, so 17.58h
+     * falls 0.42 / 0.072 = 5.9 days before 21 December.
+     */
+    @Test
+    fun `dates orion's best night to the middle of december`() {
+        val best = bestNight("Orion", "2027-01-01T00:00:00Z", 400)
+
+        assertEquals("2027-12-16", day(best).toString())
+    }
+
+    /**
+     * Cygnus at 20.62h has its opposite point at 8.62h. The sun is at 6h at
+     * the June solstice, so that is 2.62h later; the rate eases from 0.072h a
+     * day towards the mean of 0.066h as it goes, which puts it 37 to 40 days
+     * on - the end of July.
+     */
+    @Test
+    fun `dates cygnus's best night to the turn of august`() {
+        val best = bestNight("Cygnus", "2027-01-01T00:00:00Z", 400)
+
+        assertEquals("2027-07-30", day(best).toString())
+    }
+
+    /**
+     * The invariant behind both dates, checked directly rather than through a
+     * calendar: on its best night the pattern really is highest in the middle
+     * of the night, and really is close to due south from the north.
+     */
+    @Test
+    fun `stands highest near the middle of the night on its best night`() {
+        for (row in Constellations.WATCHED) {
+            val best = Constellations
+                .bestNights(at("2027-01-01T00:00:00Z"), at("2028-01-01T00:00:00Z"))
+                .first { it.constellation.name == row.name }
+
+            val sighting = Constellations.bestPlacement(row, latitude, longitude, best.atMillis)
+                ?: continue
+            val night = Twilight.nightNearest(latitude, longitude, best.atMillis)!!
+            val middle = (night.first + night.last) / 2
+            val hoursOff = kotlin.math.abs(sighting.atMillis - middle) / 3_600_000.0
+
+            // Three hours, which is the slack a summer night with barely any
+            // darkness leaves: the window is short and its middle is dragged
+            // off true midnight by the season rather than by the pattern.
+            assertTrue("${row.name} peaks ${hoursOff}h from the middle", hoursOff < 3.0)
+        }
+    }
+
+    /** One a year each, or the calendar would carry the same pattern twice. */
+    @Test
+    fun `dates each constellation once a year`() {
+        val best = Constellations
+            .bestNights(at("2027-01-01T00:00:00Z"), at("2028-01-01T00:00:00Z"))
+
+        assertEquals(Constellations.WATCHED.size, best.size)
+        assertEquals(best.map { it.constellation.name }.toSet().size, best.size)
+    }
+
+    // --- as calendar entries ---
+
+    /**
+     * The calendar carries the occasion, and says which star to look for.
+     *
+     * Dated a day after the crossing the placement is solved from, because the
+     * entry is timed to the moment it is actually highest and that falls just
+     * after local midnight. A meteor shower is dated the same way and for the
+     * same reason: the useful answer is the night, and the night has a date on
+     * both sides of twelve.
+     */
+    @Test
+    fun `puts orion's best night in the calendar`() {
+        val orion = events("2027-01-01T00:00:00Z", 400)
+            .first { it.title.contains("Orion") }
+
+        assertEquals("2027-12-17", day(orion.at).toString())
+        assertTrue(orion.title, orion.title.contains("at its best"))
+        assertTrue(orion.detail, orion.detail.contains("Rigel"))
+        assertTrue(orion.detail, orion.detail.contains("belt"))
+    }
+
+    /**
+     * The window is one night, not one season. That is what keeps a
+     * constellation inside every rule the calendar already has: the
+     * happening-now marker, the announce-once memory and the time range on the
+     * row all assume a window shorter than an opposition's three weeks.
+     */
+    @Test
+    fun `dates the entry to a single night`() {
+        for (event in events("2027-01-01T00:00:00Z", 400)) {
+            val hours = (event.until - event.from) / 3_600_000.0
+
+            assertTrue("${event.title} runs ${hours}h", hours <= 24.0)
+            assertTrue(event.title, event.at in event.from..event.until)
+        }
+    }
+
+    /** A pattern that never rises here still gets a row, saying so. */
+    @Test
+    fun `says the southern cross cannot be seen from scotland`() {
+        val crux = events("2027-01-01T00:00:00Z", 400).first { it.title.contains("Crux") }
+
+        assertTrue(crux.visibility.toString(), crux.visibility is Visibility.NotFromHere)
+    }
+
+    /** It is a marker, not an interruption - the same treatment a season gets. */
+    @Test
+    fun `never interrupts about a constellation`() {
+        assertEquals(null, EventChannel.of(EventKind.Constellation))
     }
 
     // --- the lookup ---

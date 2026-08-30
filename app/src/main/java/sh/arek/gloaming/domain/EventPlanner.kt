@@ -140,6 +140,8 @@ object EventPlanner {
         // Tonight or not at all: the conditions are worked out for the night
         // they apply to, so there is no future one to give notice of.
         EventKind.Noctilucent -> false
+        // Never announced at all, so there is no advance notice to give.
+        EventKind.Constellation -> false
     }
 
     /**

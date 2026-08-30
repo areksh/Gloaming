@@ -75,6 +75,21 @@ enum class EventKind {
     Comet,
 
     /**
+     * The night of the year a constellation stands highest at midnight.
+     *
+     * The one dated fact about something that is otherwise a condition. When a
+     * pattern is up is a season, and a season is what the tonight card is for;
+     * that it is best placed on one particular night is an occasion, and reads
+     * the same way an opposition does for a planet.
+     *
+     * Listed and never interrupting, like [Season] and [MoonPhase]. The date
+     * is settled by the earth's orbit alone, so it falls within a day of the
+     * same date every year, and something that predictable is planning rather
+     * than news.
+     */
+    Constellation,
+
+    /**
      * Not a dated occasion like the rest, but a condition that holds most clear
      * nights for three months. Kept out of the calendar for that reason and
      * produced only for tonight - see [Noctilucent].

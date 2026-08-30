@@ -155,6 +155,7 @@ object SkyCalendar {
             addAll(showers(latitude, longitude, searchFrom, until))
             addAll(oppositions(latitude, longitude, start, until))
             addAll(greatestBrightness(latitude, longitude, start, until))
+            addAll(constellations(latitude, longitude, searchFrom, until))
             addAll(seasons(searchFrom, until))
             addAll(moonPhases(start, until))
         }
@@ -868,6 +869,58 @@ object SkyCalendar {
         )
 
         else -> Visibility.Good
+    }
+
+    // --- the patterns, on the one night each is best placed ---
+
+    /**
+     * Each constellation on the night it stands highest at midnight.
+     *
+     * The dated half of something that is mostly a condition. Which patterns
+     * are up tonight is a season and belongs on the tonight card; that one of
+     * them is at its best on one particular night is an occasion, and is the
+     * only part worth a calendar row.
+     */
+    private fun constellations(
+        latitude: Double,
+        longitude: Double,
+        fromMillis: Long,
+        until: Long,
+    ): List<SkyEvent> = Constellations
+        .bestNights(fromMillis, until)
+        .map { constellation(it, latitude, longitude) }
+
+    private fun constellation(
+        placement: Constellations.BestPlacement,
+        latitude: Double,
+        longitude: Double,
+    ): SkyEvent {
+        val pattern = placement.constellation
+        val night = Twilight.nightNearest(latitude, longitude, placement.atMillis)
+        val best = Constellations.bestPlacement(pattern, latitude, longitude, placement.atMillis)
+
+        return SkyEvent(
+            kind = EventKind.Constellation,
+            // The moment it is actually highest, which is what somebody would
+            // go out for, rather than the midnight the date was solved from.
+            at = best?.atMillis ?: placement.atMillis,
+            // One night, not one season. The season is on the tonight card;
+            // making this a window of months would put a row on the calendar
+            // that claimed to be happening for a third of the year.
+            from = night?.first ?: placement.atMillis,
+            until = night?.last ?: placement.atMillis,
+            title = "${pattern.name} at its best",
+            detail = buildString {
+                append("Highest in the middle of the night, which is the best it is ")
+                append("placed all year. ")
+                append(pattern.starHop)
+                append(" Its brightest star is ${pattern.brightestStar}, ")
+                append("magnitude ")
+                append(String.format(java.util.Locale.UK, "%.1f", pattern.brightestMagnitude))
+                append(".")
+            },
+            visibility = placement(best, pattern.name),
+        )
     }
 
     // --- the turning year ---

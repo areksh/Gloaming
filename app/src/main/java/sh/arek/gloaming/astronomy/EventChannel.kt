@@ -53,7 +53,15 @@ enum class EventChannel(val id: String) {
             -> Conjunctions
             EventKind.Noctilucent -> Noctilucent
             EventKind.Comet -> Comets
-            EventKind.MoonPhase, EventKind.MoonQuarter, EventKind.Season -> null
+            EventKind.MoonPhase,
+            EventKind.MoonQuarter,
+            EventKind.Season,
+            // A pattern's best night is settled by the earth's orbit and falls
+            // on near enough the same date every year. Orion has been best in
+            // mid-December for the whole of human history and will be next
+            // year too, which is the moon phases' argument exactly.
+            EventKind.Constellation,
+            -> null
         }
     }
 }
