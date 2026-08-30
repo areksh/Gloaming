@@ -33,8 +33,12 @@
 #                      filtered to the app's uid and its tags - the tags are
 #                      not ours alone, the system logs under some of them too.
 #   apk                Build the debug APK and say where it landed.
-#   release            Build the release APK. It comes out unsigned: signing is
-#                      deliberately not wired into the build yet, see
+#   release            Build the signed, shrunk release APK, and say whether the
+#                      key that signed it is the one README.md publishes. It
+#                      refuses to build without the project's key rather than
+#                      emitting something that installs and can then never be
+#                      updated: put the keystore and its passphrase in
+#                      keystore.properties, or in the environment. See
 #                      docs/prerequisites.md.
 #   install            Install the debug APK. With --test, the instrumentation
 #                      APK as well, which tools/bfu-check.sh --seed needs.
@@ -321,6 +325,53 @@ resolve_test_class() {
     printf '%s.%s' "$package" "$name"
 }
 
+# Where apksigner lives, from whichever of the three places names the SDK.
+find_apksigner() {
+    local sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+    if [ -z "$sdk" ] && [ -f local.properties ]; then
+        sdk=$(sed -n 's/^sdk\.dir=//p' local.properties | head -1)
+    fi
+    [ -n "$sdk" ] || return 1
+    find "$sdk/build-tools" -maxdepth 2 -name apksigner -type f 2>/dev/null \
+        | sort -V | tail -1 | grep . || return 1
+}
+
+# The fingerprint the README publishes, as 64 lowercase hex characters. It is
+# written there as two colon-separated lines, for a reader with an APK and a
+# question about where it came from.
+published_fingerprint() {
+    awk '/^SHA-256:/ { found = 1 } found { print; if (++n == 2) exit }' README.md \
+        | tr -d ' \n' | sed 's/^SHA-256://' | tr -d ':' | tr 'A-Z' 'a-z'
+}
+
+# Say which key signed the APK that was just built, and whether it is the one
+# the project publishes. A release signed with the wrong key installs, runs and
+# looks entirely well - and can never be updated from the right one, so every
+# copy of it has to be uninstalled by hand. There is no undoing that after it
+# has been downloaded, which is why the comparison happens here rather than
+# being left as an instruction someone remembers.
+check_signature() {
+    local apk="$1" signer expected actual
+    signer=$(find_apksigner) || {
+        echo "Signature unchecked: no apksigner found. Set ANDROID_HOME, or see"
+        echo "the fingerprint in README.md and check it by hand."
+        return 0
+    }
+    actual=$("$signer" verify --print-certs "$apk" 2>/dev/null \
+        | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)
+    expected=$(published_fingerprint)
+    if [ -z "$actual" ]; then
+        echo "Signature unchecked: apksigner read no certificate out of it."
+    elif [ "$actual" = "$expected" ]; then
+        echo "Signed with the project's key: the fingerprint matches README.md."
+    else
+        echo "SIGNED WITH THE WRONG KEY. Do not publish this."
+        echo "  README.md says: $expected"
+        echo "  this APK says:  $actual"
+        return 1
+    fi
+}
+
 run_on_device() {
     local filter="${1:-}"
     require_device
@@ -457,10 +508,8 @@ debuggable build, so this is a release APK: ./go install puts the debug one back
         echo
         if [ -n "$built" ]; then
             echo "APK: $built"
+            check_signature "$built"
         fi
-        echo "Unsigned, and it will not install until it is signed. Wiring the"
-        echo "release key into the build is deliberately left until there is"
-        echo "something to release: see docs/prerequisites.md."
         ;;
 
     install)

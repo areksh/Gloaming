@@ -221,6 +221,12 @@ meaningless.
 
 The APK lands in `app/build/outputs/apk/debug/`.
 
+`./go release` builds the one that ships. It will not build without the
+project's signing key, because an APK signed with anything else installs, runs,
+looks entirely well and can then never be updated from the right key.
+[`docs/prerequisites.md`](docs/prerequisites.md) says where the key and its
+passphrase go.
+
 ### Looking at a night that has not happened
 
 Most of what this app is for happens a few times a decade. Waiting for a total
@@ -441,6 +447,11 @@ apksigner verify --print-certs gloaming-release.apk
 
 Obtainium checks this for you once the first release has pinned it. A build
 signed with any other key is not from this project, whatever it claims.
+
+The fingerprint above is the one `./go release` reads: it compares what it has
+just built against this file and says so either way. That is the check worth
+having in the build rather than in a habit, because signing a release with the
+wrong key cannot be undone once anyone has installed it.
 
 ## Licence
 

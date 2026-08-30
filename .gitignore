@@ -26,6 +26,8 @@ local.properties
 /secrets/
 *.keystore
 *.jks
+# Where app/build.gradle.kts reads the release keystore and its passphrase from
+keystore.properties
 
 # Node tooling for the Cloudflare Worker
 node_modules/

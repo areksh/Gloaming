@@ -19,6 +19,7 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 8 | Compose app scaffold | Done |
 | 9 | Wrangler installed and authenticated | Done |
 | 10 | Android release keystore (`secrets/gloaming-release.p12`) | Done, fingerprint in README |
+| 10a | Release signing wired into the build | Done; needs `keystore.properties` on the machine that cuts a release |
 | 11 | Worker deployed, manifest signing secret uploaded | Done, publishing live |
 | 11a | Cache Rule on `sky.arek.sh/v1/*` | Done, verified |
 | 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
@@ -82,12 +83,34 @@ Obtainium can check what they are trusting.
 - Do not put either in the repository, in cloud storage that syncs
   automatically, or in a note on the build machine only.
 
-### Wiring it into the build, at release time
+### Wiring it into the build
 
-Do not put the passphrase in `app/build.gradle.kts`. Read it from a gitignored
-`keystore.properties` or from the environment, and let the release build fail
-loudly if it is absent rather than silently producing an unsigned or
-debug-signed APK. This is not needed until there is something to release.
+Done, and this is what it expects. `app/build.gradle.kts` reads the signing
+material from a `keystore.properties` in the repository root, which is
+gitignored, or from the environment where there is no file to read. The
+passphrase is in neither the build file nor the repository.
+
+```properties
+# keystore.properties - never committed
+storeFile=secrets/gloaming-release.p12
+storePassword=<the passphrase>
+# keyAlias defaults to gloaming, keyPassword to storePassword
+```
+
+The environment form is `GLOAMING_KEYSTORE`, `GLOAMING_KEYSTORE_PASSWORD`,
+`GLOAMING_KEY_ALIAS` and `GLOAMING_KEY_PASSWORD`, for a build machine with
+nowhere to put a file.
+
+Without either, a release build fails at `validateSigningRelease` and says which
+properties are missing. That is deliberate: an APK signed with the debug key, or
+with none, installs and runs and looks like a build that worked, and only fails
+much later when the real key tries to update it and Android refuses. Off-Play
+there is no Play App Signing to notice on the project's behalf, so the failure
+has to be at build time or it is not caught at all.
+
+`./go release` then compares the certificate in the APK it has just built
+against the fingerprint published in the README, and says which key signed it.
+Debug builds need none of this and are unaffected.
 
 ## The Cache Rule
 

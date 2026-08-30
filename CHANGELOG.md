@@ -473,6 +473,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A release is signed with the project's key, and a build that cannot be is a
+  build that fails.** The keystore has existed since August and its fingerprint
+  has been in the README since, but nothing connected the two: `./go release`
+  emitted an unsigned APK and said so. An APK signed with the debug key, or with
+  none, is worse than one that fails to build - it installs, it runs, it looks
+  entirely well, and then Android refuses every future update from the real key,
+  so each copy has to be uninstalled by hand. Off-Play there is no Play App
+  Signing to notice on the project's behalf. `./go release` now also compares
+  the certificate it has just produced against the fingerprint the README
+  publishes, and says which key signed it, because the mistake this guards
+  against cannot be undone after anyone has downloaded the result.
+
 - `./go check` also compiles the app's instrumented sources and builds the
   fetcher's bundle. Compiling needs no phone, and a rename in `main` that breaks
   the instrumented suite otherwise stays invisible until the next time one is

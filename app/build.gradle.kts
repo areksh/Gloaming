@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
@@ -7,6 +8,32 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+/**
+ * Signing material for the release build.
+ *
+ * Read from a gitignored `keystore.properties` beside this build, or from the
+ * environment for a machine that has no file to read. Never from a committed
+ * file: the passphrase to the one key every future update must be signed with
+ * does not belong in a repository. `docs/prerequisites.md` has the keystore,
+ * the property names and the backup discipline.
+ */
+val signingProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+
+fun signingMaterial(property: String, variable: String): String? =
+    (signingProperties.getProperty(property) ?: providers.environmentVariable(variable).orNull)
+        ?.takeIf { it.isNotBlank() }
+
+val releaseKeystore = signingMaterial("storeFile", "GLOAMING_KEYSTORE")
+val releaseKeystorePassword = signingMaterial("storePassword", "GLOAMING_KEYSTORE_PASSWORD")
+val releaseKeyAlias = signingMaterial("keyAlias", "GLOAMING_KEY_ALIAS") ?: "gloaming"
+val releaseKeyPassword = signingMaterial("keyPassword", "GLOAMING_KEY_PASSWORD")
+    ?: releaseKeystorePassword
 
 android {
     namespace = "sh.arek.gloaming"
@@ -25,8 +52,21 @@ android {
         testInstrumentationRunnerArguments["notPackage"] = "sh.arek.gloaming.harness"
     }
 
+    signingConfigs {
+        create("release") {
+            // Absent on a machine that holds no signing material, which is
+            // every machine but the one that cuts releases. The check below
+            // stops such a build before it packages anything.
+            releaseKeystore?.let { storeFile = rootProject.file(it) }
+            storePassword = releaseKeystorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = false
             }
@@ -82,6 +122,32 @@ dependencies {
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+
+/**
+ * Refuse to package a release the project's own key did not sign.
+ *
+ * An APK signed with the debug key, or with none, installs and runs and looks
+ * like a build that worked. What it cannot do is take an update from the real
+ * key: Android rejects that outright, so every copy installed from it has to be
+ * uninstalled by hand. Off-Play there is no Play App Signing to catch this on
+ * the project's behalf, and the mistake is only visible months later.
+ *
+ * AGP stops the build on its own account, at `validateSigningRelease`, but says
+ * only "Keystore file not set" - which is the one thing the reader already
+ * knows. This runs at the same point to say where the key and its passphrase
+ * are meant to come from.
+ */
+tasks.matching { it.name == "validateSigningRelease" || it.name == "packageRelease" }.configureEach {
+    val keystore = releaseKeystore
+    val passphrase = releaseKeystorePassword
+    doFirst {
+        check(keystore != null && passphrase != null) {
+            "No signing material for the release build. Put storeFile and " +
+                "storePassword in keystore.properties, or set GLOAMING_KEYSTORE " +
+                "and GLOAMING_KEYSTORE_PASSWORD. See docs/prerequisites.md."
+        }
+    }
 }
 
 /**
