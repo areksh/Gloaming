@@ -77,9 +77,14 @@ export function explainFailure(error: unknown): string {
   // A reason already stated is noise: a runtime restates the same one at more
   // than one level of the chain, and a wrapper that has written the reason into
   // its own message would otherwise have it repeated back after it.
+  //
+  // Stated means written onto the end, which is what wrapping one looks like -
+  // deliberately not "appears anywhere in". A name that will not resolve is a
+  // cause whose message is mostly the host, and the host is inside the URL the
+  // wrapper names.
   const unique: string[] = [];
   for (const reason of chain) {
-    if (!unique.some((kept) => kept.includes(reason))) unique.push(reason);
+    if (!unique.some((kept) => kept.endsWith(reason))) unique.push(reason);
   }
 
   // The wrapper is worth reporting only when it is all there is.

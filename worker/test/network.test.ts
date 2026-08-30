@@ -95,6 +95,21 @@ describe("explainFailure", () => {
     );
   });
 
+  /**
+   * The rule above must not go further than that. A name that will not resolve
+   * is reported as a cause whose message is mostly the host - and the host is
+   * inside the URL the wrapper names, so a looser test for "already stated"
+   * throws away the only account of what happened.
+   */
+  it("keeps a reason that merely appears inside the message above it", () => {
+    const inner = new Error("no.such.host");
+    const wrapped = new Error("could not reach https://no.such.host/data.json", { cause: inner });
+
+    expect(explainFailure(wrapped)).toBe(
+      "could not reach https://no.such.host/data.json: no.such.host",
+    );
+  });
+
   it("keeps the only message there is when nothing is underneath", () => {
     expect(explainFailure(new Error("fetch failed"))).toBe("fetch failed");
   });
