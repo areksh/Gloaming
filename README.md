@@ -483,12 +483,41 @@ Deploying needs a Cloudflare account, an R2 bucket and `wrangler login`; see
 | [`docs/prerequisites.md`](docs/prerequisites.md) | Provisioning to work through before development |
 | [`docs/adr/`](docs/adr/) | Architecture decision records |
 
+## Publishing
+
+There is no CI. The gate is the pre-push hook and `./go release`, and both run
+on the machine that holds the signing key - which never leaves it.
+
+```sh
+./go push                 # push main, and republish the development release
+./go push --no-release    # push and stop there
+```
+
+`./go push` publishes the tip of `main` as the one development release: a
+signed release APK under a rolling `dev` tag that moves with every push, its
+notes listing every commit since the last version tag. Exactly one exists at any
+time and it replaces itself, so the link never goes stale and nothing
+accumulates. It is signed with the project's release key like any other build,
+so it installs over a release and a release installs over it - keeping settings,
+the battery-optimisation exemption, and the record of what your alerts were
+worth, which an uninstall would take with it.
+
+A development build carries the version name of the *last* release, because that
+name identifies a release and does not move between them. The commit is what
+identifies the build: it is in the APK's filename, in the release notes, and on
+the settings screen of the phone it is installed on.
+
+Publishing needs a Codeberg access token with write access to the repository, in
+`secrets/codeberg-token.txt` or `CODEBERG_TOKEN`, and the signing material in
+`keystore.properties` - copy `keystore.properties.example` and fill in the
+passphrase. Both are covered in
+[`docs/prerequisites.md`](docs/prerequisites.md).
+
 ## Verifying a release
 
-Every release is signed with the project's own key. Nothing is published yet,
-but when it is, check the APK's signing certificate against this fingerprint
-before installing - particularly if you got the file from anywhere other than
-this repository:
+Every release is signed with the project's own key, development builds included.
+Check the APK's signing certificate against this fingerprint before installing -
+particularly if you got the file from anywhere other than this repository:
 
 ```
 SHA-256: 1B:14:A3:3F:AE:BB:E1:A4:AC:73:D1:6E:88:71:73:8B:

@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A development build is published from every push.** One release, on a
+  rolling `dev` tag that moves with the tip of `main`, carrying the signed APK
+  and every commit since the last version. It replaces itself rather than
+  accumulating, so the link never goes stale and there is never a choice to make
+  about which one is current. It is signed with the same key as a release, so a
+  development build and a release install over each other freely - settings, the
+  battery-optimisation exemption and the record of what your alerts were worth
+  all survive the swap, where an uninstall would take them. The version name is
+  the last release's, because that is what a version name is for; the commit,
+  shown on the settings screen and in the filename, is what says which build you
+  actually have.
+
 - **The settings screen says which build you are running.** One line at the
   foot of it: the version as a person reads it, the build number Android knows
   it by, and the commit it was built from. The app is installed from an APK
