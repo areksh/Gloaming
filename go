@@ -55,8 +55,10 @@
 #   install            Install the debug APK. With --test, the instrumentation
 #                      APK as well, which tools/bfu-check.sh --seed needs.
 #   setup              Install what the two Node projects need, from their
-#                      lockfiles, so that `check` can run. Everything else -
-#                      JDK 21, the Android SDK - is in docs/prerequisites.md.
+#                      lockfiles, so that `check` can run, and point git at the
+#                      repository's own hooks so that `check` runs before every
+#                      push. Everything else - JDK 21, the Android SDK - is in
+#                      docs/prerequisites.md.
 #   check              Everything that runs without a phone: the app's unit tests,
 #                      its instrumented sources compiled but not run, and both
 #                      Node projects' tests, typechecks and builds.
@@ -816,10 +818,20 @@ debuggable build, so this is a release APK: ./go install puts the debug one back
             echo "== $directory =="
             (cd "$directory" && npm ci)
         done
+        # core.hooksPath rather than a copy into .git/hooks: the hook is then
+        # the version-controlled one, and cannot drift from it unnoticed on a
+        # checkout somebody set up months ago. It is per-clone configuration,
+        # so it has to be set once per clone, which is what setup is for.
         echo
-        echo "The Node projects are ready. Nothing else is installed by this:"
-        echo "JDK 21 and the Android SDK with platform android-37.0 are yours to"
-        echo "provide, and docs/prerequisites.md is the list."
+        echo "== hooks =="
+        git config core.hooksPath tools/hooks
+        echo "core.hooksPath -> tools/hooks; ./go check now runs before each push."
+
+        echo
+        echo "The Node projects are ready and the hooks are wired up. Nothing else"
+        echo "is installed by this: JDK 21 and the Android SDK with platform"
+        echo "android-37.0 are yours to provide, and docs/prerequisites.md is the"
+        echo "list."
         ;;
 
     check)

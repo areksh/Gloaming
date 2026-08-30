@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# Refuses a push that ./go check does not pass.
+#
+# There is no CI. This is the whole of the gate, and it is deliberately the
+# cheap half of it: the unit tests, the instrumented sources compiled but not
+# run, and both Node projects. Under a minute on a warm cache, which is the
+# point - a gate expensive enough to resent is a gate that gets bypassed.
+#
+# What it cannot cover is everything needing a phone, which is most of what
+# actually breaks. `./go release` runs that half, including the two overnight
+# harnesses, and is the gate that matters before anything is published.
+#
+# Installed by `./go setup`, which points core.hooksPath at this directory so
+# the hook is version-controlled rather than copied into .git/hooks and then
+# quietly diverging from the one everybody else has.
+#
+set -euo pipefail
+
+# Hooks run from the top of the working tree already, but not when the push
+# comes from a worktree or a submodule, and a relative ./go would miss.
+cd "$(git rev-parse --show-toplevel)"
+
+# Git names each ref being pushed on stdin, as:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# A deletion has the all-zero local sha and nothing to test - there is no tree
+# in it. Running the suite to delete a branch is pure delay.
+deletions_only=1
+saw_ref=0
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [ -n "${local_sha:-}" ] || continue
+    saw_ref=1
+    case "$local_sha" in
+        *[!0]*) deletions_only=0 ;;
+    esac
+done
+
+if [ "$saw_ref" -eq 1 ] && [ "$deletions_only" -eq 1 ]; then
+    echo "pre-push: deletions only, nothing to check"
+    exit 0
+fi
+
+echo "pre-push: ./go check"
+if ! ./go check; then
+    echo >&2
+    echo "pre-push: check failed, so nothing was pushed." >&2
+    echo "Fix it rather than reaching for --no-verify: this is the only gate a" >&2
+    echo "push passes through, and there is no CI behind it to catch what it misses." >&2
+    exit 1
+fi

@@ -148,7 +148,7 @@ runs its own clock and no alarm policy reaches it.
 Requires JDK 21 and the Android SDK with platform `android-37.0`.
 
 ```sh
-./go setup         # install what the two Node projects need, once
+./go setup         # Node projects and the git hooks, once per clone
 ./go apk           # build the debug APK
 ./go test          # unit tests, no device needed
 ./go device-test   # instrumented tests, needs a device
@@ -157,6 +157,12 @@ Requires JDK 21 and the Android SDK with platform `android-37.0`.
 ./go testall       # all of it, the phone's part too if one is plugged in
 ./go help          # every command, and what each option is for
 ```
+
+`./go setup` also points `core.hooksPath` at `tools/hooks`, so `./go check` runs
+before every push and a push it fails does not happen. There is no CI: that hook
+and `./go release` are the whole of the gate between a change and a published
+APK, which is why the hook is version-controlled rather than copied into
+`.git/hooks` where it could quietly diverge.
 
 `./go results` is worth knowing about before the first red run. Gradle reports a
 failure as a name, the word FAILED and a link to an HTML page, so the assertion
