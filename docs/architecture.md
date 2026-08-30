@@ -1048,3 +1048,5 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0008 - fetch CelesTrak from outside Cloudflare.
 - ADR-0009 - three specific pollers, not one event engine.
 - ADR-0010 - fetch the comet sources outside Cloudflare, and without a breaker.
+- ADR-0011 - a derived-settings layer rather than writing calibrated values.
+- ADR-0012 - constellations as the one exception to the star exclusion.

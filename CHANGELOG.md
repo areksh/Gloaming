@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The constellations, on a card and in the calendar.** Which patterns are up
+  tonight, highest first, with where to look and one sentence on how to pick
+  each one out - three stars in a line make Orion's belt, the end of the
+  Plough's bowl points at Polaris. Ones that never set from where you are say
+  so. The calendar carries the one dated fact about each: the night it stands
+  highest at midnight, which is the best it is placed all year. Twenty-two
+  patterns, chosen for being ones you could pick out and would name rather than
+  by a brightness rule, which admits constellations with bright stars and no
+  shape. Never interrupts, like the equinoxes and the moon phases - the date is
+  settled by the earth's orbit and falls within a day of the same date every
+  year, which is planning rather than news. Individual stars and deep-sky
+  objects are still deliberately absent: that is a catalogue, and Stellarium
+  does it better.
+
+- **The planets and comets say which constellation they are sitting in.** A
+  comet is a faint smudge at a position nobody has memorised, so "in Andromeda"
+  is worth more than the altitude and the bearing put together - and a planet
+  sitting in a pattern the card above has just told you how to find is a planet
+  you can find.
+
 - **What is happening right now is marked as such.** On the calendar it takes a
   border and the words "Happening now"; on the Tonight tab, the same words above
   the entry. In words as well as in colour, so it survives the night-vision

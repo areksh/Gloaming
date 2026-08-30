@@ -974,6 +974,20 @@ Slots can be redefined in a loop to walk a Messier catalogue, at the cost of mut
 global state every iteration. If DSOs ever become a feature, alt/az is computed directly
 from catalogue RA/Dec instead. For v1 they are out of scope; Stellarium does this better.
 
+**Amended 2026-08-30: constellations are in, and are the one exception.** The reasoning
+above is about *objects* and does not reach a *pattern*. A constellation is not a star, so
+it claims none of the eight slots and touches no global table: a right ascension and a
+declination go straight to `horizon`, which is the call `Planets` already makes. There are
+88 of them and fewer than 30 anybody would name, which is a table rather than a catalogue,
+and it does not grow. And the naked-eye rule in Sec. 13 admits them outright - a
+constellation is what somebody sees before they own anything.
+
+Individual stars and deep-sky objects stay excluded on exactly the reasoning above. The
+line is drawn at the pattern, not at the object: the Pleiades and the Andromeda galaxy are
+found by pointing at a position and are the first two rows of the catalogue this section
+refuses. Naming one inside a "how to find it" sentence is a landmark and is fine; giving it
+a row of its own is the catalogue. See ADR-0012.
+
 ---
 
 ## 9. Attention, decision and delivery
@@ -1211,6 +1225,14 @@ should be silenceable apart.
 - **Moon phases deliberately have no channel and never notify.** One arrives every 7.4
   days; what they are for is planning everything else around, and an app that announced
   each one is an app that gets muted.
+
+**Added 2026-08-30, building the constellations: no channel, on the moon phases' own
+argument.** A pattern's best night is settled by the earth's orbit alone, so it falls within
+a day of the same date every year - Orion has been best in mid-December for the whole of
+human history and will be again next year. Something that predictable is planning rather
+than news, so it is listed and never interrupts, the treatment seasons and moon phases
+already get. This also avoids committing to a channel id, which is what a user's silencing
+choice is keyed to and is permanent once shipped.
 
 **"Was it worth it?", added 2026-08-27.** Two actions on every aurora, pass and event
 notification. This is the one addition here that spends attention without giving anything
@@ -1565,7 +1587,9 @@ What it excludes, and why each is a real question somebody will ask:
 - **Planetary perihelion and aphelion, lunar nodes, libration.** Nothing happens in the sky
   that a person can go outside and look at.
 - **Deep-sky objects**, which Sec. 8 already excludes for the separate reason that
-  astronomy-engine offers exactly eight user star slots.
+  astronomy-engine offers exactly eight user star slots. **Amended 2026-08-30:** that
+  exclusion is about objects and never reached constellations, which are now in - see
+  Sec. 8 and ADR-0012. Individual stars and DSOs are still out.
 
 Equinoxes and solstices are the one deliberate exception, and they earn it by not
 interrupting: they are not sights, they are what the observing year turns on - the June

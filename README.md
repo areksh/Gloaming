@@ -1,8 +1,8 @@
 # Gloaming
 
 A free, ad-free, Play-Services-free Android app that tells you when to look up:
-aurora, satellite passes, comets, eclipses, meteor showers and conjunctions.
-Global by design, UK-enhanced.
+aurora, satellite passes, comets, eclipses, meteor showers, conjunctions and the
+constellations. Global by design, UK-enhanced.
 
 Your location is never sent to us. All the astronomy is computed on-device, all
 alert decisions are made on-device, and nothing can contact the app - it reaches
@@ -41,7 +41,8 @@ the thresholds and confirm the app is worth keeping installed.
 
 On top of that sits a sky calendar, on a tab of its own: eclipses, meteor
 showers, close pairings of planets, Mars, Jupiter and Saturn at opposition,
-Venus at its brightest, new and full moon, and the equinoxes and solstices - all
+Venus at its brightest, new and full moon, the night each constellation stands
+highest at midnight, and the equinoxes and solstices - all
 worked out on the phone for the year ahead and judged against where you are
 standing rather than listed as though everything is visible from everywhere. An
 eclipse that reaches maximum after the sun has set where you are says so.
@@ -88,8 +89,17 @@ that decide whether any of it is worth going outside for: the cloud overhead and
 the next gap in it, the moon and how much of the night it spoils, and how dark
 the sky actually gets - both civil twilight, which an aurora shows through, and
 proper astronomical darkness, which at this latitude does not arrive at all
-between May and August. The planets are there too, with how high each gets and
-which way to look.
+between May and August. The planets are there too, with how high each gets,
+which way to look, and which constellation each is sitting in.
+
+The constellations have a card of their own, because which patterns are up is a
+season rather than an occasion and a calendar of them would be an almanac. It
+lists what is up tonight, highest first, with where to look and one sentence on
+how to pick each one out - three stars in a line make Orion's belt, the end of
+the Plough's bowl points at Polaris. Ones that never set from where you are say
+so, and on the one night of the year a pattern is best placed it says that too.
+Individual stars and deep-sky objects are deliberately not here: that is a
+catalogue, and Stellarium does it better.
 
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
