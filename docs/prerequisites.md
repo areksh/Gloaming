@@ -23,10 +23,39 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 11 | Worker deployed, manifest signing secret uploaded | Done, publishing live |
 | 11a | Cache Rule on `sky.arek.sh/v1/*` | Done, verified |
 | 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
-| 13 | CI runner on Codeberg (Woodpecker or Forgejo Actions) | Outstanding |
+| 13 | CI runner | Decided against; ADR-0014. The gate is the pre-push hook and `./go release` |
+| 14 | Codeberg access token for publishing releases | Needed by `./go push` and `./go release` |
 
 The F-Droid-repo-on-Codeberg-Pages setup and F-Droid main-repo submission are
 post-v1 (Sec. 12).
+
+## Codeberg access token
+
+`./go push` and `./go release` publish through the Codeberg API, which needs a
+token with write access to the repository. Generate one at codeberg.org under
+Settings -> Applications -> Access Tokens, granting `write:repository` and
+nothing else - it is used for releases and their assets, and for no other call.
+
+Put it in `secrets/codeberg-token.txt`, which is gitignored along with the rest
+of that directory, or set `CODEBERG_TOKEN` in the environment. The file wins if
+both are present, which is the order the signing material uses. A file still
+holding the template's placeholder counts as absent, so an unfilled template
+fails with a message about the token rather than with a 401 that reads like a
+revoked one.
+
+## Signing material on the machine that releases
+
+`keystore.properties` tells the build where the keystore is and what its
+passphrase is. It is gitignored by name; `keystore.properties.example` is the
+template beside it:
+
+```sh
+cp keystore.properties.example keystore.properties
+```
+
+Fill in `storePassword`. Only the machine that cuts releases needs it - every
+other machine builds debug and `minified` without it, and a release build
+refuses rather than emitting an APK signed with a key nobody can update from.
 
 ## Generating the Android release keystore
 

@@ -407,10 +407,20 @@ Greenfield, held to the full TDD bar (ADR-0001).
   The exemption request flow is therefore load-bearing, not a nicety - and the
   exemption is a requirement rather than a refinement, so the app states it
   plainly and the non-exempt schedule is deliberately not accommodated.
-- **CI:** none yet. Codeberg CI was the plan, and is not available to this
-  project; an alternative host has still to be chosen, so the suites are run
-  locally in the meantime. Reproducible builds for the F-Droid main repo are a
-  post-v1 concern (Sec. 12).
+- **CI: none, deliberately (ADR-0014).** The gate is two things on the machine
+  that holds the signing key and has the phone plugged in. `tools/hooks/pre-push`
+  runs `./go check` before every push and refuses the push if it fails; it lives
+  in the tree with `core.hooksPath` pointed at it by `./go setup`, so it cannot
+  diverge from the one in the repository. `./go release <version>` runs
+  everything else - the instrumented suite, that suite against R8's output, then
+  both harnesses - before it bumps, signs, tags and publishes. A hosted runner
+  could only have run `./go check`, since everything that has ever caught a
+  defect in the alerting path needs a real device, and letting one publish would
+  mean putting the release key in a third party's secret store. `./go push`
+  publishes the tip of `main` as a rolling development release in between.
+  Reproducible builds for the F-Droid main repo are a post-v1 concern (Sec. 12)
+  and are the answer to the one thing this arrangement does not provide: an
+  attestation from outside the project that an APK matches its commit.
 
 ## 8. Build order
 
