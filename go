@@ -30,7 +30,8 @@
 #                      logcat is a ring buffer holding about twelve minutes and
 #                      the hours this app works in are the ones nobody is
 #                      watching. With --live, logcat instead, followed and
-#                      filtered to the app's own tags.
+#                      filtered to the app's uid and its tags - the tags are
+#                      not ours alone, the system logs under some of them too.
 #   apk                Build the debug APK and say where it landed.
 #   release            Build the release APK. It comes out unsigned: signing is
 #                      deliberately not wired into the build yet, see
