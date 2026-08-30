@@ -21,6 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shown on the settings screen and in the filename, is what says which build you
   actually have.
 
+## [1.0.0-rc1] - 2026-08-30
+
+Everything below is the first release candidate: the whole of the aurora scope
+and the three phases built on top of it. It is a candidate rather than 1.0.0
+because what is left before release is the part no suite can do - a season of
+real nights, to calibrate the alert thresholds and confirm the app is worth
+keeping installed.
+
+### Added
+
 - **The settings screen says which build you are running.** One line at the
   foot of it: the version as a person reads it, the build number Android knows
   it by, and the commit it was built from. The app is installed from an APK
@@ -34,16 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of them is on the phone. A build made from a tree with uncommitted changes in
   it says so - it corresponds to no commit and nothing can reproduce it - and so
   does a debug build, which is not the release it shares a name with.
-
-## [1.0.0-rc1] - 2026-08-30
-
-Everything below is the first release candidate: the whole of the aurora scope
-and the three phases built on top of it. It is a candidate rather than 1.0.0
-because what is left before release is the part no suite can do - a season of
-real nights, to calibrate the alert thresholds and confirm the app is worth
-keeping installed.
-
-### Added
 
 - **The settings screen shows what your alerts were actually worth.** Every
   alert has carried two buttons for months, and the app has only ever shown what
