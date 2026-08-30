@@ -70,6 +70,7 @@ fun TonightContent(
         DarknessCard(tonight)
         MoonCard(tonight)
         PlanetsCard(tonight)
+        ConstellationsCard(tonight)
         EventsCard(tonight, state.nowMillis, onShareEvent, onExportEvent)
         CometsCard(tonight)
         SatellitesCard(tonight)
@@ -497,6 +498,30 @@ private fun PlanetsCard(list: TonightList) {
             Text(planet.body.label.replaceFirstChar { it.uppercase() },
                 style = MaterialTheme.typography.titleSmall)
             Text(describePlanet(planet), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/**
+ * The patterns up tonight, and how to pick each one out.
+ *
+ * Next to the planets rather than among the events, because it answers the
+ * planets' question about different things: what is up, where to look, and
+ * this time how to recognise it when you get there. A constellation's one
+ * dated night is in the calendar, and the line here says when that night is
+ * tonight so the same pattern is never named twice on one screen.
+ */
+@Composable
+private fun ConstellationsCard(list: TonightList) {
+    if (list.constellations.isEmpty()) return
+
+    SectionCard("Constellations tonight") {
+        for (seen in list.constellations) {
+            Text(
+                seen.constellation.name,
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(describeConstellation(seen), style = MaterialTheme.typography.bodySmall)
         }
     }
 }

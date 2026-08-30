@@ -4,8 +4,11 @@ import java.util.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import sh.arek.gloaming.astronomy.ConstellationTonight
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.data.CloudCover
@@ -262,6 +265,61 @@ class TonightWordingTest {
             describePlanet(venus),
         )
     }
+
+    // --- the constellations ---
+
+    @Test
+    fun `says how high a constellation gets and how to pick it out`() {
+        assertEquals(
+            "Highest 39 degrees south at 23:00. Three bright stars in a short " +
+                "straight line make the belt, with orange Betelgeuse up-left of it " +
+                "and blue-white Rigel down-right.",
+            describeConstellation(pattern("Orion", altitude = 39.0, peakAt = at(23))),
+        )
+    }
+
+    /** The reason to go out tonight rather than another night comes first. */
+    @Test
+    fun `leads with the night a constellation is at its best`() {
+        val line = describeConstellation(
+            pattern("Orion", altitude = 39.0, peakAt = at(23), isAtItsBest = true),
+        )
+
+        assertTrue(line, line.startsWith("At its best tonight, highest all year."))
+    }
+
+    /** A pattern that never sets belongs to no season, and says so. */
+    @Test
+    fun `says when a constellation never sets`() {
+        val line = describeConstellation(
+            pattern("Ursa Major", altitude = 84.0, peakAt = at(1), isCircumpolar = true),
+        )
+
+        assertTrue(line, line.contains("Never sets from here."))
+    }
+
+    /** No magnitude: a constellation does not have one. */
+    @Test
+    fun `never quotes a magnitude for a constellation`() {
+        val line = describeConstellation(pattern("Orion", altitude = 39.0, peakAt = at(23)))
+
+        assertTrue(line, !line.contains("magnitude"))
+    }
+
+    private fun pattern(
+        name: String,
+        altitude: Double,
+        peakAt: Long,
+        isCircumpolar: Boolean = false,
+        isAtItsBest: Boolean = false,
+    ) = ConstellationTonight(
+        constellation = Constellations.WATCHED.first { it.name == name },
+        peakAltitude = altitude,
+        peakAt = peakAt,
+        peakAzimuth = 180.0,
+        isCircumpolar = isCircumpolar,
+        isAtItsBest = isAtItsBest,
+    )
 
     private fun planet(
         altitude: Double,

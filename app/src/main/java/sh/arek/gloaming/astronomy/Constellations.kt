@@ -60,6 +60,14 @@ data class ConstellationTonight(
      * of the year" is the most useful thing that can be said about them.
      */
     val isCircumpolar: Boolean,
+    /**
+     * Whether tonight is the night of the year it is best placed.
+     *
+     * Carried on the card rather than left to the calendar entry, because the
+     * screen would otherwise name the same pattern twice on that one night -
+     * once for where it is and once for the occasion.
+     */
+    val isAtItsBest: Boolean,
 )
 
 /**
@@ -233,10 +241,35 @@ object Constellations {
         if (night.isEmpty()) return emptyList()
         val observer = Observer(latitude, longitude, 0.0)
 
+        val best = atTheirBestOn(night)
+
         return WATCHED
-            .map { seen(it, observer, latitude, night) }
+            .map { seen(it, observer, latitude, night, it.name in best) }
             .filter { it.peakAltitude >= barFor(it.constellation) }
             .sortedByDescending { it.peakAltitude }
+    }
+
+    /**
+     * Which patterns have their best night of the year on [night].
+     *
+     * Searched over a few days either side rather than over the night itself.
+     * The crossing that dates a best night is a fact about the sun's position
+     * and falls at whatever hour it falls at, often the middle of the day, so
+     * a window of one night's darkness would usually miss it - and the daily
+     * sampling [bestNights] uses cannot resolve a span shorter than a day at
+     * all.
+     *
+     * The match is by which night the crossing is nearest, which is the same
+     * rule [Twilight.nightNearest] applies when the calendar picks the night
+     * to date the entry to. So the card and the calendar agree by
+     * construction rather than by coincidence.
+     */
+    private fun atTheirBestOn(night: LongRange): Set<String> {
+        val middle = (night.first + night.last) / 2
+        return bestNights(night.first - 2 * DAY_MILLIS, night.last + 2 * DAY_MILLIS)
+            .filter { kotlin.math.abs(it.atMillis - middle) <= DAY_MILLIS / 2 }
+            .map { it.constellation.name }
+            .toSet()
     }
 
     private fun barFor(constellation: Constellation) =
@@ -247,6 +280,7 @@ object Constellations {
         observer: Observer,
         latitude: Double,
         night: LongRange,
+        isAtItsBest: Boolean,
     ): ConstellationTonight {
         val best = peak(constellation, observer, night)
         return ConstellationTonight(
@@ -255,6 +289,7 @@ object Constellations {
             peakAt = best.atMillis,
             peakAzimuth = best.azimuth,
             isCircumpolar = isCircumpolar(constellation, latitude),
+            isAtItsBest = isAtItsBest,
         )
     }
 

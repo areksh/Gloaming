@@ -1,5 +1,7 @@
 package sh.arek.gloaming.domain
 
+import sh.arek.gloaming.astronomy.ConstellationTonight
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.Noctilucent
@@ -89,6 +91,14 @@ data class TonightList(
     val clearSpell: ClearSpell? = null,
     /** The naked-eye planets above the bar tonight, highest first. */
     val planets: List<PlanetTonight> = emptyList(),
+    /**
+     * The constellations up tonight, highest first.
+     *
+     * The season half of something whose one dated night is in the calendar.
+     * A pattern is up for months at a time, which is exactly the shape that
+     * belongs here rather than on a list of occasions.
+     */
+    val constellations: List<ConstellationTonight> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() = passes.isEmpty() && events.isEmpty() && comets.isEmpty() && noctilucent == null
@@ -186,7 +196,12 @@ object Tonight {
             events = calendar.filter {
                 it.overlaps(from, until) &&
                     it.visibility !is Visibility.NotFromHere &&
-                    it.kind != EventKind.Comet
+                    it.kind != EventKind.Comet &&
+                    // Dropped here for the comets' reason: the card below names
+                    // the pattern and marks the night it is at its best, so
+                    // listing the calendar entry too would put Orion on the
+                    // screen twice on the one night of the year it matters.
+                    it.kind != EventKind.Constellation
             },
             comets = Comets
                 .tonight(comets, latitude, longitude, settings, nowMillis)
@@ -197,6 +212,9 @@ object Tonight {
             moon = night?.let { moonTonight(latitude, longitude, it, nowMillis) },
             cloud = cloud,
             planets = night?.let { Planets.tonight(latitude, longitude, it) }.orEmpty(),
+            constellations = night
+                ?.let { Constellations.tonight(latitude, longitude, it) }
+                .orEmpty(),
             clearSpell = night?.let {
                 ClearSpell.first(
                     hourly = hourly,

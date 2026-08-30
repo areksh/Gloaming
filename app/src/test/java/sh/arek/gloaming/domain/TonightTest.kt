@@ -7,6 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.comets.CometsDocument
@@ -332,6 +333,54 @@ class TonightTest {
     }
 
     // --- which few to lead with ---
+
+    // --- the constellations ---
+
+    /**
+     * The season half of the feature. A January night from Edinburgh has the
+     * winter patterns up, and Orion is the one anybody would name.
+     */
+    @Test
+    fun `lists the constellations up tonight`() {
+        val list = tonight("2027-01-15T22:00:00Z")
+
+        assertTrue(list.constellations.isNotEmpty())
+        assertTrue(
+            list.constellations.map { it.constellation.name }.toString(),
+            list.constellations.any { it.constellation.name == "Orion" },
+        )
+    }
+
+    /**
+     * The card names the pattern and marks the night it is at its best, so the
+     * calendar's own entry is dropped rather than listed beside it - the same
+     * rule that keeps a comet off the events list.
+     */
+    @Test
+    fun `keeps the constellation calendar entry off tonight's list`() {
+        val calendar = SkyCalendar.events(55.95, -3.19, at("2027-12-16T18:00:00Z"), 3)
+        val list = tonight("2027-12-16T18:00:00Z", calendar = calendar)
+
+        assertTrue(
+            calendar.map { it.kind }.toString(),
+            calendar.any { it.kind == EventKind.Constellation },
+        )
+        assertTrue(
+            list.events.map { it.title }.toString(),
+            list.events.none { it.kind == EventKind.Constellation },
+        )
+    }
+
+    /** And says so on the card instead, on the one night it is true. */
+    @Test
+    fun `marks the constellation that is at its best tonight`() {
+        val list = tonight("2027-12-16T22:00:00Z")
+
+        assertTrue(
+            list.constellations.map { it.constellation.name to it.isAtItsBest }.toString(),
+            list.constellations.any { it.isAtItsBest },
+        )
+    }
 
     private fun pass(
         name: String,

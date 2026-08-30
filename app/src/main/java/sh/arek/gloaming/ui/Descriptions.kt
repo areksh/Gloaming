@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.data.CloudCover
@@ -323,6 +324,30 @@ internal fun describeMoonTimes(moon: MoonTonight): String? {
     val parts = listOfNotNull(rises, sets)
     if (parts.isEmpty()) return null
     return parts.joinToString(", ").replaceFirstChar { it.uppercase() } + "."
+}
+
+/**
+ * One constellation in one line: how high, which way, when, and how to find it.
+ *
+ * The positional half matches [describePlanet] exactly, so the two cards read
+ * the same way. What is added is the star-hop, which is the part somebody who
+ * cannot already find the pattern needs, and it is the same sentence every
+ * night because the pattern does not change.
+ *
+ * No magnitude. A constellation does not have one, and the brightest star's
+ * belongs in the calendar entry where there is room to say whose it is.
+ */
+internal fun describeConstellation(seen: ConstellationTonight): String {
+    val where = "Highest ${seen.peakAltitude.roundToInt()} degrees " +
+        "${Compass.of(seen.peakAzimuth).label} at ${clock(seen.peakAt)}."
+
+    // Said before the star-hop rather than after it, because it is the reason
+    // to go out tonight rather than another night, and the star-hop is the
+    // same sentence every time.
+    val best = if (seen.isAtItsBest) "At its best tonight, highest all year." else null
+    val always = if (seen.isCircumpolar) "Never sets from here." else null
+
+    return listOfNotNull(best, where, always, seen.constellation.starHop).joinToString(" ")
 }
 
 /**
