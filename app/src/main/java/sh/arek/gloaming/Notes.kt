@@ -27,12 +27,12 @@ object Notes {
 
     fun w(context: Context, tag: String, message: String, error: Throwable? = null) {
         if (error == null) Log.w(tag, message) else Log.w(tag, message, error)
-        record(context, tag, if (error == null) message else "$message: ${error.message}")
+        record(context, tag, if (error == null) message else "$message: ${error.describe()}")
     }
 
     fun e(context: Context, tag: String, message: String, error: Throwable? = null) {
         if (error == null) Log.e(tag, message) else Log.e(tag, message, error)
-        record(context, tag, if (error == null) message else "$message: ${error.message}")
+        record(context, tag, if (error == null) message else "$message: ${error.describe()}")
     }
 
     /**

@@ -8,6 +8,7 @@ import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
+import sh.arek.gloaming.describe
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.PassFinder
@@ -78,7 +79,7 @@ class PassPoller(
             PassPollResult(
                 decision = PassPlanner.Decision.Nothing,
                 nextWakeAtMillis = at + PassPlanner.DORMANT_INTERVAL_MILLIS,
-                failure = it.message ?: it::class.java.simpleName,
+                failure = it.describe(),
             )
         }
     }

@@ -269,6 +269,23 @@ class SkyPollerTest {
         assertTrue(state.value.lastError!!.isNotEmpty())
     }
 
+    /**
+     * The reason has to survive the wrapping. When the manifest cannot be had,
+     * the repository raises "no usable cached copy exists" and carries what
+     * actually went wrong as its cause - so the sentence shown on Tonight as
+     * "Last check failed: ..." was the one part of it that says nothing.
+     */
+    @Test
+    fun `records the fault underneath, not just the top of the failure`() = runTest {
+        val state = State()
+
+        val result = poller(70, settingsAt(), state, Notifier(), failing = setOf(manifestUrl)).poll()
+
+        assertTrue(result.outcome is PollOutcome.Failed)
+        val recorded = state.value.lastError!!
+        assertTrue("did not say what was wrong: $recorded", recorded.contains("offline"))
+    }
+
     @Test
     fun `does nothing without a location`() = runTest {
         val notifier = Notifier()

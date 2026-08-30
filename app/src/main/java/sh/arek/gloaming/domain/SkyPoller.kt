@@ -15,6 +15,7 @@ import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
+import sh.arek.gloaming.describe
 
 /** Posts the user-facing notification. Local, always: nothing pushes to this app. */
 interface AuroraNotifier {
@@ -107,7 +108,7 @@ class SkyPoller(
         val at = now()
 
         val attempt = runCatching { pollOnce(user, previous, at) }
-            .getOrElse { Attempt(PollOutcome.Failed(it.message ?: it::class.java.simpleName)) }
+            .getOrElse { Attempt(PollOutcome.Failed(it.describe())) }
 
         record(attempt, previous)
         return PollResult(

@@ -11,6 +11,7 @@ import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WeatherSource
+import sh.arek.gloaming.describe
 
 /** Posts a calendar notification. Local, like everything else the app announces. */
 interface EventNotifier {
@@ -96,7 +97,7 @@ class EventPoller(
             EventPollResult(
                 decision = EventPlanner.Decision.Nothing,
                 nextWakeAtMillis = at + EventPlanner.DORMANT_INTERVAL_MILLIS,
-                failure = it.message ?: it::class.java.simpleName,
+                failure = it.describe(),
             )
         }
     }
