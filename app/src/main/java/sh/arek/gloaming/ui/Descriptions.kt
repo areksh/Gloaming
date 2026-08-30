@@ -360,9 +360,11 @@ internal fun describeConstellation(seen: ConstellationTonight): String {
  * throughout, and inventing a time for that would be inventing an event.
  */
 internal fun describePlanet(planet: PlanetTonight): String {
+    val pattern = planet.constellation?.let { ", in $it" } ?: ""
     val where = "Highest ${planet.peakAltitude.roundToInt()} degrees " +
         "${Compass.of(planet.peakAzimuth).label} at ${clock(planet.peakAt)}, " +
-        "magnitude ${"%.1f".format(java.util.Locale.UK, planet.magnitude)}."
+        "magnitude ${"%.1f".format(java.util.Locale.UK, planet.magnitude)}" +
+        "$pattern."
 
     val comes = planet.risesAt?.let { "Rises ${clock(it)}." }
     val goes = planet.setsAt?.let { "Sets ${clock(it)}." }

@@ -27,6 +27,14 @@ data class PlanetTonight(
     val risesAt: Long?,
     /** When it sets inside tonight's darkness, if it does. */
     val setsAt: Long?,
+    /**
+     * The constellation it is sitting in at [peakAt].
+     *
+     * Null only where the lookup cannot be made. It is here because it turns
+     * the card from a report into a direction: a planet in a pattern the card
+     * above has just told somebody how to find is a planet they can find.
+     */
+    val constellation: String? = null,
 )
 
 /**
@@ -153,6 +161,18 @@ object Planets {
             magnitude = illumination(engineBody, peakTime).mag,
             risesAt = crossing(Direction.Rise),
             setsAt = crossing(Direction.Set),
+            // A second position, in J2000 rather than the of-date frame the
+            // altitude above needs. The vendored lookup converts to the B1875
+            // boundaries the IAU drew and documents J2000 as its input, so
+            // handing it the of-date coordinates would be right almost
+            // everywhere and quietly wrong at a boundary.
+            constellation = equator(
+                engineBody,
+                peakTime,
+                observer,
+                EquatorEpoch.J2000,
+                Aberration.Corrected,
+            ).let { Constellations.containing(it.ra, it.dec) },
         )
     }
 

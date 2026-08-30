@@ -380,6 +380,22 @@ class CometsTest {
     }
 
     /**
+     * The strongest case in the app for naming a pattern: a comet is a faint
+     * smudge at a position nobody has memorised, so "in Pegasus" is worth more
+     * than the altitude and the bearing put together.
+     *
+     * Hale-Bopp in late March 1997 was in Andromeda, which is where the
+     * published ephemerides for that apparition put it - it crossed from
+     * Andromeda into Perseus over the following fortnight.
+     */
+    @Test
+    fun `names the constellation a comet is sitting in`() {
+        val events = tonight(comet())
+
+        assertTrue(events.first().detail, events.first().detail.contains("in Andromeda"))
+    }
+
+    /**
      * Tonight answers where to look now, so its moment is tonight's rather than
      * the best night of the year the calendar entry names.
      */

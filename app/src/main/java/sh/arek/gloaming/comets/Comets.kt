@@ -2,6 +2,7 @@ package sh.arek.gloaming.comets
 
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
@@ -438,7 +439,16 @@ object Comets {
             append(". ")
         }
         append("Highest at ${night.best.altitude.roundToInt()} degrees ")
-        append("in the ${Compass.of(night.best.azimuth).label}.")
+        append("in the ${Compass.of(night.best.azimuth).label}")
+        // The strongest case in the app for naming a pattern. A comet is a
+        // faint smudge at a position nobody has memorised, so "in Pegasus" is
+        // worth more than the altitude and the bearing put together. Free
+        // here: the sighting already carries J2000 coordinates, which is the
+        // frame the lookup wants.
+        append(", in ${Constellations.containing(
+            night.best.rightAscensionDegrees / 15.0,
+            night.best.declinationDegrees,
+        )}.")
     }
 
     private fun format(value: Double): String =

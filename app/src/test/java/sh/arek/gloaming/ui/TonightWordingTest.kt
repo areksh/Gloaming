@@ -249,6 +249,23 @@ class TonightWordingTest {
         )
     }
 
+    /** The pattern it is sitting in, which the card above says how to find. */
+    @Test
+    fun `names the constellation a planet is sitting in`() {
+        val jupiter = planet(
+            altitude = 46.4,
+            azimuth = 178.0,
+            magnitude = -2.46,
+            peakAt = at(1),
+            constellation = "Taurus",
+        )
+
+        assertEquals(
+            "Highest 46 degrees south at 01:00, magnitude -2.5, in Taurus.",
+            describePlanet(jupiter),
+        )
+    }
+
     /** The same shape as a satellite pass, because it answers the same question. */
     @Test
     fun `adds a planet's crossings where they fall inside the night`() {
@@ -328,6 +345,7 @@ class TonightWordingTest {
         peakAt: Long,
         risesAt: Long? = null,
         setsAt: Long? = null,
+        constellation: String? = null,
     ) = PlanetTonight(
         body = SkyBody.Jupiter,
         peakAltitude = altitude,
@@ -336,6 +354,7 @@ class TonightWordingTest {
         magnitude = magnitude,
         risesAt = risesAt,
         setsAt = setsAt,
+        constellation = constellation,
     )
 
     private fun moon(

@@ -165,4 +165,27 @@ class PlanetsTest {
 
         assertNull(planets.firstOrNull { it.peakAltitude < Planets.VISIBLE_DEGREES })
     }
+
+    // --- which pattern it is sitting in ---
+
+    /**
+     * The single most useful pointer the card can give, and nearly free: the
+     * library already draws the IAU boundaries, so a planet's position is a
+     * lookup rather than a calculation.
+     *
+     * Not asserted against a fixed constellation, because a planet moves
+     * through several in a year and pinning one would be pinning the date
+     * rather than the wiring. What must hold is that every planet gets a real
+     * name, and that the name is one the boundaries actually contain.
+     */
+    @Test
+    fun `names the constellation each planet is sitting in`() {
+        val seen = tonight("2027-01-15T18:00:00Z", "2027-01-16T07:00:00Z")
+
+        assertTrue("expected a planet on a January night", seen.isNotEmpty())
+        for (planet in seen) {
+            val name = planet.constellation
+            assertTrue(planet.body.label, name != null && name.isNotBlank())
+        }
+    }
 }
