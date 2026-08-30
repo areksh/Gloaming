@@ -10,6 +10,13 @@ release, so an upgrade is a straight replacement rather than a merge. Anything
 the app needs on top of a vendored library is written as a wrapper in
 `sh.arek.gloaming.*`.
 
+The checksums below are what says so, and a unit test
+(`VendorChecksumsTest`) holds the two together in both directions: a file whose
+hash is not recorded here fails, and a hash recorded here that belongs to no
+file fails. An edit that would otherwise have surfaced years later as a conflict
+during an upgrade fails on the next run of the suite instead, and the failure
+prints the hash to record once the change is a deliberate one.
+
 ## astronomy-engine 2.1.19
 
 | | |
@@ -19,7 +26,11 @@ the app needs on top of a vendored library is written as a wrapper in
 | Licence | MIT (`io/github/cosinekitty/astronomy/LICENSE`) |
 | Tag | `v2.1.19` |
 | Source | `source/kotlin/src/main/kotlin/io/github/cosinekitty/astronomy/astronomy.kt` |
-| SHA-256 | `b698f7564fdbd6db78fa5777778c2538b377c1506470dfaa5669c57399c81c9a` |
+
+| File | SHA-256 |
+|---|---|
+| `astronomy.kt` | `b698f7564fdbd6db78fa5777778c2538b377c1506470dfaa5669c57399c81c9a` |
+| `LICENSE` | `690dd98cb13ba4db77c6327deea852a816892bb9debbad5943405c66972f8023` |
 
 Vendored rather than depended on because it is not published to Maven Central -
 only to JitPack, which builds it on demand from the GitHub tag. See

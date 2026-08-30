@@ -384,6 +384,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   phone rather than failing test by test with a message that blames the code,
   leaves the app installed afterwards, and puts back everything it changed,
   including after an interrupt.
+- The vendored source is checked against the checksums the vendor README
+  records, in both directions, by a unit test. "Nothing here is edited" is what
+  makes an upgrade a replacement rather than a merge, and it was a sentence in a
+  README with nothing behind it; an accidental edit would have surfaced years
+  later as a conflict, which is the worst moment to find out that the file in
+  the tree is not the file upstream published. The astronomy-engine licence file
+  had no checksum recorded at all, which is how the test first earned its keep.
 - `./go testall`, for the question "does all of it still pass" rather than "does
   this change". It is `check`, and then the whole instrumented suite on the
   phone - the catalogue of nights with it - if one is plugged in. If none is, it

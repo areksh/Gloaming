@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
@@ -96,4 +97,13 @@ tasks.withType<Test>().configureEach {
         events("failed")
         exceptionFormat = TestExceptionFormat.FULL
     }
+
+    // The vendored tree is read at run time by VendorChecksumsTest, not
+    // compiled into it, so Gradle has no other way to know it matters here. Its
+    // absence had the test skipped in exactly the case it exists for: an edit
+    // that changes no behaviour - a reflow, a stray newline - leaves the
+    // bytecode identical, the task up to date, and the check unrun.
+    inputs.dir("src/main/vendor")
+        .withPropertyName("vendoredSource")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
