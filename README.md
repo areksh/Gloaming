@@ -123,6 +123,7 @@ runs its own clock and no alarm policy reaches it.
 Requires JDK 21 and the Android SDK with platform `android-37.0`.
 
 ```sh
+./go setup         # install what the two Node projects need, once
 ./go apk           # build the debug APK
 ./go test          # unit tests, no device needed
 ./go device-test   # instrumented tests, needs a device

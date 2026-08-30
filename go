@@ -25,6 +25,9 @@
 #                      docs/prerequisites.md.
 #   install            Install the debug APK. With --test, the instrumentation
 #                      APK as well, which tools/bfu-check.sh --seed needs.
+#   setup              Install what the two Node projects need, from their
+#                      lockfiles, so that `check` can run. Everything else -
+#                      JDK 21, the Android SDK - is in docs/prerequisites.md.
 #   check              Everything that runs without a phone: the app's unit tests,
 #                      its instrumented sources compiled but not run, and both
 #                      Node projects' tests, typechecks and builds.
@@ -287,7 +290,7 @@ run_check() {
 
 node_project() {
     local directory="$1"
-    [ -d "$directory/node_modules" ] || die "$directory: dependencies are not installed - cd $directory && npm install"
+    [ -d "$directory/node_modules" ] || die "$directory: dependencies are not installed - run ./go setup"
     echo
     echo "== $directory =="
     # The build runs too, where there is one. Partly to catch what the
@@ -355,6 +358,22 @@ case "$COMMAND" in
             gradle_args+=(:app:installDebugAndroidTest)
         fi
         ./gradlew "${gradle_args[@]}"
+        ;;
+
+    setup)
+        # From the lockfile rather than the manifest: a check that passes here
+        # and fails on the server over a version nobody chose is the thing a
+        # lockfile is for. `npm ci` refusing a lockfile that has drifted from
+        # package.json is the same discipline, and says so plainly.
+        for directory in worker fetcher; do
+            echo
+            echo "== $directory =="
+            (cd "$directory" && npm ci)
+        done
+        echo
+        echo "The Node projects are ready. Nothing else is installed by this:"
+        echo "JDK 21 and the Android SDK with platform android-37.0 are yours to"
+        echo "provide, and docs/prerequisites.md is the list."
         ;;
 
     check)

@@ -391,6 +391,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   later as a conflict, which is the worst moment to find out that the file in
   the tree is not the file upstream published. The astronomy-engine licence file
   had no checksum recorded at all, which is how the test first earned its keep.
+- `./go setup`, which installs the two Node projects from their lockfiles. On a
+  fresh clone `check` failed at `worker`, was fixed by hand, and then failed the
+  same way at `fetcher`; the message it fails with now names the one command
+  that fixes both. It says what it does not install, too - the JDK and the
+  Android SDK are still yours to provide.
 - `./go testall`, for the question "does all of it still pass" rather than "does
   this change". It is `check`, and then the whole instrumented suite on the
   phone - the catalogue of nights with it - if one is plugged in. If none is, it
