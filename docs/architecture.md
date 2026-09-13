@@ -277,14 +277,28 @@ is a file replacement.
   **Every fetch is recorded, by a decorator rather than by the repositories.**
   `net.ReportingFetcher` wraps that one boundary in `Graph` and writes each
   attempt into `net.Transfers` - in flight, fresh with its size, unchanged, or
-  failed with the cause chain read out - which the Tonight tab's downloads card
-  shows. It changes no answer: the ETag goes through, and a failure is recorded
-  and rethrown so the repositories' falling back to cache stays live. It is in
-  memory and lasts one process. How *old* the held copy is is a different
-  question with a different answer - the caches' own `writtenAt`, reached
-  through `cachedAgeMillis` - and the card shows both, because the failure that
-  prompted it was a fortnight of successful conditional GETs against an object
-  nobody upstream was republishing.
+  failed with the cause chain read out. It changes no answer: the ETag goes
+  through, and a failure is recorded and rethrown so the repositories' falling
+  back to cache stays live. It is in memory and lasts one process.
+
+  How *old* the held copy is is a different question with a different answer,
+  and both are needed: the failure that prompted all this was a fortnight of
+  *successful* conditional GETs against an object nobody upstream was
+  republishing any more, so only the age had anything to say. Every cache
+  answers it - `SkyCache.statusWrittenAt`/`gridWrittenAt`,
+  `ManifestStore.writtenAt`, `CachedCloud.fetchedAt`, and the two
+  `cachedAgeMillis` that were already there - reaching the screen as
+  `ui.downloadRows`, which merges the two sources into one row per document.
+  The two added to `SkyCache` and `WeatherSource` are defaulted to null, so a
+  fake in a poller test need not answer something no poller reads.
+
+  Shown as text under the Tonight tab's "check now" button rather than as a
+  card, and absent unless it has something to say: while a check runs, after
+  one has been run, or - asked or not - when something is wrong. That last
+  clause is the point rather than a hedge; a report that only speaks when
+  pressed would have sat silent through the whole fortnight. Only the elements
+  (three days) and the comets (a month) are ever marked stale, because those
+  are the two whose age silently corrupts an answer.
 
   **Neither Room nor DataStore is used, and neither is a dependency.** Earlier
   drafts of this document named both; what is built is plain files for the

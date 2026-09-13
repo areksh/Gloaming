@@ -28,18 +28,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3%. Each tab also remembers its own scroll position instead of sharing one, so
   opening the calendar no longer lands you half way down it.
 
+- **"Nothing crossing tonight" is no longer said when the app simply does not
+  know.** With no orbital elements downloaded, the satellites card produced the
+  same empty list a genuinely quiet night produces, and said the same sentence
+  about it. That is the one thing the card must never get wrong, because its
+  whole value is that you believe it and stay indoors. It now says it has not
+  managed to download the elements, and what to do about it.
+
+### Changed
+
+- **Anything in the calendar can be starred.** The star used to be offered only
+  where it could produce a notification, which ruled out the constellations, the
+  moon phases, the solstices, and any eclipse that misses this country. But a
+  star is also what puts an event into your own calendar, and that never
+  depended on notifications - so the button was being withheld on events where
+  it does something real. Which of them are worth marking is your judgement. A
+  star still cannot wake you for something invisible from where you are.
+
 ### Added
 
-- **A downloads card, saying what the app has and what went wrong getting it.**
-  Gloaming spent a fortnight predicting satellite passes from a two-week-old
-  catalogue and never said so: the upstream stopped republishing, every request
-  from the phone went on answering "not modified", and nothing failed anywhere
-  you could see it. The card answers both halves. How old the copy on this phone
-  actually is - marked when the satellite elements are more than three days old,
-  because a fortnight-old element set puts a pass minutes and degrees from where
-  it really is - and what happened last time anything was fetched: downloaded
-  with its size, already up to date, or failed with the reason. Pressing "check
-  now" shows a progress bar and names what is being downloaded.
+- **Gloaming now says what it has downloaded and what went wrong getting it.**
+  It spent a fortnight predicting satellite passes from a two-week-old catalogue
+  and never said so: the upstream stopped republishing, every request from the
+  phone went on answering "not modified", and nothing failed anywhere you could
+  see it. A few lines under the "check now" button now answer both halves for
+  every document - how old the copy on this phone is, and what the last attempt
+  did: downloaded with its size, already up to date, or failed with the reason.
+  Pressing "check now" shows a progress bar and names what is being downloaded.
+
+  It stays out of the way otherwise. Nothing is shown until a check is run,
+  except when something is actually wrong - satellite elements more than three
+  days old are called out unasked, because a fortnight-old element set puts a
+  pass minutes and degrees from where it really is, and a report you have to
+  press a button to see would have stayed silent through the whole fortnight.
 
 - **A development build is published from every push.** One release, on a
   rolling `dev` tag that moves with the tip of `main`, carrying the signed APK
