@@ -69,6 +69,16 @@ interface WeatherSource {
     suspend fun cloudCover(baseUrl: String, latitude: Double, longitude: Double): CloudCover?
 
     /**
+     * How old the held reading is, or null where none is held.
+     *
+     * Defaulted, so a fake in a poller test need not answer it: nothing that
+     * decides anything reads this. It exists for the downloads card, which
+     * reports how old each thing on the device is, and a forecast with no age
+     * beside it was the one row that looked like an oversight.
+     */
+    fun heldAgeMillis(): Long? = null
+
+    /**
      * The last reading held for this place, without touching the network.
      *
      * For the scheduler, which wants to know whether the sky is worth watching

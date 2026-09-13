@@ -23,6 +23,16 @@ interface SkyCache {
     fun writeStatus(body: String, etag: String?)
     fun readGrid(): CachedGrid?
     fun writeGrid(cached: CachedGrid)
+
+    /**
+     * When each was last written, or null where nothing is held.
+     *
+     * Defaulted to null so that a fake in a test is not obliged to have an
+     * opinion about it: these exist for the downloads card, which asks how old
+     * the copy on the device is, and no poller reads them.
+     */
+    fun statusWrittenAt(): Long? = null
+    fun gridWrittenAt(): Long? = null
 }
 
 /**
@@ -115,6 +125,12 @@ class SkyRepository(
 
         return cached?.let { runCatching { OvalGrid.fromGzip(it.gzipped) }.getOrNull() }
     }
+
+    /** How old the held status document is, or null when there is none. */
+    fun statusAgeMillis(): Long? = cache.statusWrittenAt()?.let { now() - it }
+
+    /** The same for the aurora grid, which is fetched far less often. */
+    fun gridAgeMillis(): Long? = cache.gridWrittenAt()?.let { now() - it }
 
     companion object {
         const val ENDPOINT_STATUS = "status"

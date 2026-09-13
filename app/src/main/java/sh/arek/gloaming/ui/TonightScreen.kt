@@ -106,8 +106,6 @@ fun TonightContent(
 
     WatchNowCard(state, onWatchingChange, onWatchDurationChange)
 
-    DownloadsCard(state)
-
     // Disabled while in flight, and says so. A button that looks idle
     // during the second or two a check takes reads as a broken button, and
     // the second press would only queue the same work again.
@@ -118,6 +116,8 @@ fun TonightContent(
     ) {
         Text(if (state.checking) "Checking..." else "Check now")
     }
+
+    DownloadsReport(state)
 
     Text(
         "Nothing this app's own servers run ever learns where you are. The aurora " +
@@ -247,63 +247,69 @@ private fun StatusCard(state: MainUiState) {
     }
 }
 
-/** The downloads card, reached by tag because its rows are prose, not labels. */
-const val DOWNLOADS_CARD_TAG = "downloads-card"
+/** The downloads report, reached by tag because its rows are prose, not labels. */
+const val DOWNLOADS_CARD_TAG = "downloads-report"
 
 /**
  * What the app has downloaded, how old what it holds is, and what went wrong.
  *
- * This card exists because of a fortnight nobody could have noticed. The
- * satellite elements stopped being republished upstream, every conditional GET
- * went on cheerfully answering 304, and the app carried on predicting passes
- * from a two-week-old catalogue. Nothing failed loudly enough to show: the
- * failures that did happen went to `Log.w` and to a journal file, and from the
- * screen a broken pipeline and a quiet sky read identically. "Nothing crossing
- * tonight" is a sentence the app must only ever say when it is true.
+ * This exists because of a fortnight nobody could have noticed. The satellite
+ * elements stopped being republished upstream, every conditional GET went on
+ * cheerfully answering 304, and the app carried on predicting passes from a
+ * two-week-old catalogue. Nothing failed loudly enough to show: the failures
+ * that did happen went to `Log.w` and to a journal file, and from the screen a
+ * broken pipeline and a quiet sky read identically. "Nothing crossing tonight"
+ * is a sentence the app must only ever say when it is true.
  *
- * So both questions are answered, side by side. How old is the copy this phone
- * is actually working from - which survives a restart and is the one that
- * caught the fortnight - and what happened the last time anything tried to
- * fetch, which is this session only and is what somebody watching a check
- * wants. A row that is the reason something is not working is coloured as such.
+ * Under the button rather than in a card of its own, and usually absent. It was
+ * a standing card and that was wrong: on an ordinary evening it is six lines
+ * saying everything is fine, which is furniture, and it sat there before a
+ * check had been run saying nothing useful about the two documents it could
+ * age. It speaks while a check runs, after one has been run, and - whether or
+ * not anybody asked - when something is actually wrong. That last case is the
+ * one it was built for; a report that only speaks when pressed would have sat
+ * silent through the entire fortnight.
  */
 @Composable
-private fun DownloadsCard(state: MainUiState) {
-    SectionCard("Downloads", spacing = 4.dp) {
-        Column(modifier = Modifier.testTag(DOWNLOADS_CARD_TAG)) {
-            // Indeterminate, and honestly so: these are half a dozen small
-            // conditional GETs, most of which transfer nothing at all. A bar
-            // filling to a percentage would be inventing a number - what is
-            // worth showing is that something is happening and what it is.
-            if (state.checking) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text(
-                    text = state.downloading.takeIf { it.isNotEmpty() }
-                        ?.joinToString(", ")
-                        ?.let { "Downloading: $it" }
-                        ?: "Checking...",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
+private fun DownloadsReport(state: MainUiState) {
+    if (!worthReporting(state.downloads, state.checking)) return
 
-            for (row in state.downloads) {
+    Column(
+        modifier = Modifier.testTag(DOWNLOADS_CARD_TAG),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        // Indeterminate, and honestly so: these are half a dozen small
+        // conditional GETs, most of which transfer nothing at all. A bar
+        // filling to a percentage would be inventing a number - what is worth
+        // showing is that something is happening and what it is.
+        if (state.checking) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(
+                text = state.downloading.takeIf { it.isNotEmpty() }
+                    ?.joinToString(", ")
+                    ?.let { "Downloading: $it" }
+                    ?: "Checking...",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        for (row in state.downloads) {
+            Text(
+                text = row.label,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            for (line in row.lines) {
                 Text(
-                    text = row.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 8.dp),
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (row.alarming) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                 )
-                for (line in row.lines) {
-                    Text(
-                        text = line,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (row.alarming) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
             }
         }
     }

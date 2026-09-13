@@ -23,6 +23,10 @@ class FileSkyCache(directory: File) : SkyCache {
         directory.mkdirs()
     }
 
+    override fun statusWrittenAt(): Long? = statusFile.takeIf { it.isFile }?.lastModified()
+
+    override fun gridWrittenAt(): Long? = gridFile.takeIf { it.isFile }?.lastModified()
+
     override fun readStatus(): Pair<String, String?>? {
         if (!statusFile.isFile) return null
         return runCatching {

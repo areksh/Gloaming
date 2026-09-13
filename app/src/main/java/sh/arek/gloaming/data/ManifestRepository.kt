@@ -29,6 +29,9 @@ class ManifestRepository(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** How old the manifest on the device is, or null when none is held. */
+    fun cachedAgeMillis(): Long? = store.writtenAt()?.let { now() - it }
+
     /**
      * Returns the freshest manifest that can be trusted.
      *

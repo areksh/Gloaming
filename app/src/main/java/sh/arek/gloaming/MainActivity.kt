@@ -378,8 +378,8 @@ private fun GloamingApp() {
     // that counter moves or when the minute does - the second because the age
     // of a held copy goes on climbing whether or not anything is fetched.
     //
-    // The ages themselves are two `stat` calls, kept off the main thread out of
-    // habit rather than necessity.
+    // The ages themselves are a handful of `stat` calls, kept off the main
+    // thread out of habit rather than necessity.
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             var lastVersion = -1
@@ -390,16 +390,27 @@ private fun GloamingApp() {
                 if (version != lastVersion || minute != lastMinute) {
                     lastVersion = version
                     lastMinute = minute
+                    // Every document the device keeps a copy of, by the name
+                    // the transfer record knows it under, so the two halves of
+                    // a row meet. Anything not listed here has no copy on the
+                    // device to age - it only ever appears once fetched.
                     val held = withContext(Dispatchers.IO) {
                         runCatching {
-                            Graph.satellites(context).cachedAgeMillis() to
-                                Graph.comets(context).cachedAgeMillis()
-                        }.getOrDefault(null to null)
+                            val sky = Graph.sky(context)
+                            mapOf(
+                                "Endpoints" to Graph.manifests(context).cachedAgeMillis(),
+                                "Space weather" to sky.statusAgeMillis(),
+                                "Aurora grid" to sky.gridAgeMillis(),
+                                "Satellite elements" to
+                                    Graph.satellites(context).cachedAgeMillis(),
+                                "Comets" to Graph.comets(context).cachedAgeMillis(),
+                                "Cloud forecast" to Graph.weather(context).heldAgeMillis(),
+                            )
+                        }.getOrDefault(emptyMap())
                     }
                     downloads = downloadRows(
                         transfers = Transfers.snapshot(),
-                        elementsAgeMillis = held.first,
-                        cometsAgeMillis = held.second,
+                        held = held,
                         now = System.currentTimeMillis(),
                     )
                 }

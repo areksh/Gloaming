@@ -5,7 +5,7 @@ import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.net.Transfers
 
 /**
- * One published object as the downloads card shows it.
+ * One published object as the downloads report shows it.
  *
  * @param lines what is known about it, held copy first and last attempt after.
  * @param alarming whether this row is the reason something is not working.
@@ -25,50 +25,71 @@ data class DownloadRow(
  * fetches were succeeding - answering 304 against an object nobody upstream was
  * republishing any more - so only the age of the held copy had anything to say.
  *
- * @param elementsAgeMillis how old the held satellite elements are, or null.
- * @param cometsAgeMillis the same for the comet elements.
+ * @param held how old each document on the device is, by the label [Transfers]
+ *   knows it under. A null value means the document has never been downloaded;
+ *   a label absent from the map means this device keeps no copy of it to age.
  */
 fun downloadRows(
     transfers: List<Transfer>,
-    elementsAgeMillis: Long?,
-    cometsAgeMillis: Long?,
+    held: Map<String, Long?>,
     now: Long,
 ): List<DownloadRow> {
-    val held = mapOf(
-        ELEMENTS to (elementsAgeMillis to isStale(elementsAgeMillis)),
-        COMETS to (cometsAgeMillis to isStale(cometsAgeMillis, COMETS_STALE_AFTER_MILLIS)),
-    )
     val attempts = transfers.associateBy { it.label }
 
-    val labels = (held.keys + attempts.keys).sortedBy {
-        Transfers.orderOf(it)
-    }
-
-    return labels.map { label ->
-        val copy = held[label]
-        val attempt = attempts[label]
-        DownloadRow(
-            label = label,
-            lines = listOfNotNull(
-                copy?.let { describeHeldCopy(it.first) },
-                attempt?.let { describeTransfer(it, now) },
-            ),
-            alarming = copy?.second == true || attempt?.state == TransferState.Failed,
-        )
-    }
+    return (held.keys + attempts.keys)
+        .sortedBy { Transfers.orderOf(it) }
+        .map { label ->
+            val attempt = attempts[label]
+            DownloadRow(
+                label = label,
+                lines = listOfNotNull(
+                    if (label in held) describeHeldCopy(held[label]) else null,
+                    attempt?.let { describeTransfer(it, now) },
+                ),
+                alarming = isStale(held[label], staleAfterMillis(label)) ||
+                    attempt?.state == TransferState.Failed,
+            )
+        }
 }
 
-/** The two documents with a cache of their own, named as [Transfers] names them. */
+/**
+ * Whether a report is worth showing at all when nobody has asked for one.
+ *
+ * Quiet by default, which is the whole point of it not being a card any more:
+ * on an ordinary evening this is six lines saying everything is fine, and six
+ * lines saying everything is fine is furniture. It speaks while a check is
+ * running, after one has been run, and - regardless of either - when something
+ * is actually wrong, because a fortnight of stale elements that says nothing
+ * until you happen to press a button is the failure this was built for.
+ */
+fun worthReporting(rows: List<DownloadRow>, checking: Boolean): Boolean =
+    checking || rows.any { it.alarming || it.lines.size > 1 }
+
+/**
+ * How old a document has to be before its age is worth marking.
+ *
+ * Only the two whose staleness silently corrupts an answer are marked. The
+ * satellite elements get three days because SGP4 is a near-epoch model and a
+ * fortnight puts a pass minutes and degrees from where it really is. Comets get
+ * a month, their orbits being good for months and only the observed magnitudes
+ * going off.
+ *
+ * Everything else shows its age plainly and is never marked. An old status
+ * document is not a silent wrong answer - the aurora card carries its own age
+ * and its own error in far more prominent type - and marking things that are
+ * merely old teaches the reader to ignore every mark.
+ */
+private fun staleAfterMillis(label: String): Long = when (label) {
+    ELEMENTS -> STALE_AFTER_MILLIS
+    COMETS -> COMETS_STALE_AFTER_MILLIS
+    else -> NEVER
+}
+
+/** The documents held to a threshold, named as [Transfers] names them. */
 private const val ELEMENTS = "Satellite elements"
 private const val COMETS = "Comets"
 
-/**
- * How old a comet document has to be before it is worth mentioning.
- *
- * A month, against three days for the elements, and the difference is real
- * rather than a hedge: SGP4 is a near-epoch model and a fortnight ruins a pass
- * prediction, while a comet's orbit is good for months and only the observed
- * magnitudes go off. Holding both to the elements' threshold would put a mark
- * on an ordinary week and teach the reader to ignore every mark.
- */
 private const val COMETS_STALE_AFTER_MILLIS: Long = 30L * 24 * 60 * 60 * 1000
+
+/** No age reaches this, which is how a row opts out of being marked. */
+private const val NEVER: Long = Long.MAX_VALUE

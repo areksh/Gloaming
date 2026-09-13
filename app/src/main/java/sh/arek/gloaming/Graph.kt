@@ -193,6 +193,17 @@ object Graph {
     }
 
     /**
+     * The status document and the aurora grid as last fetched.
+     *
+     * For anything that only wants to ask how old they are - the downloads card
+     * does, and has no business constructing a poller to find out.
+     */
+    fun sky(context: Context): SkyRepository {
+        val application = context.applicationContext
+        return SkyRepository(fetcher(), FileSkyCache(cacheDirectory(application)))
+    }
+
+    /**
      * The elements as last fetched, for anything that only needs to read them.
      *
      * The live tracker takes this rather than the poller's own copy: it works

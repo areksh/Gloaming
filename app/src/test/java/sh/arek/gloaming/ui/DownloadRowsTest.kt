@@ -26,7 +26,11 @@ class DownloadRowsTest {
         transfers: List<Transfer> = emptyList(),
         elements: Long? = null,
         comets: Long? = null,
-    ) = downloadRows(transfers, elements, comets, now)
+        held: Map<String, Long?> = mapOf(
+            "Satellite elements" to elements,
+            "Comets" to comets,
+        ),
+    ) = downloadRows(transfers, held, now)
 
     private fun row(
         label: String,
@@ -112,7 +116,7 @@ class DownloadRowsTest {
         assertTrue(listed.single { it.label == "Space weather" }.alarming)
     }
 
-    /** Objects with no cache of their own appear as soon as one is tried. */
+    /** Objects with no age on this device still appear once one is tried. */
     @Test
     fun `adds a row for anything else that has been fetched`() {
         val listed = rows(
@@ -121,6 +125,37 @@ class DownloadRowsTest {
 
         val grid = listed.single { it.label == "Aurora grid" }
         assertEquals("Downloaded 3 KB just now", grid.lines.single())
+    }
+
+    /**
+     * Every document the device holds gets its age, not just the two with a
+     * threshold. The aurora rows used to carry only what the last fetch did,
+     * which read as an oversight beside the two that said both.
+     */
+    @Test
+    fun `gives every held document its age`() {
+        val listed = downloadRows(
+            transfers = listOf(transfer("Space weather", TransferState.Unchanged)),
+            held = mapOf("Space weather" to 20 * minute),
+            now = now,
+        )
+
+        assertEquals(
+            listOf("Held copy is current", "Already up to date, checked just now"),
+            listed.single().lines,
+        )
+    }
+
+    /** But an age alone is never a mark, outside the two that earn one. */
+    @Test
+    fun `never marks a document that has no threshold`() {
+        val listed = downloadRows(
+            transfers = emptyList(),
+            held = mapOf("Space weather" to 400 * day),
+            now = now,
+        )
+
+        assertFalse(listed.single().alarming)
     }
 
     /**
@@ -143,5 +178,40 @@ class DownloadRowsTest {
             listOf("Endpoints", "Aurora grid", "Satellite elements", "Comets", "Cloud forecast"),
             listed.map { it.label },
         )
+    }
+
+    // --- whether the report is worth showing at all ---
+
+    /** Quiet on an ordinary evening before anybody has asked for anything. */
+    @Test
+    fun `stays quiet when nothing has been fetched and nothing is wrong`() {
+        assertFalse(worthReporting(rows(elements = hour, comets = hour), checking = false))
+    }
+
+    /** It speaks while a check is running, which is what the bar sits beside. */
+    @Test
+    fun `speaks while a check is running`() {
+        assertTrue(worthReporting(emptyList(), checking = true))
+    }
+
+    /** And afterwards, because that is when somebody asked to be told. */
+    @Test
+    fun `speaks once something has actually been fetched`() {
+        val listed = rows(
+            transfers = listOf(transfer("Satellite elements", TransferState.Unchanged)),
+            elements = hour,
+        )
+
+        assertTrue(worthReporting(listed, checking = false))
+    }
+
+    /**
+     * And unasked when something is wrong, which is the case it exists for: a
+     * fortnight of stale elements that only speaks if you happen to press a
+     * button is a fortnight of silence.
+     */
+    @Test
+    fun `speaks unasked when something is wrong`() {
+        assertTrue(worthReporting(rows(elements = 14 * day), checking = false))
     }
 }

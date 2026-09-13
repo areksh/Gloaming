@@ -1819,7 +1819,6 @@ class ScreensTest {
             ),
         )
 
-        compose.onNodeWithText("Downloads").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Satellite elements").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Held copy is 14 days old").performScrollTo().assertIsDisplayed()
     }
@@ -1858,6 +1857,37 @@ class ScreensTest {
         show(checking = true)
 
         compose.onNodeWithText("Checking...").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * Quiet on an ordinary evening. It used to be a standing card, which on a
+     * working install is six lines saying everything is fine.
+     */
+    @Test
+    fun saysNothingAboutDownloadsWhenThereIsNothingToSay() {
+        show(
+            downloads = listOf(
+                DownloadRow("Satellite elements", listOf("Held copy is current"), false),
+            ),
+        )
+
+        compose.onNodeWithTag(DOWNLOADS_CARD_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * But unasked when something is wrong. A report that only speaks when
+     * pressed would have sat silent through the whole fortnight that prompted
+     * it.
+     */
+    @Test
+    fun speaksAboutDownloadsUnaskedWhenSomethingIsWrong() {
+        show(
+            downloads = listOf(
+                DownloadRow("Satellite elements", listOf("Held copy is 14 days old"), true),
+            ),
+        )
+
+        compose.onNodeWithTag(DOWNLOADS_CARD_TAG).assertExists()
     }
 
     /**

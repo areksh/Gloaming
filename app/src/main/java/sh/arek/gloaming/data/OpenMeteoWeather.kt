@@ -32,6 +32,16 @@ class OpenMeteoWeather(
     override fun lastKnown(latitude: Double, longitude: Double): CloudCover? =
         fresh(latitude, longitude)?.cover
 
+    /**
+     * The held reading's age, whatever position it was taken at.
+     *
+     * Deliberately not position-filtered, unlike [lastKnown]. This answers "how
+     * old is the file on this device", which is what the downloads card asks of
+     * every object; whether the reading is close enough to be *used* is a
+     * different question that `fresh` already answers for the callers that care.
+     */
+    override fun heldAgeMillis(): Long? = cache.read()?.let { now() - it.fetchedAt }
+
     override fun forecast(latitude: Double, longitude: Double): List<HourlyCover> =
         fresh(latitude, longitude)?.hourly.orEmpty()
 
