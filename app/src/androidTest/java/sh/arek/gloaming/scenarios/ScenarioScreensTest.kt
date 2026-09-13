@@ -17,6 +17,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.describeMissingElements
 import sh.arek.gloaming.ui.TonightContent
 
 /**
@@ -94,6 +95,30 @@ class ScenarioScreensTest(private val scenario: Scenario) {
     }
 
     /**
+     * What the satellites card says on a night with no passes to list, which is
+     * two quite different sentences.
+     *
+     * Most nights in the catalogue hold no orbital elements at all, and that is
+     * the fixtures being honest rather than thin: SGP4 is a near-epoch model, so
+     * an eclipse dated 2029 cannot carry a real element set and is given none.
+     * The card is then right to say it does not know, rather than that the sky
+     * is empty - which is the distinction the card was taught, and exactly what
+     * this suite should hold it to.
+     *
+     * Derived from the card's own wording rather than written out again here, so
+     * that the assertion cannot drift from the screen while still passing.
+     */
+    private fun emptySatellitesSentence(): String =
+        if (tonight.elementsHeld) {
+            "Nothing crossing tonight that clears the horizon in sunlight."
+        } else {
+            describeMissingElements(
+                everChecked = state.alertState.lastPollAt != null,
+                failure = state.elementsFailure,
+            ).text
+        }
+
+    /**
      * The cards the night should have, with the content that makes each of them
      * worth having.
      *
@@ -119,7 +144,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         shown("Satellites")
 
         if (tonight.passes.isEmpty()) {
-            shown("Nothing crossing tonight that clears the horizon in sunlight.")
+            shown(emptySatellitesSentence())
         }
 
         // The rest are absent rather than empty when they have nothing to say.
@@ -212,7 +237,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         if (!tonight.isEmpty || scenario.settings.latitude == null) return
 
         render()
-        shown("Nothing crossing tonight that clears the horizon in sunlight.")
+        shown(emptySatellitesSentence())
         shown("Watch now")
     }
 }
