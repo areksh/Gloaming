@@ -107,6 +107,16 @@ data class TonightList(
      * held back and a closing line about it would be a line about nothing.
      */
     val constellationsAlwaysUp: List<String> = emptyList(),
+    /**
+     * Whether the device actually holds the orbital elements.
+     *
+     * Without this, "no elements" and "no passes" are the same empty list, and
+     * the screen says "nothing crossing tonight" to a device that has never
+     * managed to download a catalogue. That is not a quiet sky, it is an app
+     * that does not know, and the two must not read alike - the whole point of
+     * the card is that somebody believes it when it says the sky is empty.
+     */
+    val elementsHeld: Boolean = true,
 ) {
     /**
      * Whether there is nothing happening tonight.
@@ -175,7 +185,10 @@ object Tonight {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
-            return TonightList(null, null, emptyList(), emptyList(), emptyList(), emptyList(), null)
+            return TonightList(
+                null, null, emptyList(), emptyList(), emptyList(), emptyList(), null,
+                elementsHeld = satellites != null,
+            )
         }
 
         // The night ahead rather than the nearest one. The nearest night to a
@@ -247,6 +260,7 @@ object Tonight {
             } else {
                 everyConstellation.filter { it.isCircumpolar }.map { it.constellation.name }
             },
+            elementsHeld = satellites != null,
             clearSpell = night?.let {
                 ClearSpell.first(
                     hourly = hourly,

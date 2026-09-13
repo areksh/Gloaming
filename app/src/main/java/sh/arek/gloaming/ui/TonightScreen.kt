@@ -753,7 +753,19 @@ private fun Caveat(event: SkyEvent) {
 @Composable
 private fun SatellitesCard(list: TonightList) {
     SectionCard("Satellites", help = HelpTopic.Satellites) {
-        if (list.passes.isEmpty()) {
+        if (!list.elementsHeld) {
+            // "Nothing crossing" and "no catalogue to look in" are the same
+            // empty list and must not be the same sentence. A device that has
+            // never managed to download the elements was being told the sky was
+            // quiet, which is the one thing this card must never say wrongly.
+            Text(
+                "Not known yet - Gloaming has not managed to download the orbital " +
+                    "elements, and cannot work out what is crossing without them. " +
+                    "Press Check now, or wait for the next scheduled check.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        } else if (list.passes.isEmpty()) {
             Text(
                 "Nothing crossing tonight that clears the horizon in sunlight.",
                 style = MaterialTheme.typography.bodySmall,

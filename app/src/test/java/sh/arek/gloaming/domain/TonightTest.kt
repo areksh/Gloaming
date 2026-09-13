@@ -144,6 +144,17 @@ class TonightTest {
         assertEquals(listOf(marginal), tonight("2026-12-14T20:00:00Z", listOf(marginal)).events)
     }
 
+    /**
+     * No elements is not a quiet sky, and the list has to be able to tell the
+     * screen which of the two it is looking at. Without this they are the same
+     * empty list, and a device that has never managed a download was being told
+     * nothing was crossing.
+     */
+    @Test
+    fun `says when it has no elements to work from`() {
+        assertFalse(tonight("2026-12-14T20:00:00Z").elementsHeld)
+    }
+
     /** No elements cached means no passes, not a crash. */
     @Test
     fun `copes with no satellite elements`() {

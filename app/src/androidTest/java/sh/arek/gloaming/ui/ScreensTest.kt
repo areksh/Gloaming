@@ -1859,4 +1859,52 @@ class ScreensTest {
 
         compose.onNodeWithText("Checking...").performScrollTo().assertIsDisplayed()
     }
+
+    /**
+     * "Nothing crossing" and "no catalogue to look in" are the same empty list
+     * and must not be the same sentence. A device that has never managed to
+     * download the elements was being told the sky was quiet.
+     */
+    @Test
+    fun admitsItDoesNotKnowWhatIsCrossingWithoutTheElements() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                elementsHeld = false,
+            ),
+        )
+
+        compose.onNodeWithText("Not known yet", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
+            .assertDoesNotExist()
+    }
+
+    /** And with elements held, an empty night is still allowed to be empty. */
+    @Test
+    fun stillSaysTheSkyIsQuietWhenItHasTheElementsAndNothingCrosses() {
+        show(
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                elementsHeld = true,
+            ),
+        )
+
+        compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
 }
