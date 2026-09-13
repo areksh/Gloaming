@@ -1853,12 +1853,17 @@ class ScreensTest {
             .assertIsDisplayed()
     }
 
-    /** And says something even before the first request has been labelled. */
+    /**
+     * And says something even before the first request has been labelled -
+     * in its own words. "Checking..." is the button's, directly above, and two
+     * nodes carrying it made this assertion ambiguous as well as the screen
+     * repetitive.
+     */
     @Test
-    fun saysItIsCheckingBeforeAnyRequestIsOpen() {
+    fun saysItIsStartingBeforeAnyRequestIsOpen() {
         show(checking = true)
 
-        compose.onNodeWithText("Checking...").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Starting...").performScrollTo().assertIsDisplayed()
     }
 
     /**

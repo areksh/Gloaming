@@ -3,7 +3,6 @@ package sh.arek.gloaming.ui
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -274,18 +273,28 @@ class GloamingTabsTest {
     }
 
     /**
-     * No star on something the ground is in the way of. That is not a
-     * judgement about whether it is worth the trouble - a star cannot lift it
-     * above the horizon, so the control would do nothing.
+     * A star even on something the ground is in the way of, which reverses what
+     * this test used to assert.
+     *
+     * The old rule was that a star which cannot produce a notification is a
+     * control that does nothing, so it was withheld here. That was wrong about
+     * what a star is: it is also what calendar sync writes into the phone's
+     * calendar, and that path never looked at visibility or at channels. An
+     * eclipse that misses this country is exactly the sort of thing somebody
+     * puts in a calendar, possibly while looking up flights.
+     *
+     * It still cannot wake anybody - `EventPlanner.worthAnnouncing` refuses
+     * NotFromHere whatever the star says - so what is offered here is a way to
+     * record an interest, not a way to be interrupted about the impossible.
      */
     @Test
-    fun offersNoStarOnAnEventThatCannotBeSeen() {
+    fun offersAStarEvenOnAnEventThatCannotBeSeenFromHere() {
         val hidden = eclipse.copy(visibility = Visibility.NotFromHere("below the horizon here"))
         show(calendar = listOf(hidden))
 
         compose.onNodeWithTag(TAB_CALENDAR).performClick()
 
-        compose.onAllNodesWithTag(starTag(hidden)).assertCountEquals(0)
+        compose.onNodeWithTag(starTag(hidden)).performScrollTo().assertIsDisplayed()
     }
 
     // --- filtering ---

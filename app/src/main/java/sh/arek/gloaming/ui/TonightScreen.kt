@@ -285,10 +285,14 @@ private fun DownloadsReport(state: MainUiState) {
         if (state.checking) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             Text(
+                // Not "Checking..." - the button directly above already says
+                // that, and a screen that says the same word twice in two
+                // lines is telling you nothing with the second one. This line
+                // exists to add what the button cannot: which object is open.
                 text = state.downloading.takeIf { it.isNotEmpty() }
                     ?.joinToString(", ")
                     ?.let { "Downloading: $it" }
-                    ?: "Checking...",
+                    ?: "Starting...",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
