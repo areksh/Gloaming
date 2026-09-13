@@ -122,6 +122,8 @@ class ScreensTest {
         pendingVerdict: Conditions? = null,
         recommendations: Recommendations? = null,
         verdicts: List<Verdict> = emptyList(),
+        downloads: List<DownloadRow> = emptyList(),
+        downloading: List<String> = emptyList(),
     ) {
         compose.setContent {
             Column(
@@ -151,6 +153,8 @@ class ScreensTest {
                     pendingVerdict = pendingVerdict,
                     recommendations = recommendations,
                     verdicts = verdicts,
+                    downloads = downloads,
+                    downloading = downloading,
                 )
 
                 TonightContent(
@@ -1795,4 +1799,64 @@ class ScreensTest {
             threshold = 30,
         ),
     )
+
+    // --- what the app has been downloading ---
+
+    /**
+     * The card that would have caught the fortnight. Stale elements have to say
+     * so on the screen, because nothing else on it can: from the outside,
+     * passes predicted from a two-week-old catalogue look exactly like passes.
+     */
+    @Test
+    fun saysHowOldTheHeldDocumentsAre() {
+        show(
+            downloads = listOf(
+                DownloadRow(
+                    "Satellite elements",
+                    listOf("Held copy is 14 days old"),
+                    alarming = true,
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Downloads").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Satellite elements").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Held copy is 14 days old").performScrollTo().assertIsDisplayed()
+    }
+
+    /** A failed fetch is shown rather than left in a log file nobody reads. */
+    @Test
+    fun showsWhyADownloadFailed() {
+        show(
+            downloads = listOf(
+                DownloadRow(
+                    "Space weather",
+                    listOf("Failed 2 hours ago: GET status.json returned 503"),
+                    alarming = true,
+                ),
+            ),
+        )
+
+        compose.onNodeWithText("Failed 2 hours ago: GET status.json returned 503")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** While a check runs, the card names what is actually in flight. */
+    @Test
+    fun namesWhatIsDownloadingDuringACheck() {
+        show(checking = true, downloading = listOf("Aurora grid", "Satellite elements"))
+
+        compose.onNodeWithText("Downloading: Aurora grid, Satellite elements")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** And says something even before the first request has been labelled. */
+    @Test
+    fun saysItIsCheckingBeforeAnyRequestIsOpen() {
+        show(checking = true)
+
+        compose.onNodeWithText("Checking...").performScrollTo().assertIsDisplayed()
+    }
 }

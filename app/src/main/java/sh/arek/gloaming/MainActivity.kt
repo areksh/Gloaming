@@ -64,10 +64,13 @@ import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.net.Transfers
 import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
 import sh.arek.gloaming.share.shareText
+import sh.arek.gloaming.ui.DownloadRow
 import sh.arek.gloaming.ui.GloamingTabs
+import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
@@ -98,6 +101,15 @@ private const val DEFAULT_QUIET_UNTIL = 7 * 60
  * catalogue sixty times an hour for an answer that changes slowly.
  */
 private const val TONIGHT_STALE_MILLIS = 15 * 60_000L
+
+/**
+ * How often the downloads card re-reads what the fetcher has been doing.
+ *
+ * Half a second: fast enough that a check reads as progress rather than as a
+ * frozen card, and cheap enough not to matter - the tick reads one atomic
+ * integer and stops unless it has moved.
+ */
+private const val DOWNLOADS_TICK_MILLIS = 500L
 
 private fun quietHoursFrom(from: String, until: String): QuietHours? {
     val start = parseTimeOfDay(from) ?: return null
@@ -320,6 +332,8 @@ private fun GloamingApp() {
     var verdictsNonce by remember { mutableIntStateOf(0) }
     var calendarName by remember { mutableStateOf<String?>(null) }
     var calendarNote by remember { mutableStateOf<String?>(null) }
+    var downloads by remember { mutableStateOf(emptyList<DownloadRow>()) }
+    var downloading by remember { mutableStateOf(emptyList<String>()) }
 
     // Permission and exemption state changes outside the app, so re-read it
     // whenever the user comes back rather than trusting a stale snapshot.
@@ -351,6 +365,46 @@ private fun GloamingApp() {
                 delay(TICK_MILLIS)
                 shownAt = System.currentTimeMillis()
                 darkness = darknessHere()
+            }
+        }
+    }
+
+    // What the app has been downloading, on a tick of its own.
+    //
+    // Polled rather than pushed. There is not a flow anywhere in this app and
+    // one introduced here would be the only one; a version counter read while
+    // the screen is in front is enough for a card that changes a handful of
+    // times a minute, and it costs an atomic read. The rows are rebuilt when
+    // that counter moves or when the minute does - the second because the age
+    // of a held copy goes on climbing whether or not anything is fetched.
+    //
+    // The ages themselves are two `stat` calls, kept off the main thread out of
+    // habit rather than necessity.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var lastVersion = -1
+            var lastMinute = -1L
+            while (true) {
+                val version = Transfers.version()
+                val minute = System.currentTimeMillis() / TICK_MILLIS
+                if (version != lastVersion || minute != lastMinute) {
+                    lastVersion = version
+                    lastMinute = minute
+                    val held = withContext(Dispatchers.IO) {
+                        runCatching {
+                            Graph.satellites(context).cachedAgeMillis() to
+                                Graph.comets(context).cachedAgeMillis()
+                        }.getOrDefault(null to null)
+                    }
+                    downloads = downloadRows(
+                        transfers = Transfers.snapshot(),
+                        elementsAgeMillis = held.first,
+                        cometsAgeMillis = held.second,
+                        now = System.currentTimeMillis(),
+                    )
+                }
+                downloading = Transfers.inFlight()
+                delay(DOWNLOADS_TICK_MILLIS)
             }
         }
     }
@@ -675,6 +729,8 @@ private fun GloamingApp() {
                     notificationsAllowed = notificationsOk,
                     nowMillis = shownAt,
                     checking = checking,
+                    downloads = downloads,
+                    downloading = downloading,
                     darkness = darkness,
                     powerSaveMode = saverOn,
                     watching = watching,

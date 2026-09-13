@@ -10,6 +10,8 @@ import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
+import sh.arek.gloaming.net.Transfer
+import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.satellites.IssCoverage
 
 /**
@@ -381,3 +383,81 @@ internal fun describePlanet(planet: PlanetTonight): String {
     val goes = planet.setsAt?.let { "Sets ${clock(it)}." }
     return listOfNotNull(where, comes, goes).joinToString(" ")
 }
+
+// --- what the app has been downloading ---
+
+/**
+ * How long ago something happened, as a bare phrase.
+ *
+ * [describeAge] answers the same arithmetic wrapped in the aurora card's own
+ * words ("Checked 5 minutes ago"), which do not fit a row about a download. So
+ * the phrase alone, to be built into whichever sentence needs it.
+ */
+internal fun describeElapsed(atMillis: Long, now: Long): String {
+    val minutes = ((now - atMillis) / 60_000L).coerceAtLeast(0)
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes minute${plural(minutes)} ago"
+        minutes < 60 * 24 -> (minutes / 60).let { "$it hour${plural(it)} ago" }
+        else -> (minutes / (60 * 24)).let { "$it day${plural(it)} ago" }
+    }
+}
+
+/** A body's size in the largest unit that does not round it away. */
+internal fun describeSize(bytes: Int): String =
+    if (bytes < 1024) "$bytes bytes" else "${bytes / 1024} KB"
+
+/**
+ * What one published object's last transfer did, in a sentence.
+ *
+ * The unchanged case is the one worth getting right: a 304 is what nearly every
+ * request answers, by design, and if it reads as anything other than success
+ * then an app working exactly as intended looks like one that has stopped.
+ */
+fun describeTransfer(transfer: Transfer, now: Long): String {
+    val ago = describeElapsed(transfer.atMillis, now)
+    return when (transfer.state) {
+        TransferState.Fetching -> "Downloading..."
+        TransferState.Fresh ->
+            "Downloaded ${transfer.bytes?.let { describeSize(it) } ?: "a body"} $ago"
+        TransferState.Unchanged -> "Already up to date, checked $ago"
+        TransferState.Failed ->
+            "Failed $ago" + (transfer.error?.let { ": $it" } ?: "")
+    }
+}
+
+/**
+ * How old the copy on the device is.
+ *
+ * The half of the story that survives a restart. [Transfer] is in memory and
+ * says what happened this session; this says what the device is actually
+ * working from, which after a fortnight of failed fetches is the only one of
+ * the two with anything to report.
+ */
+fun describeHeldCopy(ageMillis: Long?): String {
+    if (ageMillis == null) return "Never downloaded"
+    val minutes = (ageMillis / 60_000L).coerceAtLeast(0)
+    return when {
+        minutes < 60 -> "Held copy is current"
+        minutes < 60 * 24 -> (minutes / 60).let { "Held copy is $it hour${plural(it)} old" }
+        else -> (minutes / (60 * 24)).let { "Held copy is $it day${plural(it)} old" }
+    }
+}
+
+/**
+ * Whether a held copy is old enough to be worth complaining about.
+ *
+ * Three days, and the number comes from the propagator rather than from taste.
+ * SGP4 is a near-epoch model: elements a few days from their epoch are good to
+ * seconds, and a fortnight out they put a pass minutes and degrees from where
+ * it really is. The app spent two weeks predicting from a catalogue that old
+ * without a word, which is the whole reason this line exists.
+ *
+ * False for a copy that was never downloaded - that is a different sentence,
+ * and saying "stale" about nothing at all reads as a fault rather than as a
+ * first run.
+ */
+fun isStale(ageMillis: Long?, afterMillis: Long = STALE_AFTER_MILLIS): Boolean =
+    ageMillis != null && ageMillis > afterMillis
+
+const val STALE_AFTER_MILLIS: Long = 3L * 24 * 60 * 60 * 1000

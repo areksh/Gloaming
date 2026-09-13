@@ -31,7 +31,9 @@ import sh.arek.gloaming.domain.CalendarWriter
 import sh.arek.gloaming.domain.EventPoller
 import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
+import sh.arek.gloaming.net.HttpFetcher
 import sh.arek.gloaming.net.OkHttpFetcher
+import sh.arek.gloaming.net.ReportingFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
 import sh.arek.gloaming.notify.AndroidEventNotifier
 import sh.arek.gloaming.notify.AndroidPassNotifier
@@ -54,6 +56,15 @@ object Graph {
 
     /** One client, so connections and the thread pool are reused across wakes. */
     private val httpClient by lazy { OkHttpFetcher.defaultClient() }
+
+    /**
+     * The outbound boundary, wrapped so that what it is doing can be shown.
+     *
+     * Every fetch in the app is built here, so one wrapper covers the manifest,
+     * the status document, the grid, the elements, the comets and the forecast.
+     * See [ReportingFetcher]: it changes no answer, only records one.
+     */
+    private fun fetcher(): HttpFetcher = ReportingFetcher(OkHttpFetcher(httpClient))
 
     /**
      * Caches live in device-protected storage unconditionally. They hold the
@@ -144,7 +155,7 @@ object Graph {
     fun manifests(context: Context): ManifestRepository {
         val application = context.applicationContext
         return ManifestRepository(
-            http = OkHttpFetcher(httpClient),
+            http = fetcher(),
             store = FileManifestStore(cacheDirectory(application)),
             publicKey = GloamingEndpoints.MANIFEST_PUBLIC_KEY,
             manifestUrl = GloamingEndpoints.MANIFEST_URL,
@@ -154,14 +165,14 @@ object Graph {
     fun weather(context: Context): WeatherSource {
         val application = context.applicationContext
         return OpenMeteoWeather(
-            OkHttpFetcher(httpClient),
+            fetcher(),
             FileWeatherCache(weatherDirectory(application)),
         )
     }
 
     fun poller(context: Context): SkyPoller {
         val application = context.applicationContext
-        val http = OkHttpFetcher(httpClient)
+        val http = fetcher()
 
         return SkyPoller(
             manifests = ManifestRepository(
@@ -191,7 +202,7 @@ object Graph {
     fun satellites(context: Context): SatelliteRepository {
         val application = context.applicationContext
         return SatelliteRepository(
-            OkHttpFetcher(httpClient),
+            fetcher(),
             FileSatelliteCache(cacheDirectory(application)),
         )
     }
@@ -206,7 +217,7 @@ object Graph {
     fun comets(context: Context): CometRepository {
         val application = context.applicationContext
         return CometRepository(
-            OkHttpFetcher(httpClient),
+            fetcher(),
             FileCometCache(cacheDirectory(application)),
         )
     }
@@ -221,7 +232,7 @@ object Graph {
      */
     fun passPoller(context: Context): PassPoller {
         val application = context.applicationContext
-        val http = OkHttpFetcher(httpClient)
+        val http = fetcher()
 
         return PassPoller(
             manifests = ManifestRepository(
@@ -251,7 +262,7 @@ object Graph {
      */
     fun eventPoller(context: Context): EventPoller {
         val application = context.applicationContext
-        val http = OkHttpFetcher(httpClient)
+        val http = fetcher()
 
         return EventPoller(
             calendar = EventPoller.REAL,

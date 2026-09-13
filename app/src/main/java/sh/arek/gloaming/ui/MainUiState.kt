@@ -48,6 +48,18 @@ data class MainUiState(
     /** True while a check the user asked for is in flight. */
     val checking: Boolean = false,
     /**
+     * What the app has downloaded, and how old what it holds is.
+     *
+     * Resolved here like everything else on the screen. Both halves matter and
+     * for different reasons: a fortnight went by in which the satellite
+     * elements were never republished, every conditional GET answered 304, and
+     * the app went on predicting passes from a two-week-old catalogue with
+     * nothing anywhere on a screen to say so.
+     */
+    val downloads: List<DownloadRow> = emptyList(),
+    /** What has a request open right now, for the line beside the progress bar. */
+    val downloading: List<String> = emptyList(),
+    /**
      * How dark it is where the observer is, or null when no location is set.
      * Drives the sentence explaining why the app may not have checked recently.
      */
