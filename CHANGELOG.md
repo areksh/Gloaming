@@ -32,8 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   know.** With no orbital elements downloaded, the satellites card produced the
   same empty list a genuinely quiet night produces, and said the same sentence
   about it. That is the one thing the card must never get wrong, because its
-  whole value is that you believe it and stay indoors. It now says it has not
-  managed to download the elements, and what to do about it.
+  whole value is that you believe it and stay indoors. It now says so instead -
+  and distinguishes a phone that has not run its first check yet, which has not
+  failed at anything and is told so in ordinary type, from a download that
+  actually failed, which is marked and says why.
 
 ### Changed
 
