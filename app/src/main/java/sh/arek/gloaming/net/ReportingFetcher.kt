@@ -30,6 +30,14 @@ class ReportingFetcher(
             }
             return result
         } catch (cause: Throwable) {
+            // Cancellation is recorded too, and deliberately. It is not the
+            // server's fault, but the alternative is worse: the row would sit
+            // on "Downloading..." for the rest of the process and the progress
+            // line would go on naming an object nothing is fetching. It is also
+            // the shape the one cancellation that matters takes - `Refresh`
+            // wraps the aurora poll in a 45-second `withTimeout`, and "timed
+            // out after 45000 ms" is exactly what somebody watching a check
+            // that gave up should be told. Rethrown either way.
             Transfers.failed(url, cause, now())
             throw cause
         }

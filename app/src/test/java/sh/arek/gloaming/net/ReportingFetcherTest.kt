@@ -1,7 +1,9 @@
 package sh.arek.gloaming.net
 
 import java.io.IOException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -90,6 +92,27 @@ class ReportingFetcherTest {
         val transfer = Transfers.snapshot().single()
         assertEquals(TransferState.Failed, transfer.state)
         assertTrue(transfer.error!!, transfer.error!!.contains("503"))
+    }
+
+    /**
+     * A call that is cancelled - which is what the poll's own 45-second
+     * `withTimeout` looks like from in here - must not leave the row stuck on
+     * "Downloading..." for the rest of the process.
+     */
+    @Test
+    fun `settles the row when the call is cancelled rather than leaving it open`() = runBlocking {
+        val neverAnswers = object : HttpFetcher {
+            override suspend fun get(url: String, etag: String?): HttpResult {
+                delay(10_000)
+                return HttpResult.NotModified
+            }
+        }
+        val fetcher = ReportingFetcher(neverAnswers) { 42L }
+
+        runCatching { withTimeout(50) { fetcher.get(url) } }
+
+        assertEquals(emptyList<String>(), Transfers.inFlight())
+        assertEquals(TransferState.Failed, Transfers.snapshot().single().state)
     }
 
     /** While the call is open the record says so, which is what a bar is drawn from. */
