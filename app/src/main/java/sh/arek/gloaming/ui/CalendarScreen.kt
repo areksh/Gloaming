@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import sh.arek.gloaming.astronomy.EventChannel
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
@@ -244,27 +243,35 @@ private fun EventRow(
                     is Visibility.NotFromHere -> Reason(visibility.reason)
                     Visibility.Good -> Unit
                 }
-                // Offered only where it could do something. Starring an event
-                // the ground is in the way of, or one that never interrupts
-                // anyway, would be a control that quietly does nothing.
-                // Marginal events can be starred too, and that is the point of
-                // the control: a star is somebody saying "tell me anyway"
-                // about the one thing the app was going to keep quiet about.
-                // What cannot be starred is what cannot be seen from here at
-                // all, and what has no channel to be told on.
+                // Offered on everything, and that is a deliberate reversal.
+                // It used to be offered only where a star could produce a
+                // notification - which ruled out the moon phases, the
+                // solstices, the constellations and anything the ground is in
+                // the way of - on the grounds that a control which does nothing
+                // is worse than no control.
+                //
+                // The premise was wrong. A star is not only an opt-in to being
+                // interrupted: it is what calendar sync writes to the phone's
+                // calendar, and that path never looked at the channel at all.
+                // Starring the December solstice, or an eclipse that misses
+                // this country, puts it in your calendar - which for the
+                // eclipse may be the whole reason you are looking at it. So
+                // which events are worth marking is the reader's judgement
+                // rather than the app's.
+                //
+                // Nothing is at risk on the notification side: `worthAnnouncing`
+                // already refuses NotFromHere whatever the star says, and an
+                // event with no channel has nowhere to be announced on, so a
+                // star on either cannot wake anybody.
+                //
                 // FlowRow, so three buttons and a large system font do not
                 // put the last one past the right edge of the card.
                 FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (event.visibility !is Visibility.NotFromHere &&
-                        EventChannel.of(event.kind) != null &&
-                        EventPlanner.canBeStarred(event)
+                    TextButton(
+                        onClick = onToggleStar,
+                        modifier = Modifier.testTag(starTag(event)),
                     ) {
-                        TextButton(
-                            onClick = onToggleStar,
-                            modifier = Modifier.testTag(starTag(event)),
-                        ) {
-                            Text(if (starred) "Starred" else "Star")
-                        }
+                        Text(if (starred) "Starred" else "Star")
                     }
 
                     // Offered on everything, including what cannot be seen

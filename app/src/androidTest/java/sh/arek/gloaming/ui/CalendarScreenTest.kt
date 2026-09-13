@@ -155,4 +155,40 @@ class CalendarScreenTest {
             .performScrollTo()
             .assertIsDisplayed()
     }
+
+    /**
+     * Everything can be starred, whatever it is.
+     *
+     * The button used to be offered only where a star could produce a
+     * notification, which ruled out the constellations, the moon phases, the
+     * solstices and anything the ground is in the way of. But a star is also
+     * what calendar sync writes to the phone's calendar, and that path never
+     * looked at the channel - so the control was being withheld on events where
+     * it does something real. Which of them are worth marking is the reader's
+     * judgement, not the app's.
+     */
+    @Test
+    fun offersAStarOnAConstellationWhichHasNoNotificationChannel() {
+        show(pattern)
+
+        compose.onNodeWithTag(starTag(pattern)).performScrollTo().assertIsDisplayed()
+    }
+
+    /** Including on something that cannot be seen from here at all. */
+    @Test
+    fun offersAStarOnSomethingNotVisibleFromHere() {
+        val elsewhere = SkyEvent(
+            kind = EventKind.SolarEclipse,
+            at = now + 30 * 24 * hour,
+            from = now + 30 * 24 * hour,
+            until = now + 30 * 24 * hour + 2 * hour,
+            title = "Total solar eclipse",
+            detail = "Totality crosses the south Pacific.",
+            visibility = Visibility.NotFromHere("The sun is below the horizon here"),
+        )
+
+        show(elsewhere)
+
+        compose.onNodeWithTag(starTag(elsewhere)).performScrollTo().assertIsDisplayed()
+    }
 }
