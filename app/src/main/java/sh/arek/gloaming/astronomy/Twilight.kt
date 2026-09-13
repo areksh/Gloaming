@@ -178,7 +178,51 @@ object Twilight {
         longitude: Double,
         aroundMillis: Long,
         belowDegrees: Double = CIVIL_DEGREES,
-    ): LongRange? {
+    ): LongRange? = nightsAround(latitude, longitude, aroundMillis, belowDegrees)
+        .minByOrNull { kotlin.math.abs((it.first + it.last) / 2 - aroundMillis) }
+
+    /**
+     * The night still to come: the darkness under way, or the next after it.
+     *
+     * The forward-looking companion to [nightNearest], and the distinction
+     * between them is the whole reason both exist. [nightNearest] answers "what
+     * night does this *moment* belong to", which is right for dating an eclipse
+     * and wrong for a screen. Between dawn and about midday the nearest night
+     * is the one that has just *ended*, so a list of what to go out and see
+     * built on it is a list of things that already happened - and worse, its
+     * callers clamp the start forward to now and get a window whose end is
+     * before its beginning, which quietly excludes everything.
+     *
+     * So: the earliest window that has not closed yet. A night already under
+     * way keeps its true dusk rather than starting at whenever somebody opened
+     * the app, because the screen says that time out loud.
+     *
+     * Null where there is no darkness to be had, exactly as [nightNearest]:
+     * the midnight sun is an answer rather than a failure.
+     */
+    fun nightAhead(
+        latitude: Double,
+        longitude: Double,
+        fromMillis: Long,
+        belowDegrees: Double = CIVIL_DEGREES,
+    ): LongRange? = nightsAround(latitude, longitude, fromMillis, belowDegrees)
+        .filter { it.last >= fromMillis }
+        .minByOrNull { it.first }
+
+    /**
+     * The candidate windows either side of an instant, in time order.
+     *
+     * Three from a day before covers the night before, the night of and the
+     * night after, which is every case an instant can fall between. Shared by
+     * the two questions above so that they cannot disagree about where a night
+     * begins and ends - only about which of them to pick.
+     */
+    private fun nightsAround(
+        latitude: Double,
+        longitude: Double,
+        aroundMillis: Long,
+        belowDegrees: Double,
+    ): List<LongRange> {
         var cursor = aroundMillis - DAY_MILLIS
         val windows = mutableListOf<LongRange>()
 
@@ -206,8 +250,7 @@ object Twilight {
                 Darkness.None -> break
             }
         }
-
-        return windows.minByOrNull { kotlin.math.abs((it.first + it.last) / 2 - aroundMillis) }
+        return windows
     }
 
     /**

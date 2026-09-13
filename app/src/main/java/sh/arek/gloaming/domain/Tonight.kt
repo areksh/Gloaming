@@ -178,7 +178,13 @@ object Tonight {
             return TonightList(null, null, emptyList(), emptyList(), emptyList(), emptyList(), null)
         }
 
-        val night = Twilight.nightNearest(latitude, longitude, nowMillis)
+        // The night ahead rather than the nearest one. The nearest night to a
+        // morning is the one that has just ended, and every part of this list
+        // asks whether something falls inside the window: with a window behind
+        // the observer, `from` clamps forward to now, `until` stays behind it,
+        // and the passes, the events and the comets all answer no. That was
+        // eight hours a day of a tab that said the sky was empty.
+        val night = Twilight.nightAhead(latitude, longitude, nowMillis)
         // The window to describe: tonight's darkness where there is some, and
         // otherwise the next day, so a midsummer night at high latitude still
         // lists what crosses rather than going blank.
@@ -189,7 +195,7 @@ object Tonight {
         // civil one: at these latitudes it routinely does not exist at all
         // between May and August, and that absence is the answer rather than a
         // failure to find one.
-        val darkest = Twilight.nightNearest(
+        val darkest = Twilight.nightAhead(
             latitude,
             longitude,
             nowMillis,

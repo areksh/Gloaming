@@ -150,6 +150,39 @@ class TonightTest {
         assertTrue(tonight("2026-12-14T20:00:00Z").passes.isEmpty())
     }
 
+    /**
+     * Morning is about the night ahead, not the one that has just ended.
+     *
+     * The window used to come from the *nearest* night, which between dawn and
+     * about midday is the one already over - so `from` was clamped forward to
+     * now and `until` stayed behind it, and every part of the list that asks
+     * "does this fall inside the window" answered no. For eight hours a day the
+     * tab lost its passes, its events and its comets, and the darkness card
+     * described a night that had finished.
+     */
+    @Test
+    fun `looks to the night ahead in the morning`() {
+        val list = tonight("2026-12-15T09:00:00Z")
+
+        assertNotNull(list.darkFrom)
+        assertTrue(
+            "the window must not have ended before it starts",
+            list.darkUntil!! > list.darkFrom!!,
+        )
+        assertTrue(
+            "the window must not be a night that has already ended",
+            list.darkUntil!! > at("2026-12-15T09:00:00Z"),
+        )
+    }
+
+    /** And an event on the night ahead is on the morning's list, not missing. */
+    @Test
+    fun `lists an event on the coming night from the morning`() {
+        val shower = event(from = "2026-12-15T22:00:00Z", until = "2026-12-16T06:00:00Z")
+
+        assertEquals(listOf(shower), tonight("2026-12-15T09:00:00Z", listOf(shower)).events)
+    }
+
     /** In season it prompts, and the prompt is tonight's rather than a date. */
     @Test
     fun `carries the noctilucent prompt in season`() {
