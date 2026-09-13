@@ -274,6 +274,18 @@ is a file replacement.
   shipped implementation) to leave room for BYO keys without a later refactor
   (Sec. 15).
 
+  **Every fetch is recorded, by a decorator rather than by the repositories.**
+  `net.ReportingFetcher` wraps that one boundary in `Graph` and writes each
+  attempt into `net.Transfers` - in flight, fresh with its size, unchanged, or
+  failed with the cause chain read out - which the Tonight tab's downloads card
+  shows. It changes no answer: the ETag goes through, and a failure is recorded
+  and rethrown so the repositories' falling back to cache stays live. It is in
+  memory and lasts one process. How *old* the held copy is is a different
+  question with a different answer - the caches' own `writtenAt`, reached
+  through `cachedAgeMillis` - and the card shows both, because the failure that
+  prompted it was a fortnight of successful conditional GETs against an object
+  nobody upstream was republishing.
+
   **Neither Room nor DataStore is used, and neither is a dependency.** Earlier
   drafts of this document named both; what is built is plain files for the
   caches and plain `SharedPreferences` for settings and alert state. The reason
@@ -319,6 +331,15 @@ is a file replacement.
   and a home-screen widget (Phase 2). Also the guide - `Guide.kt` is pure data
   like `Credits.kt`, read both by its own tab and by the Explain button on each
   Tonight card, so a term is worded once and shown in two places.
+
+  **Each tab scrolls itself, and the calendar's is lazy.** Tonight, Guide and
+  Settings are a scrolling column through `ScrollingTab`, which holds the
+  padding and spacing all four used to share. The calendar is a `LazyColumn`
+  owning its own scrolling, because a year ahead is around a hundred entries
+  and composing them all cost a frame of 1300ms on opening and every frame of a
+  scroll afterwards - and because a lazy list measured inside a scrolling column
+  is given unbounded height, which defeats the laziness and throws. The scroll
+  positions are remembered per tab rather than shared.
 
 ### Manifest verification
 

@@ -7,7 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Tonight tab no longer goes blank for eight hours a day.** From dawn
+  until about midday it listed no passes, no events and no comets, and the
+  darkness card described the night that had just ended - which at that hour
+  reads exactly like an app with nothing to say. The window came from the night
+  *nearest* the moment, which is the right night for dating an eclipse and the
+  wrong one for a screen: in the morning the nearest night is behind you, so the
+  window's end sat before its start and everything asking "does this fall inside
+  tonight" answered no. It now looks to the night ahead, and a night already
+  under way keeps its real dusk rather than starting at whenever you opened the
+  app.
+
+- **The calendar tab scrolls.** A year ahead is around a hundred entries and
+  every one of them was being laid out whether or not it was anywhere near the
+  screen. Opening the tab cost a frame of over a second, and every frame of a
+  scroll afterwards missed its deadline. Only what is on screen is composed now:
+  the worst frame is down from 1300ms to 200ms, and jank from 27% of frames to
+  3%. Each tab also remembers its own scroll position instead of sharing one, so
+  opening the calendar no longer lands you half way down it.
+
 ### Added
+
+- **A downloads card, saying what the app has and what went wrong getting it.**
+  Gloaming spent a fortnight predicting satellite passes from a two-week-old
+  catalogue and never said so: the upstream stopped republishing, every request
+  from the phone went on answering "not modified", and nothing failed anywhere
+  you could see it. The card answers both halves. How old the copy on this phone
+  actually is - marked when the satellite elements are more than three days old,
+  because a fortnight-old element set puts a pass minutes and degrees from where
+  it really is - and what happened last time anything was fetched: downloaded
+  with its size, already up to date, or failed with the reason. Pressing "check
+  now" shows a progress bar and names what is being downloaded.
 
 - **A development build is published from every push.** One release, on a
   rolling `dev` tag that moves with the tip of `main`, carrying the signed APK

@@ -116,6 +116,16 @@ asked while looking at the sentence that raised it. None of it needs a location,
 a forecast or a network, so it is the one screen that works before anything is
 set up.
 
+Tonight also says what the app is working from. Everything it knows arrives as a
+handful of small files fetched from a CDN, and the failure mode that matters is
+not a loud one: an upstream can stop republishing while every request from the
+phone goes on politely answering "not modified", and the app will predict
+satellite passes from a fortnight-old catalogue without a word. So a downloads
+card carries both halves - how old the copy on this phone actually is, marked
+when the satellite elements have gone off, and what happened the last time
+anything was fetched, with the reason when it failed. Pressing "check now" shows
+what is being downloaded while it happens.
+
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
 ones simply appeared in your calendar, that is a setting - into a local calendar
