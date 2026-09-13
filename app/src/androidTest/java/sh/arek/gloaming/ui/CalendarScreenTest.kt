@@ -1,10 +1,6 @@
 package sh.arek.gloaming.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,7 +10,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
@@ -87,20 +82,16 @@ class CalendarScreenTest {
     )
 
     private fun show(vararg events: SkyEvent) {
+        // No scrolling column around it any more: the calendar is a lazy list
+        // and owns its own scrolling, which is the point of it.
         compose.setContent {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                CalendarContent(
-                    events = events.toList(),
-                    hasLocation = true,
-                    loading = false,
-                    nowMillis = now,
-                )
-            }
+            CalendarContent(
+                events = events.toList(),
+                hasLocation = true,
+                loading = false,
+                nowMillis = now,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 

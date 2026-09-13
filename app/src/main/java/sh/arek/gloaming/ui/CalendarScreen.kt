@@ -3,12 +3,16 @@ package sh.arek.gloaming.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -63,68 +67,107 @@ fun CalendarContent(
     onToggleKind: (EventKind) -> Unit = {},
     onShareEvent: (SkyEvent) -> Unit = {},
     onExportEvent: (SkyEvent) -> Unit = {},
+    modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
 ) {
-    if (!hasLocation) {
-        Card {
-            Column(Modifier.padding(16.dp)) {
-                Text("The calendar needs a location", style = MaterialTheme.typography.titleMedium)
+    // A lazy list rather than loose children in the tab's scrolling column,
+    // and this is the one screen where that is not a style preference. A year
+    // ahead is around a hundred entries, every one of which a plain column
+    // composes, measures and lays out whether or not it is anywhere near the
+    // viewport. Measured on a Pixel 8a: switching to this tab cost a single
+    // 1.3-second frame, and every frame of a scroll afterwards missed its
+    // deadline - 20ms against the 6ms the Tonight tab manages. Composing only
+    // what is on screen is the whole fix.
+    //
+    // Which is why this owns its scrolling where the other tabs do not: a lazy
+    // list inside a scrolling column is measured with unbounded height, which
+    // defeats the laziness and throws.
+    LazyColumn(
+        modifier = modifier,
+        state = state,
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        if (!hasLocation) {
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            "The calendar needs a location",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "Eclipses, showers and conjunctions all depend on where you are " +
+                                "standing - which is why the app works them out here rather " +
+                                "than downloading a list. Set a location under Settings and " +
+                                "they will appear.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+            return@LazyColumn
+        }
+
+        if (loading && events.isEmpty()) {
+            item {
+                Text("Working out the year ahead...", style = MaterialTheme.typography.bodyMedium)
+            }
+            return@LazyColumn
+        }
+
+        if (events.isEmpty()) {
+            item {
                 Text(
-                    "Eclipses, showers and conjunctions all depend on where you are standing " +
-                        "- which is why the app works them out here rather than downloading a " +
-                        "list. Set a location under Settings and they will appear.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Nothing in the year ahead, which should not happen - the moon alone " +
+                        "guarantees an entry a week. Worth reporting.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            return@LazyColumn
+        }
+
+        item(key = "help") { CalendarHelp() }
+
+        item(key = "filter") { KindFilter(events, hiddenKinds, onToggleKind) }
+
+        val shown = events.filterNot { it.kind.name in hiddenKinds }
+        if (shown.isEmpty()) {
+            item {
+                Text(
+                    "Everything is filtered out. Turn a kind back on above.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            return@LazyColumn
+        }
+
+        var lastMonth = ""
+        for (event in shown) {
+            val month = MONTH.format(Date(event.at))
+            if (month != lastMonth) {
+                item(key = "month:$month") {
+                    Text(
+                        month.uppercase(Locale.getDefault()),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                lastMonth = month
+            }
+            // Keyed, so that starring an entry re-composes that entry rather
+            // than shuffling every row after it onto a new slot.
+            item(key = EventPlanner.starKey(event)) {
+                EventRow(
+                    event = event,
+                    nowMillis = nowMillis,
+                    starred = EventPlanner.starKey(event) in starred,
+                    onToggleStar = { onToggleStar(event) },
+                    onShare = { onShareEvent(event) },
+                    onExport = { onExportEvent(event) },
                 )
             }
         }
-        return
-    }
-
-    if (loading && events.isEmpty()) {
-        Text("Working out the year ahead...", style = MaterialTheme.typography.bodyMedium)
-        return
-    }
-
-    if (events.isEmpty()) {
-        Text(
-            "Nothing in the year ahead, which should not happen - the moon alone guarantees " +
-                "an entry a week. Worth reporting.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        return
-    }
-
-    CalendarHelp()
-
-    KindFilter(events, hiddenKinds, onToggleKind)
-
-    val shown = events.filterNot { it.kind.name in hiddenKinds }
-    if (shown.isEmpty()) {
-        Text(
-            "Everything is filtered out. Turn a kind back on above.",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        return
-    }
-
-    var lastMonth = ""
-    for (event in shown) {
-        val month = MONTH.format(Date(event.at))
-        if (month != lastMonth) {
-            Text(
-                month.uppercase(Locale.getDefault()),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            lastMonth = month
-        }
-        EventRow(
-            event = event,
-            nowMillis = nowMillis,
-            starred = EventPlanner.starKey(event) in starred,
-            onToggleStar = { onToggleStar(event) },
-            onShare = { onShareEvent(event) },
-            onExport = { onExportEvent(event) },
-        )
     }
 }
 

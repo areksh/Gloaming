@@ -2,8 +2,11 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Tab
@@ -134,85 +137,124 @@ fun GloamingTabs(
             )
         }
 
-        Column(
-            modifier = Modifier
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            when (selected) {
-                0 -> TonightContent(
-                    state = state,
-                    onWatchingChange = onWatchingChange,
-                    onWatchDurationChange = onWatchDurationChange,
-                    onPollNow = onPollNow,
-                    onRequestBatteryExemption = onRequestBatteryExemption,
-                    onRequestNotifications = onRequestNotifications,
-                    onShareEvent = onShareEvent,
-                    onExportEvent = onExportEvent,
-                    onVerdict = onVerdict,
-                )
+        // One scroll position per tab, remembered out here rather than inside
+        // the branch that uses it, so tabbing away and back returns to where
+        // the reader was. They used to share a single one, which meant opening
+        // the calendar half way down because that was where Tonight had been
+        // left.
+        val tonightScroll = rememberScrollState()
+        val guideScroll = rememberScrollState()
+        val settingsScroll = rememberScrollState()
+        val calendarScroll = rememberLazyListState()
 
-                1 -> CalendarContent(
-                    events = state.calendar,
-                    hasLocation = state.settings.hasLocation,
-                    loading = state.calendarLoading,
-                    nowMillis = state.nowMillis,
-                    starred = state.settings.starredEvents,
-                    onToggleStar = onToggleStar,
-                    hiddenKinds = state.settings.hiddenEventKinds,
-                    onToggleKind = onToggleKind,
-                    onShareEvent = onShareEvent,
-                    onExportEvent = onExportEvent,
-                )
+        when (selected) {
+            // The calendar brings its own scrolling: it is a lazy list, and a
+            // lazy list inside a scrolling column is measured with unbounded
+            // height, which defeats the point of it and throws.
+            1 -> CalendarContent(
+                events = state.calendar,
+                hasLocation = state.settings.hasLocation,
+                loading = state.calendarLoading,
+                nowMillis = state.nowMillis,
+                starred = state.settings.starredEvents,
+                onToggleStar = onToggleStar,
+                hiddenKinds = state.settings.hiddenEventKinds,
+                onToggleKind = onToggleKind,
+                onShareEvent = onShareEvent,
+                onExportEvent = onExportEvent,
+                modifier = Modifier.fillMaxSize(),
+                state = calendarScroll,
+            )
 
-                2 -> GuideContent()
+            else -> ScrollingTab(
+                scroll = when (selected) {
+                    0 -> tonightScroll
+                    2 -> guideScroll
+                    else -> settingsScroll
+                },
+            ) {
+                when (selected) {
+                    0 -> TonightContent(
+                        state = state,
+                        onWatchingChange = onWatchingChange,
+                        onWatchDurationChange = onWatchDurationChange,
+                        onPollNow = onPollNow,
+                        onRequestBatteryExemption = onRequestBatteryExemption,
+                        onRequestNotifications = onRequestNotifications,
+                        onShareEvent = onShareEvent,
+                        onExportEvent = onExportEvent,
+                        onVerdict = onVerdict,
+                    )
 
-                else -> SettingsContent(
-                    state = state,
-                    onLatitudeChange = onLatitudeChange,
-                    onLongitudeChange = onLongitudeChange,
-                    onThresholdChange = onThresholdChange,
-                    onAlertsEnabledChange = onAlertsEnabledChange,
-                    onBeforeUnlockChange = onBeforeUnlockChange,
-                    onPreciseBeforeUnlockChange = onPreciseBeforeUnlockChange,
-                    onCloudGateChange = onCloudGateChange,
-                    onCloudToleranceChange = onCloudToleranceChange,
-                    onQuietHoursEnabledChange = onQuietHoursEnabledChange,
-                    onQuietFromChange = onQuietFromChange,
-                    onQuietUntilChange = onQuietUntilChange,
-                    onQuietHoursOverrideChange = onQuietHoursOverrideChange,
-                    onNightVisionChange = onNightVisionChange,
-                    onShowEveryConstellationChange = onShowEveryConstellationChange,
-                    onLogRetentionChange = onLogRetentionChange,
-                    onExportLog = onExportLog,
-                    onClearLog = onClearLog,
-                    onAuroraIntervalChange = onAuroraIntervalChange,
-                    onIssIntervalChange = onIssIntervalChange,
-                    onBrightIntervalChange = onBrightIntervalChange,
-                    onTrainIntervalChange = onTrainIntervalChange,
-                    onPassAlertsChange = onPassAlertsChange,
-                    onFollowStationChange = onFollowStationChange,
-                    onPassLeadChange = onPassLeadChange,
-                    onMinimumElevationChange = onMinimumElevationChange,
-                    onLiveLeadChange = onLiveLeadChange,
-                    onEventAlertsChange = onEventAlertsChange,
-                    onEventHeadsUpChange = onEventHeadsUpChange,
-                    onEventLeadChange = onEventLeadChange,
-                    onEclipseFollowMaxChange = onEclipseFollowMaxChange,
-                    onNotifyEveryEventChange = onNotifyEveryEventChange,
-                    onCalendarSyncChange = onCalendarSyncChange,
-                    onAutomaticSettingsChange = onAutomaticSettingsChange,
-                    onClearVerdicts = onClearVerdicts,
-                    onCometMagnitudeChange = onCometMagnitudeChange,
-                    onCometAltitudeChange = onCometAltitudeChange,
-                    onCometStaleChange = onCometStaleChange,
-                    onCometMoonChange = onCometMoonChange,
-                    onLocationModeChange = onLocationModeChange,
-                    onDetectLocation = onDetectLocation,
-                    onSave = onSave,
-                )
+                    2 -> GuideContent()
+
+                    else -> SettingsContent(
+                        state = state,
+                        onLatitudeChange = onLatitudeChange,
+                        onLongitudeChange = onLongitudeChange,
+                        onThresholdChange = onThresholdChange,
+                        onAlertsEnabledChange = onAlertsEnabledChange,
+                        onBeforeUnlockChange = onBeforeUnlockChange,
+                        onPreciseBeforeUnlockChange = onPreciseBeforeUnlockChange,
+                        onCloudGateChange = onCloudGateChange,
+                        onCloudToleranceChange = onCloudToleranceChange,
+                        onQuietHoursEnabledChange = onQuietHoursEnabledChange,
+                        onQuietFromChange = onQuietFromChange,
+                        onQuietUntilChange = onQuietUntilChange,
+                        onQuietHoursOverrideChange = onQuietHoursOverrideChange,
+                        onNightVisionChange = onNightVisionChange,
+                        onShowEveryConstellationChange = onShowEveryConstellationChange,
+                        onLogRetentionChange = onLogRetentionChange,
+                        onExportLog = onExportLog,
+                        onClearLog = onClearLog,
+                        onAuroraIntervalChange = onAuroraIntervalChange,
+                        onIssIntervalChange = onIssIntervalChange,
+                        onBrightIntervalChange = onBrightIntervalChange,
+                        onTrainIntervalChange = onTrainIntervalChange,
+                        onPassAlertsChange = onPassAlertsChange,
+                        onFollowStationChange = onFollowStationChange,
+                        onPassLeadChange = onPassLeadChange,
+                        onMinimumElevationChange = onMinimumElevationChange,
+                        onLiveLeadChange = onLiveLeadChange,
+                        onEventAlertsChange = onEventAlertsChange,
+                        onEventHeadsUpChange = onEventHeadsUpChange,
+                        onEventLeadChange = onEventLeadChange,
+                        onEclipseFollowMaxChange = onEclipseFollowMaxChange,
+                        onNotifyEveryEventChange = onNotifyEveryEventChange,
+                        onCalendarSyncChange = onCalendarSyncChange,
+                        onAutomaticSettingsChange = onAutomaticSettingsChange,
+                        onClearVerdicts = onClearVerdicts,
+                        onCometMagnitudeChange = onCometMagnitudeChange,
+                        onCometAltitudeChange = onCometAltitudeChange,
+                        onCometStaleChange = onCometStaleChange,
+                        onCometMoonChange = onCometMoonChange,
+                        onLocationModeChange = onLocationModeChange,
+                        onDetectLocation = onDetectLocation,
+                        onSave = onSave,
+                    )
+                }
             }
         }
     }
+}
+
+/**
+ * A tab that scrolls as one column, which three of the four do.
+ *
+ * The padding and spacing that used to live on the single shared column, kept
+ * here so the tabs still look identical to each other - the calendar applies
+ * the same figures as its own content padding.
+ */
+@Composable
+private fun ScrollingTab(
+    scroll: ScrollState,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(scroll)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        content = content,
+    )
 }
