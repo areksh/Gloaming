@@ -716,10 +716,18 @@ pref_value() {
 # not a coordinate and handing it back as one would put the observer in the
 # middle of nowhere. Node rather than a shell arithmetic trick because IEEE-754
 # is not something to reimplement in `expr`.
+#
+# The bits go in through the environment rather than as an argument, and that is
+# not fastidiousness. Every negative coordinate has the sign bit set, so its raw
+# bits are a negative integer, so the argument starts with a `-` and node's own
+# option parser takes it for a flag: `node: bad option: -4614894397677710907`.
+# Which means this worked only for an observer east of Greenwich and north of
+# the equator, and `./go release` died on the spot anywhere else - about three
+# quarters of the planet, this country included.
 bits_to_double() {
-    node -e 'const b = Buffer.alloc(8);
-             b.writeBigInt64BE(BigInt(process.argv[1]));
-             console.log(b.readDoubleBE(0));' "$1"
+    GLOAMING_RAW_BITS="$1" node -e 'const b = Buffer.alloc(8);
+             b.writeBigInt64BE(BigInt(process.env.GLOAMING_RAW_BITS));
+             console.log(b.readDoubleBE(0));'
 }
 
 # The phone's own settings, read before the gate seeds over them.
