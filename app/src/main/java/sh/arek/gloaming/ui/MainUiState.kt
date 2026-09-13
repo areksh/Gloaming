@@ -60,6 +60,15 @@ data class MainUiState(
     /** What has a request open right now, for the line beside the progress bar. */
     val downloading: List<String> = emptyList(),
     /**
+     * Why the last attempt at the satellite elements failed, where that is known.
+     *
+     * Resolved here so the satellites card can tell a fresh install apart from a
+     * broken download. In memory for one process, so a background poll that
+     * failed overnight leaves nothing to quote - which is a third case again,
+     * and one [describeMissingElements] has words for.
+     */
+    val elementsFailure: String? = null,
+    /**
      * How dark it is where the observer is, or null when no location is set.
      * Drives the sentence explaining why the app may not have checked recently.
      */

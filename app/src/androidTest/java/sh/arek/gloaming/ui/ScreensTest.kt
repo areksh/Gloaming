@@ -124,6 +124,7 @@ class ScreensTest {
         verdicts: List<Verdict> = emptyList(),
         downloads: List<DownloadRow> = emptyList(),
         downloading: List<String> = emptyList(),
+        elementsFailure: String? = null,
     ) {
         compose.setContent {
             Column(
@@ -155,6 +156,7 @@ class ScreensTest {
                     verdicts = verdicts,
                     downloads = downloads,
                     downloading = downloading,
+                    elementsFailure = elementsFailure,
                 )
 
                 TonightContent(
@@ -1910,7 +1912,7 @@ class ScreensTest {
             ),
         )
 
-        compose.onNodeWithText("Not known yet", substring = true)
+        compose.onNodeWithText("Not worked out yet", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
         compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
@@ -1936,5 +1938,32 @@ class ScreensTest {
         compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    /**
+     * A phone that has checked and still has no elements has a fault, and is
+     * told so - unlike one on its first run, which has not failed at anything.
+     */
+    @Test
+    fun reportsBrokenElementDownloadsDifferentlyFromAFirstRun() {
+        show(
+            alertState = AlertState(lastPollAt = now - 5 * 60_000L),
+            tonight = TonightList(
+                darkFrom = now,
+                darkUntil = now + 8 * 3_600_000L,
+                passes = emptyList(),
+                bestPasses = emptyList(),
+                events = emptyList(),
+                comets = emptyList(),
+                noctilucent = null,
+                elementsHeld = false,
+            ),
+            elementsFailure = "GET sats.json returned 503",
+        )
+
+        compose.onNodeWithText("returned 503", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Not worked out yet", substring = true).assertDoesNotExist()
     }
 }

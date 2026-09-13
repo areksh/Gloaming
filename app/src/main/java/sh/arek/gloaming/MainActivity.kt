@@ -64,6 +64,7 @@ import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.net.Transfers
 import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
@@ -110,6 +111,9 @@ private const val TONIGHT_STALE_MILLIS = 15 * 60_000L
  * integer and stops unless it has moved.
  */
 private const val DOWNLOADS_TICK_MILLIS = 500L
+
+/** The elements, as the transfer record labels them. */
+private const val ELEMENTS_LABEL = "Satellite elements"
 
 private fun quietHoursFrom(from: String, until: String): QuietHours? {
     val start = parseTimeOfDay(from) ?: return null
@@ -334,6 +338,7 @@ private fun GloamingApp() {
     var calendarNote by remember { mutableStateOf<String?>(null) }
     var downloads by remember { mutableStateOf(emptyList<DownloadRow>()) }
     var downloading by remember { mutableStateOf(emptyList<String>()) }
+    var elementsFailure by remember { mutableStateOf<String?>(null) }
 
     // Permission and exemption state changes outside the app, so re-read it
     // whenever the user comes back rather than trusting a stale snapshot.
@@ -415,6 +420,9 @@ private fun GloamingApp() {
                     )
                 }
                 downloading = Transfers.inFlight()
+                elementsFailure = Transfers.snapshot()
+                    .firstOrNull { it.label == ELEMENTS_LABEL && it.state == TransferState.Failed }
+                    ?.error
                 delay(DOWNLOADS_TICK_MILLIS)
             }
         }
@@ -742,6 +750,7 @@ private fun GloamingApp() {
                     checking = checking,
                     downloads = downloads,
                     downloading = downloading,
+                    elementsFailure = elementsFailure,
                     darkness = darkness,
                     powerSaveMode = saverOn,
                     watching = watching,

@@ -461,3 +461,47 @@ fun isStale(ageMillis: Long?, afterMillis: Long = STALE_AFTER_MILLIS): Boolean =
     ageMillis != null && ageMillis > afterMillis
 
 const val STALE_AFTER_MILLIS: Long = 3L * 24 * 60 * 60 * 1000
+
+/** What the satellites card says when it has no elements, and how loudly. */
+data class SatellitesNote(val text: String, val alarming: Boolean)
+
+/**
+ * Why there are no passes to list, which is three situations and not one.
+ *
+ * They all arrive as the same empty list and only two of them are faults. A
+ * phone that has simply not run its first check yet is not broken, and telling
+ * it "could not download, press Check now" reports a failure that has not
+ * happened - which on a fresh install is the first thing the app ever says. An
+ * app that cries wolf then is one nobody believes the second time.
+ *
+ * Note what is *not* among the three: a horizon. `PassPlanner.HORIZON_MILLIS`
+ * is twelve hours, but that governs how far ahead the alerting poller looks
+ * before deciding to interrupt somebody. This card searches tonight's whole
+ * darkness window from the elements themselves, so there is no hour at which it
+ * legitimately cannot see tonight yet. With elements in hand, an empty list
+ * really does mean an empty sky.
+ *
+ * @param everChecked whether any poll has ever completed on this device.
+ * @param failure why the last attempt at the elements failed, where that is
+ *   known. It is held in memory for one process, so a background poll that
+ *   failed overnight leaves nothing behind to quote.
+ */
+fun describeMissingElements(everChecked: Boolean, failure: String?): SatellitesNote = when {
+    failure != null -> SatellitesNote(
+        "Gloaming could not download the orbital elements, so it cannot say what is " +
+            "crossing tonight: $failure",
+        alarming = true,
+    )
+
+    !everChecked -> SatellitesNote(
+        "Not worked out yet. Gloaming downloads the orbital elements on its first " +
+            "check, and will say what is crossing once it has them.",
+        alarming = false,
+    )
+
+    else -> SatellitesNote(
+        "Gloaming has checked but still has no orbital elements, so it cannot say " +
+            "what is crossing tonight. Press Check now to try again.",
+        alarming = true,
+    )
+}
