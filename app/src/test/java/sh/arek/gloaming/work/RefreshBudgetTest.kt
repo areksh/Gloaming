@@ -42,12 +42,34 @@ class RefreshBudgetTest {
         )
     }
 
-    /** And the budget itself has to fit the limit, with room to start the process. */
+    /**
+     * And the budget itself has to fit the limit, with room for the process
+     * start that comes out of the same sixty seconds - six of them, measured
+     * from `Start proc ... for broadcast` to the first line the poll logs.
+     */
     @Test
     fun `the poll budget leaves headroom inside the broadcast limit`() {
+        val broadcastLimit = 60_000L
+        val processStart = 6_000L
+
         assertTrue(
-            "budget ${Refresh.POLL_BUDGET_MILLIS}ms against a 60s broadcast limit",
-            Refresh.POLL_BUDGET_MILLIS <= 45_000L,
+            "budget ${Refresh.POLL_BUDGET_MILLIS}ms plus a ${processStart}ms start " +
+                "against a ${broadcastLimit}ms limit",
+            Refresh.POLL_BUDGET_MILLIS + processStart < broadcastLimit,
+        )
+    }
+
+    /**
+     * The event budget has to cover what the calendar actually costs, or it is
+     * a number that only looks like a limit. Measured at 11.64s on a Pixel 8a,
+     * where it ran straight through an eight second budget: the astronomy is a
+     * tight loop and `withTimeout` has no suspension point to cancel at.
+     */
+    @Test
+    fun `the event budget covers the measured cost of a calendar check`() {
+        assertTrue(
+            "events ${Refresh.EVENTS_MILLIS}ms against 11.64s measured",
+            Refresh.EVENTS_MILLIS >= 11_640L,
         )
     }
 

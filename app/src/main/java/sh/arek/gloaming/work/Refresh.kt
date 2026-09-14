@@ -68,10 +68,11 @@ object Refresh {
      * forty-five seconds and the two checks after it were allowed everything
      * they liked, which on a slow network came to seventy-plus.
      *
-     * Forty seconds, against a sixty second limit, leaves room for the process
-     * start that comes out of the same allowance - six seconds of it, measured.
+     * Forty-five seconds, against a sixty second limit, leaves room for the
+     * process start that comes out of the same allowance - six seconds of it,
+     * measured.
      */
-    const val POLL_BUDGET_MILLIS: Long = 40_000L
+    const val POLL_BUDGET_MILLIS: Long = 45_000L
 
     /**
      * What each stage may spend, and they are separate numbers on purpose.
@@ -82,9 +83,31 @@ object Refresh {
      * of latency on something that changes over hours, where a missed pass
      * check costs the whole pass.
      */
-    const val AURORA_MILLIS: Long = 20_000L
+    /**
+     * What these numbers do and do not bind, because the first guess at them
+     * was wrong in a way only a measurement showed.
+     *
+     * `withTimeout` cancels at suspension points. The network inside each stage
+     * has plenty, so a slow fetch really is cut off - which is the failure that
+     * caused the overrun and the one these exist for. The astronomy is a tight
+     * loop with none, so a stage that is computing cannot be interrupted and
+     * simply runs to the end of its work.
+     *
+     * Measured on a Pixel 8a, one complete poll: the pass check took 7.45s
+     * against its twelve, and the calendar check took 11.64s against an earlier
+     * budget of eight - over it, uncancelled, and completing anyway. The eight
+     * was a guess, and an unenforceable guess reads in the source as a
+     * guarantee. Fifteen is what the work actually costs.
+     *
+     * So the compute is bounded by the work rather than by these, at around
+     * twenty seconds for both checks together. What keeps that from becoming
+     * another overrun on slower hardware is not this: it is the provisional
+     * wake in PollAlarm, which makes a killed poll cost one cycle instead of
+     * looping.
+     */
+    const val AURORA_MILLIS: Long = 18_000L
     const val PASSES_MILLIS: Long = 12_000L
-    const val EVENTS_MILLIS: Long = 8_000L
+    const val EVENTS_MILLIS: Long = 15_000L
 
     /**
      * What a stage actually gets: its share, or whatever is left of the budget,

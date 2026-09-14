@@ -34,16 +34,30 @@ package sh.arek.gloaming.domain
  * approach costs two or three wakes instead of one. That is the price of the
  * lead being real, and it is only paid when a deadline is actually pending.
  *
- * **Not applied to the sleep through daylight**, deliberately. Every interval
- * behind the ratio above was between 13 and 42 minutes, which covers the alert
- * leads this is used for and says nothing about a wait of seven hours - the
- * window may well be capped somewhere above the range measured. Halving a dusk
- * wait would also turn the design's one cheap wake into six, since the approach
- * is geometric, and dusk is a soft deadline where a pass is a hard one: arriving
- * late to dusk costs some of an aurora that lasts hours, where arriving late to
- * a pass costs all of six minutes of it. Measure the long end before extending
- * this to it; guessing at the ratio outside its range is the mistake this whole
- * class exists to correct.
+ * **The window is capped, and that is why this stops where it does.** Read off
+ * `dumpsys alarm`, the window an alarm carries is three quarters of the time
+ * until it fires *or one hour, whichever is smaller*. This app's own alarms
+ * show both halves: 4m02s of window on a 5 minute wake, 23m18s on 31 minutes,
+ * 24m02s on 32 - and then exactly 1h0m0s0ms on a wake 4h57m out, where three
+ * quarters would have been 3h43m. Seven unrelated system alarms, from half an
+ * hour out to twelve and a half hours, sit at exactly one hour too. The
+ * crossover is around eighty minutes.
+ *
+ * So the proportion this corrects for only exists below the cap, which is
+ * exactly where the alert leads live - half an hour, an hour. Above it the
+ * lateness stops growing: a nine hour sleep until dusk arrives at most an hour
+ * late, eleven per cent, not eighty.
+ *
+ * **Not applied to the sleep through daylight**, for that reason. There is
+ * little left to correct, halving it would turn the design's one cheap wake
+ * into six because the approach is geometric, and dusk is a soft deadline where
+ * a pass is a hard one: late to dusk costs part of an aurora that lasts hours,
+ * late to a pass costs all six minutes of it.
+ *
+ * Halving is kept rather than subtracting the hour directly, even though that
+ * would save a wake or two on a deadline half a day out. It is correct whether
+ * or not the cap holds on the next handset, and the cap is a measurement from
+ * one phone rather than a documented promise.
  */
 object Delivery {
 
