@@ -144,6 +144,7 @@ fail() { FAIL=$((FAIL + 1)); printf '  FAIL  %s\n' "$1"; [ $# -gt 1 ] && printf 
 skip() { SKIP=$((SKIP + 1)); printf '  SKIP  %s\n' "$1"; [ $# -gt 1 ] && printf '        %s\n' "$2"; return 0; }
 
 DE_PREFS="/data/user_de/0/${PACKAGE}/shared_prefs"
+JOURNAL="/data/user_de/0/${PACKAGE}/files/sky/gloaming.log"
 
 # Runs a command as the app's own uid. The inner `sh -c` matters: without it the
 # shell user expands the glob, and it cannot stat the app's directory.
@@ -156,6 +157,14 @@ as_app() {
 last_alert() {
     as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
         | sed -n 's/.*name="last_alert_at" value="\([0-9]*\)".*/\1/p' || true
+}
+
+# The notice the user asked to be given before a pass peaks, in seconds.
+# Absent on a phone whose settings have never been written, where the default
+# applies - which the planner knows and this does not, so the caller skips.
+configured_lead() {
+    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
+        | sed -n 's/.*name="pass_alert_lead_minutes" value="\([0-9]*\)".*/\1/p' | head -1 || true
 }
 
 # The poll interval the app is actually set to, for the reader comparing it
@@ -772,6 +781,127 @@ elif [ "${seen:-0}" -eq 0 ]; then
         "The pending alarm stayed ahead of its deadline throughout, so nothing here was tested either way."
 else
     pass "no wake was seen past the deadline the system reserved, within the ${EXPECT_LATE}m allowed"
+fi
+
+# What the app itself planned, against what it got.
+#
+# The deadline check above audits the platform: did the system fire the alarm by
+# the time it published for it. This audits the app: the journal records what
+# each poll asked for next, so the gap that followed can be read against it.
+#
+# The two answer different questions and the second is the one a user would
+# recognise. A wake asked for at 28 minutes and delivered at 54 is inside the
+# window the system reserved - the platform kept its word - and is still the app
+# giving two minutes of notice where it promised thirty.
+#
+# Read from the app's own log rather than logcat: it is durable, it survives the
+# ring buffer wrapping, and it is the same record `./go log` prints.
+journal_window() {
+    as_app "cat $JOURNAL 2>/dev/null" | awk -v since="$1" '
+        # 2026-09-14T02:17:17.878Z PollReceiver poll outcome: ... (next in 30m: QUIET)
+        #
+        # The trailing Z is not decoration: the app writes UTC, and mktime reads
+        # its argument as local time unless told otherwise. Parsed without the
+        # flag every stamp came out an hour adrift here in summer - enough to
+        # put polls outside the watch window and to shift every interval it then
+        # measured. The flag is a gawk extension; mktime returns -1 where it is
+        # not understood, which the caller checks rather than reporting numbers
+        # built on a failed parse.
+        {
+            stamp = $1
+            gsub(/[-:TZ]/, " ", stamp)
+            split(stamp, f, " ")
+            epoch = mktime(f[1] " " f[2] " " f[3] " " f[4] " " f[5] " " int(f[6]), 1)
+            if (epoch < 0) { print "PARSE-FAILED"; exit 1 }
+            if (epoch < since) next
+            print epoch "\t" $0
+        }'
+}
+
+printf '\n== What the app planned ==\n'
+planned=$(journal_window "$start_epoch" 2>/dev/null || true)
+if printf '%s' "$planned" | has -Fx "PARSE-FAILED"; then
+    skip "this awk cannot read the journal's timestamps" \
+        "mktime's UTC flag is a gawk extension. Nothing here is wrong with the app."
+elif [ -z "$planned" ]; then
+    skip "the journal the app keeps says nothing about this run" \
+        "Either the log is off in settings, or no poll reached the point of writing one."
+else
+    # Every poll logs three plans, one per poller, and the alarm gets the
+    # soonest of them - so the minimum across a poll is what it asked for.
+    # Matched anywhere on the line, not only after a bracket: the aurora poller
+    # writes "(unlocked=false, next in 30m: QUIET)", where the bracket is
+    # nowhere near the number, and a pattern anchored on it silently read the
+    # other two pollers only and called the result the plan.
+    printf '%s\n' "$planned" | awk -F'\t' '
+        function flush_poll() {
+            if (at == 0 || asked == 0) return
+            if (previous_at > 0 && previous_asked > 0) {
+                gap = at - previous_at
+                printf "  asked %dm %02ds, waited %dm %02ds  (%.2fx)\n",
+                    previous_asked / 60, previous_asked % 60, gap / 60, gap % 60,
+                    gap / previous_asked
+                total += gap / previous_asked
+                pairs++
+                if (gap / previous_asked > worst) worst = gap / previous_asked
+            }
+            previous_at = at; previous_asked = asked
+        }
+        /poll outcome/ { flush_poll(); at = $1; asked = 0 }
+        at > 0 && match($0, /next in [0-9]+m/) {
+            minutes = substr($0, RSTART + 8, RLENGTH - 9) + 0
+            if (asked == 0 || minutes * 60 < asked) asked = minutes * 60
+        }
+        END {
+            flush_poll()
+            if (pairs > 0)
+                printf "  %d intervals, mean %.2fx what the app asked for, worst %.2fx\n",
+                    pairs, total / pairs, worst
+            else
+                print "  fewer than two polls reached the journal, so there is nothing to compare"
+        }'
+
+    # The promise a user would recognise, and the only one that is about them:
+    # an announcement carries the pass it is about, so the notice it actually
+    # gave can be read straight off it.
+    printf '%s\n' "$planned" | grep -F "pass check: Announce" > /tmp/.announced.$$ 2>/dev/null || true
+    if [ -s /tmp/.announced.$$ ]; then
+        LEAD_MINUTES=$(configured_lead)
+        while IFS= read -r line; do
+            said=$(printf '%s' "$line" | cut -f1)
+            peaks=$(printf '%s' "$line" | sed -n 's/.*peaksAt=\([0-9]*\).*/\1/p')
+            rises=$(printf '%s' "$line" | sed -n 's/.*risesAt=\([0-9]*\).*/\1/p')
+            [ -n "$peaks" ] && [ -n "$rises" ] || continue
+            printf '  announced %sm %ss before it rose\n' \
+                "$(( (rises / 1000 - said) / 60 ))" "$(( (rises / 1000 - said) % 60 ))"
+
+            if [ -z "$LEAD_MINUTES" ]; then
+                skip "no lead is recorded on the phone, so there is no promise to hold this to" \
+                    "Open the app once, or seed one, and the delivered notice becomes checkable."
+                continue
+            fi
+            # The promise is "speak this long before it peaks", so the moment it
+            # was meant to speak is a subtraction, not a guess. Being late by
+            # more than the allowance is the alert not keeping it - which is the
+            # failure this whole check exists for, and the one that reads as a
+            # pass simply being missed.
+            intended=$(( peaks / 1000 - LEAD_MINUTES * 60 ))
+            late=$(( said - intended ))
+            [ "$late" -lt 0 ] && late=0
+            if [ -z "$EXPECT_LATE" ]; then
+                printf '        %sm %ss later than the %sm notice asked for\n' \
+                    "$((late / 60))" "$((late % 60))" "$LEAD_MINUTES"
+            elif [ "$late" -le $((EXPECT_LATE * 60)) ]; then
+                pass "the alert kept the ${LEAD_MINUTES}m notice it promised, to within $((late / 60))m $((late % 60))s"
+            else
+                fail "the alert was $((late / 60))m $((late % 60))s late against the ${LEAD_MINUTES}m notice it promised" \
+                    "It still arrived, but not with the warning the user asked for. This is what a missed pass looks like from the inside."
+            fi
+        done < /tmp/.announced.$$
+    else
+        printf '  no pass was announced during the run, so no delivered lead to read\n'
+    fi
+    rm -f /tmp/.announced.$$
 fi
 
 # Not `[ -n "$x" ] && printf`: as a statement of its own that returns 1 when the

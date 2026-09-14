@@ -405,6 +405,16 @@ The poll spacing is still reported alongside, as the mean interval between
 consecutive polls - it takes two polls to have one at all, and a single poll is
 reported as exactly that rather than as a gap the width of the whole watch.
 
+A second section reads the app's own journal, and asks a different question.
+The deadline check audits the platform: did the system fire the alarm by the
+time it published for it. This audits the app: every poll records what it asked
+for next, so the gap that followed can be read against it - and any pass
+announced during the run carries the pass it is about, so the notice it actually
+gave is a subtraction. That is the promise a user would recognise, and the two
+can disagree. A wake asked for at 28 minutes and delivered at 54 is inside the
+window the system reserved, and is still an alert giving two minutes of warning
+where it promised thirty.
+
 **The app has to be polling before any of this measures anything**, and the poll
 interval in the settings does not decide that. It is consulted only when the app
 has no position; with one, `PollingPolicy` plans from the sky - sleeping until

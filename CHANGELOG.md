@@ -46,6 +46,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   borrows an observer and watches for ninety minutes instead of thirty; the gate
   now takes about two hours rather than one.
 
+### Added
+
+- **`doze-check.sh` reads the app's own journal as a second, separate finding.**
+  The deadline check audits the platform - did the system fire the alarm by the
+  `maxWhenElapsed` it published. This audits the app: each poll records what it
+  asked for next, so the gap that followed is read against it, and any pass
+  announced during the run carries the pass it is about, so the notice actually
+  delivered is a subtraction against the lead in the settings. The two questions
+  can disagree, and the second is the one a user would recognise - a wake asked
+  for at 28 minutes and delivered at 54 is inside the window the system
+  reserved, and is still an alert giving two minutes of warning where it
+  promised thirty. Run against the journal from the night this was found, it
+  fails that announcement by 20m37s.
+
 ### Fixed
 
 - **A slow poll no longer kills the app's schedule and then repeats itself.**
