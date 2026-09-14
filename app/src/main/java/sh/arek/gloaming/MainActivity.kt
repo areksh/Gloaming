@@ -546,10 +546,16 @@ private fun GloamingApp() {
      * Runs a check the user asked for, here and now.
      *
      * Deliberately not through `AlarmManager`. `setAndAllowWhileIdle` is
-     * inexact and the system attaches a batching window - just under two
-     * minutes, measured on this hardware - so a "check now" routed through the
-     * scheduler could sit unfired while the user stares at an unchanged screen.
-     * A button somebody is watching gets run directly.
+     * inexact and the system attaches a batching window - about three quarters
+     * of whatever interval it is given, so the shortest wake this could ask for
+     * still carries a minute or two, and a long one carries far more - so a
+     * "check now" routed through the scheduler could sit unfired while the user
+     * stares at an unchanged screen. A button somebody is watching gets run
+     * directly.
+     *
+     * The window was recorded here as a flat "just under two minutes", which is
+     * what it comes to at the short end this would have used. It does not stay
+     * there: measured on a Pixel 8a it was 24 minutes on a 32 minute request.
      *
      * The next scheduled wake is then re-armed from the plan the poll returned,
      * which is what the receiver does after every other poll. That matters most

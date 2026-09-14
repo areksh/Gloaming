@@ -50,15 +50,27 @@ object PollingPolicy {
      * Delivered slower than requested, and it is worth knowing by how much.
      *
      * Measured on a Pixel 8a: a two-minute interval landed at about four, and
-     * on a Pixel 10a a five-minute one at nine to ten. That is not a multiplier
-     * but a roughly fixed cost - `setAndAllowWhileIdle` is inexact and the
-     * system attaches a batching window of a few minutes. Both measurements
-     * also carried a jitter that was added to the interval rather than spread
-     * around it, which has since been corrected, so the overhead should now be
-     * the batching window alone.
+     * on a Pixel 10a a five-minute one at nine to ten.
      *
-     * Nothing here compensates for it either way: asking for half of what is
-     * wanted would double the cost on any device that delivers punctually.
+     * This used to read those as a roughly fixed cost of a few minutes rather
+     * than a multiplier, and drew from that the conclusion that nothing should
+     * compensate for it. Both halves were wrong, and the numbers above were
+     * always the counter-example: four on two is twice, nine and a half on five
+     * is very nearly twice, and the "fixed cost" grew from two minutes to four
+     * and a half between them.
+     *
+     * It is a proportion. `setAndAllowWhileIdle` is inexact and the window the
+     * system attaches is about three quarters of the interval asked for - 24
+     * minutes on a 32 minute request, 4 minutes on a 5 minute one - and it
+     * fires near the end of it. Thirteen consecutive overnight wakes landed
+     * between 1.25 and 1.99 times what was asked, median 1.78, never once on
+     * time.
+     *
+     * Nothing here compensates, and that is still right for *this* number: a
+     * poll interval is a cadence, and arriving late to it costs a little
+     * latency and nothing else. A wake with a deadline is a different matter
+     * and does compensate - see [sh.arek.gloaming.domain.Delivery], which
+     * exists because reading this comment the other way cost a real alert.
      */
     const val ELEVATED_MINUTES = 5
 
