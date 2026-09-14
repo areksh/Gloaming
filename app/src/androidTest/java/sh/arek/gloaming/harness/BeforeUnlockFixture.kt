@@ -7,7 +7,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.UserSettings
@@ -54,7 +53,30 @@ class BeforeUnlockFixture {
         // Alert state is reset so a run starts armed with no rate limit behind
         // it. Otherwise a previous run's alert silently suppresses this one and
         // the harness reports a failure the app did not have.
-        PreferencesAlertStateStore(devicePreferences(context)).write(AlertState(armed = true))
+        //
+        // Only the rate limits, though, and not the whole object. Writing a
+        // fresh AlertState also cleared nextPassCheckAt and nextEventCheckAt,
+        // which are not rate limits at all - they are the bookmarks that let
+        // most polls skip the expensive pass and calendar evaluation. Without
+        // them every poll took the long path, and on a phone seeded to a short
+        // interval that was enough to push the poll past the sixty seconds a
+        // broadcast gets. The kill took the reschedule with it, the provisional
+        // alarm fired again minutes later, and it repeated: hours at 95% CPU,
+        // eighteen polls in one of them, not a single completed pass check.
+        //
+        // Both halves of that are fixed now (Refresh's budget, PollAlarm's
+        // provisional floor), but a harness should not be handing the app a
+        // state no real phone would ever be in.
+        val alertState = PreferencesAlertStateStore(devicePreferences(context))
+        alertState.write(
+            alertState.read().copy(
+                armed = true,
+                lastAlertAt = null,
+                lastIssAlertAt = null,
+                lastBrightAlertAt = null,
+                lastTrainAlertAt = null,
+            ),
+        )
 
         // `write` uses `apply`, which reaches disk on a background thread. The
         // harness reboots the device seconds later, so force the map out
