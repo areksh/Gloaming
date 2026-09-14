@@ -29,7 +29,10 @@
 #                     fails, because no single number is right for every bucket
 #                     and exemption. With it, this is a gate: a release can
 #                     refuse to go out on a phone whose alarms Doze has pushed
-#                     out past what the app asked for.
+#                     out past what the app asked for. The gap is the mean
+#                     interval between consecutive polls, so it takes two polls
+#                     to have one: a run that saw fewer says so rather than
+#                     offering a number.
 #
 set -euo pipefail
 
@@ -315,7 +318,25 @@ elapsed=$(( ($(date +%s) - started) / 60 ))
 # run that saw polls, and divided by it. The run that measured nothing is
 # exactly the one whose reason most needs printing.
 seen=$(wc -l < "$seen_file" | tr -d ' ')
-last_epoch=$(tail -1 "$seen_file" 2>/dev/null | awk '{print $1}' | cut -d. -f1)
+# Sorted rather than taken from the ends of the file. The polls are appended in
+# the order the log yields them, which is chronological today and is not a
+# property worth betting an arithmetic mean on.
+first_epoch=$(awk '{print int($1)}' "$seen_file" 2>/dev/null | sort -n | head -1)
+last_epoch=$(awk '{print int($1)}' "$seen_file" 2>/dev/null | sort -n | tail -1)
+
+# The mean interval between consecutive polls.
+#
+# Not the watch divided by the number of polls, which is what this measured
+# before and is not a gap at all: n polls have n-1 gaps between them, and the
+# watch begins and ends mid-interval, so both ends contribute time that lies
+# outside any gap. A single poll has no gap whatsoever, and dividing by it
+# reported the whole watch as one - half an hour of watching a phone that had
+# fired once turned into "an average gap of 30m", which then failed against
+# --expect-within on the strength of no measurement at all.
+GAP=""
+if [ "${seen:-0}" -ge 2 ]; then
+    GAP=$(( (last_epoch - first_epoch) / (seen - 1) ))
+fi
 
 printf '\n== Result ==\n'
 printf '  %s minutes in forced deep Doze, %s polls\n' "$elapsed" "$seen"
@@ -323,7 +344,6 @@ printf '  %s minutes in forced deep Doze, %s polls\n' "$elapsed" "$seen"
 # An alarm was pending when the watch started - that was checked above - so
 # silence here is Doze suppressing every wake, and there is nothing else it can
 # be. That is the whole finding, and it is a failure.
-average=""
 if [ "${seen:-0}" -eq 0 ] && [ -n "$ALARM_DUE" ] && [ "$ALARM_DUE" -gt $((elapsed * 60)) ]; then
     # Nothing fired, but nothing was due to. That is the app working exactly as
     # designed - adaptive polling had backed the interval off past the window -
@@ -334,11 +354,10 @@ if [ "${seen:-0}" -eq 0 ] && [ -n "$ALARM_DUE" ] && [ "$ALARM_DUE" -gt $((elapse
 elif [ "${seen:-0}" -eq 0 ]; then
     fail "nothing fired in $elapsed minutes of deep Doze" \
         "An alarm was pending throughout, so every wake was suppressed. Check: adb shell dumpsys alarm | grep $PACKAGE"
-elif [ "$elapsed" -gt 0 ]; then
-    average=$(( elapsed / seen ))
-    pass "$seen polls fired, one every $average minutes on average"
+elif [ -n "$GAP" ]; then
+    pass "$seen polls fired, on average one every $((GAP / 60))m $((GAP % 60))s"
 else
-    pass "$seen polls fired"
+    pass "1 poll fired, which is too few to measure a gap between"
 fi
 
 # The gap is a measurement, not a verdict, until someone says what they
@@ -346,16 +365,17 @@ fi
 # standby bucket, the exemption, and the batching window the system attaches -
 # check `window=` and `maxWhenElapsed=` in `dumpsys alarm` before concluding
 # the exemption is failing. --expect-within is that expectation made explicit.
-if [ -n "$EXPECT_WITHIN" ] && [ -n "$average" ]; then
-    if [ "$average" -le "$EXPECT_WITHIN" ]; then
+if [ -n "$EXPECT_WITHIN" ] && [ -n "$GAP" ]; then
+    if [ "$GAP" -le $((EXPECT_WITHIN * 60)) ]; then
         pass "the average gap is within the ${EXPECT_WITHIN}m expected"
     else
-        fail "the average gap of ${average}m is wider than the ${EXPECT_WITHIN}m expected" \
+        fail "the average gap of $((GAP / 60))m $((GAP % 60))s is wider than the ${EXPECT_WITHIN}m expected" \
             "Doze is deferring the wakes further than the app asked for. Check the exemption and the standby bucket."
     fi
 elif [ -n "$EXPECT_WITHIN" ]; then
-    skip "no gap to compare against the ${EXPECT_WITHIN}m expected"
-elif [ -n "$CONFIGURED" ] && [ -n "$average" ]; then
+    skip "no gap to compare against the ${EXPECT_WITHIN}m expected" \
+        "Fewer than two polls landed, and two is the fewest that have a gap between them."
+elif [ -n "$CONFIGURED" ] && [ -n "$GAP" ]; then
     printf '        against the %sm the app is set to poll at\n' "$CONFIGURED"
 fi
 

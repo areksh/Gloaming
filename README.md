@@ -364,7 +364,10 @@ the answer, so the number worth trusting is the one from the device. Like
 `bfu-check.sh` it reports PASS and FAIL per check and exits non-zero on any
 failure, so a release can gate on it. The spacing is the one thing it will not
 judge for you unless asked: `--expect-within N` makes an average gap wider than
-N minutes a failure, and without it the gap is measured and reported only.
+N minutes a failure, and without it the gap is measured and reported only. That
+gap is the mean interval between consecutive polls, so it takes two polls to
+have one at all - a single poll in the window is reported as exactly that rather
+than as a gap the width of the whole watch.
 
 Seed a short interval before running it, or it will honestly report nothing.
 Adaptive polling backs the interval off when there is nothing to watch - a quiet

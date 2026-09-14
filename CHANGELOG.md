@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`doze-check.sh` no longer invents a deferral out of a single poll.** It
+  divided the length of the watch by the number of polls and called the result
+  an average gap. That is not a gap: n polls have n-1 gaps between them, and the
+  watch starts and ends mid-interval. One poll in a thirty-minute watch has no
+  gap at all, and was reported as a thirty-minute one - which then failed
+  `--expect-within 15` and stopped a release on the strength of no measurement.
+  The mean is now taken between consecutive polls, and a run with fewer than two
+  says so.
+
 - **The Tonight tab no longer goes blank for eight hours a day.** From dawn
   until about midday it listed no passes, no events and no comets, and the
   darkness card described the night that had just ended - which at that hour
