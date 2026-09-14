@@ -392,7 +392,14 @@ inside a single run.
 So `N` is slack on a published deadline. What it really guards against is the
 failure this harness exists for: app standby holding a wake for days while the
 alarm still lists as pending and looks perfectly healthy. That overshoots a
-deadline by orders of magnitude; ordinary batching does not overshoot it at all.
+deadline by orders of magnitude; ordinary batching barely overshoots it at all.
+
+The alarm is sampled once per watch cycle, so the harness reports what it *saw*
+rather than what happened: an overshoot shorter than a cycle can slip between
+two reads. On one run a five-minute request carried a four-minute window, and
+the polls landed at 9m30s, 8m09s and 9m05s against a 9m02s deadline - about half
+a minute over at worst, and reported as none. That is the right trade when the
+tolerance is minutes and the failure being hunted is measured in days.
 
 The poll spacing is still reported alongside, as the mean interval between
 consecutive polls - it takes two polls to have one at all, and a single poll is

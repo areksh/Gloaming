@@ -330,8 +330,16 @@ alarm_requested_seconds() {
 #
 # Taking the maximum is also the forgiving direction: a stray long reading makes
 # the measured lateness smaller, never larger, so it cannot invent a failure.
-# The furthest past its own deadline the pending alarm was ever seen, and how
+# The furthest past its own deadline the pending alarm was ever *seen*, and how
 # many times the alarm could be read at all.
+#
+# Seen, not reached: the alarm is sampled once per watch cycle, so an overshoot
+# shorter than that can pass between two reads unobserved. Measured on a run
+# where a five minute request carried a four minute window - a deadline of
+# 9m02s - and the polls landed at 9m30s, 8m09s and 9m05s: the worst was about
+# half a minute over and this reported none. That is the right trade for what
+# the check is for, since the tolerance is minutes and the failure it guards
+# against is days, but the wording below says "seen" for a reason.
 #
 # This is the whole measurement, and it needs no estimate of anything. The
 # alarm states the deadline itself - `maxWhenElapsed`, the request plus the
@@ -741,9 +749,9 @@ if [ "$ALARM_READS" -eq 0 ]; then
     skip "the pending alarm could never be read, so no deadline was watched" \
         "Check: adb shell dumpsys alarm | grep -A4 $PACKAGE"
 elif [ "$WORST_OVERDUE" -eq 0 ]; then
-    printf '        the pending alarm never went past its deadline\n'
+    printf '        the pending alarm was never seen past its deadline\n'
 else
-    printf '        the pending alarm ran up to %sm %ss past its deadline\n' \
+    printf '        the pending alarm was seen up to %sm %ss past its deadline\n' \
         "$((WORST_OVERDUE / 60))" "$((WORST_OVERDUE % 60))"
 fi
 
@@ -754,16 +762,16 @@ elif [ "$ALARM_READS" -eq 0 ]; then
 elif [ "$WORST_OVERDUE" -gt $((EXPECT_LATE * 60)) ]; then
     # A held alarm is a finding whether or not any poll fired - indeed a run
     # where nothing fired *and* the deadline went by is the worst case there is.
-    fail "a wake was held $((WORST_OVERDUE / 60))m $((WORST_OVERDUE % 60))s past the deadline the system reserved, beyond the ${EXPECT_LATE}m allowed" \
+    fail "a wake was seen $((WORST_OVERDUE / 60))m $((WORST_OVERDUE % 60))s past the deadline the system reserved, beyond the ${EXPECT_LATE}m allowed" \
         "The alarm sat past its own maxWhenElapsed, which is deferral rather than batching. Check the exemption and the standby bucket."
 elif [ "${seen:-0}" -eq 0 ]; then
     # Nothing was held late, but nothing arrived either. Passing that would be
     # passing on no evidence, and "every wake was punctual" is a strange thing
     # to say about a run that saw none.
-    skip "no deadline passed during the watch, and no wake arrived to judge" \
+    skip "no alarm was seen past its deadline, and no wake arrived to judge" \
         "The pending alarm stayed ahead of its deadline throughout, so nothing here was tested either way."
 else
-    pass "no wake was held past the deadline the system reserved, within the ${EXPECT_LATE}m allowed"
+    pass "no wake was seen past the deadline the system reserved, within the ${EXPECT_LATE}m allowed"
 fi
 
 # Not `[ -n "$x" ] && printf`: as a statement of its own that returns 1 when the

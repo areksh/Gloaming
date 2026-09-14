@@ -39,7 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   single run, because the schedule is the minimum of three pollers and an
   approaching satellite pass drops it from half an hour to nine minutes. What
   the allowance really guards against is app standby holding a wake for days
-  while the alarm still lists as pending. `./go release` step 6 accordingly
+  while the alarm still lists as pending. The alarm is sampled once per watch
+  cycle, so the report says what was seen rather than what happened - an
+  overshoot shorter than a cycle can slip between two reads, which is the right
+  trade when the tolerance is minutes and the quarry is days. `./go release` step 6 accordingly
   borrows an observer and watches for ninety minutes instead of thirty; the gate
   now takes about two hours rather than one.
 
