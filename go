@@ -930,9 +930,17 @@ NOTICE
     # right call on its own and the wrong outcome here, because the device is
     # healthy and simply has not caught up. Waiting is the whole fix.
     wait_for_poll_alarm
-    # Seeded to two minutes above, so half an hour sees several wakes and an
-    # average beyond fifteen means Doze is deferring them, not that the app
-    # asked for little.
+    # --expect-within is a claim about Doze alone, and the harness holds it to
+    # that: it skips the comparison when the app's own pending alarm already
+    # asks for longer than fifteen minutes.
+    #
+    # It often does. The two minutes seeded above is only consulted when no
+    # position is set (SkyPoller.nextPoll); with one, PollingPolicy decides, and
+    # it sleeps until dark while the sun is up and backs off to QUIET_MINUTES on
+    # a clear quiet night. So this stage measures a real interval when the sky
+    # has the app polling fast, and reports a skip when it does not - which is
+    # honest, but means a daytime release is not getting the Doze measurement.
+    # Cut releases after dark to get one.
     tools/doze-check.sh --minutes 30 --expect-within 15
 
     echo

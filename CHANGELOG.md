@@ -18,6 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The mean is now taken between consecutive polls, and a run with fewer than two
   says so.
 
+- **`--expect-within` no longer blames Doze for the app's own schedule.** The
+  poll interval in the settings is only used when the app has no position; with
+  one, `PollingPolicy` plans from the sky - sleeping until dark in daylight,
+  backing off to `QUIET_MINUTES` on a quiet night. A gate seeded to two minutes
+  was measuring wakes the app had deliberately put hours out. The harness now
+  reads what the app asked for from `dumpsys alarm`'s `requester=` field and
+  skips the comparison when that is already wider than the expectation, while
+  still failing a phone that went quiet after one poll where a short wake was
+  pending.
+
 - **The Tonight tab no longer goes blank for eight hours a day.** From dawn
   until about midday it listed no passes, no events and no comets, and the
   darkness card described the night that had just ended - which at that hour

@@ -369,15 +369,23 @@ gap is the mean interval between consecutive polls, so it takes two polls to
 have one at all - a single poll in the window is reported as exactly that rather
 than as a gap the width of the whole watch.
 
-Seed a short interval before running it, or it will honestly report nothing.
-Adaptive polling backs the interval off when there is nothing to watch - a quiet
-sky in daylight reaches several hours - so a thirty-minute window sees no poll at
-all. That is the app working, not the harness failing, and it is reported as
-untested rather than as a failure: the harness reads the deadline the system has
-actually reserved for the pending alarm, and silence over a window shorter than
-that is no evidence either way. To measure rather than skip, run
-`bfu-check.sh --seed --interval 2` first, or read the pending alarm out of
-`./go status` and pick a window longer than it.
+`--expect-within` is a claim about Doze and nothing else, and the harness holds
+it to that. `dumpsys alarm` prints what the app asked for beside what each
+policy did with it, and when the app's own request is already wider than the
+expectation the check skips rather than fails: the interval is `PollingPolicy`'s
+decision and Doze has not touched it.
+
+It is that often. The poll interval in the settings is only consulted when the
+app has no position; with one it plans from the sky instead, sleeping until dark
+while the sun is up and backing off to `QUIET_MINUTES` on a clear quiet night.
+So seeding a two-minute interval does *not* produce a two-minute schedule on a
+phone that knows where it is, and a thirty-minute window in daylight sees at
+most the poll a reboot happened to trigger. That is the app working, not the
+harness failing, and it is reported as untested rather than as a failure - both
+for a window the pending alarm reaches past, and for a gap the app chose. To
+measure rather than skip, run it after dark against a sky the policy polls fast
+for, or read the pending alarm out of `./go status` and pick a window longer
+than it.
 
 Both can provoke a genuine alert rather than waiting for the sky to oblige.
 Point the observer at the busiest cell in the live grid and set a threshold just

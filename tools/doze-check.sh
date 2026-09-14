@@ -34,6 +34,16 @@
 #                     to have one: a run that saw fewer says so rather than
 #                     offering a number.
 #
+#                     Only ever a claim about Doze. When the app's own pending
+#                     alarm already asks for longer than N, the run skips this
+#                     check rather than failing it: the interval is the app's
+#                     choice and Doze has done nothing to it. PollingPolicy
+#                     makes that choice often - it sleeps until dark while the
+#                     sun is up, and backs off to QUIET_MINUTES on a clear quiet
+#                     night, whatever the poll interval in the settings says. So
+#                     a short interval seeded into the settings does not produce
+#                     a short one on a phone that knows where it is.
+#
 set -euo pipefail
 
 PACKAGE="sh.arek.gloaming"
@@ -118,32 +128,28 @@ poll_alarm() {
         | grep -A 4 "walarm\*:${PACKAGE}/\.work\.PollReceiver" || true
 }
 
-# The latest the pending alarm can fire, in seconds from now. This is the only
-# honest reference for "should something have fired by now": the configured
-# interval is not it, because adaptive polling backs the real one off to hours
-# when there is nothing to watch.
-#
-# `maxWhenElapsed` in preference to `whenElapsed`, because the two answer
-# different questions. `whenElapsed` is routinely *negative* on a dozing phone -
-# the alarm was due seconds ago and the system is holding it - and reading that
-# as "overdue, so suppression" would fail a device that is about to fire well
-# inside the window the system reserved. `maxWhenElapsed` is the deadline the
-# policies actually allow, so a watch shorter than it proves nothing.
+# The first of `dumpsys alarm`'s duration fields to match, in seconds from now.
+# Each argument after the dump is an awk pattern, tried in order.
 #
 # The trailing milliseconds are stripped before anything else. Android formats
 # these as `+1d2h3m4s567ms`, and a parser that walks the suffixes left to right
 # reads that final `m` as minutes and adds nine hours to the answer.
-alarm_due_seconds() {
-    printf '%s' "$1" | awk '
+alarm_field_seconds() {
+    local dump="$1"
+    shift
+    # Newline-separated, not space-separated: every pattern here contains a
+    # `[^ ]*`, so splitting them on whitespace cut each one in half and awk
+    # rejected the halves as invalid regexps.
+    printf '%s' "$dump" | awk -v patterns="$(printf '%s\n' "$@")" '
+        BEGIN { count = split(patterns, pattern, "\n") }
         {
             field = ""
-            if (match($0, /maxWhenElapsed=[+-][^ ]*/))
-                field = substr($0, RSTART, RLENGTH)
-            else if (match($0, /[^x]whenElapsed=[+-][^ ]*/))
-                field = substr($0, RSTART, RLENGTH)
+            for (i = 1; i <= count && field == ""; i++)
+                if (match($0, pattern[i]))
+                    field = substr($0, RSTART, RLENGTH)
             if (field == "") next
             sub(/.*=/, "", field)
-            # Already past its deadline: due now, not due in the past.
+            # Already past: due now, not due in the past.
             if (substr(field, 1, 1) == "-") { print 0; exit }
             sub(/^\+/, "", field)
             sub(/[0-9]+ms$/, "", field)
@@ -155,6 +161,37 @@ alarm_due_seconds() {
             print d * 86400 + h * 3600 + m * 60 + sec
             exit
         }'
+}
+
+# The latest the pending alarm can fire, in seconds from now. This is the only
+# honest reference for "should something have fired by now": the configured
+# interval is not it, because adaptive polling backs the real one off to hours
+# when there is nothing to watch.
+#
+# `maxWhenElapsed` in preference to `whenElapsed`, because the two answer
+# different questions. `whenElapsed` is routinely *negative* on a dozing phone -
+# the alarm was due seconds ago and the system is holding it - and reading that
+# as "overdue, so suppression" would fail a device that is about to fire well
+# inside the window the system reserved. `maxWhenElapsed` is the deadline the
+# policies actually allow, so a watch shorter than it proves nothing.
+alarm_due_seconds() {
+    alarm_field_seconds "$1" 'maxWhenElapsed=[+-][^ ]*' '[^x]whenElapsed=[+-][^ ]*'
+}
+
+# How far out the *app* asked for the next wake, in seconds from now.
+#
+# This is the field that separates the two findings this harness is confused
+# between. `dumpsys alarm` prints the request alongside each policy's opinion:
+#
+#   policyWhenElapsed: requester=+4h57m app_standby=-35m device_idle=-5m
+#
+# A gap wider than expected is Doze deferring the wakes only when the policies
+# moved the alarm; when `requester` is already hours out, the app asked for that
+# itself and there is nothing here to fail. It routinely does: `PollingPolicy`
+# sleeps until dark in daylight and backs off to `QUIET_MINUTES` on a clear
+# quiet night, whatever poll interval the settings hold.
+alarm_requested_seconds() {
+    alarm_field_seconds "$1" 'requester=[+-][^ ]*'
 }
 
 restore() {
@@ -203,9 +240,13 @@ if [ -n "$BUCKET" ]; then
 fi
 printf '  standby bucket: %s\n' "$(adb shell am get-standby-bucket "$PACKAGE" 2>/dev/null | tr -d '\r')"
 
+# Printed for the reader comparing numbers, with the caveat attached: this is
+# the floor the app falls back to without a position, not the schedule it keeps.
+# Read on its own next to a wake hours away it looks like a fault, and is not.
 CONFIGURED=$(configured_interval)
 if [ -n "$CONFIGURED" ]; then
-    printf '  the app is set to poll every %s minutes\n' "$CONFIGURED"
+    printf '  the settings hold a %s minute interval, which applies only without a position\n' \
+        "$CONFIGURED"
 fi
 
 # Checked before the watch rather than inferred from its silence afterwards.
@@ -222,13 +263,22 @@ if [ -z "$ALARM" ]; then
     exit 1
 fi
 ALARM_DUE=$(alarm_due_seconds "$ALARM")
+# What the app asked for, read before the watch rather than after it: the polls
+# below overwrite the pending alarm, so by the end the request on record is the
+# one the last poll made, not the one the run set out to measure.
+ALARM_ASKED=$(alarm_requested_seconds "$ALARM")
+if [ -n "$ALARM_ASKED" ]; then
+    printf '  the app asked for its next wake in %sm %ss\n' \
+        "$((ALARM_ASKED / 60))" "$((ALARM_ASKED % 60))"
+fi
 if [ -n "$ALARM_DUE" ]; then
     pass "an alarm is pending, and must fire within $((ALARM_DUE / 60))m $((ALARM_DUE % 60))s"
     if [ "$ALARM_DUE" -gt $((MINUTES * 60)) ]; then
         printf '  NOTE: that is beyond the %sm being watched, so a quiet run proves\n' "$MINUTES"
-        printf '        nothing either way. Adaptive polling backs the interval off when\n'
-        printf '        there is nothing to watch, so seed a shorter one with\n'
-        printf '        bfu-check.sh --seed --interval N, or watch for longer.\n'
+        printf '        nothing either way. PollingPolicy backs the interval off when\n'
+        printf '        there is nothing to watch, and the interval in the settings does\n'
+        printf '        not override it on a phone that has a position. Watch for longer,\n'
+        printf '        or measure when the sky has the app polling fast.\n'
     fi
 else
     pass "an alarm is pending"
@@ -350,7 +400,7 @@ if [ "${seen:-0}" -eq 0 ] && [ -n "$ALARM_DUE" ] && [ "$ALARM_DUE" -gt $((elapse
     # and it must not read as a failure, or a release gate would block on a
     # perfectly healthy phone on any quiet night.
     skip "nothing fired, and the alarm was not due within the ${elapsed}m watched" \
-        "Not evidence either way. Seed a shorter interval or watch for longer than the alarm is out."
+        "Not evidence either way. Watch for longer than the alarm is out, or measure when the sky has the app polling fast."
 elif [ "${seen:-0}" -eq 0 ]; then
     fail "nothing fired in $elapsed minutes of deep Doze" \
         "An alarm was pending throughout, so every wake was suppressed. Check: adb shell dumpsys alarm | grep $PACKAGE"
@@ -365,18 +415,40 @@ fi
 # standby bucket, the exemption, and the batching window the system attaches -
 # check `window=` and `maxWhenElapsed=` in `dumpsys alarm` before concluding
 # the exemption is failing. --expect-within is that expectation made explicit.
-if [ -n "$EXPECT_WITHIN" ] && [ -n "$GAP" ]; then
-    if [ "$GAP" -le $((EXPECT_WITHIN * 60)) ]; then
+#
+# It can only ever be an expectation of *Doze*, though, which is the whole
+# subject of this harness. When the app itself asked for a wake wider than the
+# expectation there is nothing for Doze to have done wrong, and failing the run
+# would blame the system for a decision `PollingPolicy` made on purpose - it
+# sleeps until dark in daylight, and to QUIET_MINUTES on a clear quiet night,
+# regardless of the interval in the settings.
+expectation_seconds=$(( ${EXPECT_WITHIN:-0} * 60 ))
+if [ -z "$EXPECT_WITHIN" ]; then
+    if [ -n "$ALARM_ASKED" ] && [ -n "$GAP" ]; then
+        printf '        against the %sm the app asked for\n' \
+            "$(( ${ALARM_ASKED:-0} / 60 ))"
+    fi
+elif [ -n "$ALARM_ASKED" ] && [ "$ALARM_ASKED" -gt "$expectation_seconds" ]; then
+    skip "the app asked for its next wake $((ALARM_ASKED / 60))m out, beyond the ${EXPECT_WITHIN}m expected" \
+        "That is PollingPolicy's decision, not Doze's, so there is nothing here to fail. Either expect what the app asks for, or measure under conditions it polls fast in."
+elif [ -n "$GAP" ]; then
+    if [ "$GAP" -le "$expectation_seconds" ]; then
         pass "the average gap is within the ${EXPECT_WITHIN}m expected"
     else
         fail "the average gap of $((GAP / 60))m $((GAP % 60))s is wider than the ${EXPECT_WITHIN}m expected" \
             "Doze is deferring the wakes further than the app asked for. Check the exemption and the standby bucket."
     fi
-elif [ -n "$EXPECT_WITHIN" ]; then
+# One poll leaves no gap to measure - but it is still a finding when the app
+# asked for a wake often enough that the watch had room for several. Silence
+# after the first is the same suppression the zero-poll branch above fails on,
+# and skipping it would let a phone that stopped waking through the gate.
+elif [ -n "$ALARM_ASKED" ] && [ "$ALARM_ASKED" -gt 0 ] \
+    && [ $((ALARM_ASKED * 2)) -le $((elapsed * 60)) ]; then
+    fail "1 poll in ${elapsed}m, where the app asked to wake every $((ALARM_ASKED / 60))m $((ALARM_ASKED % 60))s" \
+        "The wakes after the first were suppressed. Check: adb shell dumpsys alarm | grep $PACKAGE"
+else
     skip "no gap to compare against the ${EXPECT_WITHIN}m expected" \
         "Fewer than two polls landed, and two is the fewest that have a gap between them."
-elif [ -n "$CONFIGURED" ] && [ -n "$GAP" ]; then
-    printf '        against the %sm the app is set to poll at\n' "$CONFIGURED"
 fi
 
 # Not `[ -n "$x" ] && printf`: as a statement of its own that returns 1 when the
