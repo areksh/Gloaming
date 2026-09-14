@@ -1,0 +1,39 @@
+# Observing sites for the harnesses to borrow, when the phone's own position is
+# the wrong one to measure from.
+#
+# doze-check.sh needs the app to be polling on a schedule it can see the shape
+# of. PollingPolicy decides that from the sky, not from the interval in the
+# settings: it sleeps until dark while the sun is up, and backs off to
+# OVERCAST_MINUTES under heavy cloud. Neither leaves a gap worth measuring, and
+# on a phone in Britain at ten in the morning there is nothing to be done about
+# it. So the harness borrows somewhere that is dark and clear right now.
+#
+# What makes a site good here:
+#
+#   - Real darkness every night of the year. Everything below is inside 44
+#     degrees of the equator, so the sun clears civil twilight at midnight even
+#     at the solstice. A higher site would strand the harness in DORMANT or
+#     Darkness.None for weeks at a time.
+#   - Spread in longitude, so that whatever the hour in Britain, several of
+#     these are in the middle of their night. The widest gap below is 45
+#     degrees, three hours, against a night that lasts eight or more.
+#   - Somewhere an observer would actually stand, so a run that does provoke a
+#     notification reads like a real one.
+#
+# Latitude, longitude and name, whitespace separated, name last and may contain
+# spaces. Longitudes are -180 to 180, the way the app takes them, not the 0-359
+# the aurora grid is indexed by.
+
+  19.82   -155.47   Mauna Kea, Hawaii
+  33.36   -116.86   Palomar, California
+  30.67   -104.02   McDonald, Texas
+ -24.63    -70.40   Paranal, Chile
+ -22.53    -45.58   Pico dos Dias, Brazil
+  28.75    -17.88   Roque de los Muchachos, La Palma
+  37.22     -2.55   Calar Alto, Spain
+ -32.38     20.81   Sutherland, South Africa
+  41.75     42.82   Abastumani, Georgia
+  24.65     72.78   Mount Abu, India
+  40.40    117.58   Xinglong, China
+ -31.27    149.07   Siding Spring, Australia
+ -43.99    170.46   Mount John, New Zealand
