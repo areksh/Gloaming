@@ -944,9 +944,11 @@ NOTICE
     # reliably does: at seventy-five a single late poll drops it back to one,
     # and one poll is the skip this gate exists to stop producing.
     #
-    # --expect-late is measured against what the app asked for rather than
-    # against a fixed interval, so this one number holds whether the sky puts
-    # the app on five minutes or thirty.
+    # --expect-late is slack on top of the window the alarm itself carries, not
+    # the whole allowance, so this one number holds whether the sky puts the app
+    # on five minutes or thirty. The window scales with the interval - 24
+    # minutes on a 32 minute request, seconds on a two minute one - so a flat
+    # tolerance calibrated on the short ones fails a healthy phone on QUIET.
     tools/doze-check.sh --observer auto --minutes 90 --settle 8 --expect-late 10
 
     echo

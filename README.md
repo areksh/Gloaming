@@ -365,22 +365,36 @@ the answer, so the number worth trusting is the one from the device. Like
 `bfu-check.sh` it reports PASS and FAIL per check and exits non-zero on any
 failure, so a release can gate on it. The spacing is the one thing it will not
 judge for you unless asked: `--expect-late N` makes delivery more than N minutes
-behind a failure, and without it the lateness is measured and reported only.
+past the window the system reserved a failure, and without it the lateness is
+measured and reported only.
 
-Behind *what the app asked for*, not behind a number typed on the command line.
-`dumpsys alarm` prints the request beside each policy's opinion of it:
+Both halves of that come off the alarm rather than out of a number on the
+command line. `dumpsys alarm` prints the request, the window, and each policy's
+opinion:
 
 ```
-policyWhenElapsed: requester=+30m app_standby=-35m device_idle=-5m
+type=ELAPSED_WAKEUP origWhen=+22m11s window=+24m2s
+policyWhenElapsed: requester=+22m11s app_standby=-9m52s device_idle=-1m15s
+whenElapsed=+22m11s maxWhenElapsed=+46m13s
 ```
 
-and the distance between that request and when the poll actually landed is the
-only thing Doze can be said to have done. One tolerance then covers every
-interval the policy might pick, because the overhead is a batching window of a
-few minutes - a roughly fixed cost, not a multiplier. The gap it is measured
-from is the mean interval between consecutive polls, so it takes two polls to
-have one at all; a single poll is reported as exactly that rather than as a gap
-the width of the whole watch.
+An inexact alarm is a request *plus* a window, and `PollAlarm` chooses an
+inexact one deliberately - `setAndAllowWhileIdle` is what gets through Doze at
+all. Anything inside that window is the alarm doing what it was asked; only past
+it is deferral.
+
+**The window is not a fixed cost.** It scales with the interval: measured on a
+Pixel 8a a 32-minute request carried a 24-minute window, where a two-minute one
+carries seconds. So a tolerance calibrated on short intervals fails a healthy
+phone the moment the policy settles on `QUIET_MINUTES` - a seventeen-minute slip
+inside a twenty-four-minute window is not Doze deferring anything. `N` is slack
+on top of the window, and what it really guards against is the failure that
+matters: app standby pushing a wake out by days while the alarm still lists as
+pending.
+
+The lateness is measured from the mean interval between consecutive polls, so it
+takes two polls to have one at all; a single poll is reported as exactly that
+rather than as a gap the width of the whole watch.
 
 **The app has to be polling before any of this measures anything**, and the poll
 interval in the settings does not decide that. It is consulted only when the app
