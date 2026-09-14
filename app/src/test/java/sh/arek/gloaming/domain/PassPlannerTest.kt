@@ -384,6 +384,48 @@ class PassPlannerTest {
             is PassPlanner.Decision.TooSoon)
     }
 
+    /**
+     * Resting means "this poll changed nothing", and the plan it must not
+     * change is the one already held.
+     *
+     * Returning `now` read as "wake immediately": Refresh.minutesUntil floors
+     * at a minute, so every Resting poll would have asked for a wake sixty
+     * seconds later and the app would have spun. Nothing reaches it today -
+     * PassPoller builds Resting itself and returns before calling this - but a
+     * branch that turns a no-op into a one-minute loop is a trap left lying
+     * about, and this is the plan-carrying answer it should always have given.
+     */
+    @Test
+    fun `resting keeps the check already planned rather than waking at once`() {
+        val now = peak - 5 * hour
+        val planned = now + 40 * 60_000L
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.Resting,
+            now,
+            emptyList(),
+            settings,
+            AlertState(nextPassCheckAt = planned),
+        )
+
+        assertEquals(planned, wake)
+    }
+
+    @Test
+    fun `resting with nothing planned sleeps rather than spinning`() {
+        val now = peak - 5 * hour
+
+        val wake = PassPlanner.nextWake(
+            PassPlanner.Decision.Resting,
+            now,
+            emptyList(),
+            settings,
+            AlertState(),
+        )
+
+        assertEquals(now + PassPlanner.DORMANT_INTERVAL_MILLIS, wake)
+    }
+
     /** And comes back at the moment its own lead falls due, not a fixed one. */
     @Test
     fun `arms the next wake against the lead the user asked for`() {

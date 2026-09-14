@@ -361,8 +361,18 @@ object PassPlanner {
         // Exactly when the channel is free again; there is nothing to do until
         // then and nothing to gain from waking earlier.
         is Decision.RateLimited -> maxOf(decision.until, now + 1)
-        // Nothing was decided, so nothing about the plan changes.
-        is Decision.Resting -> now
+        /*
+         * Nothing was decided, so nothing about the plan changes - which means
+         * handing back the check already planned, not the current instant.
+         *
+         * `now` read as "wake immediately": Refresh.minutesUntil floors at a
+         * minute, so a Resting poll asked to be woken sixty seconds later, and
+         * a run of them would have spun. Nothing reaches this today, because
+         * PassPoller builds Resting itself and returns the held instant without
+         * calling here - but a branch that turns a no-op into a one-minute loop
+         * is worth not leaving lying about.
+         */
+        is Decision.Resting -> state.nextPassCheckAt ?: (now + DORMANT_INTERVAL_MILLIS)
 
         is Decision.TooSoon -> {
             val alertAt = decision.pass.peaksAt - settings.passAlertLeadMillis
