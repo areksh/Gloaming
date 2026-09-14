@@ -32,6 +32,32 @@ object PollAlarm {
     private const val MINIMUM_DELAY_MILLIS = 30_000L
 
     /**
+     * The soonest a *provisional* wake may come, whatever the poll interval.
+     *
+     * PollReceiver arms one before it does any work, so that a process death
+     * between there and the real reschedule cannot end the schedule. That makes
+     * it the alarm a failing phone retries at - and armed at the poll interval,
+     * a phone set to two minutes retried a killed poll every two minutes,
+     * repeating the work that had just been killed and never getting far enough
+     * to record anything. It ran for hours at 95% CPU and finished no pass check
+     * at all.
+     *
+     * Fifteen minutes is the app's own default interval: long enough that a
+     * struggling phone stops stampeding, short enough that a recovery still
+     * happens within a night.
+     */
+    private const val PROVISIONAL_FLOOR_MINUTES = 15
+
+    /**
+     * What the provisional wake asks for, given the interval in the settings.
+     *
+     * Never sooner than the floor, never later than the schedule already is: a
+     * phone that polls twice a day should not be dragged awake by a safety net.
+     */
+    fun provisionalMinutes(intervalMinutes: Int): Int =
+        maxOf(intervalMinutes, PROVISIONAL_FLOOR_MINUTES)
+
+    /**
      * Queues the next poll.
      *
      * Uses elapsed-realtime rather than wall-clock so a timezone change or an

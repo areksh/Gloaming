@@ -37,10 +37,16 @@ class PollReceiver : BroadcastReceiver() {
         // overnight. The provisional alarm shares the PendingIntent slot, so
         // the real one simply overwrites it; it only ever fires if the poll
         // never got as far as scheduling its own.
+        //
+        // Deliberately not at the poll interval. This is what a *failing* phone
+        // retries at, and at the interval it turned one killed poll into an
+        // endless run of them - see PollAlarm.provisionalMinutes.
         runCatching {
             PollAlarm.schedule(
                 application,
-                BootAware.pollSettings(application).read().pollIntervalMinutes,
+                PollAlarm.provisionalMinutes(
+                    BootAware.pollSettings(application).read().pollIntervalMinutes,
+                ),
             )
         }
 

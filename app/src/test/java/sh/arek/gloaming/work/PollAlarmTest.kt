@@ -57,6 +57,30 @@ class PollAlarmTest {
     }
 
     /** Same seed, same answer: the spread is random, not arbitrary. */
+    /**
+     * The provisional alarm is a safety net for a poll that died, not the
+     * cadence. PollReceiver arms it before doing any work, and it is the one
+     * left standing when a broadcast is killed part way through - so whatever
+     * it asks for is what a *failing* phone retries at.
+     *
+     * Armed at the poll interval, as it used to be, a two minute setting turned
+     * a killed poll into a retry every two minutes, each one repeating the work
+     * that had just been killed. Measured on a Pixel 8a: eighteen polls in an
+     * hour, none of which finished a pass check, at 95% CPU throughout.
+     */
+    @Test
+    fun `the provisional wake damps a retry instead of repeating a short interval`() {
+        assertEquals(15, PollAlarm.provisionalMinutes(2))
+        assertEquals(15, PollAlarm.provisionalMinutes(1))
+    }
+
+    /** A phone that already polls slowly keeps its own spacing; the floor is a floor. */
+    @Test
+    fun `a longer interval keeps its own spacing`() {
+        assertEquals(30, PollAlarm.provisionalMinutes(30))
+        assertEquals(720, PollAlarm.provisionalMinutes(720))
+    }
+
     @Test
     fun `is deterministic for a given source of randomness`() {
         assertEquals(PollAlarm.delayMillis(15, Random(7)), PollAlarm.delayMillis(15, Random(7)))

@@ -48,6 +48,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A slow poll no longer kills the app's schedule and then repeats itself.**
+  The poll runs inside a `goAsync` broadcast, which Android kills at sixty
+  seconds, and the budget never fitted: the aurora fetch alone was allowed
+  forty-five, and the pass and calendar checks after it were allowed whatever
+  they liked. On a slow network the whole thing overran. The kill is not
+  graceful - the coroutine's `finally` never runs, so nothing is recorded and no
+  real alarm is scheduled, leaving the provisional one armed at the top of
+  `PollReceiver`. That provisional was armed at the poll interval, so a phone on
+  a short interval retried within minutes and repeated the work that had just
+  been killed. Measured on a Pixel 8a: hours at 95% CPU, eighteen polls in one
+  of them, and not a single completed pass or calendar check in any of them - so
+  no satellite or event alert could have been raised at all. The refresh now
+  divides a forty-second budget between its three stages, so a slow aurora fetch
+  cannot spend the pass check's turn, and the provisional wake never comes
+  sooner than fifteen minutes.
+
+- **A resting pass check no longer asks to be woken a minute later.**
+  `PassPlanner.nextWake` answered "nothing changed" with the current instant,
+  which `Refresh.minutesUntil` floors to one minute. Nothing reaches it today,
+  because `PassPoller` returns the held instant without calling it, but the
+  branch turned a no-op into a one-minute poll loop for whoever reached it next.
+  It now hands back the check already planned.
+
 - **`doze-check.sh` no longer invents a deferral out of a single poll.** It
   divided the length of the watch by the number of polls and called the result
   an average gap. That is not a gap: n polls have n-1 gaps between them, and the
