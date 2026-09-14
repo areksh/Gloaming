@@ -774,6 +774,33 @@ run_bfu_seeded() {
     tools/bfu-check.sh "${args[@]}"
 }
 
+# Wait for the app's schedule to come back after a reboot.
+#
+# Read the same way doze-check reads it, so that what this waits for is exactly
+# what that then requires: the pending-alarm section of `dumpsys alarm`, before
+# the history that also mentions the receiver by name.
+#
+# This does not fail on a timeout. If the schedule genuinely never returns then
+# something is wrong with the app rather than with the waiting, and doze-check
+# says so in its own words a moment later - it has the better message and the
+# advice to go with it.
+wait_for_poll_alarm() {
+    local waited=0
+    while [ "$waited" -lt 180 ]; do
+        if adb shell dumpsys alarm 2>/dev/null | tr -d '\r' \
+            | sed -n '1,/App Alarm history/p' \
+            | grep -q "walarm\*:${PACKAGE}/\.work\.PollReceiver"; then
+            if [ "$waited" -gt 0 ]; then
+                echo "  the app re-armed its schedule ${waited}s after the reboot"
+            fi
+            return 0
+        fi
+        sleep 5
+        waited=$((waited + 5))
+    done
+    echo "  no alarm pending after ${waited}s of waiting"
+}
+
 # Put the interval back. The fixture is invoked directly rather than through
 # `bfu-check.sh --seed`, which would reboot the phone a second time to restore a
 # setting - the reboot is the harness's subject, not part of writing settings.
@@ -897,6 +924,12 @@ NOTICE
 
     echo
     echo "== 6/6  the interval the polls really land at =="
+    # Stage 5 rebooted the phone, and the app re-arms from a boot broadcast.
+    # Until that is handled there is nothing pending, and doze-check refuses to
+    # spend half an hour watching a phone with nothing to fire - which is the
+    # right call on its own and the wrong outcome here, because the device is
+    # healthy and simply has not caught up. Waiting is the whole fix.
+    wait_for_poll_alarm
     # Seeded to two minutes above, so half an hour sees several wakes and an
     # average beyond fifteen means Doze is deferring them, not that the app
     # asked for little.
