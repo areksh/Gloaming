@@ -28,42 +28,39 @@
 #   --bucket BUCKET   force the standby bucket: active, working_set, frequent,
 #                     rare or restricted. "restricted" is the worst case a
 #                     rarely-opened app lands in, and the one worth proving.
-#   --expect-late N   treat delivery more than N minutes past the window the
-#                     system reserved as a failure. Without it the lateness is
+#   --expect-late N   treat a wake held more than N minutes past its own
+#                     deadline as a failure. Without it the overshoot is
 #                     measured and reported but never fails.
 #
-#                     Both halves of that come off the alarm itself rather than
-#                     out of a number typed here. `dumpsys alarm` prints the
-#                     request beside each policy's opinion of it, and the window
-#                     beside that:
+#                     The deadline comes off the alarm, not out of a number
+#                     typed here. `dumpsys alarm` publishes it as
+#                     `maxWhenElapsed` - the app's request plus the window the
+#                     system reserved for an inexact one:
 #
 #                       type=ELAPSED_WAKEUP origWhen=+22m11s window=+24m2s
-#                       policyWhenElapsed: requester=+22m11s app_standby=-9m52s
 #                       whenElapsed=+22m11s maxWhenElapsed=+46m13s
 #
-#                     An inexact alarm is a request plus a window, and the app
-#                     chose an inexact one deliberately (PollAlarm uses
-#                     `setAndAllowWhileIdle`). Anything inside that window is the
-#                     alarm doing what it was asked; only past it is deferral.
+#                     so N is slack on a published deadline rather than a guess
+#                     at what the overhead should have been. Nothing here infers
+#                     an interval, and that is the point: two earlier versions
+#                     did, and both passed runs they should have questioned.
 #
-#                     The window is not a fixed cost and must not be guessed at.
-#                     It scales with the interval: measured on a Pixel 8a, a 32
-#                     minute request carried a 24 minute window, where the two
-#                     and five minute intervals PollingPolicy's own note was
-#                     measured at carry seconds. A flat tolerance calibrated on
-#                     those short intervals fails a healthy phone the moment the
-#                     policy settles on QUIET_MINUTES - which is exactly what it
-#                     did, reporting a seventeen minute slip inside a twenty-four
-#                     minute window as Doze deferring the wakes.
+#                     A flat tolerance assumed the batching window was a fixed
+#                     few minutes. It is not - it scales with the interval, 24
+#                     minutes on a 32 minute request against seconds on a two
+#                     minute one - so it failed a healthy phone the moment the
+#                     policy settled on QUIET_MINUTES. Estimating the interval
+#                     instead assumed there was one interval to estimate. There
+#                     is not: the schedule is the minimum of three pollers
+#                     (Refresh.nextWakeMinutes), so a satellite pass coming up
+#                     drops it from half an hour to nine minutes and back within
+#                     a single run.
 #
-#                     So N is slack on top of the window, not the whole
-#                     allowance. What it is really guarding against is the
-#                     failure that matters: app standby pushing a wake out by
-#                     days while the alarm still lists as pending.
-#
-#                     The lateness is measured from the mean interval between
-#                     consecutive polls, so it takes two polls to have one: a
-#                     run that saw fewer says so rather than offering a number.
+#                     What N really guards against is the failure the harness
+#                     exists for - app standby holding a wake for days while the
+#                     alarm still lists as pending and looks healthy. That
+#                     overshoots a deadline by orders of magnitude; ordinary
+#                     batching does not overshoot it at all.
 #
 #   --observer WHERE  borrow somewhere the app will actually be polling from,
 #                     and put the phone's own position back afterwards.
@@ -288,17 +285,20 @@ alarm_due_seconds() {
     alarm_field_seconds "$1" 'maxWhenElapsed=[+-][^ ]*' '[^x]whenElapsed=[+-][^ ]*'
 }
 
-# The batching window the system attached to the alarm, in seconds.
+# How far *past* its deadline the pending alarm already is, in seconds, and zero
+# when it is still ahead of it.
 #
-# An inexact alarm is a request plus a window, and `maxWhenElapsed` is just the
-# two added together. The window is not a fixed cost: it scales with the
-# interval asked for - measured on a Pixel 8a, a 32 minute request carried a 24
-# minute window, where a two minute one carries seconds. So delivery landing
-# seventeen minutes after a half-hour request is the alarm behaving exactly as
-# `setAndAllowWhileIdle` asked, and failing it would be failing the app for its
-# own deliberate choice of an inexact alarm.
-alarm_window_seconds() {
-    alarm_field_seconds "$1" 'window=[+-][^ ]*'
+# `alarm_due_seconds` clamps a passed deadline to zero, which is right for "how
+# long until it must fire" and useless for "how far behind is it" - the two
+# questions want opposite halves of the same field. Android renders an elapsed
+# deadline as a negative offset, so the magnitude is there to be read.
+alarm_overdue_seconds() {
+    local raw
+    raw=$(printf '%s' "$1" | awk '
+        { if (match($0, /maxWhenElapsed=-[^ ]*/)) { print substr($0, RSTART, RLENGTH); exit } }')
+    [ -n "$raw" ] || { printf '0'; return 0; }
+    # Re-read without the sign, which is what the duration parser expects.
+    alarm_field_seconds "${raw/=-/=+}" 'maxWhenElapsed=[+-][^ ]*'
 }
 
 # How far out the *app* asked for the next wake, in seconds from now.
@@ -330,18 +330,35 @@ alarm_requested_seconds() {
 #
 # Taking the maximum is also the forgiving direction: a stray long reading makes
 # the measured lateness smaller, never larger, so it cannot invent a failure.
-ASKED_INTERVAL=""
-# The window that came with that same request. Read from the one dump, so the
-# pair always describes a single alarm rather than two moments spliced together.
-ASKED_WINDOW=""
-note_request() {
-    local dump seen
-    dump=$(poll_alarm)
-    seen=$(alarm_requested_seconds "$dump")
-    [ -n "$seen" ] || return 0
-    if [ -z "$ASKED_INTERVAL" ] || [ "$seen" -gt "$ASKED_INTERVAL" ]; then
-        ASKED_INTERVAL="$seen"
-        ASKED_WINDOW=$(alarm_window_seconds "$dump")
+# The furthest past its own deadline the pending alarm was ever seen, and how
+# many times the alarm could be read at all.
+#
+# This is the whole measurement, and it needs no estimate of anything. The
+# alarm states the deadline itself - `maxWhenElapsed`, the request plus the
+# window the system reserved - so "did the wake arrive in time" is a comparison
+# against a number the system published rather than against one inferred here.
+#
+# Two earlier attempts inferred it and both were wrong. A flat tolerance ignored
+# that the window scales with the interval. Estimating the interval from the
+# longest request seen ignored that the interval *varies between polls*: the
+# schedule is the minimum of three pollers (Refresh.nextWakeMinutes), so a
+# satellite pass coming up drops it from half an hour to nine minutes and back,
+# and no single number describes the run. Measured on a real watch, that
+# estimate compared a fourteen minute gap against a thirty-one minute figure and
+# called delivery punctual when it had in fact run five minutes past a nine
+# minute request.
+#
+# A deadline sidesteps all of it. Being briefly past one is ordinary - the poll
+# runs moments after - so --expect-late is the slack on top.
+WORST_OVERDUE=0
+ALARM_READS=0
+note_alarm() {
+    local overdue
+    overdue=$(alarm_overdue_seconds "$(poll_alarm)")
+    [ -n "$overdue" ] || return 0
+    ALARM_READS=$((ALARM_READS + 1))
+    if [ "$overdue" -gt "$WORST_OVERDUE" ]; then
+        WORST_OVERDUE="$overdue"
     fi
 }
 
@@ -489,8 +506,6 @@ ALARM_DUE=$(alarm_due_seconds "$ALARM")
 # below overwrite the pending alarm, so by the end the request on record is the
 # one the last poll made, not the one the run set out to measure.
 ALARM_ASKED=$(alarm_requested_seconds "$ALARM")
-ASKED_INTERVAL="$ALARM_ASKED"
-ASKED_WINDOW=$(alarm_window_seconds "$ALARM")
 if [ -n "$ALARM_ASKED" ]; then
     printf '  the app asked for its next wake in %sm %ss\n' \
         "$((ALARM_ASKED / 60))" "$((ALARM_ASKED % 60))"
@@ -583,8 +598,6 @@ if [ -n "$OBSERVER" ]; then
         ALARM_ASKED=$(alarm_requested_seconds "$ALARM")
         # Read in the moment after the reschedule, so this one is the interval
         # itself rather than a countdown part way through it.
-        ASKED_INTERVAL="$ALARM_ASKED"
-        ASKED_WINDOW=$(alarm_window_seconds "$ALARM")
         pass "the app re-planned from the borrowed sky"
         printf '  it now asks to wake every %sm %ss\n' \
             "$((ALARM_ASKED / 60))" "$((ALARM_ASKED % 60))"
@@ -657,7 +670,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 
     # Every cycle, because the app re-plans at every poll and the request decays
     # in between. The peak is what the interval was.
-    note_request
+    note_alarm
 
     sleep 20
 done
@@ -711,63 +724,46 @@ else
     pass "1 poll fired, which is too few to measure a gap between"
 fi
 
-# The gap is a measurement, not a verdict, until someone says what they allow of
-# it: how far Doze pushes an inexact alarm out depends on the standby bucket,
-# the exemption, and the batching window the system attaches - check `window=`
-# and `maxWhenElapsed=` in `dumpsys alarm` before concluding the exemption is
-# failing. --expect-late is that allowance made explicit.
-# How far behind the app's own request the polls actually landed. That
-# difference is the whole quantity here: the app names a time, the policies
-# either honour it or push it out, and the gap between the two is Doze's doing
-# and nothing else's.
+# The verdict: did every wake arrive by the deadline the system published for
+# it, allowing --expect-late minutes of slack.
 #
-# Checked against the request rather than a number typed on the command line,
-# because no fixed number is right for every interval the policy picks - it
-# ranges from ELEVATED_MINUTES to half a day. The overhead being measured is a
-# batching window of a few minutes, a roughly fixed cost rather than a
-# multiplier, so one tolerance fits all of them.
-LATE=""
-ALLOWED=""
-if [ -n "$GAP" ] && [ -n "$ASKED_INTERVAL" ] && [ "$ASKED_INTERVAL" -gt 0 ]; then
-    LATE=$(( GAP - ASKED_INTERVAL ))
-    [ "$LATE" -lt 0 ] && LATE=0
-    ALLOWED=$(( ${ASKED_WINDOW:-0} + ${EXPECT_LATE:-0} * 60 ))
-    printf '        the app asked for %sm %ss and the system reserved a %sm %ss window;\n' \
-        "$((ASKED_INTERVAL / 60))" "$((ASKED_INTERVAL % 60))" \
-        "$(( ${ASKED_WINDOW:-0} / 60 ))" "$(( ${ASKED_WINDOW:-0} % 60 ))"
-    printf '        delivery ran %sm %ss behind the request\n' \
-        "$((LATE / 60))" "$((LATE % 60))"
+# `maxWhenElapsed` is that deadline - the app's request plus the window the
+# system attached to an inexact alarm - so nothing here has to infer what the
+# app wanted or what the overhead should have been. Both earlier attempts did
+# infer it and both were wrong in the lenient direction, which for a release
+# gate is the quieter and worse kind of wrong.
+#
+# What this is really guarding against is the failure the whole harness exists
+# for: app standby pushing a wake out by days while the alarm still lists as
+# pending and looks perfectly healthy. That overshoots any deadline by orders of
+# magnitude. Ordinary batching does not overshoot it at all.
+if [ "$ALARM_READS" -eq 0 ]; then
+    skip "the pending alarm could never be read, so no deadline was watched" \
+        "Check: adb shell dumpsys alarm | grep -A4 $PACKAGE"
+elif [ "$WORST_OVERDUE" -eq 0 ]; then
+    printf '        the pending alarm never went past its deadline\n'
+else
+    printf '        the pending alarm ran up to %sm %ss past its deadline\n' \
+        "$((WORST_OVERDUE / 60))" "$((WORST_OVERDUE % 60))"
 fi
 
 if [ -z "$EXPECT_LATE" ]; then
     :
-elif [ -n "$LATE" ] && [ -z "$ASKED_WINDOW" ]; then
-    # Failing on a field that could not be read would fail a healthy phone on
-    # any Android that renames it, and a release gate must not turn a parsing
-    # gap into a refusal to ship.
-    skip "the alarm names no batching window, so there is no allowance to judge against" \
-        "Delivery ran $((LATE / 60))m $((LATE % 60))s behind the request. Check `window=` in: adb shell dumpsys alarm | grep -A4 $PACKAGE"
-elif [ -n "$LATE" ]; then
-    if [ "$LATE" -le "$ALLOWED" ]; then
-        pass "delivery is inside the window the alarm carries, plus the ${EXPECT_LATE}m allowed"
-    else
-        fail "delivery ran $((LATE / 60))m $((LATE % 60))s behind, past the $((ALLOWED / 60))m $((ALLOWED % 60))s the window and allowance give it" \
-            "Later than the system reserved for its own inexact alarm, so this is deferral rather than batching. Check the exemption and the standby bucket."
-    fi
-# One poll leaves no gap to measure - but it is still a finding when the app
-# asked for a wake often enough that the watch had room for several. Silence
-# after the first is the same suppression the zero-poll branch above fails on,
-# and skipping it would let a phone that stopped waking through the gate.
-elif [ -n "$ASKED_INTERVAL" ] && [ "$ASKED_INTERVAL" -gt 0 ] \
-    && [ $((ASKED_INTERVAL * 2)) -le $((elapsed * 60)) ]; then
-    fail "1 poll in ${elapsed}m, where the app asked to wake every $((ASKED_INTERVAL / 60))m $((ASKED_INTERVAL % 60))s" \
-        "The wakes after the first were suppressed. Check: adb shell dumpsys alarm | grep $PACKAGE"
-elif [ -z "$ASKED_INTERVAL" ] || [ "$ASKED_INTERVAL" -eq 0 ]; then
-    skip "nothing to compare against: the pending alarm names no request" \
-        "An alarm already past its requested time carries no interval to judge delivery by."
+elif [ "$ALARM_READS" -eq 0 ]; then
+    :
+elif [ "$WORST_OVERDUE" -gt $((EXPECT_LATE * 60)) ]; then
+    # A held alarm is a finding whether or not any poll fired - indeed a run
+    # where nothing fired *and* the deadline went by is the worst case there is.
+    fail "a wake was held $((WORST_OVERDUE / 60))m $((WORST_OVERDUE % 60))s past the deadline the system reserved, beyond the ${EXPECT_LATE}m allowed" \
+        "The alarm sat past its own maxWhenElapsed, which is deferral rather than batching. Check the exemption and the standby bucket."
+elif [ "${seen:-0}" -eq 0 ]; then
+    # Nothing was held late, but nothing arrived either. Passing that would be
+    # passing on no evidence, and "every wake was punctual" is a strange thing
+    # to say about a run that saw none.
+    skip "no deadline passed during the watch, and no wake arrived to judge" \
+        "The pending alarm stayed ahead of its deadline throughout, so nothing here was tested either way."
 else
-    skip "no gap to compare against the app's request" \
-        "Fewer than two polls landed, and two is the fewest that have a gap between them."
+    pass "no wake was held past the deadline the system reserved, within the ${EXPECT_LATE}m allowed"
 fi
 
 # Not `[ -n "$x" ] && printf`: as a statement of its own that returns 1 when the

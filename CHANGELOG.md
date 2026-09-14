@@ -29,16 +29,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request.** The old flag compared the gap to a number typed on the command
   line, which meant picking one that happened to match whatever interval the
   policy was on - and being wrong whenever it moved. The harness now reads
-  `requester=` and `window=` out of `dumpsys alarm` and fails when delivery runs
-  further behind than the window the system reserved, plus the allowed slack.
-  An inexact alarm is a request plus a window and `PollAlarm` picks an inexact
-  one deliberately, so anything inside the window is the alarm doing as it was
-  asked. The window is not a fixed cost either - measured on a Pixel 8a it was
-  24 minutes on a 32 minute request against seconds on a two minute one - so one
-  number only holds when it is slack on top of the window rather than the whole
-  allowance. `./go release` step 6 accordingly borrows an observer and watches
-  for ninety minutes instead of thirty, which is what three polls half an hour
-  apart need; the gate now takes about two hours rather than one.
+  `maxWhenElapsed` out of `dumpsys alarm` - the deadline the system publishes
+  for each alarm, being the app's request plus the window it reserved for an
+  inexact one - and fails when a wake is held more than the allowed slack past
+  it. Nothing infers an interval, which is the point: the old flag needed a
+  number matching whatever interval the policy was on, and there is no such
+  number. The window scales with the interval (24 minutes on a 32 minute request
+  against seconds on a two minute one), and the interval itself moves inside a
+  single run, because the schedule is the minimum of three pollers and an
+  approaching satellite pass drops it from half an hour to nine minutes. What
+  the allowance really guards against is app standby holding a wake for days
+  while the alarm still lists as pending. `./go release` step 6 accordingly
+  borrows an observer and watches for ninety minutes instead of thirty; the gate
+  now takes about two hours rather than one.
 
 ### Fixed
 
