@@ -374,10 +374,18 @@ object PassPlanner {
          */
         is Decision.Resting -> state.nextPassCheckAt ?: (now + DORMANT_INTERVAL_MILLIS)
 
+        /*
+         * Both of these are deadlines rather than cadences - be there by the
+         * lead, be there before the elements go stale - so they are asked for
+         * early enough that the alarm's own slack still lands in time. Asking
+         * for the moment itself delivered an alert two minutes before ALOS
+         * (DAICHI) rose, against a lead of thirty. See Delivery.
+         */
         is Decision.TooSoon -> {
             val alertAt = decision.pass.peaksAt - settings.passAlertLeadMillis
             val freshenAt = decision.pass.risesAt - FRESHEN_BEFORE_MILLIS
-            maxOf(minOf(alertAt, if (freshenAt > now) freshenAt else alertAt), now + 1)
+            val target = minOf(alertAt, if (freshenAt > now) freshenAt else alertAt)
+            maxOf(Delivery.askAt(target, now), now + 1)
         }
 
         /*
@@ -396,11 +404,14 @@ object PassPlanner {
          * 03:18:24 when the station's pass came due. The station was never
          * mentioned.
          */
-        is Decision.Announce -> minOf(
-            decision.pass.setsAt + 1,
-            soonestElsewhere(passes, decision.pass.channel, now, settings, state)
-                ?: (decision.pass.setsAt + 1),
-        )
+        is Decision.Announce -> {
+            // Waiting out this pass is a cadence and arrives when it arrives.
+            // The other channel's alert is a deadline, so it gets the early ask.
+            val afterThisPass = decision.pass.setsAt + 1
+            val elsewhere = soonestElsewhere(passes, decision.pass.channel, now, settings, state)
+                ?.let { Delivery.askAt(it, now) }
+            minOf(afterThisPass, elsewhere ?: afterThisPass)
+        }
 
         is Decision.AlreadyTold -> decision.pass.setsAt + 1
 
@@ -415,7 +426,8 @@ object PassPlanner {
          * the old behaviour exactly. Only the last half-hour of the silence
          * differs, which is the window where anything was being lost.
          */
-        is Decision.InQuietHours -> minOf(decision.pass.setsAt + 1, decision.until)
+        is Decision.InQuietHours ->
+            minOf(decision.pass.setsAt + 1, Delivery.askAt(decision.until, now))
 
         is Decision.TooCloudy -> decision.pass.setsAt + 1
     }

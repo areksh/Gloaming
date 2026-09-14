@@ -287,13 +287,24 @@ class EventPlannerTest {
 
     // --- coming back ---
 
-    /** The next wake is the next thing due, not a fixed cadence. */
+    /**
+     * The next wake is the next thing due, not a fixed cadence - and it is
+     * asked for early, because an inexact alarm takes up to twice the interval
+     * it was given and an eclipse notice that arrives after the eclipse is no
+     * notice at all. See Delivery.
+     */
     @Test
-    fun `comes back when the next alert is due`() {
+    fun `comes back in time for the next alert rather than exactly on it`() {
         val now = at("2027-07-31T04:00:00Z")
         val wake = EventPlanner.nextWake(EventPlanner.Decision.Nothing, listOf(eclipse()), now, settings, AlertState())
 
-        assertEquals(at("2027-07-31T08:11:11Z"), wake)
+        val dueAt = at("2027-07-31T08:11:11Z")
+        assertTrue("asked for the deadline itself", wake < dueAt)
+        assertTrue("woke for no reason", wake > now)
+        assertTrue(
+            "the worst measured slack would still miss the notice",
+            now + (wake - now) * 199 / 100 < dueAt,
+        )
     }
 
     /**
@@ -580,7 +591,15 @@ class EventPlannerTest {
 
         val wake = EventPlanner.nextWake(decision, listOf(eclipse()), now, quiet, AlertState())
 
-        assertEquals(at("2027-08-02T08:00:00Z"), wake)
+        // In time for 08:00 rather than exactly on it, so the wake lands while
+        // the eclipse is still going rather than up to twice as far out.
+        val lifts = at("2027-08-02T08:00:00Z")
+        assertTrue("asked for 08:00 itself", wake < lifts)
+        assertTrue("woke before there was anything to reconsider", wake > now)
+        assertTrue(
+            "the worst measured slack would still miss the lift",
+            now + (wake - now) * 199 / 100 < lifts,
+        )
     }
 
     /**
@@ -610,6 +629,14 @@ class EventPlannerTest {
 
         val wake = EventPlanner.nextWake(decision, listOf(held, sooner), now, quiet, AlertState())
 
-        assertEquals(at("2027-08-02T07:45:00Z"), wake)
+        // Still the 07:45 notice rather than the 08:00 lift, and in time for it.
+        val due = at("2027-08-02T07:45:00Z")
+        val lifts = at("2027-08-02T08:00:00Z")
+        assertTrue("slept past the notice due first", wake < due)
+        assertTrue("took the lift instead of the notice", wake < Delivery.askAt(lifts, now))
+        assertTrue(
+            "the worst measured slack would still miss the notice",
+            now + (wake - now) * 199 / 100 < due,
+        )
     }
 }

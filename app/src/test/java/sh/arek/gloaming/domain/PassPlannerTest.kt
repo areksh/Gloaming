@@ -334,7 +334,11 @@ class PassPlannerTest {
 
         val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(pass()), now, emptyList(), settings, AlertState())
 
-        assertEquals(peak - PassPlanner.LEAD_MILLIS, wake)
+        // Early enough that the alarm's slack still lands it by the lead; see
+        // Delivery for why asking for the moment itself arrives late.
+        val alertAt = peak - PassPlanner.LEAD_MILLIS
+        assertTrue("asked for the deadline itself", wake < alertAt)
+        assertTrue("the worst measured slack would still miss it", now + (wake - now) * 199 / 100 < alertAt)
     }
 
     /** Far enough out, the elements want freshening before the alert is due. */
@@ -345,7 +349,12 @@ class PassPlannerTest {
 
         val wake = PassPlanner.nextWake(PassPlanner.Decision.TooSoon(subject), now, emptyList(), settings, AlertState())
 
-        assertEquals(subject.risesAt - PassPlanner.FRESHEN_BEFORE_MILLIS, wake)
+        val freshenAt = subject.risesAt - PassPlanner.FRESHEN_BEFORE_MILLIS
+        assertTrue("asked for the freshen moment itself", wake < freshenAt)
+        assertTrue(
+            "the worst measured slack would still miss the freshen window",
+            now + (wake - now) * 199 / 100 < freshenAt,
+        )
     }
 
     /** Once a pass is dealt with, nothing about it changes: wait it out. */
@@ -440,7 +449,16 @@ class PassPlannerTest {
             AlertState(),
         )
 
-        assertEquals(peak - 10 * 60_000L, wake)
+        // Early, not exact. The alert has to *arrive* by the lead, and an
+        // inexact alarm takes up to twice the interval it was asked for - so
+        // asking for the moment itself delivers it late. See Delivery.
+        val alertAt = peak - 10 * 60_000L
+        assertTrue("asked for the deadline itself", wake < alertAt)
+        assertTrue("asked too early to be about this lead", wake > now)
+        assertTrue(
+            "the worst measured slack would still miss the lead",
+            now + (wake - now) * 199 / 100 < alertAt,
+        )
     }
 
     /**
@@ -475,7 +493,14 @@ class PassPlannerTest {
             AlertState(),
         )
 
-        assertEquals(alertDue, wake)
+        // Before the other channel's alert rather than exactly on it, and
+        // before this pass has even set - which is the point of the branch.
+        assertTrue("slept past the other channel's alert", wake < alertDue)
+        assertTrue("waited out this pass instead", wake < announced.setsAt)
+        assertTrue(
+            "the worst measured slack would still miss the other channel",
+            (peak - 60_000L) + (wake - (peak - 60_000L)) * 199 / 100 < alertDue,
+        )
     }
 
     /** With nothing else pending it still waits out the pass it announced. */
@@ -567,7 +592,15 @@ class PassPlannerTest {
 
         val wake = PassPlanner.nextWake(decision, now, listOf(subject), quiet, AlertState())
 
-        assertEquals("07:00, when the silence lifts", now + 30 * 60_000L, wake)
+        // Ahead of 07:00, so the wake actually lands by the time the silence
+        // lifts rather than up to twice as far out as it asked for.
+        val lifts = now + 30 * 60_000L
+        assertTrue("asked for 07:00 itself", wake < lifts)
+        assertTrue("woke before there was anything to reconsider", wake > now)
+        assertTrue(
+            "the worst measured slack would still miss the lift",
+            now + (wake - now) * 199 / 100 < lifts,
+        )
     }
 
     /**

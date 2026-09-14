@@ -64,6 +64,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cannot spend the pass check's turn, and the provisional wake never comes
   sooner than fifteen minutes.
 
+- **Pass and event alerts arrive with the notice they promise.** A wake meant
+  for a particular moment was asked for at that moment, and an inexact alarm
+  does not work that way: `setAndAllowWhileIdle` attaches a batching window of
+  roughly three quarters of the interval and fires near the end of it. Measured
+  over thirteen consecutive overnight wakes on a Pixel 8a, every one landed
+  between 1.25 and 1.99 times the interval asked for, median 1.78. So a pass
+  wake asking for 28 minutes arrived 54 minutes later, and an alert meant to
+  give half an hour's notice of ALOS (DAICHI) arrived two minutes before it
+  rose. Deadline-bearing wakes - the alert lead, another channel's alert falling
+  due, the end of quiet hours with something still overhead, an event notice -
+  are now asked for early enough that the slack still lands them in time. The
+  sleep through daylight is deliberately left alone: it is a soft deadline and
+  its waits are hours, well outside the range the ratio was measured over.
+
 - **A resting pass check no longer asks to be woken a minute later.**
   `PassPlanner.nextWake` answered "nothing changed" with the current instant,
   which `Refresh.minutesUntil` floors to one minute. Nothing reaches it today,

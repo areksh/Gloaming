@@ -358,7 +358,14 @@ object EventPlanner {
 
         val silenceLifts = (decision as? Decision.InQuietHours)?.until ?: Long.MAX_VALUE
 
-        return minOf(soonest ?: Long.MAX_VALUE, silenceLifts, now + DORMANT_INTERVAL_MILLIS)
+        // Both of those are deadlines - be there before the notice falls due,
+        // be there when the silence lifts - so they are asked for early enough
+        // that the alarm's own slack still lands in time. The dormant cap is a
+        // cadence and keeps its own spacing. See Delivery.
+        val deadline = minOf(soonest ?: Long.MAX_VALUE, silenceLifts)
+        val inTime = if (deadline == Long.MAX_VALUE) Long.MAX_VALUE else Delivery.askAt(deadline, now)
+
+        return minOf(inTime, now + DORMANT_INTERVAL_MILLIS)
     }
 
     /**
