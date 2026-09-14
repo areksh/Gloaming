@@ -331,7 +331,8 @@ night:
 ./go status                   # what state the phone is in; reads only, seconds
 ./go install --test           # the app, and the APK these two harnesses need
 tools/bfu-check.sh --seed     # reboot, hold at the lock screen, report back
-tools/doze-check.sh           # force deep Doze, measure the real poll spacing
+tools/doze-check.sh --observer auto   # force deep Doze, measure the real spacing
+tools/pick-observer.sh               # which site is dark and clear right now
 ```
 
 `./go status` is the cheap question, and worth asking before an overnight run
@@ -363,29 +364,53 @@ the app's battery-optimisation exemption and its app standby bucket both change
 the answer, so the number worth trusting is the one from the device. Like
 `bfu-check.sh` it reports PASS and FAIL per check and exits non-zero on any
 failure, so a release can gate on it. The spacing is the one thing it will not
-judge for you unless asked: `--expect-within N` makes an average gap wider than
-N minutes a failure, and without it the gap is measured and reported only. That
-gap is the mean interval between consecutive polls, so it takes two polls to
-have one at all - a single poll in the window is reported as exactly that rather
-than as a gap the width of the whole watch.
+judge for you unless asked: `--expect-late N` makes delivery more than N minutes
+behind a failure, and without it the lateness is measured and reported only.
 
-`--expect-within` is a claim about Doze and nothing else, and the harness holds
-it to that. `dumpsys alarm` prints what the app asked for beside what each
-policy did with it, and when the app's own request is already wider than the
-expectation the check skips rather than fails: the interval is `PollingPolicy`'s
-decision and Doze has not touched it.
+Behind *what the app asked for*, not behind a number typed on the command line.
+`dumpsys alarm` prints the request beside each policy's opinion of it:
 
-It is that often. The poll interval in the settings is only consulted when the
-app has no position; with one it plans from the sky instead, sleeping until dark
-while the sun is up and backing off to `QUIET_MINUTES` on a clear quiet night.
-So seeding a two-minute interval does *not* produce a two-minute schedule on a
-phone that knows where it is, and a thirty-minute window in daylight sees at
-most the poll a reboot happened to trigger. That is the app working, not the
-harness failing, and it is reported as untested rather than as a failure - both
-for a window the pending alarm reaches past, and for a gap the app chose. To
-measure rather than skip, run it after dark against a sky the policy polls fast
-for, or read the pending alarm out of `./go status` and pick a window longer
-than it.
+```
+policyWhenElapsed: requester=+30m app_standby=-35m device_idle=-5m
+```
+
+and the distance between that request and when the poll actually landed is the
+only thing Doze can be said to have done. One tolerance then covers every
+interval the policy might pick, because the overhead is a batching window of a
+few minutes - a roughly fixed cost, not a multiplier. The gap it is measured
+from is the mean interval between consecutive polls, so it takes two polls to
+have one at all; a single poll is reported as exactly that rather than as a gap
+the width of the whole watch.
+
+**The app has to be polling before any of this measures anything**, and the poll
+interval in the settings does not decide that. It is consulted only when the app
+has no position; with one, `PollingPolicy` plans from the sky - sleeping until
+dark while the sun is up, backing off to `OVERCAST_MINUTES` under heavy cloud.
+So a phone in Britain at eleven in the morning has its next wake nine hours out,
+and no interval seeded into the settings changes it.
+
+`--observer auto` borrows a sky where there is something to watch. It asks
+`tools/pick-observer.sh` for the clearest site in `tools/observers.txt` that is
+dark for the whole run, seeds it through the same save path the settings screen
+uses, waits for one poll to re-plan from it, and puts the phone's own position
+back when it exits - including after an interrupt. `pick-observer.sh` is worth
+running on its own to see what it would choose:
+
+```console
+$ tools/pick-observer.sh
+19.82   -155.47   -64.7   0   Mauna Kea, Hawaii
+```
+
+The list is mid-latitude observing sites spread around the globe, so whatever
+the hour in Britain several of them are in the middle of their night. The
+selection applies the app's own two gates ahead of time - `CIVIL_DEGREES` for
+darkness and `HEAVY_CLOUD` for weather - and asks Open-Meteo for the cloud, the
+same API the app itself asks.
+
+What this buys is `QUIET_MINUTES`, not a fast schedule: `ELEVATED` needs the
+real solar wind, which is a global document and not something a location
+changes. So the polls come half an hour apart, and a run wants ninety minutes to
+see three of them.
 
 Both can provoke a genuine alert rather than waiting for the sky to oblige.
 Point the observer at the busiest cell in the live grid and set a threshold just
@@ -538,17 +563,20 @@ the settings screen of the phone it is installed on.
 | 3 | the suite again | against what R8 actually ships |
 | 4 | reinstall | the debuggable build, which the harnesses below need |
 | 5 | `bfu-check.sh` | reboot, hold at the lock screen, does an alert arrive |
-| 6 | `doze-check.sh` | force deep Doze, is the poll interval what was asked |
+| 6 | `doze-check.sh` | force deep Doze, do the polls land when the app asked |
 
-About an hour with the phone plugged in throughout. It is unattended until step
-5 reboots the phone, where it waits with no time limit for you to unlock it.
+About two hours with the phone plugged in throughout. It is unattended until
+step 5 reboots the phone, where it waits with no time limit for you to unlock
+it. Step 6 is most of the second hour: it borrows a dark site so the app is on a
+schedule worth watching, and ninety minutes is what three polls half an hour
+apart need.
 Then it bumps the version, cuts the changelog, builds and signs, and asks once
 before anything leaves the machine.
 
-Steps 5 and 6 need a short poll interval to measure anything, and the fixture
-that seeds one writes the whole settings object rather than editing a field. So
-the phone's own position and threshold are read first and passed back in, and
-the interval is put back afterwards. What cannot be put back is that the harness
+Both steps seed settings to measure anything, and the fixture that does it
+writes the whole settings object rather than editing a field. So the phone's own
+position and threshold are read first and passed back in, and put back
+afterwards - step 6 borrows a position outright and restores it on exit. What cannot be put back is that the harness
 switches alerting on: it has no way to know whether it was on before, and
 `./go status` is how you check.
 

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`doze-check.sh` can borrow a sky worth watching.** The harness measures how
+  late Doze delivers a wake, and it can only do that while the app is waking at
+  all - which `PollingPolicy` decides from the sky, not from the interval in the
+  settings. A phone in Britain at eleven in the morning has its next wake nine
+  hours out, so the stage measured nothing and said so. `--observer auto` now
+  picks the clearest site that is dark for the whole run out of the new
+  `tools/observers.txt`, seeds it through the settings screen's own save path,
+  waits for one poll to re-plan from it, and puts the phone's own position back
+  on exit - including after an interrupt. `tools/pick-observer.sh` does the
+  choosing and is worth running alone to see what it would pick. Selection
+  applies the app's own two gates, `Twilight.CIVIL_DEGREES` and
+  `PollingPolicy.HEAVY_CLOUD`, and asks Open-Meteo for the cloud, the same API
+  the app asks.
+
+### Changed
+
+- **`--expect-within` becomes `--expect-late`, measured against the app's own
+  request.** The old flag compared the gap to a number typed on the command
+  line, which meant picking one that happened to match whatever interval the
+  policy was on - and being wrong whenever it moved. The harness now reads
+  `requester=` out of `dumpsys alarm` and fails when delivery runs more than the
+  allowed minutes behind it. One tolerance covers every interval the policy can
+  choose, because the overhead is a batching window of a few minutes rather than
+  a multiplier. `./go release` step 6 accordingly borrows an observer and
+  watches for ninety minutes instead of thirty, which is what three polls half
+  an hour apart need; the gate now takes about two hours rather than one.
+
 ### Fixed
 
 - **`doze-check.sh` no longer invents a deferral out of a single poll.** It

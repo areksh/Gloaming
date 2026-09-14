@@ -431,7 +431,10 @@ Greenfield, held to the full TDD bar (ADR-0001).
   two harnesses that answer it in minutes rather than a night:
   `bfu-check.sh` reboots a device, holds it at the lock screen and reports on
   each link in the chain separately; `doze-check.sh` forces deep idle and
-  measures the interval the polls actually land at.
+  measures how far behind its own request the app's wakes actually land. That
+  second one needs the app to be waking at all, which `PollingPolicy` decides
+  from the sky rather than from the settings, so it borrows a dark clear
+  position out of `tools/observers.txt` and restores the phone's own afterwards.
 - **App standby, not Doze, is the binding constraint.** Measured on a Pixel 8a:
   `setAndAllowWhileIdle` defeats Doze exactly as documented (`device_idle=--`
   in the alarm dump), while app standby deferred the same alarm by 365 days.

@@ -886,8 +886,8 @@ nothing about itself. Write the entry first."
 Releasing $version from $(git rev-parse --short HEAD).
 
 Everything runs: the unit tests, the whole instrumented suite, that suite again
-against R8's output, and both overnight harnesses. About an hour, and the phone
-must stay plugged in throughout. It is unattended until the before-unlock
+against R8's output, and both overnight harnesses. About two hours, and the
+phone must stay plugged in throughout. It is unattended until the before-unlock
 harness reboots the phone, at which point it waits - with no time limit - for
 you to unlock it.
 
@@ -930,18 +930,24 @@ NOTICE
     # right call on its own and the wrong outcome here, because the device is
     # healthy and simply has not caught up. Waiting is the whole fix.
     wait_for_poll_alarm
-    # --expect-within is a claim about Doze alone, and the harness holds it to
-    # that: it skips the comparison when the app's own pending alarm already
-    # asks for longer than fifteen minutes.
+    # --observer borrows somewhere dark and clear, because the phone's own sky
+    # decides the schedule and a release cut at eleven in the morning has the
+    # app asleep until dusk - nothing to measure, and the interval seeded above
+    # does not override it (SkyPoller.nextPoll consults that only without a
+    # position). The phone's own position goes back when the harness exits.
     #
-    # It often does. The two minutes seeded above is only consulted when no
-    # position is set (SkyPoller.nextPoll); with one, PollingPolicy decides, and
-    # it sleeps until dark while the sun is up and backs off to QUIET_MINUTES on
-    # a clear quiet night. So this stage measures a real interval when the sky
-    # has the app polling fast, and reports a skip when it does not - which is
-    # honest, but means a daytime release is not getting the Doze measurement.
-    # Cut releases after dark to get one.
-    tools/doze-check.sh --minutes 30 --expect-within 15
+    # Ninety minutes rather than thirty. The best a borrowed site can buy is
+    # QUIET_MINUTES - ELEVATED needs the real solar wind, and no location
+    # changes that - so the polls come half an hour apart and it takes two of
+    # them to make a single gap. Ninety leaves room for three, which is the
+    # difference between a stage that usually measures something and one that
+    # reliably does: at seventy-five a single late poll drops it back to one,
+    # and one poll is the skip this gate exists to stop producing.
+    #
+    # --expect-late is measured against what the app asked for rather than
+    # against a fixed interval, so this one number holds whether the sky puts
+    # the app on five minutes or thirty.
+    tools/doze-check.sh --observer auto --minutes 90 --settle 8 --expect-late 10
 
     echo
     echo "== Putting the phone's settings back =="
