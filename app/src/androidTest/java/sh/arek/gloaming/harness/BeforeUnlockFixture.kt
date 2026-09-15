@@ -68,13 +68,22 @@ class BeforeUnlockFixture {
         // provisional floor), but a harness should not be handing the app a
         // state no real phone would ever be in.
         val alertState = PreferencesAlertStateStore(devicePreferences(context))
+        val held = alertState.read()
+        // `-e clearBookmarks true` puts the app back in the state a fresh
+        // install is in, where no poll can skip the catalogue sweep. That is
+        // the expensive path and the one worth measuring under Doze, so it is
+        // offered deliberately - it used to happen by accident on every seed,
+        // which is how a phone spent a night at 95% CPU.
+        val coldStart = arguments.getString("clearBookmarks")?.toBoolean() ?: false
         alertState.write(
-            alertState.read().copy(
+            held.copy(
                 armed = true,
                 lastAlertAt = null,
                 lastIssAlertAt = null,
                 lastBrightAlertAt = null,
                 lastTrainAlertAt = null,
+                nextPassCheckAt = if (coldStart) null else held.nextPassCheckAt,
+                nextEventCheckAt = if (coldStart) null else held.nextEventCheckAt,
             ),
         )
 
