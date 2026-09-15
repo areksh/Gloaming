@@ -189,9 +189,16 @@ pref_value() {
 # making its raw bits a negative integer that node's option parser takes for a
 # flag. Same function as `./go` has, for the same two reasons.
 bits_to_double() {
+    # `process.stdout.write(String(...))`, not `console.log(...)`. console.log
+    # formats a number through util.inspect, which colours its output when it
+    # thinks a terminal is watching - and FORCE_COLOR in the environment makes
+    # it think so even down a pipe. The coordinate then comes back as
+    # "\033[33m53\033[39m", which is not a number any more: the seed rejects
+    # it and the position is never put back. That is how a phone was left
+    # pointing at Palomar after a run meant to restore it.
     GLOAMING_RAW_BITS="$1" node -e 'const b = Buffer.alloc(8);
              b.writeBigInt64BE(BigInt(process.env.GLOAMING_RAW_BITS));
-             console.log(b.readDoubleBE(0));'
+             process.stdout.write(String(b.readDoubleBE(0)));'
 }
 
 # The phone's own settings, read before anything is seeded over them.
