@@ -98,6 +98,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Measured after: the same cold-start sweep completes in 4.5 seconds in forced
   Doze, and the whole poll in 17.
 
+- **A failed check no longer sleeps as though the sky were empty.** A pass
+  check that threw came back as `Decision.Nothing` carrying the dormant
+  interval, and so did a calendar check - the answer for a sky that really is
+  empty. But a throw does not know the sky is empty; it knows it failed to look.
+  One transient fault at dusk took six hours of satellite passes with it, and
+  half a day of calendar notices, silently and with the schedule looking
+  perfectly healthy. Both now come back in fifteen minutes.
+
 - **A partial or failed check is no longer invisible.** `PassPollResult.failure`
   was dropped on the floor, so a sweep that ran out of time read in the journal
   exactly like a quiet sky - in the one record kept for the morning after a

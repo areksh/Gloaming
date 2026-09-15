@@ -258,6 +258,46 @@ class PassPollerTest {
         )
     }
 
+    /**
+     * The same distinction the calendar draws. A pass check that threw does not
+     * know the sky is empty; it knows it failed to look. Six hours of silence
+     * on a transient fault would take the whole evening's passes with it.
+     */
+    @Test
+    fun `a failed pass check comes back soon rather than sleeping the dormant interval`() = runTest {
+        val from = 1637712000000L
+        val exploding = object : SatelliteCache {
+            override fun read(): Pair<String, String?>? = throw IllegalStateException("cache exploded")
+            override fun write(body: String, etag: String?) = Unit
+            override fun writtenAt(): Long? = null
+        }
+        val poller = PassPoller(
+            manifests = ManifestRepository(
+                http = Offline,
+                store = FileManifestStore(java.io.File("build/tmp/passpoller-test")),
+                publicKey = ByteArray(32),
+                manifestUrl = "https://sky.arek.sh/v1/index.json",
+            ),
+            satellites = SatelliteRepository(Offline, exploding) { from },
+            weather = NoWeather,
+            settings = settings(),
+            state = State(),
+            notifier = Notifier(),
+            now = { from },
+            darkness = DarknessAt { _, _, _ -> true },
+            localMinuteOfDay = { 2 * 60 },
+        )
+
+        val result = poller.poll()
+
+        assertTrue("swallowed the reason", result.failure != null)
+        assertTrue(
+            "slept the dormant interval on a failure",
+            result.nextWakeAtMillis < from + PassPlanner.DORMANT_INTERVAL_MILLIS / 4,
+        )
+        assertTrue("asked for a wake in the past", result.nextWakeAtMillis > from)
+    }
+
     private fun settings() = Settings(
         UserSettings(
             latitude = latitude,

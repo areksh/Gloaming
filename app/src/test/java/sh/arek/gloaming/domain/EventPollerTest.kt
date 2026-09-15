@@ -201,6 +201,14 @@ class EventPollerTest {
 
         assertEquals("ephemeris exploded", result.failure)
         assertTrue(result.nextWakeAtMillis > now)
+        // And soon, not the dormant half day. A throw is not the same answer as
+        // an empty calendar, even though both come back as Decision.Nothing:
+        // one knows there is nothing coming and the other failed to find out.
+        // Sleeping twelve hours on a failure hides every notice in between.
+        assertTrue(
+            "slept the dormant interval on a failure",
+            result.nextWakeAtMillis < now + EventPlanner.DORMANT_INTERVAL_MILLIS / 4,
+        )
     }
 
     /** What was announced long ago is forgotten, so the record stays small. */

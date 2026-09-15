@@ -98,8 +98,17 @@ class PassPoller(
          */
         const val SCAN_BUDGET_MILLIS = 18_000L
 
-        /** How soon to come back when the sweep ran out of time. */
-        const val RETRY_AFTER_PARTIAL_MILLIS = 15 * 60_000L
+        /**
+         * How soon to come back when this wake learned nothing.
+         *
+         * Covers both a sweep that ran out of time and a check that threw, and
+         * they are the same case: the app does not know the sky is empty, it
+         * knows it failed to find out. Both used to come back as
+         * `Decision.Nothing` carrying the dormant interval - the answer for a
+         * sky that really is empty - so one transient fault at dusk took six
+         * hours of passes with it, silently.
+         */
+        const val RETRY_AFTER_NO_ANSWER_MILLIS = 15 * 60_000L
     }
 
     suspend fun poll(): PassPollResult {
@@ -107,7 +116,7 @@ class PassPoller(
         return runCatching { pollOnce(at) }.getOrElse {
             PassPollResult(
                 decision = PassPlanner.Decision.Nothing,
-                nextWakeAtMillis = at + PassPlanner.DORMANT_INTERVAL_MILLIS,
+                nextWakeAtMillis = at + RETRY_AFTER_NO_ANSWER_MILLIS,
                 failure = it.describe(),
             )
         }
@@ -148,7 +157,7 @@ class PassPoller(
         if (!scan.complete) {
             return PassPollResult(
                 decision = PassPlanner.Decision.Resting,
-                nextWakeAtMillis = at + RETRY_AFTER_PARTIAL_MILLIS,
+                nextWakeAtMillis = at + RETRY_AFTER_NO_ANSWER_MILLIS,
                 failure = "the pass sweep ran out of time; nothing decided this wake",
             )
         }

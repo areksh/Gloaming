@@ -96,7 +96,7 @@ class EventPoller(
         return runCatching { pollOnce(at) }.getOrElse {
             EventPollResult(
                 decision = EventPlanner.Decision.Nothing,
-                nextWakeAtMillis = at + EventPlanner.DORMANT_INTERVAL_MILLIS,
+                nextWakeAtMillis = at + RETRY_AFTER_NO_ANSWER_MILLIS,
                 failure = it.describe(),
             )
         }
@@ -235,6 +235,16 @@ class EventPoller(
     )
 
     companion object {
+        /**
+         * How soon to come back when this wake learned nothing.
+         *
+         * A calendar that threw does not know there is nothing coming; it knows
+         * it failed to look. Both come back as `Decision.Nothing`, so carrying
+         * the dormant interval - half a day, the answer for a calendar that
+         * really is empty - hid every notice in between on one transient fault.
+         */
+        const val RETRY_AFTER_NO_ANSWER_MILLIS = 15 * 60_000L
+
         /** The real calendar: a year of arithmetic, no network, no hosted file. */
         val REAL: CalendarSource = CalendarSource { latitude, longitude, fromMillis ->
             SkyCalendar.events(latitude, longitude, fromMillis)
