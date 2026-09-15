@@ -36,7 +36,17 @@ interface EventNotifier {
  * fetch: the real implementation is arithmetic over a vendored ephemeris.
  */
 fun interface CalendarSource {
-    fun events(latitude: Double, longitude: Double, fromMillis: Long): List<SkyEvent>
+    /**
+     * @param shouldStop asked between the calendar's contributors, so a poll
+     *   with a deadline can end a build that would otherwise run past it. See
+     *   [EventPoller.BUILD_BUDGET_MILLIS].
+     */
+    fun events(
+        latitude: Double,
+        longitude: Double,
+        fromMillis: Long,
+        shouldStop: () -> Boolean,
+    ): List<SkyEvent>
 }
 
 /** What one calendar check did, and when to come back. */
@@ -129,7 +139,8 @@ class EventPoller(
         // from the calendar, because it is a condition rather than a dated
         // occasion: it holds most clear nights for three months, and ninety
         // identical entries would bury the things worth scrolling to.
-        val events = calendar.events(latitude, longitude, at) +
+        val buildBy = at + BUILD_BUDGET_MILLIS
+        val events = calendar.events(latitude, longitude, at) { now() >= buildBy } +
             listOfNotNull(Noctilucent.event(latitude, longitude, at)) +
             byComet.values
         val pending = EventPlanner.due(events, at, user, held)
@@ -246,8 +257,24 @@ class EventPoller(
         const val RETRY_AFTER_NO_ANSWER_MILLIS = 15 * 60_000L
 
         /** The real calendar: a year of arithmetic, no network, no hosted file. */
-        val REAL: CalendarSource = CalendarSource { latitude, longitude, fromMillis ->
-            SkyCalendar.events(latitude, longitude, fromMillis)
+        val REAL: CalendarSource = CalendarSource { latitude, longitude, fromMillis, shouldStop ->
+            SkyCalendar.events(latitude, longitude, fromMillis, shouldStop = shouldStop)
         }
+
+        /**
+         * What one calendar build may spend before it gives up its turn.
+         *
+         * The poll lives inside a broadcast Android kills at sixty seconds, and
+         * a year of calendar measures 11.6 on a woken Pixel 8a and 12.5 in
+         * Doze. That fits, and fitting by three seconds is not the same as
+         * being bounded - which is what the satellite sweep proved when a
+         * throttled phone pushed it past the limit and the kill took the
+         * reschedule, the bookmark and the next poll's chance with it.
+         *
+         * SkyCalendar.Interrupted comes back through the poller's own catch as
+         * a failure, which now retries in fifteen minutes rather than sleeping
+         * the dormant half day.
+         */
+        const val BUILD_BUDGET_MILLIS = 20_000L
     }
 }

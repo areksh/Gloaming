@@ -98,6 +98,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Measured after: the same cold-start sweep completes in 4.5 seconds in forced
   Doze, and the whole poll in 17.
 
+- **The calendar build is bounded too.** A year of eclipses, elongations,
+  conjunctions, showers, oppositions, brightness peaks, constellations, seasons
+  and moon phases measures 11.6 seconds on a woken Pixel 8a and 12.5 in Doze,
+  inside a broadcast Android kills at sixty. That fits - and fitting by a few
+  seconds is not the same as being bounded, which is exactly what the satellite
+  sweep proved when a throttled phone pushed it past the limit. `SkyCalendar`
+  now takes a predicate, asked between contributors, and refuses with
+  `Interrupted` rather than handing back half a calendar: a truncated one would
+  announce whatever it reached and leave an eclipse unmentioned because the
+  budget ran out before eclipses. The clock stays on the caller's side, so the
+  astronomy keeps none of its own, and the default never stops so every existing
+  caller is unchanged.
+
 - **A failed check no longer sleeps as though the sky were empty.** A pass
   check that threw came back as `Decision.Nothing` carrying the dormant
   interval, and so did a calendar check - the answer for a sky that really is

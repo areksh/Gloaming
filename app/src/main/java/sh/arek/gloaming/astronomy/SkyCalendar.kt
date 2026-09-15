@@ -136,27 +136,58 @@ object SkyCalendar {
      * looking at: the Quadrantids reach maximum before dawn and vanished from
      * the list for the evening people were opening the app to check them.
      */
+    /**
+     * Thrown when [events] was asked to stop before it had a whole calendar.
+     *
+     * A refusal rather than a short answer. Half a calendar is not a quiet
+     * year: whichever contributors had run would be announced and the rest
+     * would be missing, so an eclipse could go unmentioned because the budget
+     * ran out before eclipses. The caller catches this and comes back.
+     */
+    class Interrupted : RuntimeException("the calendar was asked to stop before it was built")
+
+    /**
+     * @param shouldStop asked between contributors, so a caller with a deadline
+     *   can end a computation that would otherwise run past it. A year of this
+     *   measures 11.6 seconds on a woken Pixel 8a and 12.5 in Doze, inside a
+     *   broadcast Android kills at sixty - and an unbounded computation in a
+     *   broadcast is what cost the satellite sweep a night of alerts. The
+     *   predicate belongs to the caller so this package keeps no clock of its
+     *   own; the default never stops, so every existing caller is unchanged.
+     */
     fun events(
         latitude: Double,
         longitude: Double,
         fromMillis: Long,
         horizonDays: Int = 365,
+        shouldStop: () -> Boolean = { false },
     ): List<SkyEvent> {
         val until = fromMillis + horizonDays.toLong() * DAY_MILLIS
         val searchFrom = fromMillis - LONGEST_WINDOW_MILLIS
         val observer = observer(latitude, longitude)
         val start = Time.fromMillisecondsSince1970(searchFrom)
+        val checkpoint = { if (shouldStop()) throw Interrupted() }
 
         return buildList {
+            checkpoint()
             addAll(solarEclipses(observer, start, until))
+            checkpoint()
             addAll(lunarEclipses(observer, start, until))
+            checkpoint()
             addAll(elongations(latitude, longitude, start, until))
+            checkpoint()
             addAll(conjunctions(latitude, longitude, searchFrom, until))
+            checkpoint()
             addAll(showers(latitude, longitude, searchFrom, until))
+            checkpoint()
             addAll(oppositions(latitude, longitude, start, until))
+            checkpoint()
             addAll(greatestBrightness(latitude, longitude, start, until))
+            checkpoint()
             addAll(constellations(latitude, longitude, searchFrom, until))
+            checkpoint()
             addAll(seasons(searchFrom, until))
+            checkpoint()
             addAll(moonPhases(start, until))
         }
             // Its peak inside the horizon, and some part of it still ahead.

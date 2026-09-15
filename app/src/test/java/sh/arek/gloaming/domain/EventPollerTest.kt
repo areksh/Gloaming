@@ -92,7 +92,7 @@ class EventPollerTest {
         calls: MutableList<Long> = mutableListOf(),
         cometBody: String? = null,
     ) = EventPoller(
-        calendar = { _, _, from -> calls += from; events },
+        calendar = { _, _, from, _ -> calls += from; events },
         comets = CometRepository(
             Offline,
             object : CometCache {
@@ -181,7 +181,7 @@ class EventPollerTest {
         val settings = Settings(located.copy(cloudGateEnabled = false))
         val now = at("2027-08-02T08:00:00Z")
         val poller = EventPoller(
-            calendar = { _, _, _ -> throw IllegalStateException("ephemeris exploded") },
+            calendar = { _, _, _, _ -> throw IllegalStateException("ephemeris exploded") },
             comets = CometRepository(Offline, EmptyComets),
             manifests = ManifestRepository(
                 http = Offline,
