@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -126,12 +127,23 @@ class GloamingTabsTest {
         }
     }
 
-    /** Tonight is what the app is for, so it is what opens. */
+    /**
+     * Tonight is what the app is for, so it is what opens.
+     *
+     * The tab, and then Tonight's own content - not that a particular control
+     * happens to sit above the fold. This asserted "Check now" was displayed
+     * without scrolling to it, which is a claim about how tall the cards above
+     * it render, and it began failing on a phone whose app binary had not
+     * changed. It is not a claim the app makes either: once there is a location
+     * the nine sky cards go in above that button, so in real use it is below
+     * the fold regardless. Every other assertion in this class scrolls first.
+     */
     @Test
     fun opensOnTonight() {
         show()
 
-        compose.onNodeWithText("Check now").assertIsDisplayed()
+        compose.onNodeWithText("Tonight").assertIsSelected()
+        compose.onNodeWithText("Check now").performScrollTo().assertIsDisplayed()
     }
 
     /** The calendar is a tab away and shows what it was given. */
