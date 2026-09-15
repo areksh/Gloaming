@@ -161,7 +161,18 @@ object Refresh {
             )
             // Only once unlocked: a foreground service cannot be started before
             // then, and the attempt would throw.
-            if (unlocked) StormService.apply(application, aurora.storm)
+            //
+            // Guarded, because being unlocked is not the only way it can throw -
+            // a background start has its own restrictions and its own quota -
+            // and this sits between the aurora poll and the two checks after
+            // it. Unguarded, one refused service start took the pass and
+            // calendar checks with it and left a journal reading "poll outcome"
+            // and then nothing, which is the hardest shape there is to diagnose.
+            // Live mode is a display; it does not get to cost an alert.
+            if (unlocked) {
+                runCatching { StormService.apply(application, aurora.storm) }
+                    .onFailure { Notes.w(application, tag, "could not apply live mode", it) }
+            }
         }
 
         val passWake = runCatching {
