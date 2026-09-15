@@ -535,34 +535,53 @@ step "Did a poll actually run while the device was locked?"
 
 # The app logs the unlock state at the moment of the poll, so this needs no
 # inference about when the unlock happened.
+#
+# Answered from the app's own journal first, and only then from logcat. The
+# journal is durable; logcat is a ring buffer holding about twelve minutes on
+# this phone, and the whole point of this harness is a device left locked for
+# longer than that - a six minute soak plus however long it waits for somebody
+# to come and unlock it. Forty minutes of waiting was enough to age every locked
+# poll out of the buffer, and this then reported "the poll receiver never ran at
+# all" while the very next check found two of them in the journal. A release
+# gate refusing to publish on that is refusing on evidence that expired.
 poll_log=$(our_log PollReceiver)
-locked_polls=$(printf '%s' "$poll_log" | grep -c 'unlocked=false' || true)
-skipped=$(printf '%s' "$poll_log" | grep -c 'before-unlock alerting is off' || true)
+journal_polls=$(printf '%s' "$journal" | grep 'PollReceiver' | since_boot || true)
+locked_polls=$(printf '%s' "$journal_polls" | grep -c 'unlocked=false' || true)
+logcat_locked=$(printf '%s' "$poll_log" | grep -c 'unlocked=false' || true)
+[ "${locked_polls:-0}" -eq 0 ] && locked_polls="$logcat_locked"
+skipped=$(printf '%s\n%s' "$journal_polls" "$poll_log" \
+    | grep -c 'before-unlock alerting is off' || true)
 
 if [ "${locked_polls:-0}" -gt 0 ]; then
     pass "$locked_polls poll(s) completed before first unlock"
-    printf '%s\n' "$poll_log" | grep 'unlocked=false' | tail -3 | sed 's/^/        /'
+    printf '%s\n' "$journal_polls" | grep 'unlocked=false' | tail -3 | sed 's/^/        /'
 elif [ "${skipped:-0}" -gt 0 ]; then
     fail "the wake happened but every poll skipped" \
         "canPollNow said no: the settings mirror is missing, not the alarm."
-elif [ -z "$poll_log" ]; then
+elif [ -n "$journal_polls" ]; then
+    fail "polls ran, but only after unlock" \
+        "$(printf '%s' "$journal_polls" | tail -1)"
+elif [ -z "$journal" ]; then
+    skip "no journal, and logcat has rolled past the soak" \
+        "Nothing durable to read. Switch the app's log on, or read last_poll_at below."
+else
     fail "the poll receiver never ran at all" \
         "No alarm fired. Check the exemption and the standby bucket."
-else
-    fail "polls ran, but only after unlock" \
-        "$(printf '%s' "$poll_log" | tail -1)"
 fi
 
-failures=$(printf '%s' "$poll_log" | grep -c 'poll failed' || true)
+failures=$(printf '%s\n%s' "$journal_polls" "$poll_log" | grep -c 'poll failed' || true)
 if [ "${failures:-0}" -gt 0 ]; then
     fail "$failures poll(s) threw" \
-        "$(printf '%s' "$poll_log" | grep 'poll failed' | tail -1)"
+        "$(printf '%s\n%s' "$journal_polls" "$poll_log" | grep 'poll failed' | tail -1)"
 fi
 
 step "Did the app's own journal record the locked polls?"
 
 # Read above, with the reasoning for reading it at all.
-journalled_locked=$(printf '%s' "$journal" | grep 'unlocked=false' \
+# PollReceiver only. Counting every line carrying `unlocked=false` swept in the
+# BootReceiver's own re-arm, so a soak with one poll in it reported two - a
+# check that says "polls" and counts something else.
+journalled_locked=$(printf '%s' "$journal" | grep 'PollReceiver' | grep 'unlocked=false' \
     | since_boot | grep -c . || true)
 if [ "${journalled_locked:-0}" -gt 0 ]; then
     pass "$journalled_locked locked poll(s) are in the app's own journal"

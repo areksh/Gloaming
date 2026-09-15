@@ -148,6 +148,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   branch turned a no-op into a one-minute poll loop for whoever reached it next.
   It now hands back the check already planned.
 
+- **`bfu-check.sh` no longer fails a good run because logcat forgot it.** The
+  question it exists to answer - did a poll run before first unlock - was read
+  from logcat, a ring buffer holding about twelve minutes on this phone. The
+  harness reboots, soaks for six, and then waits however long it takes for
+  somebody to come and unlock the device; forty minutes of that was enough to
+  age every locked poll out of the buffer. It then reported "the poll receiver
+  never ran at all" while the very next check found the polls in the app's own
+  journal, and `./go release` would have refused to publish on it. The durable
+  journal is now the evidence and logcat the corroboration. The journal check
+  beside it also counted any line carrying `unlocked=false`, sweeping in the
+  boot receiver's re-arm, so a soak with one poll in it reported two.
+
 - **`doze-check.sh` no longer invents a deferral out of a single poll.** It
   divided the length of the watch by the number of polls and called the result
   an average gap. That is not a gap: n polls have n-1 gaps between them, and the
