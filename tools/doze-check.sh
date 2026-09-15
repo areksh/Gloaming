@@ -62,14 +62,19 @@
 #                     overshoots a deadline by orders of magnitude; ordinary
 #                     batching does not overshoot it at all.
 #
-#   --observer WHERE  borrow somewhere the app will actually be polling from,
-#                     and put the phone's own position back afterwards.
+#   --observer WHERE  borrow somewhere the app will actually be polling from.
 #
 #                     "auto" asks tools/pick-observer.sh for the clearest site
 #                     that is dark for the whole run; "LAT,LON" names one. Both
 #                     need the instrumentation APK, because seeding goes through
 #                     the same save path the settings screen uses:
 #                       ./go install --test
+#
+#                     The phone keeps the borrowed position afterwards. Nothing
+#                     is restored, here or in ./go: the fixture writes a whole
+#                     UserSettings and putting four fields back left the other
+#                     ten reset while reading as though it had covered them.
+#                     This is a harness for a test device.
 #
 #                     Without this the harness measures whatever the phone's own
 #                     sky is doing, which in daylight is a wake hours away and
@@ -176,64 +181,22 @@ configured_interval() {
         | sed -n 's/.*name="poll_minutes" value="\([0-9]*\)".*/\1/p' | head -1 || true
 }
 
-# One value out of the device-encrypted settings mirror.
-pref_value() {
-    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
-        | sed -n "s/.*name=\"$1\" value=\"\([^\"]*\)\".*/\1/p" | head -1
-}
-
-# Coordinates are stored as `Double.toRawBits()`, so the number in the file is
-# not a coordinate. Node rather than a shell arithmetic trick because IEEE-754
-# is not something to reimplement in `expr`, and through the environment rather
-# than as an argument because every negative coordinate has the sign bit set,
-# making its raw bits a negative integer that node's option parser takes for a
-# flag. Same function as `./go` has, for the same two reasons.
-bits_to_double() {
-    # `process.stdout.write(String(...))`, not `console.log(...)`. console.log
-    # formats a number through util.inspect, which colours its output when it
-    # thinks a terminal is watching - and FORCE_COLOR in the environment makes
-    # it think so even down a pipe. The coordinate then comes back as
-    # "\033[33m53\033[39m", which is not a number any more: the seed rejects
-    # it and the position is never put back. That is how a phone was left
-    # pointing at Palomar after a run meant to restore it.
-    GLOAMING_RAW_BITS="$1" node -e 'const b = Buffer.alloc(8);
-             b.writeBigInt64BE(BigInt(process.env.GLOAMING_RAW_BITS));
-             process.stdout.write(String(b.readDoubleBE(0)));'
-}
-
-# The phone's own settings, read before anything is seeded over them.
+# Whether this run seeded a position, for the summary at the end.
 #
-# BeforeUnlockFixture writes a whole UserSettings rather than editing a field,
-# so seeding without passing these back puts Edinburgh and the default threshold
-# on whatever phone the harness ran on - and the position it replaced is the one
-# thing here nobody can reconstruct.
-SAVED_LATITUDE=""
-SAVED_LONGITUDE=""
-SAVED_THRESHOLD=""
-SAVED_INTERVAL=""
+# Nothing is put back. Reading the phone's settings first and writing four of
+# them afterwards only ever restored four: the fixture writes a whole
+# UserSettings, so minimum elevation, cloud tolerance, the alert leads and the
+# rest were reset either way and left reset. A restore covering a quarter of
+# what it overwrites reads as though it covers all of it, which is worse than
+# saying plainly that the device is left seeded. This is a harness for a test
+# phone; it says what it did and leaves it done.
 SEEDED=0
-
-capture_settings() {
-    local latitude longitude
-    latitude=$(pref_value latitude)
-    longitude=$(pref_value longitude)
-    SAVED_THRESHOLD=$(pref_value threshold)
-    SAVED_INTERVAL=$(pref_value poll_minutes)
-    [ -n "$latitude" ] && SAVED_LATITUDE=$(bits_to_double "$latitude")
-    [ -n "$longitude" ] && SAVED_LONGITUDE=$(bits_to_double "$longitude")
-    if [ -z "$SAVED_LATITUDE" ] || [ -z "$SAVED_LONGITUDE" ]; then
-        echo "the phone has no observer position recorded, so borrowing one would" >&2
-        echo "leave it there. Open the app and set a location first." >&2
-        exit 1
-    fi
-}
 
 # Writes a whole settings object through the same path the settings screen uses.
 # Everything not being changed is passed straight back in.
 seed_settings() {
     local latitude="$1" longitude="$2" interval="$3"
     local args=(-e latitude "$latitude" -e longitude "$longitude" -e interval "$interval")
-    [ -n "$SAVED_THRESHOLD" ] && args+=(-e threshold "$SAVED_THRESHOLD")
     adb shell am instrument -w \
         -e class sh.arek.gloaming.harness.BeforeUnlockFixture \
         "${args[@]}" \
@@ -388,23 +351,27 @@ note_alarm() {
 
 restore() {
     [ -n "${seen_file:-}" ] && rm -f "$seen_file"
-    printf '\nRestoring the device.\n'
+    printf '\nPutting the device back.\n'
     adb shell dumpsys deviceidle unforce >/dev/null 2>&1 || true
     adb shell dumpsys battery reset >/dev/null 2>&1 || true
-    # The borrowed position goes back first, and loudly if it cannot: leaving a
-    # phone pointed at a mountain in Chile would quietly stop it alerting for
-    # wherever its owner actually is, and nothing else here would say so.
+    # Said rather than undone. The phone keeps the borrowed sky until something
+    # seeds it again, which on a test device is the honest arrangement - and the
+    # alternative only ever put four of the fixture's fields back.
     if [ "$SEEDED" -eq 1 ]; then
-        printf '  putting the position back to %s, %s\n' "$SAVED_LATITUDE" "$SAVED_LONGITUDE"
-        if ! seed_settings "$SAVED_LATITUDE" "$SAVED_LONGITUDE" "${SAVED_INTERVAL:-15}"; then
-            printf '  WARNING: could not put the settings back. Check ./go status.\n' >&2
-        fi
+        printf '  the phone is left at %s, %s on a %s minute interval\n' \
+            "$OBS_LAT" "$OBS_LON" "$ARM_INTERVAL"
+        printf '  seed it somewhere else when you want it back: ./go status reads it out\n'
     fi
     # Back to the bucket the app was in, not to `active`: forcing it to active
     # would leave the device in a state the run created rather than found.
     [ -n "$ORIGINAL_BUCKET" ] \
         && adb shell am set-standby-bucket "$PACKAGE" "$ORIGINAL_BUCKET" >/dev/null 2>&1 || true
-    printf 'Done. The screen is still off; the device is otherwise back to normal.\n'
+    if [ "$SEEDED" -eq 1 ]; then
+        printf 'Done. Doze, the battery and the standby bucket are back as they were;\n'
+        printf 'the screen is still off and the app is still seeded, as above.\n'
+    else
+        printf 'Done. The screen is still off; the device is otherwise back to normal.\n'
+    fi
 }
 
 # Only EXIT runs `restore`. A signal handler that merely restores would put the
@@ -464,8 +431,6 @@ if [ -n "$OBSERVER" ]; then
         echo "installed: ./go install --test" >&2
         exit 1
     fi
-    capture_settings
-
     case "$OBSERVER" in
         auto)
             # Dark for the watch and the settle, with an interval's margin on
@@ -493,8 +458,7 @@ if [ -n "$OBSERVER" ]; then
 
     printf '  observer: %s  (%s, %s)\n' "$OBS_NAME" "$OBS_LAT" "$OBS_LON"
     printf '    sun %s deg, cloud %s%%\n' "$OBS_SUN" "$OBS_CLOUD"
-    printf '    the phone is at %s, %s, and goes back there afterwards\n' \
-        "$SAVED_LATITUDE" "$SAVED_LONGITUDE"
+    printf '    the phone keeps this position after the run; nothing is put back\n'
 
     # Set before the seed rather than after it, so an interrupt between the two
     # still restores. A seed that half-succeeded is exactly the case that must

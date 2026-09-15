@@ -706,63 +706,23 @@ version_name() {
     sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts | head -1
 }
 
-# One value out of the device-encrypted settings mirror.
-pref_value() {
-    as_app "cat $DE_PREFS/*.xml 2>/dev/null" \
-        | sed -n "s/.*name=\"$1\" value=\"\([^\"]*\)\".*/\1/p" | head -1
-}
-
-# Coordinates are stored as `Double.toRawBits()`, so the number in the file is
-# not a coordinate and handing it back as one would put the observer in the
-# middle of nowhere. Node rather than a shell arithmetic trick because IEEE-754
-# is not something to reimplement in `expr`.
+# Where the gate stands its observer.
 #
-# The bits go in through the environment rather than as an argument, and that is
-# not fastidiousness. Every negative coordinate has the sign bit set, so its raw
-# bits are a negative integer, so the argument starts with a `-` and node's own
-# option parser takes it for a flag: `node: bad option: -4614894397677710907`.
-# Which means this worked only for an observer east of Greenwich and north of
-# the equator, and `./go release` died on the spot anywhere else - about three
-# quarters of the planet, this country included.
-bits_to_double() {
-    # `process.stdout.write(String(...))`, not `console.log(...)`. console.log
-    # formats a number through util.inspect, which colours its output when it
-    # thinks a terminal is watching - and FORCE_COLOR in the environment makes
-    # it think so even down a pipe. The coordinate then comes back as
-    # "\033[33m53\033[39m", which is not a number any more: the seed rejects
-    # it and the position is never put back. That is how a phone was left
-    # pointing at Palomar after a run meant to restore it.
-    GLOAMING_RAW_BITS="$1" node -e 'const b = Buffer.alloc(8);
-             b.writeBigInt64BE(BigInt(process.env.GLOAMING_RAW_BITS));
-             process.stdout.write(String(b.readDoubleBE(0)));'
-}
-
-# The phone's own settings, read before the gate seeds over them.
+# A fixed place, not whatever the phone happens to hold. The harnesses seed a
+# whole UserSettings - the fixture writes the object, so every field it is not
+# given takes a default - and reading four of those fields back afterwards only
+# ever restored four of them. Position, threshold and interval came back;
+# minimum elevation, cloud tolerance, the alert leads, quiet hours and the rest
+# were reset and left reset. A restore that covers a quarter of what it
+# overwrites is worse than none, because it reads as though it covers all of it.
 #
-# BeforeUnlockFixture writes a whole UserSettings rather than editing fields, so
-# seeding without passing these puts Edinburgh and the default threshold on
-# whatever phone the gate ran on - the same failure the instrumented suite was
-# fixed for once already. Captured here, passed back in on every seed, and put
-# back at the end.
-SAVED_LATITUDE=""
-SAVED_LONGITUDE=""
-SAVED_THRESHOLD=""
-SAVED_INTERVAL=""
-
-capture_device_settings() {
-    local latitude longitude
-    latitude=$(pref_value latitude)
-    longitude=$(pref_value longitude)
-    SAVED_THRESHOLD=$(pref_value threshold)
-    SAVED_INTERVAL=$(pref_value poll_minutes)
-    [ -n "$latitude" ] && SAVED_LATITUDE=$(bits_to_double "$latitude")
-    [ -n "$longitude" ] && SAVED_LONGITUDE=$(bits_to_double "$longitude")
-    if [ -z "$SAVED_LATITUDE" ] || [ -z "$SAVED_LONGITUDE" ]; then
-        die "the phone has no observer position recorded, so seeding the harness
-would invent one and leave it there. Open the app and set a location first."
-    fi
-    echo "  the phone's settings: $SAVED_LATITUDE, $SAVED_LONGITUDE, threshold ${SAVED_THRESHOLD:-default}, every ${SAVED_INTERVAL:-default} min"
-}
+# So the gate no longer pretends. It seeds this and leaves it seeded, which is
+# also reproducible: a release run no longer behaves differently depending on
+# where the phone thought it was. Edinburgh because it is far enough north for
+# an aurora alert to be plausible, and because it is already what
+# BeforeUnlockFixture defaults to.
+GATE_LATITUDE="55.95"
+GATE_LONGITUDE="-3.19"
 
 # The before-unlock harness, seeded with the phone's own location and threshold
 # so that only the interval changes. ANDROID_SERIAL is exported by this script
@@ -773,12 +733,8 @@ would invent one and leave it there. Open the app and set a location first."
 # in the room yet, would throw the whole run away.
 run_bfu_seeded() {
     local interval="$1"
-    local args=(--seed --interval "$interval" --reconnect-timeout 0
-                --latitude "$SAVED_LATITUDE" --longitude "$SAVED_LONGITUDE")
-    if [ -n "$SAVED_THRESHOLD" ]; then
-        args+=(--threshold "$SAVED_THRESHOLD")
-    fi
-    tools/bfu-check.sh "${args[@]}"
+    tools/bfu-check.sh --seed --interval "$interval" --reconnect-timeout 0 \
+        --latitude "$GATE_LATITUDE" --longitude "$GATE_LONGITUDE"
 }
 
 # Wait for the app's schedule to come back after a reboot.
@@ -806,25 +762,6 @@ wait_for_poll_alarm() {
         waited=$((waited + 5))
     done
     echo "  no alarm pending after ${waited}s of waiting"
-}
-
-# Put the interval back. The fixture is invoked directly rather than through
-# `bfu-check.sh --seed`, which would reboot the phone a second time to restore a
-# setting - the reboot is the harness's subject, not part of writing settings.
-restore_device_settings() {
-    local interval="${SAVED_INTERVAL:-15}"
-    local args=(-e interval "$interval"
-                -e latitude "$SAVED_LATITUDE" -e longitude "$SAVED_LONGITUDE")
-    if [ -n "$SAVED_THRESHOLD" ]; then
-        args+=(-e threshold "$SAVED_THRESHOLD")
-    fi
-    echo "  putting the interval back to ${interval} minutes"
-    adb shell am instrument -w \
-        -e class sh.arek.gloaming.harness.BeforeUnlockFixture \
-        "${args[@]}" \
-        "${PACKAGE}.test/androidx.test.runner.AndroidJUnitRunner" 2>&1 \
-        | tr -d '\r' | grep -qE 'OK \(1 test\)' \
-        || echo "  WARNING: could not put the settings back. Check ./go status." >&2
 }
 
 # Checked before anything is pushed rather than at packageRelease, which is
@@ -886,7 +823,6 @@ nothing about itself. Write the entry first."
     require_signing
     require_codeberg
     require_device
-    capture_device_settings
 
     cat <<NOTICE
 
@@ -894,7 +830,11 @@ Releasing $version from $(git rev-parse --short HEAD).
 
 Everything runs: the unit tests, the whole instrumented suite, that suite again
 against R8's output, and both overnight harnesses. About two hours, and the
-phone must stay plugged in throughout. It is unattended until the before-unlock
+phone must stay plugged in throughout.
+
+This overwrites the app's settings on the phone and leaves them overwritten:
+observer $GATE_LATITUDE, $GATE_LONGITUDE, a short poll interval, alerting on,
+everything else at its default. Use a phone you do not mind that happening to. It is unattended until the before-unlock
 harness reboots the phone, at which point it waits - with no time limit - for
 you to unlock it.
 
@@ -959,11 +899,11 @@ NOTICE
     tools/doze-check.sh --observer auto --minutes 90 --settle 8 --expect-late 10
 
     echo
-    echo "== Putting the phone's settings back =="
-    restore_device_settings
-    echo "  Note: the harness switched alerting and before-unlock alerting on,"
-    echo "  and cannot tell whether they were on before. ./go status reads back"
-    echo "  what the phone is set to now."
+    echo "== The phone is left seeded =="
+    echo "  Observer ${GATE_LATITUDE}, ${GATE_LONGITUDE}, a two minute interval, alerting"
+    echo "  and before-unlock alerting on, and every other setting at its default."
+    echo "  Nothing is put back: see GATE_LATITUDE above for why. ./go status reads"
+    echo "  out what the phone is set to now."
 
     echo
     echo "== The bump =="

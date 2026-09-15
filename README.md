@@ -606,12 +606,17 @@ apart need.
 Then it bumps the version, cuts the changelog, builds and signs, and asks once
 before anything leaves the machine.
 
-Both steps seed settings to measure anything, and the fixture that does it
-writes the whole settings object rather than editing a field. So the phone's own
-position and threshold are read first and passed back in, and put back
-afterwards - step 6 borrows a position outright and restores it on exit. What cannot be put back is that the harness
-switches alerting on: it has no way to know whether it was on before, and
-`./go status` is how you check.
+**Use a phone you do not mind this happening to.** Both steps seed settings to
+measure anything, and the fixture that does it writes the whole settings object
+rather than editing a field - so every setting it is not given takes a default.
+The release gate seeds a fixed observer (55.95, -3.19), a short poll interval
+and alerting on, and leaves all of it seeded.
+
+It used to read four of those fields back afterwards and write them again, which
+restored the position, threshold and interval while minimum elevation, cloud
+tolerance, the alert leads and quiet hours stayed reset. A restore covering a
+quarter of what it overwrites reads as though it covers all of it, so it is gone
+rather than half-kept. `./go status` reads out what the phone is actually set to.
 
 Publishing needs a Codeberg access token with write access to the repository, in
 `secrets/codeberg-token.txt` or `CODEBERG_TOKEN`, and the signing material in

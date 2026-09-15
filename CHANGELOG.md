@@ -25,6 +25,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The harnesses no longer pretend to put the phone's settings back.** They
+  seed a whole `UserSettings` - the fixture writes the object, so every field it
+  is not given takes a default - and reading four of those fields back
+  afterwards restored four of them. Position, threshold and interval came back;
+  minimum elevation, cloud tolerance, the alert leads and quiet hours were reset
+  and left reset. A restore covering a quarter of what it overwrites reads as
+  though it covers all of it. `./go release` now seeds a fixed observer, which
+  is also reproducible - a gate run no longer behaves differently depending on
+  where the phone thought it was - and says plainly that it leaves the device
+  seeded. The screen timeout and stay-awake are still put back; those are the
+  device's, not the app's.
+
 - **`--expect-within` becomes `--expect-late`, measured against the app's own
   request.** The old flag compared the gap to a number typed on the command
   line, which meant picking one that happened to match whatever interval the
