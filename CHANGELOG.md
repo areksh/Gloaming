@@ -62,6 +62,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The satellite sweep can no longer kill a poll, and mostly no longer needs
+  to be a whole sweep.** Predicting passes walks 175 objects across a twelve
+  hour horizon at thirty second steps. That measures 7.4 seconds on a woken
+  Pixel 8a and over 45 in Doze, where the CPU is throttled - past the sixty a
+  broadcast gets. The timeout around it never fired, because a tight loop has no
+  suspension point for cancellation to land on, so the broadcast was killed
+  along with the reschedule and the bookmark that would have let the next poll
+  skip the work. It repeated every wake: twelve ANRs in one night, and not one
+  completed pass or calendar check, so no satellite or event alert was possible
+  at all.
+
+  Two changes. The sweep now gives up its turn at a deadline checked between
+  objects, and a sweep that ran out of time says nothing rather than deciding
+  from half a catalogue - announcing from a partial list could speak about a
+  later pass while an earlier one sat unread, and the channel's rate limit would
+  then hold its tongue about the one that mattered. And the near three hours are
+  swept first, the rest only when the planner would not choose anything there -
+  not merely when nothing is there, since a pass can be present and count for
+  nothing, invisible in daylight or still inside its rate limit. The full
+  horizon is always swept before the app commits to a long sleep, so the six
+  hour dormant interval is still only ever taken on twelve hours of evidence.
+  Measured after: the same cold-start sweep completes in 4.5 seconds in forced
+  Doze, and the whole poll in 17.
+
+- **A partial or failed check is no longer invisible.** `PassPollResult.failure`
+  was dropped on the floor, so a sweep that ran out of time read in the journal
+  exactly like a quiet sky - in the one record kept for the morning after a
+  night that produced nothing.
+
 - **A slow poll no longer kills the app's schedule and then repeats itself.**
   The poll runs inside a `goAsync` broadcast, which Android kills at sixty
   seconds, and the budget never fitted: the aurora fetch alone was allowed

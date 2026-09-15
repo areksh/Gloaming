@@ -172,7 +172,12 @@ object Refresh {
             } else {
                 val passes = withTimeout(budget) { Graph.passPoller(application).poll() }
                 val wake = minutesUntil(passes.nextWakeAtMillis)
-                Notes.i(application, tag, "pass check: ${passes.decision} (next in ${wake}m)")
+                // The failure is said out loud rather than dropped. A sweep
+                // that ran out of time used to look exactly like a quiet sky
+                // from the journal, which is the one record kept for the
+                // morning after a night that produced nothing.
+                val why = passes.failure?.let { " - $it" } ?: ""
+                Notes.i(application, tag, "pass check: ${passes.decision} (next in ${wake}m)$why")
                 wake
             }
         }.onFailure { Notes.w(application, tag, "pass check failed", it) }.getOrNull()
@@ -185,7 +190,8 @@ object Refresh {
             } else {
                 val events = withTimeout(budget) { Graph.eventPoller(application).poll() }
                 val wake = minutesUntil(events.nextWakeAtMillis)
-                Notes.i(application, tag, "calendar check: ${events.decision} (next in ${wake}m)")
+                val why = events.failure?.let { " - $it" } ?: ""
+                Notes.i(application, tag, "calendar check: ${events.decision} (next in ${wake}m)$why")
                 wake
             }
         }.onFailure { Notes.w(application, tag, "calendar check failed", it) }.getOrNull()

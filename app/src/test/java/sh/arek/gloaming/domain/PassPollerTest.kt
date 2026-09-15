@@ -165,6 +165,99 @@ class PassPollerTest {
         localMinuteOfDay = { 2 * 60 },
     )
 
+    /**
+     * As [poller], but with the clock and the darkness gate under the test's
+     * control: one to let a scan run past its budget, the other to put the next
+     * visible pass beyond the near window.
+     */
+    private fun poller(
+        settings: Settings,
+        state: State,
+        notifier: Notifier,
+        cache: Cache,
+        clock: () -> Long,
+        isDark: (Double, Double, Long) -> Boolean = { _, _, _ -> true },
+    ) = PassPoller(
+        manifests = ManifestRepository(
+            http = Offline,
+            store = FileManifestStore(java.io.File("build/tmp/passpoller-test")),
+            publicKey = ByteArray(32),
+            manifestUrl = "https://sky.arek.sh/v1/index.json",
+        ),
+        satellites = SatelliteRepository(Offline, cache, clock),
+        weather = NoWeather,
+        settings = settings,
+        state = state,
+        notifier = notifier,
+        now = clock,
+        darkness = DarknessAt(isDark),
+        localMinuteOfDay = { 2 * 60 },
+    )
+
+    /**
+     * The scan is bounded so a wake cannot be killed part way through it.
+     *
+     * Found on real hardware: the catalogue sweep is 175 objects across a
+     * twelve hour horizon at thirty second steps, which takes 7.4 seconds awake
+     * and over 45 in Doze, where the CPU is throttled. It sits in a tight loop
+     * with no suspension point, so the timeout around it never fired; the
+     * broadcast was killed at sixty seconds, the `finally` went with it, and
+     * nothing was recorded - twelve times in one night.
+     */
+    @Test
+    fun `gives up a scan that runs past its budget rather than being killed`() = runTest {
+        val from = 1637712000000L
+        val pass = firstVisiblePass(from)
+        val start = pass.peaksAt - 20 * 60_000L
+        // Every reading of the clock jumps twenty seconds, so the budget is
+        // gone by the first check however small the catalogue is. A real phone
+        // gets there the slow way: 175 objects, throttled, over forty seconds.
+        var ticks = 0L
+        val creeping = { start + (ticks++) * 20_000L }
+        val notifier = Notifier()
+
+        val result = poller(settings(), State(), notifier, Cache(document, 600_000L), creeping).poll()
+
+        assertEquals("a partial scan must not speak", 0, notifier.announced.size)
+        assertTrue("gave no reason for the short answer", result.failure != null)
+        assertTrue("did not come back soon after giving up", result.nextWakeAtMillis > start)
+    }
+
+    /**
+     * The near window is scanned first and the rest only when nothing there
+     * would be acted on. "Nothing there" has to mean nothing the *planner*
+     * would choose, not merely no passes at all: a pass whose channel is still
+     * rate-limited is skipped by chooseNext, and stopping at the near window
+     * because such a pass exists would sleep straight past the real one.
+     *
+     * Here the sky is dark only after four hours, so every pass inside the near
+     * window is invisible and the one that matters lies beyond it.
+     */
+    @Test
+    fun `finds a pass beyond the near window when nothing near is worth choosing`() = runTest {
+        // This element set gives three passes from here: +93m, +189m and +287m.
+        // Dark only from +185m, so the one inside the near window is invisible
+        // and the first that counts lies beyond it.
+        val from = 1637712000000L - 4 * 60 * 60_000L
+        val darkFrom = from + 185 * 60_000L
+        val state = State()
+        val notifier = Notifier()
+
+        val result = poller(
+            settings(), state, notifier, Cache(document, 600_000L), { from },
+            isDark = { _, _, at -> at >= darkFrom },
+        ).poll()
+
+        assertTrue(
+            "slept past the pass instead of seeing it: ${result.decision}",
+            result.decision !is PassPlanner.Decision.Nothing,
+        )
+        assertTrue(
+            "armed a dormant wake, which would sail past the pass",
+            result.nextWakeAtMillis < from + PassPlanner.DORMANT_INTERVAL_MILLIS,
+        )
+    }
+
     private fun settings() = Settings(
         UserSettings(
             latitude = latitude,

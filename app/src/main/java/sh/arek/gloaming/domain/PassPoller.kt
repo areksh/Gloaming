@@ -1,6 +1,7 @@
 package sh.arek.gloaming.domain
 
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.ManifestRepository
@@ -73,6 +74,34 @@ class PassPoller(
     private val localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
 ) {
 
+    private companion object {
+        /**
+         * How far ahead the first sweep looks.
+         *
+         * The same three hours `PassPlanner.FRESHEN_BEFORE_MILLIS` uses for "a
+         * pass is close enough to be worth spending a fetch on", because it is
+         * the same judgement: near enough to act on.
+         */
+        val NEAR_HORIZON_MILLIS = PassPlanner.FRESHEN_BEFORE_MILLIS
+
+        /**
+         * What the sweep may spend before it gives up its turn.
+         *
+         * The poll runs in a broadcast Android kills at sixty seconds, and the
+         * kill takes the reschedule with it - no bookmark written, no alarm
+         * armed, the provisional one left standing, and the next wake repeating
+         * the work that was just killed. Twelve times in one night, measured.
+         *
+         * A timeout around the call cannot help: the sweep is a tight loop with
+         * no suspension point for cancellation to land on, which is why the one
+         * in `Refresh` never fired. This is the bound that actually holds.
+         */
+        const val SCAN_BUDGET_MILLIS = 18_000L
+
+        /** How soon to come back when the sweep ran out of time. */
+        const val RETRY_AFTER_PARTIAL_MILLIS = 15 * 60_000L
+    }
+
     suspend fun poll(): PassPollResult {
         val at = now()
         return runCatching { pollOnce(at) }.getOrElse {
@@ -100,16 +129,31 @@ class PassPoller(
         }
 
         val isDarkAt = { instant: Long -> darkness.isDark(latitude, longitude, instant) }
-        val upcoming = PassPlanner.visible(
-            passes = predictions(
-                at,
-                latitude,
-                longitude,
-                isDarkAt,
-                user.minimumPassElevationDegrees.toDouble(),
-            ),
+        val scan = predictions(
+            at = at,
+            latitude = latitude,
+            longitude = longitude,
             isDarkAt = isDarkAt,
+            bar = user.minimumPassElevationDegrees.toDouble(),
+            user = user,
+            held = held,
+            deadline = at + SCAN_BUDGET_MILLIS,
         )
+
+        // A sweep that ran out of time says nothing, rather than saying what it
+        // managed to see. Half a catalogue is not a quiet sky: announcing from
+        // it could speak about a later pass while an earlier one sat unread,
+        // and the channel's rate limit would then hold its tongue about the one
+        // that mattered. Better to come back and look properly.
+        if (!scan.complete) {
+            return PassPollResult(
+                decision = PassPlanner.Decision.Resting,
+                nextWakeAtMillis = at + RETRY_AFTER_PARTIAL_MILLIS,
+                failure = "the pass sweep ran out of time; nothing decided this wake",
+            )
+        }
+
+        val upcoming = PassPlanner.visible(passes = scan.passes, isDarkAt = isDarkAt)
 
         val next = PassPlanner.chooseNext(upcoming, at, user, held)
         // The forecast is only worth a radio wake once a pass is close enough
@@ -175,23 +219,96 @@ class PassPoller(
      * coming makes no request. The prediction is redone only if the fetch
      * actually brought back something different.
      */
+    /**
+     * What one sweep of the catalogue found, and whether it got to the end.
+     *
+     * Incomplete is not an error and not an empty sky. It means the answer is
+     * not known yet, which is a different thing from knowing there is nothing -
+     * and the caller has to keep them apart, because one of them is a reason to
+     * sleep for six hours.
+     */
+    private data class Scan(val passes: List<SatellitePass>, val complete: Boolean)
+
     private suspend fun predictions(
         at: Long,
         latitude: Double,
         longitude: Double,
         isDarkAt: (Long) -> Boolean,
         bar: Double,
-    ): List<SatellitePass> {
-        val held = satellites.cached()
-        val fromHeld = held?.let { predict(it, latitude, longitude, at, bar) } ?: emptyList()
-        val soonest = PassPlanner.next(PassPlanner.visible(fromHeld, isDarkAt), at)
+        user: UserSettings,
+        held: AlertState,
+        deadline: Long,
+    ): Scan {
+        val document = satellites.cached()
+        val fromHeld = document
+            ?.let { staged(it, latitude, longitude, at, bar, isDarkAt, user, held, deadline) }
+            ?: Scan(emptyList(), complete = true)
+        if (!fromHeld.complete) return fromHeld
+
+        val soonest = PassPlanner.next(PassPlanner.visible(fromHeld.passes, isDarkAt), at)
             ?.let { it.risesAt - at }
 
         if (!PassPlanner.shouldFreshen(satellites.cachedAgeMillis(), soonest)) return fromHeld
 
         val fresh = runCatching { satellites.refresh(manifests.refresh()) }.getOrNull()
-        return if (fresh == null || fresh == held) fromHeld
-        else predict(fresh, latitude, longitude, at, bar)
+        return if (fresh == null || fresh == document) fromHeld
+        else staged(fresh, latitude, longitude, at, bar, isDarkAt, user, held, deadline)
+    }
+
+    /**
+     * The near hours first, and the rest only if the near hours settle nothing.
+     *
+     * The sweep costs time in proportion to the window: the whole horizon is
+     * 175 objects at thirty second steps, which measures 7.4 seconds on a woken
+     * Pixel 8a and over 45 in Doze, where the CPU is throttled. Most of that is
+     * wasted most of the time, because the pass that matters is usually the next
+     * one and it is usually soon.
+     *
+     * The condition for stopping early is the delicate part, and it is not "the
+     * near window has a pass in it". A pass can be there and count for nothing -
+     * invisible because it is daylight then, or on a channel still inside its
+     * rate limit, both of which `chooseNext` weighs and discards. Stopping on
+     * one of those would sleep straight past the real pass behind it. So the
+     * test is whether the planner would actually *choose* something in the near
+     * window; if it would, nothing further out can be sooner, and the rest of
+     * the horizon cannot change the answer.
+     *
+     * When it would not, the far window is swept and added. The two are
+     * adjacent rather than overlapping - `PassFinder` reports passes that
+     * *begin* inside the window it is given, so a pass under way at the seam
+     * belongs to the near sweep and is not counted twice.
+     *
+     * DORMANT_INTERVAL_MILLIS is six hours against a twelve hour horizon, and
+     * that margin is what makes the whole scheme safe: the app only commits to
+     * a long sleep having seen the full horizon, never the near window alone.
+     */
+    private fun staged(
+        document: SatellitesDocument,
+        latitude: Double,
+        longitude: Double,
+        at: Long,
+        bar: Double,
+        isDarkAt: (Long) -> Boolean,
+        user: UserSettings,
+        held: AlertState,
+        deadline: Long,
+    ): Scan {
+        val nearEnd = at + NEAR_HORIZON_MILLIS
+        val near = predict(document, latitude, longitude, at, nearEnd, bar, deadline)
+        if (!near.complete) return near
+
+        val choosable = PassPlanner.chooseNext(
+            PassPlanner.visible(near.passes, isDarkAt),
+            at,
+            user,
+            held,
+        )
+        if (choosable != null) return near
+
+        val far = predict(
+            document, latitude, longitude, nearEnd, at + PassPlanner.HORIZON_MILLIS, bar, deadline,
+        )
+        return Scan(near.passes + far.passes, far.complete)
     }
 
     /**
@@ -207,17 +324,29 @@ class PassPoller(
         document: SatellitesDocument,
         latitude: Double,
         longitude: Double,
-        at: Long,
+        from: Long,
+        until: Long,
         bar: Double,
-    ): List<SatellitePass> {
-        val until = at + PassPlanner.HORIZON_MILLIS
+        deadline: Long,
+    ): Scan {
         val ends = document.trains.flatMap { listOf(it.lead, it.tail) }.toSet()
+        val found = mutableListOf<SatellitePass>()
 
-        val singles = document.satellites
-            .filterNot { it.catalogue in ends }
-            .flatMap { PassFinder.passes(it, latitude, longitude, at, until, bar) }
+        // Checked between objects rather than inside the sweep of one, which
+        // keeps PassFinder free of a clock it has no business knowing about.
+        // One object is a fraction of a second even throttled, so the grain is
+        // fine enough to stop well short of the sixty a broadcast gets.
+        for (satellite in document.satellites) {
+            if (now() >= deadline) return Scan(found, complete = false)
+            if (satellite.catalogue in ends) continue
+            found += PassFinder.passes(satellite, latitude, longitude, from, until, bar)
+        }
 
-        return singles + TrainFinder.passes(document, latitude, longitude, at, until, bar)
+        if (now() >= deadline) return Scan(found, complete = false)
+        return Scan(
+            found + TrainFinder.passes(document, latitude, longitude, from, until, bar),
+            complete = true,
+        )
     }
 
     private suspend fun cloudCover(
