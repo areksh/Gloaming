@@ -100,7 +100,7 @@ android {
         minSdk = 24
         targetSdk = 37
         versionCode = buildNumber ?: 1
-        versionName = "1.0.0-rc1"
+        versionName = "1.0.0-rc2"
         buildConfigField("String", "GIT_COMMIT", "\"$buildCommit\"")
         buildConfigField("boolean", "GIT_MODIFIED", "$buildModified")
 
