@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The journal says when a poll was killed, and when a wake arrived late.**
+  Two things it could previously only imply. A `goAsync` broadcast is killed at
+  sixty seconds without running its `finally`, so a killed poll wrote whichever
+  stage lines it had reached and then stopped - which reads exactly like a poll
+  that had nothing to say. On 2026-09-21 that hid a real one: a wake logged its
+  aurora outcome, neither of the two checks after it, and the near-zenith pass
+  it had woken up to announce was never mentioned. Separately, an inexact alarm
+  lands late by design and `Delivery` documents the band, but a wake far outside
+  it - 167 minutes against a 30 minute request, on 2026-09-16 - was recorded
+  nowhere. Each wake now leaves a small device-encrypted record of what it armed
+  and whether it finished, and the next wake reads it. Neither line is written
+  when nothing went wrong, so a quiet night costs no extra journal; when one is
+  written it carries the app standby bucket and the battery-optimisation
+  exemption, which are current state with no history anywhere and so cannot be
+  recovered by the following morning.
+
+- **A failed reschedule is said out loud.** Both calls that arm the next wake
+  swallowed their failures silently, which is the one fault that ends the
+  schedule outright: no alarm pending, no line anywhere, and nothing until a
+  reboot or an app open.
+
 ## [1.0.0-rc2] - 2026-09-16
 
 ### Added

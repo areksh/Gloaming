@@ -5,12 +5,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.devicePreferences
 
 /**
  * Runs one poll when the alarm fires.
@@ -28,6 +30,13 @@ class PollReceiver : BroadcastReceiver() {
         val pending = goAsync()
         val application = context.applicationContext
 
+        // Read on this thread so it is the instant of the wake itself rather
+        // than of whenever the coroutine got a turn. Both are wanted by
+        // WakeAudit, which is the only thing that can tell the journal whether
+        // the poll before this one finished and whether this wake was on time.
+        val wokeAt = System.currentTimeMillis()
+        val bootInstant = wokeAt - SystemClock.elapsedRealtime()
+
         // The next wake is armed before anything else and replaced with the
         // computed one when the poll completes. The alarm that delivered this
         // broadcast is already spent, so between here and the reschedule in
@@ -41,14 +50,17 @@ class PollReceiver : BroadcastReceiver() {
         // Deliberately not at the poll interval. This is what a *failing* phone
         // retries at, and at the interval it turned one killed poll into an
         // endless run of them - see PollAlarm.provisionalMinutes.
-        runCatching {
-            PollAlarm.schedule(
-                application,
-                PollAlarm.provisionalMinutes(
-                    BootAware.pollSettings(application).read().pollIntervalMinutes,
-                ),
+        val provisional = runCatching {
+            PollAlarm.provisionalMinutes(
+                BootAware.pollSettings(application).read().pollIntervalMinutes,
             )
-        }
+        }.getOrElse { PollAlarm.provisionalMinutes(0) }
+
+        runCatching { PollAlarm.schedule(application, provisional) }
+            // A schedule that throws used to do so in silence, which is the one
+            // failure that ends the schedule outright: no alarm pending, no
+            // line anywhere, and nothing until a reboot or an app open.
+            .onFailure { Log.w(TAG, "could not arm the provisional wake", it) }
 
         // A wake lock is an optimisation, not a precondition: without it the
         // device may sleep mid-fetch and the poll fails, which the next wake
@@ -64,6 +76,27 @@ class PollReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             var outcome: RefreshOutcome? = null
+            val records = WakeRecordStore(devicePreferences(application))
+            // Off the main thread, because both halves of this touch disk: the
+            // journal is a file and the record is a synchronous commit.
+            runCatching {
+                val findings = WakeAudit.findings(records.read(), wokeAt, bootInstant)
+                if (findings.isNotEmpty()) {
+                    val power = PowerState.describe(application)
+                    for (finding in findings) Notes.w(application, TAG, "$finding ($power)")
+                }
+                // Incomplete until this poll gets as far as its own reschedule.
+                // A poll killed before then leaves this behind, and that is
+                // what the next wake reads.
+                records.write(
+                    WakeRecord(
+                        atMillis = wokeAt,
+                        askedMinutes = provisional,
+                        complete = false,
+                        bootInstantMillis = bootInstant,
+                    ),
+                )
+            }
             try {
                 if (BootAware.canPollNow(application)) {
                     // Exactly what the button does, by construction: the two
@@ -93,11 +126,20 @@ class PollReceiver : BroadcastReceiver() {
 
                 runCatching {
                     val flat = BootAware.pollSettings(application).read().pollIntervalMinutes
-                    PollAlarm.schedule(
-                        application,
-                        outcome?.nextWakeMinutes(flat) ?: flat,
+                    val minutes = outcome?.nextWakeMinutes(flat) ?: flat
+                    PollAlarm.schedule(application, minutes)
+                    // Written last, and only once the reschedule itself has
+                    // not thrown. This record is the claim that the poll ran
+                    // to the end, so nothing that did not may write it.
+                    records.write(
+                        WakeRecord(
+                            atMillis = System.currentTimeMillis(),
+                            askedMinutes = minutes,
+                            complete = true,
+                            bootInstantMillis = bootInstant,
+                        ),
                     )
-                }
+                }.onFailure { Notes.w(application, TAG, "could not schedule the next wake", it) }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
                 pending.finish()
             }
