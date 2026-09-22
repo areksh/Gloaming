@@ -80,18 +80,34 @@ data class PassDescription(
     val risesTowards: Compass,
     val peaksTowards: Compass,
     val setsTowards: Compass,
+    /**
+     * True when the pass goes near enough the zenith that the bearing of its
+     * highest point means nothing. See [PassDescription.OVERHEAD_DEGREES].
+     */
+    val overhead: Boolean,
     /** True when the satellite goes out part-way across the sky. */
     val goesIntoShadow: Boolean,
     /** True when it is dark on the way up and lights up before it sets. */
     val comesOutOfShadow: Boolean,
 ) {
 
+    /** Where to look at the highest point, in one word. */
+    val peaksLabel: String get() = if (overhead) "overhead" else peaksTowards.label
+
     /** One line, plain and honest about how much of a claim it is making. */
     val headline: String
         get() {
+            // "High in the east" for something going over the observer's head
+            // is not a smaller version of the right answer; it is the wrong
+            // way to look. See [OVERHEAD_DEGREES].
+            val where = if (overhead) {
+                "passing overhead"
+            } else {
+                "${height.label} in the ${peaksTowards.label}"
+            }
             val opening = when (prominence) {
-                Prominence.Striking -> "Bright, ${height.label} in the ${peaksTowards.label}."
-                Prominence.Good -> "A good pass, ${height.label} in the ${peaksTowards.label}."
+                Prominence.Striking -> "Bright, $where."
+                Prominence.Good -> "A good pass, $where."
                 Prominence.Modest -> "Low and brief, probably faint."
                 Prominence.InShadow ->
                     "It stays in the Earth's shadow throughout, so there will be nothing to see."
@@ -113,6 +129,30 @@ data class PassDescription(
 
         /** Below this it is behind whatever the observer has on their horizon. */
         const val LOW_DEGREES: Double = 25.0
+
+        /**
+         * At or above this, the pass is described as overhead and given no
+         * bearing at all.
+         *
+         * Two reasons, and either alone would be enough.
+         *
+         * The bearing is not stable. Azimuth is ill-conditioned near the
+         * zenith: the whole compass converges there, so a fraction of a second
+         * of timing moves the azimuth of the highest point by degrees while
+         * every other number in the pass holds. Observed on two phones on
+         * 2026-09-22, the same 89.2 degree pass re-evaluated six times before
+         * it was announced put its peak between 97.3 and 102.1 degrees - across
+         * a sector boundary, so the word would have changed with it - while the
+         * rise and set azimuths of those same evaluations agreed to five
+         * decimal places.
+         *
+         * And it is not useful. Ten degrees off the zenith is within the arc a
+         * person sweeps looking up; there is no "east" about it, and sending
+         * somebody to face east is worse than sending them nowhere, because
+         * they will look out rather than up. The rise and set bearings still
+         * say where to stand and are still given.
+         */
+        const val OVERHEAD_DEGREES: Double = 80.0
 
         /**
          * Range at the highest point, beyond which even an overhead pass is
@@ -150,6 +190,7 @@ data class PassDescription(
             }
 
             return PassDescription(
+                overhead = pass.peakElevation >= OVERHEAD_DEGREES,
                 prominence = prominence,
                 height = height,
                 risesTowards = Compass.of(pass.riseAzimuth),

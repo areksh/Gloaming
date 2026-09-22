@@ -30,6 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   schedule outright: no alarm pending, no line anywhere, and nothing until a
   reboot or an app open.
 
+### Changed
+
+- **A pass that goes overhead is told as overhead, not given a compass bearing.**
+  Azimuth is ill-conditioned near the zenith, where the whole compass converges,
+  so the bearing of the highest point is the one number in a pass that a
+  fraction of a second of timing can move by degrees. Observed on two phones on
+  2026-09-22: the same 89.2 degree pass, re-evaluated six times in the fourteen
+  minutes before it was announced, put its peak anywhere between 97.3 and 102.1
+  degrees, across a compass sector boundary, while the rise and set azimuths of
+  those same evaluations agreed to five decimal places. It was also the wrong
+  advice: at ten degrees off the zenith there is no "east" about it, and
+  somebody sent to face east looks out rather than up. Above 80 degrees the
+  alert now reads "passing overhead" and gives no bearing for the peak. The rise
+  and set bearings say where to stand and are unchanged.
+
 ## [1.0.0-rc2] - 2026-09-16
 
 ### Added

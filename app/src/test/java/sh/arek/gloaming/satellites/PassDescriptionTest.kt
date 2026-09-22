@@ -142,10 +142,58 @@ class PassDescriptionTest {
         assertEquals(Compass.SouthEast, described.setsTowards)
     }
 
+    /**
+     * A bearing for the highest point of a near-zenith pass is noise, and
+     * telling somebody to look east for something going over their head is
+     * worse than telling them nothing.
+     *
+     * Observed on both test phones, 2026-09-22: the same 89.2 degree pass of
+     * COSMOS 2228, re-evaluated six times in the fourteen minutes before it was
+     * announced, put its peak anywhere from 97.3 to 102.1 degrees - across a
+     * compass sector boundary - while the rise and set azimuths of those same
+     * six evaluations agreed to five decimal places. Near the zenith the
+     * azimuth of the highest point is ill-conditioned: it is the one number in
+     * the pass that a second of timing error can move by degrees.
+     */
+    @Test
+    fun `sends the observer straight up rather than to a compass point`() {
+        val described = PassDescription.of(pass(peakElevation = 89.2, peakAzimuth = 97.3), true)
+
+        assertTrue(described.overhead)
+        assertEquals("overhead", described.peaksLabel)
+        assertTrue(described.headline, described.headline.contains("overhead"))
+        assertTrue(described.headline, !described.headline.contains("in the"))
+    }
+
+    /** The rise and set bearings are well conditioned and stay. */
+    @Test
+    fun `still says where an overhead pass comes up`() {
+        val described = PassDescription.of(
+            pass(peakElevation = 89.2, riseAzimuth = 315.0, setAzimuth = 150.0),
+            true,
+        )
+
+        assertEquals(Compass.NorthWest, described.risesTowards)
+        assertEquals(Compass.SouthEast, described.setsTowards)
+    }
+
+    /**
+     * A high pass is not automatically an overhead one. At fifty degrees the
+     * bearing is a third of the way down the sky and worth giving.
+     */
+    @Test
+    fun `gives a bearing for a pass that is high but not overhead`() {
+        val described = PassDescription.of(pass(peakElevation = 60.0, peakAzimuth = 180.0), true)
+
+        assertTrue(!described.overhead)
+        assertEquals("south", described.peaksLabel)
+        assertTrue(described.headline, described.headline.contains("high in the south"))
+    }
+
     /** British English throughout, and no decorative characters. */
     @Test
     fun `writes plain ascii`() {
-        for (elevation in listOf(5.0, 30.0, 70.0)) {
+        for (elevation in listOf(5.0, 30.0, 70.0, 89.0)) {
             for (dark in listOf(true, false)) {
                 val headline = PassDescription.of(pass(peakElevation = elevation), dark).headline
                 assertTrue(headline, headline.all { it.code in 32..126 })

@@ -59,7 +59,7 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
                     "Rises ${description.risesTowards.label} at ${clock.format(Date(pass.risesAt))}, ",
                 )
                 append("highest at ${clock.format(Date(pass.peaksAt))} ")
-                append("(${pass.peakElevation.toInt()} degrees, ${description.peaksTowards.label}). ")
+                append("(${pass.peakElevation.toInt()} degrees, ${description.peaksLabel}). ")
                 append(description.headline)
             }
         }
