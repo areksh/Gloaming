@@ -19,7 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   lands late by design and `Delivery` documents the band, but a wake far outside
   it - 167 minutes against a 30 minute request, on 2026-09-16 - was recorded
   nowhere. Each wake now leaves a small device-encrypted record of what it armed
-  and whether it finished, and the next wake reads it. Neither line is written
+  and whether it finished, and the next wake reads it. Every path that arms an
+  alarm writes it - the poll, the button, the boot receiver, the settings
+  screen - so a wake is always measured against the request that actually
+  produced it. Neither line is written
   when nothing went wrong, so a quiet night costs no extra journal; when one is
   written it carries the app standby bucket and the battery-optimisation
   exemption, which are current state with no history anywhere and so cannot be

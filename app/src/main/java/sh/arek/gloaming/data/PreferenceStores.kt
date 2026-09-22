@@ -20,6 +20,9 @@ import android.content.SharedPreferences
  */
 const val PREFERENCES_FILE = "gloaming"
 
+/** The wake record's own file. See [wakePreferences]. */
+const val WAKE_FILE = "wake"
+
 private const val KEY_LATITUDE = "latitude"
 private const val KEY_LONGITUDE = "longitude"
 private const val KEY_THRESHOLD = "threshold"
@@ -120,6 +123,7 @@ fun credentialPreferences(context: Context): SharedPreferences =
  */
 private var credentialCache: SharedPreferences? = null
 private var deviceCache: SharedPreferences? = null
+private var wakeCache: SharedPreferences? = null
 
 /**
  * Preferences in the device-encrypted store: readable before first unlock.
@@ -132,6 +136,25 @@ fun devicePreferences(context: Context): SharedPreferences =
     deviceCache ?: BootAware.deviceContext(context)
         .getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE)
         .also { deviceCache = it }
+
+/**
+ * A file of its own, for the record each wake leaves behind.
+ *
+ * Device-encrypted like the settings mirror beside it, because the wake it
+ * exists to explain is the one before anybody has unlocked the phone.
+ *
+ * Separate from [devicePreferences] for one reason: it is written with
+ * `commit` rather than `apply` - the whole point of the record is to survive a
+ * process about to be killed, and `apply` writes on the thread that does not
+ * get to finish - and a synchronous write wants to be a small one. Four keys
+ * of its own cost a fraction of what rewriting the settings file would, and
+ * cannot contend with a settings save.
+ */
+@Synchronized
+fun wakePreferences(context: Context): SharedPreferences =
+    wakeCache ?: BootAware.deviceContext(context)
+        .getSharedPreferences(WAKE_FILE, Context.MODE_PRIVATE)
+        .also { wakeCache = it }
 
 class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsStore {
 

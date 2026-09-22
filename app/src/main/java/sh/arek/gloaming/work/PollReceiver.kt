@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
-import sh.arek.gloaming.data.devicePreferences
+import sh.arek.gloaming.data.wakePreferences
 
 /**
  * Runs one poll when the alarm fires.
@@ -36,6 +36,11 @@ class PollReceiver : BroadcastReceiver() {
         // the poll before this one finished and whether this wake was on time.
         val wokeAt = System.currentTimeMillis()
         val bootInstant = wokeAt - SystemClock.elapsedRealtime()
+        // Read before the provisional wake below overwrites it. A memory read
+        // of four keys in a file of its own; the settings read a few lines
+        // further down already costs more than this does.
+        val previous = runCatching { WakeRecordStore(wakePreferences(application)).read() }
+            .getOrNull()
 
         // The next wake is armed before anything else and replaced with the
         // computed one when the poll completes. The alarm that delivered this
@@ -56,7 +61,7 @@ class PollReceiver : BroadcastReceiver() {
             )
         }.getOrElse { PollAlarm.provisionalMinutes(0) }
 
-        runCatching { PollAlarm.schedule(application, provisional) }
+        runCatching { PollAlarm.schedule(application, provisional, pollInFlight = true) }
             // A schedule that throws used to do so in silence, which is the one
             // failure that ends the schedule outright: no alarm pending, no
             // line anywhere, and nothing until a reboot or an app open.
@@ -76,26 +81,14 @@ class PollReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO).launch {
             var outcome: RefreshOutcome? = null
-            val records = WakeRecordStore(devicePreferences(application))
-            // Off the main thread, because both halves of this touch disk: the
-            // journal is a file and the record is a synchronous commit.
+            // Said here rather than on the main thread: the journal is a file,
+            // and this is the one part of the receiver allowed to write one.
             runCatching {
-                val findings = WakeAudit.findings(records.read(), wokeAt, bootInstant)
+                val findings = WakeAudit.findings(previous, wokeAt, bootInstant)
                 if (findings.isNotEmpty()) {
                     val power = PowerState.describe(application)
                     for (finding in findings) Notes.w(application, TAG, "$finding ($power)")
                 }
-                // Incomplete until this poll gets as far as its own reschedule.
-                // A poll killed before then leaves this behind, and that is
-                // what the next wake reads.
-                records.write(
-                    WakeRecord(
-                        atMillis = wokeAt,
-                        askedMinutes = provisional,
-                        complete = false,
-                        bootInstantMillis = bootInstant,
-                    ),
-                )
             }
             try {
                 if (BootAware.canPollNow(application)) {
@@ -124,21 +117,13 @@ class PollReceiver : BroadcastReceiver() {
                     }
                 }
 
+                // Which also replaces the provisional record with a complete
+                // one. A poll killed before it reaches here leaves the
+                // incomplete record behind, and that absence is the whole
+                // signal - see WakeAudit.
                 runCatching {
                     val flat = BootAware.pollSettings(application).read().pollIntervalMinutes
-                    val minutes = outcome?.nextWakeMinutes(flat) ?: flat
-                    PollAlarm.schedule(application, minutes)
-                    // Written last, and only once the reschedule itself has
-                    // not thrown. This record is the claim that the poll ran
-                    // to the end, so nothing that did not may write it.
-                    records.write(
-                        WakeRecord(
-                            atMillis = System.currentTimeMillis(),
-                            askedMinutes = minutes,
-                            complete = true,
-                            bootInstantMillis = bootInstant,
-                        ),
-                    )
+                    PollAlarm.schedule(application, outcome?.nextWakeMinutes(flat) ?: flat)
                 }.onFailure { Notes.w(application, TAG, "could not schedule the next wake", it) }
                 runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
                 pending.finish()

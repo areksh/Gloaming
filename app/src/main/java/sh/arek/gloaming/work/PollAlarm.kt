@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.SystemClock
 import kotlin.random.Random
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.wakePreferences
 
 /**
  * Scheduling, on `AlarmManager` rather than `WorkManager`.
@@ -62,14 +63,37 @@ object PollAlarm {
      *
      * Uses elapsed-realtime rather than wall-clock so a timezone change or an
      * NTP correction cannot push the next wake hours away.
+     *
+     * Leaves the record [WakeAudit] reads on the next wake. It is written here,
+     * by every caller, rather than by the poll alone - the button reschedules
+     * after a manual check, the boot receiver reschedules after a reboot, and
+     * the settings screen reschedules when alerting is switched on. A record
+     * left behind by the poll alone would be measured against an alarm one of
+     * those had since replaced, and a wake correctly delivered at twelve hours
+     * would be reported as one asked for at thirty minutes and hours late.
+     *
+     * @param pollInFlight true only for the provisional wake armed at the top
+     *   of `PollReceiver`, where a poll is about to run and has not yet
+     *   finished. Everything else is scheduling from a standing start with
+     *   nothing in flight, so the record it leaves is complete.
      */
-    fun schedule(context: Context, intervalMinutes: Int) {
+    fun schedule(context: Context, intervalMinutes: Int, pollInFlight: Boolean = false) {
         val triggerAt = SystemClock.elapsedRealtime() + delayMillis(intervalMinutes)
 
         alarmManager(context)?.setAndAllowWhileIdle(
             AlarmManager.ELAPSED_REALTIME_WAKEUP,
             triggerAt,
             pendingIntent(context),
+        )
+
+        val now = System.currentTimeMillis()
+        WakeRecordStore(wakePreferences(context)).write(
+            WakeRecord(
+                atMillis = now,
+                askedMinutes = intervalMinutes,
+                complete = !pollInFlight,
+                bootInstantMillis = now - SystemClock.elapsedRealtime(),
+            ),
         )
     }
 
