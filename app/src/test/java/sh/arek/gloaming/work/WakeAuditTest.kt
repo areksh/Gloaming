@@ -75,6 +75,18 @@ class WakeAuditTest {
     }
 
     /**
+     * The shortest interval the policy asks for is five minutes, and those
+     * were measured arriving at nine to ten. Reporting that as a fault would
+     * put a line or two in the journal every time the wind turned southward.
+     */
+    @Test
+    fun `holds its tongue about an elevated wake arriving at the measured worst`() {
+        val previous = record(atMillis = 0L, askedMinutes = 5)
+
+        assertEquals(emptyList<String>(), WakeAudit.findings(previous, 10 * minute, boot))
+    }
+
+    /**
      * Elapsed realtime restarts at a reboot, so nothing spanning one can be
      * measured - and a poll cut short by a shutdown was not killed in any sense
      * worth a line. BootReceiver already accounts for the gap.

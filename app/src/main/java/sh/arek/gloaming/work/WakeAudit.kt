@@ -63,8 +63,17 @@ object WakeAudit {
      * unremarkable - the window on a wake that short is seconds, and the
      * approach to a pass alert asks for a run of them. Without a floor those
      * would be most of what this ever said.
+     *
+     * Ten rather than five, because five is exactly where the shortest
+     * interval the policy asks for already lands. `PollingPolicy.ELEVATED`
+     * asks for five minutes and `Delivery` records those arriving at nine to
+     * ten on a Pixel 10a; a five minute floor would therefore have put the
+     * threshold on top of the ordinary case and reported a line or two every
+     * time the wind turned southward. Ten clears the measured worst delivery
+     * of every interval the policy uses, and the faults this is for - 137
+     * minutes against a request for 30 - are two orders of magnitude past it.
      */
-    const val LATE_FLOOR_MILLIS = 5 * 60_000L
+    const val LATE_FLOOR_MILLIS = 10 * 60_000L
 
     /** Tolerance on the boot instant, absorbing NTP without absorbing a reboot. */
     const val SAME_BOOT_MILLIS = 60_000L
