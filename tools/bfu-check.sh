@@ -137,6 +137,32 @@ as_app() {
 
 device_present() { adb shell true >/dev/null 2>&1; }
 
+# Whether the app's own files can be read at all.
+#
+# `run-as` works only on a debuggable build. Against a release APK it refuses,
+# and `as_app` has to swallow that - stderr to /dev/null, and `|| true` because
+# an early-closing reader upstream would otherwise abort the run - so every
+# read below comes back empty. Empty is then indistinguishable from a phone
+# that has never polled, and this script said so: three failures reading "no
+# poll has ever completed on this device" against a phone that had been polling
+# all week. For a harness whose whole purpose is to not give a false answer,
+# reporting "I could not look" as "there is nothing there" is the one bug it
+# must not have.
+#
+# Probed once and cached. The refusal prints to stdout on some builds and to
+# stderr on others, so the test is that the echo came back rather than that
+# nothing else did.
+APP_READABLE=""
+app_readable() {
+    if [ -z "$APP_READABLE" ]; then
+        case "$(adb shell "run-as $PACKAGE echo ok" 2>/dev/null | tr -d '\r')" in
+            ok) APP_READABLE=yes ;;
+            *) APP_READABLE=no ;;
+        esac
+    fi
+    [ "$APP_READABLE" = yes ]
+}
+
 # Whether the app is stopped, and whether it has ever been opened. Both matter:
 # a stopped app receives no broadcasts at all, and an app that has never been
 # opened sits in the NEVER standby bucket.
@@ -209,10 +235,17 @@ durable_evidence() {
     step "Durable evidence in device-encrypted storage"
 
     # Survives reboots and log rollover, so this is the check that still
-    # works after a genuine overnight run.
+    # works after a genuine overnight run - provided it can be read at all.
+    if ! app_readable; then
+        skip "the evidence in device-encrypted storage cannot be read" \
+            "run-as needs a debuggable build. Nothing here is a verdict on the phone: ./go install, then run this again."
+    fi
+
     prefs=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null")
     last_poll=$(printf '%s' "$prefs" | sed -n 's/.*name="last_poll_at" value="\([0-9]*\)".*/\1/p')
-    if [ -n "$last_poll" ]; then
+    if ! app_readable; then
+        : # Said once above; three more lines saying it would be three lies.
+    elif [ -n "$last_poll" ]; then
         when=$(date -d "@$((last_poll / 1000))" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo "$last_poll")
         age=$(( ($(date +%s) - last_poll / 1000) / 60 ))
         pass "last poll recorded at $when (${age} minutes ago)"
@@ -228,7 +261,9 @@ durable_evidence() {
     [ -n "$last_error" ] && printf '  NOTE  last error recorded: %s\n' "$last_error"
 
     listing=$(as_app "ls -l $DE_CACHE 2>/dev/null")
-    if [ -n "$listing" ]; then
+    if ! app_readable; then
+        :
+    elif [ -n "$listing" ]; then
         pass "the cache in device-encrypted storage is populated"
         printf '%s\n' "$listing" | sed 's/^/        /'
     else
@@ -279,6 +314,15 @@ if [ "$RESUME" -eq 0 ]; then
         exit 1
     fi
     pass "$PACKAGE is installed"
+
+    # Said here as well as where each read fails, because it changes how the
+    # whole run should be read: on a release build the app's storage, its
+    # journal and its alert timestamps are all unreadable, and only the checks
+    # that come from dumpsys still mean anything.
+    if ! app_readable; then
+        fail "the installed build is not debuggable, so its own storage cannot be read" \
+            "--minified leaves the phone this way. ./go install puts the debug build back."
+    fi
 
     # Without a lock credential the user is unlocked the moment it boots, so
     # there is no before-first-unlock state and every assertion below would pass
@@ -355,7 +399,10 @@ if [ "$RESUME" -eq 0 ]; then
     fi
 
     mirror=$(as_app "cat $DE_PREFS/*.xml 2>/dev/null")
-    if [ -z "$mirror" ]; then
+    if ! app_readable; then
+        skip "cannot tell whether before-unlock alerting is on" \
+            "The settings live in the app's own storage and this build is not debuggable. ./go install."
+    elif [ -z "$mirror" ]; then
         fail "device-encrypted settings are empty" \
             "Run again with --seed, or switch the option on in the app."
     elif printf '%s' "$mirror" | has 'name="alerts_before_unlock" value="true"'; then

@@ -344,6 +344,12 @@ harnesses below each take the phone out of use for as long as they run. It is
 `tools/bfu-check.sh --check-only`, so the checks are the harness's own rather
 than a second copy that can drift from them.
 
+Most of what it reads comes from the app's own storage through `run-as`, which
+works only on a debuggable build. Against a release APK - which is what
+`--minified` and `./go release` leave on the phone - it says so and marks those
+checks skipped, rather than reporting the reads it could not make as an app that
+has never polled. `./go install` puts the debug build back.
+
 `bfu-check.sh` tests the before-first-unlock path. It gathers its evidence after
 the fact rather than over a live connection, because adb is generally
 unreachable while the device is locked - GrapheneOS defaults the USB-C port to

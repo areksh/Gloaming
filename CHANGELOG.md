@@ -45,6 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alert now reads "passing overhead" and gives no bearing for the peak. The rise
   and set bearings say where to stand and are unchanged.
 
+### Fixed
+
+- **`./go status` no longer reports a release build as a phone that has never
+  polled.** It reads most of its evidence out of the app's own storage through
+  `run-as`, which works only on a debuggable build; against a release APK every
+  read comes back empty, and empty was reported as "no poll has ever completed
+  on this device" - three confident failures about a phone that had been polling
+  all week. It now detects the refusal, names it once, and marks the checks it
+  could not make as skipped. The checks that come from `dumpsys` rather than
+  from the app - the pending alarm, the standby bucket, the exemption - are
+  still answered. For a harness that exists to avoid giving a false answer,
+  reporting "I could not look" as "there is nothing there" was the one bug it
+  must not have.
+
 ## [1.0.0-rc2] - 2026-09-16
 
 ### Added
