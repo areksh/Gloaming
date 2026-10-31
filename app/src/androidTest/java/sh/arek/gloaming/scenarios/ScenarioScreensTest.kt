@@ -68,14 +68,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                TonightContent(
-                    state = state,
-                    onWatchingChange = {},
-                    onWatchDurationChange = {},
-                    onPollNow = {},
-                    onRequestBatteryExemption = {},
-                    onRequestNotifications = {},
-                )
+                TonightContent(state = state)
             }
         }
     }

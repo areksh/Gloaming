@@ -61,11 +61,8 @@ fun CalendarContent(
      */
     nowMillis: Long,
     starred: Set<String> = emptySet(),
-    onToggleStar: (SkyEvent) -> Unit = {},
     hiddenKinds: Set<String> = emptySet(),
-    onToggleKind: (EventKind) -> Unit = {},
-    onShareEvent: (SkyEvent) -> Unit = {},
-    onExportEvent: (SkyEvent) -> Unit = {},
+    actions: UiActions = UiActions(),
     modifier: Modifier = Modifier,
     state: LazyListState = rememberLazyListState(),
 ) {
@@ -128,7 +125,7 @@ fun CalendarContent(
 
         item(key = "help") { CalendarHelp() }
 
-        item(key = "filter") { KindFilter(events, hiddenKinds, onToggleKind) }
+        item(key = "filter") { KindFilter(events, hiddenKinds, actions.onToggleKind) }
 
         val shown = events.filterNot { it.kind.name in hiddenKinds }
         if (shown.isEmpty()) {
@@ -161,9 +158,9 @@ fun CalendarContent(
                     event = event,
                     nowMillis = nowMillis,
                     starred = EventPlanner.starKey(event) in starred,
-                    onToggleStar = { onToggleStar(event) },
-                    onShare = { onShareEvent(event) },
-                    onExport = { onExportEvent(event) },
+                    onToggleStar = { actions.onToggleStar(event) },
+                    onShare = { actions.onShareEvent(event) },
+                    onExport = { actions.onExportEvent(event) },
                 )
             }
         }

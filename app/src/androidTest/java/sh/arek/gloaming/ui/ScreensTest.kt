@@ -178,64 +178,49 @@ class ScreensTest {
 
                 TonightContent(
                     state = state,
-                    onVerdict = { verdict = it },
-                    onWatchingChange = { watchRequest = it },
-                    onWatchDurationChange = { watchDuration = it },
-                    onPollNow = { polled++ },
-                    onRequestBatteryExemption = {},
-                    onRequestNotifications = {},
+                    actions = UiActions(
+                        onVerdict = { verdict = it },
+                        onWatchingChange = { watchRequest = it },
+                        onWatchDurationChange = { watchDuration = it },
+                        onPollNow = { polled++ },
+                    ),
                 )
 
                 SettingsContent(
                     state = state,
-                    onLatitudeChange = {},
-                    onLongitudeChange = {},
-                    onThresholdChange = { threshold = it },
-                    onAlertsEnabledChange = {},
-                    onBeforeUnlockChange = {},
-                    onPreciseBeforeUnlockChange = { precise = it },
-                    onCloudGateChange = {},
-                    onCloudToleranceChange = { cloudTolerance = it },
-                    onQuietHoursEnabledChange = {},
-                    onQuietFromChange = {},
-                    onQuietUntilChange = {},
-                    onQuietHoursOverrideChange = {},
-                    onNightVisionChange = {},
-                    onShowEveryConstellationChange = { everyConstellation = it },
-                    onLogRetentionChange = {
-                        logRetention = it
-                        shown = shown.copy(logRetentionDays = it)
-                    },
-                    onExportLog = { exported++ },
-                    onClearLog = { cleared++ },
-                    onAuroraIntervalChange = { auroraInterval = it },
-                    onIssIntervalChange = { issInterval = it },
-                    onBrightIntervalChange = {},
-                    onTrainIntervalChange = {},
-                    onPassAlertsChange = {},
-                    onFollowStationChange = { followStation = it },
-                    onPassLeadChange = { passLead = it },
-                    onMinimumElevationChange = { minimumElevation = it },
-                    onLiveLeadChange = { liveLead = it },
-                    onEventAlertsChange = { eventAlerts = it },
-                    onEventHeadsUpChange = { eventHeadsUp = it },
-                    onEventLeadChange = { eventLead = it },
-                    onEclipseFollowMaxChange = {},
-                    onNotifyEveryEventChange = { everyEvent = it },
-                    onCalendarSyncChange = { calendarSync = it },
-                    onAutomaticSettingsChange = { automatic = it },
-                    onClearVerdicts = { verdictsCleared++ },
-                    onCometMagnitudeChange = { cometMagnitude = it },
-                    onCometAltitudeChange = {},
-                    onCometStaleChange = {},
-                    onCometMoonChange = { cometMoon = it },
-                    onLocationModeChange = { locationMode = it },
-                    onLocationCadenceChange = {
-                        cadence = it
-                        shown = shown.copy(locationCadence = it)
-                    },
-                    onDetectLocation = { detected++ },
-                    onSave = {},
+                    actions = UiActions(
+                        onThresholdChange = { threshold = it },
+                        onPreciseBeforeUnlockChange = { precise = it },
+                        onCloudToleranceChange = { cloudTolerance = it },
+                        onShowEveryConstellationChange = { everyConstellation = it },
+                        onLogRetentionChange = {
+                            logRetention = it
+                            shown = shown.copy(logRetentionDays = it)
+                        },
+                        onExportLog = { exported++ },
+                        onClearLog = { cleared++ },
+                        onAuroraIntervalChange = { auroraInterval = it },
+                        onIssIntervalChange = { issInterval = it },
+                        onFollowStationChange = { followStation = it },
+                        onPassLeadChange = { passLead = it },
+                        onMinimumElevationChange = { minimumElevation = it },
+                        onLiveLeadChange = { liveLead = it },
+                        onEventAlertsChange = { eventAlerts = it },
+                        onEventHeadsUpChange = { eventHeadsUp = it },
+                        onEventLeadChange = { eventLead = it },
+                        onNotifyEveryEventChange = { everyEvent = it },
+                        onCalendarSyncChange = { calendarSync = it },
+                        onAutomaticSettingsChange = { automatic = it },
+                        onClearVerdicts = { verdictsCleared++ },
+                        onCometMagnitudeChange = { cometMagnitude = it },
+                        onCometMoonChange = { cometMoon = it },
+                        onLocationModeChange = { locationMode = it },
+                        onLocationCadenceChange = {
+                            cadence = it
+                            shown = shown.copy(locationCadence = it)
+                        },
+                        onDetectLocation = { detected++ },
+                    ),
                 )
             }
         }

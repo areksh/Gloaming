@@ -80,6 +80,7 @@ import sh.arek.gloaming.ui.DownloadRow
 import sh.arek.gloaming.ui.GloamingTabs
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.UiActions
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
@@ -909,355 +910,357 @@ private fun GloamingApp() {
                     recommendations = recommendations,
                     verdicts = verdicts,
                 ),
-                onLatitudeChange = { latitudeInput = it },
-                onLongitudeChange = { longitudeInput = it },
-                onThresholdChange = {
-                    settings = settings.copy(threshold = it)
-                    saveSettings(settings)
-                },
-                onAlertsEnabledChange = {
-                    settings = settings.copy(alertsEnabled = it)
-                    saveSettings(settings)
-                    if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
-                },
-                onBeforeUnlockChange = {
-                    settings = settings.copy(alertsBeforeUnlock = it)
-                    saveSettings(settings)
-                },
-                // Coarsening again clears the cloud reading taken at the finer
-                // position; BootAware.saveSettings owns that.
-                onPreciseBeforeUnlockChange = {
-                    settings = settings.copy(preciseLocationBeforeUnlock = it)
-                    saveSettings(settings)
-                },
-                onCloudGateChange = {
-                    settings = settings.copy(cloudGateEnabled = it)
-                    saveSettings(settings)
-                },
-                onCloudToleranceChange = {
-                    settings = settings.copy(cloudTolerance = it)
-                    saveSettings(settings)
-                },
-                onQuietHoursEnabledChange = { enabled ->
-                    settings = settings.copy(
-                        quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
-                    )
-                    saveSettings(settings)
-                },
-                // Applied as typed, and only when both fields parse. A half-typed
-                // "2" must not become quiet hours starting at two in the morning.
-                onQuietFromChange = { typed ->
-                    quietFromInput = typed
-                    quietHoursFrom(typed, quietUntilInput)?.let {
-                        settings = settings.copy(quietHours = it)
+                actions = UiActions(
+                    onLatitudeChange = { latitudeInput = it },
+                    onLongitudeChange = { longitudeInput = it },
+                    onThresholdChange = {
+                        settings = settings.copy(threshold = it)
                         saveSettings(settings)
-                    }
-                },
-                onQuietUntilChange = { typed ->
-                    quietUntilInput = typed
-                    quietHoursFrom(quietFromInput, typed)?.let {
-                        settings = settings.copy(quietHours = it)
+                    },
+                    onAlertsEnabledChange = {
+                        settings = settings.copy(alertsEnabled = it)
                         saveSettings(settings)
-                    }
-                },
-                onQuietHoursOverrideChange = {
-                    settings = settings.copy(quietHoursOverride = it)
-                    saveSettings(settings)
-                },
-                onNightVisionChange = {
-                    settings = settings.copy(nightVision = it)
-                    saveSettings(settings)
-                },
-                onShowEveryConstellationChange = {
-                    settings = settings.copy(showEveryConstellation = it)
-                    saveSettings(settings)
-                },
-                onLogRetentionChange = {
-                    settings = settings.copy(logRetentionDays = it)
-                    saveSettings(settings)
-                    // Turning it off means off now, not once the next poll gets
-                    // round to pruning. Somebody switching it off is asking for
-                    // the log to stop existing, not to stop growing.
-                    if (!settings.keepsLog) Graph.journal(context).clear()
-                    logSize = Graph.journal(context).sizeBytes()
-                },
-                onExportLog = {
-                    runCatching { shareLog(context) }
-                        .onFailure { Log.w("Gloaming", "could not export the log", it) }
-                },
-                onClearLog = {
-                    Graph.journal(context).clear()
-                    logSize = 0L
-                },
-                onAuroraIntervalChange = {
-                    settings = settings.copy(auroraAlertIntervalMinutes = it)
-                    saveSettings(settings)
-                },
-                onIssIntervalChange = {
-                    settings = settings.copy(issPassAlertIntervalMinutes = it)
-                    saveSettings(settings)
-                },
-                onBrightIntervalChange = {
-                    settings = settings.copy(brightPassAlertIntervalMinutes = it)
-                    saveSettings(settings)
-                },
-                onTrainIntervalChange = {
-                    settings = settings.copy(trainPassAlertIntervalMinutes = it)
-                    saveSettings(settings)
-                },
-                onPassAlertsChange = {
-                    settings = settings.copy(passAlertsEnabled = it)
-                    saveSettings(settings)
-                },
-                // Turning it off drops whatever pass is queued. There is one
-                // slot and it carries no record of how it was filled, so this
-                // also drops a pass followed by hand - which is the right way
-                // round to be wrong: somebody who has just said they do not
-                // want this should not have a tracker start anyway.
-                onFollowStationChange = {
-                    settings = settings.copy(followStationPassesAutomatically = it)
-                    saveSettings(settings)
-                    if (!it) PassAlarm.cancel(context)
-                },
-                // Optimistic, then corrected. The service reports itself
-                // running from its own thread a moment later, and a switch that
-                // did not move until then would read as ignoring the tap.
-                onWatchingChange = { wanted ->
-                    if (wanted) StormService.watchNow(context) else StormService.stop(context)
-                    watching = wanted
-                },
-                onPassLeadChange = {
-                    settings = settings.copy(passAlertLeadMinutes = it)
-                    saveSettings(settings)
-                },
-                onMinimumElevationChange = {
-                    settings = settings.copy(minimumPassElevationDegrees = it)
-                    saveSettings(settings)
-                },
-                onLiveLeadChange = {
-                    settings = settings.copy(liveFollowLeadMinutes = it)
-                    saveSettings(settings)
-                },
-                onEventAlertsChange = {
-                    settings = settings.copy(eventAlertsEnabled = it)
-                    saveSettings(settings)
-                },
-                onEventHeadsUpChange = {
-                    settings = settings.copy(eventHeadsUpDays = it)
-                    saveSettings(settings)
-                },
-                onEventLeadChange = {
-                    settings = settings.copy(eventAlertLeadMinutes = it)
-                    saveSettings(settings)
-                },
-                onEclipseFollowMaxChange = {
-                    settings = settings.copy(eclipseFollowMaxMinutes = it)
-                    saveSettings(settings)
-                },
-                onNotifyEveryEventChange = {
-                    settings = settings.copy(notifyAboutEveryEvent = it)
-                    saveSettings(settings)
-                },
-                // The four comet controls bump the calendar nonce as well as
-                // saving, because all four change which comets belong in the
-                // list and how they are described - unlike every other setting
-                // here, which only changes when the app speaks.
-                onCometMagnitudeChange = {
-                    settings = settings.copy(cometMagnitudeThreshold = it)
-                    saveSettings(settings)
-                    calendarNonce++
-                },
-                onCometAltitudeChange = {
-                    settings = settings.copy(minimumCometAltitudeDegrees = it)
-                    saveSettings(settings)
-                    calendarNonce++
-                },
-                onCometStaleChange = {
-                    settings = settings.copy(cometObservationStaleDays = it)
-                    saveSettings(settings)
-                    calendarNonce++
-                },
-                onCometMoonChange = {
-                    settings = settings.copy(cometMoonTolerance = it)
-                    saveSettings(settings)
-                    calendarNonce++
-                },
-                onToggleStar = { event ->
-                    val key = EventPlanner.starKey(event)
-                    val starring = key !in settings.starredEvents
-                    val kept = if (starring) {
-                        settings.starredEvents + key
-                    } else {
-                        settings.starredEvents - key
-                    }
-                    settings = settings.copy(
-                        // Pruned as it is written, so a star on something long
-                        // past does not sit in the preferences file forever.
-                        starredEvents = EventPlanner.pruneStars(kept, System.currentTimeMillis()),
-                    )
-                    saveSettings(settings)
-
-                    // Said only when the star cannot change anything, and only
-                    // when putting one on: somebody removing a star already
-                    // knows they are curating, and being told twice is worse
-                    // than not being told.
-                    // Both ways round: a star puts the entry in and taking one
-                    // off takes it out again, which is the only reading of the
-                    // control that does not leave rubbish in somebody's diary.
-                    if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
-
-                    if (starring && settings.notifyAboutEveryEvent) {
-                        scope.launch {
-                            snackbar.showSnackbar(
-                                "Starred. You are being told about everything anyway - turn " +
-                                    "that off under Settings to hear only your starred events.",
-                            )
+                        if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
+                    },
+                    onBeforeUnlockChange = {
+                        settings = settings.copy(alertsBeforeUnlock = it)
+                        saveSettings(settings)
+                    },
+                    // Coarsening again clears the cloud reading taken at the finer
+                    // position; BootAware.saveSettings owns that.
+                    onPreciseBeforeUnlockChange = {
+                        settings = settings.copy(preciseLocationBeforeUnlock = it)
+                        saveSettings(settings)
+                    },
+                    onCloudGateChange = {
+                        settings = settings.copy(cloudGateEnabled = it)
+                        saveSettings(settings)
+                    },
+                    onCloudToleranceChange = {
+                        settings = settings.copy(cloudTolerance = it)
+                        saveSettings(settings)
+                    },
+                    onQuietHoursEnabledChange = { enabled ->
+                        settings = settings.copy(
+                            quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
+                        )
+                        saveSettings(settings)
+                    },
+                    // Applied as typed, and only when both fields parse. A half-typed
+                    // "2" must not become quiet hours starting at two in the morning.
+                    onQuietFromChange = { typed ->
+                        quietFromInput = typed
+                        quietHoursFrom(typed, quietUntilInput)?.let {
+                            settings = settings.copy(quietHours = it)
+                            saveSettings(settings)
                         }
-                    }
-                },
-                onToggleKind = { kind ->
-                    val hidden = settings.hiddenEventKinds
-                    settings = settings.copy(
-                        hiddenEventKinds = if (kind.name in hidden) {
-                            hidden - kind.name
+                    },
+                    onQuietUntilChange = { typed ->
+                        quietUntilInput = typed
+                        quietHoursFrom(quietFromInput, typed)?.let {
+                            settings = settings.copy(quietHours = it)
+                            saveSettings(settings)
+                        }
+                    },
+                    onQuietHoursOverrideChange = {
+                        settings = settings.copy(quietHoursOverride = it)
+                        saveSettings(settings)
+                    },
+                    onNightVisionChange = {
+                        settings = settings.copy(nightVision = it)
+                        saveSettings(settings)
+                    },
+                    onShowEveryConstellationChange = {
+                        settings = settings.copy(showEveryConstellation = it)
+                        saveSettings(settings)
+                    },
+                    onLogRetentionChange = {
+                        settings = settings.copy(logRetentionDays = it)
+                        saveSettings(settings)
+                        // Turning it off means off now, not once the next poll gets
+                        // round to pruning. Somebody switching it off is asking for
+                        // the log to stop existing, not to stop growing.
+                        if (!settings.keepsLog) Graph.journal(context).clear()
+                        logSize = Graph.journal(context).sizeBytes()
+                    },
+                    onExportLog = {
+                        runCatching { shareLog(context) }
+                            .onFailure { Log.w("Gloaming", "could not export the log", it) }
+                    },
+                    onClearLog = {
+                        Graph.journal(context).clear()
+                        logSize = 0L
+                    },
+                    onAuroraIntervalChange = {
+                        settings = settings.copy(auroraAlertIntervalMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onIssIntervalChange = {
+                        settings = settings.copy(issPassAlertIntervalMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onBrightIntervalChange = {
+                        settings = settings.copy(brightPassAlertIntervalMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onTrainIntervalChange = {
+                        settings = settings.copy(trainPassAlertIntervalMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onPassAlertsChange = {
+                        settings = settings.copy(passAlertsEnabled = it)
+                        saveSettings(settings)
+                    },
+                    // Turning it off drops whatever pass is queued. There is one
+                    // slot and it carries no record of how it was filled, so this
+                    // also drops a pass followed by hand - which is the right way
+                    // round to be wrong: somebody who has just said they do not
+                    // want this should not have a tracker start anyway.
+                    onFollowStationChange = {
+                        settings = settings.copy(followStationPassesAutomatically = it)
+                        saveSettings(settings)
+                        if (!it) PassAlarm.cancel(context)
+                    },
+                    // Optimistic, then corrected. The service reports itself
+                    // running from its own thread a moment later, and a switch that
+                    // did not move until then would read as ignoring the tap.
+                    onWatchingChange = { wanted ->
+                        if (wanted) StormService.watchNow(context) else StormService.stop(context)
+                        watching = wanted
+                    },
+                    onPassLeadChange = {
+                        settings = settings.copy(passAlertLeadMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onMinimumElevationChange = {
+                        settings = settings.copy(minimumPassElevationDegrees = it)
+                        saveSettings(settings)
+                    },
+                    onLiveLeadChange = {
+                        settings = settings.copy(liveFollowLeadMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onEventAlertsChange = {
+                        settings = settings.copy(eventAlertsEnabled = it)
+                        saveSettings(settings)
+                    },
+                    onEventHeadsUpChange = {
+                        settings = settings.copy(eventHeadsUpDays = it)
+                        saveSettings(settings)
+                    },
+                    onEventLeadChange = {
+                        settings = settings.copy(eventAlertLeadMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onEclipseFollowMaxChange = {
+                        settings = settings.copy(eclipseFollowMaxMinutes = it)
+                        saveSettings(settings)
+                    },
+                    onNotifyEveryEventChange = {
+                        settings = settings.copy(notifyAboutEveryEvent = it)
+                        saveSettings(settings)
+                    },
+                    // The four comet controls bump the calendar nonce as well as
+                    // saving, because all four change which comets belong in the
+                    // list and how they are described - unlike every other setting
+                    // here, which only changes when the app speaks.
+                    onCometMagnitudeChange = {
+                        settings = settings.copy(cometMagnitudeThreshold = it)
+                        saveSettings(settings)
+                        calendarNonce++
+                    },
+                    onCometAltitudeChange = {
+                        settings = settings.copy(minimumCometAltitudeDegrees = it)
+                        saveSettings(settings)
+                        calendarNonce++
+                    },
+                    onCometStaleChange = {
+                        settings = settings.copy(cometObservationStaleDays = it)
+                        saveSettings(settings)
+                        calendarNonce++
+                    },
+                    onCometMoonChange = {
+                        settings = settings.copy(cometMoonTolerance = it)
+                        saveSettings(settings)
+                        calendarNonce++
+                    },
+                    onToggleStar = { event ->
+                        val key = EventPlanner.starKey(event)
+                        val starring = key !in settings.starredEvents
+                        val kept = if (starring) {
+                            settings.starredEvents + key
                         } else {
-                            hidden + kind.name
-                        },
-                    )
-                    saveSettings(settings)
-                },
-                onAutomaticSettingsChange = {
-                    settings = settings.copy(automaticSettings = it)
-                    saveSettings(settings)
-                },
-                onClearVerdicts = {
-                    Graph.verdicts(context).clear()
-                    verdictsNonce++
-                },
-                onVerdict = { answer ->
-                    val conditions = Conditions.decode(alertState.pendingVerdict)
-                    if (conditions != null) {
-                        val store = Graph.alertState(context)
-                        Graph.verdicts(context)
-                            .append(Verdict(System.currentTimeMillis(), answer, conditions))
-                        // Cleared here as well as in the receiver, so the card
-                        // and the notification cannot both collect an answer
-                        // about the same night.
-                        alertState = store.read().copy(pendingVerdict = null)
-                        store.write(alertState)
-                        scope.launch {
-                            snackbar.showSnackbar(
-                                "Noted. Gloaming uses this to work out where your alert " +
-                                    "settings should sit, and it stays on this phone.",
+                            settings.starredEvents - key
+                        }
+                        settings = settings.copy(
+                            // Pruned as it is written, so a star on something long
+                            // past does not sit in the preferences file forever.
+                            starredEvents = EventPlanner.pruneStars(kept, System.currentTimeMillis()),
+                        )
+                        saveSettings(settings)
+
+                        // Said only when the star cannot change anything, and only
+                        // when putting one on: somebody removing a star already
+                        // knows they are curating, and being told twice is worse
+                        // than not being told.
+                        // Both ways round: a star puts the entry in and taking one
+                        // off takes it out again, which is the only reading of the
+                        // control that does not leave rubbish in somebody's diary.
+                        if (settings.calendarSync != CalendarSync.Off) syncCalendar(settings)
+
+                        if (starring && settings.notifyAboutEveryEvent) {
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Starred. You are being told about everything anyway - turn " +
+                                        "that off under Settings to hear only your starred events.",
+                                )
+                            }
+                        }
+                    },
+                    onToggleKind = { kind ->
+                        val hidden = settings.hiddenEventKinds
+                        settings = settings.copy(
+                            hiddenEventKinds = if (kind.name in hidden) {
+                                hidden - kind.name
+                            } else {
+                                hidden + kind.name
+                            },
+                        )
+                        saveSettings(settings)
+                    },
+                    onAutomaticSettingsChange = {
+                        settings = settings.copy(automaticSettings = it)
+                        saveSettings(settings)
+                    },
+                    onClearVerdicts = {
+                        Graph.verdicts(context).clear()
+                        verdictsNonce++
+                    },
+                    onVerdict = { answer ->
+                        val conditions = Conditions.decode(alertState.pendingVerdict)
+                        if (conditions != null) {
+                            val store = Graph.alertState(context)
+                            Graph.verdicts(context)
+                                .append(Verdict(System.currentTimeMillis(), answer, conditions))
+                            // Cleared here as well as in the receiver, so the card
+                            // and the notification cannot both collect an answer
+                            // about the same night.
+                            alertState = store.read().copy(pendingVerdict = null)
+                            store.write(alertState)
+                            scope.launch {
+                                snackbar.showSnackbar(
+                                    "Noted. Gloaming uses this to work out where your alert " +
+                                        "settings should sit, and it stays on this phone.",
+                                )
+                            }
+                        }
+                    },
+                    onShareEvent = { shareEvent(context, it) },
+                    onExportEvent = { exportEvent(context, it) },
+                    onLocationModeChange = { mode ->
+                        if (mode == LocationMode.Automatic &&
+                            !AndroidLocationSource.hasPermission(context)
+                        ) {
+                            // Asked at the moment it is wanted rather than on first
+                            // run, so the request arrives with its reason visible
+                            // on screen behind it.
+                            locationPermission.launch(AndroidLocationSource.PERMISSION)
+                        } else {
+                            settings = settings.copy(locationMode = mode)
+                            saveSettings(settings)
+                            locationNote = null
+                            if (mode == LocationMode.Automatic) detectLocation()
+                        }
+                    },
+                    onCalendarSyncChange = { destination ->
+                        val missing = CALENDAR_PERMISSIONS.filterNot { granted(context, it) }
+                        if (destination != CalendarSync.Off && missing.isNotEmpty()) {
+                            // Asked at the moment somebody picks a destination,
+                            // never on first run. This is the most invasive thing
+                            // the app could ask for, and the request arrives with
+                            // its reason visible on the screen behind it.
+                            settings = settings.copy(calendarSync = destination)
+                            saveSettings(settings)
+                            calendarPermission.launch(missing.toTypedArray())
+                        } else {
+                            // Written before the sync runs, so that switching to
+                            // Off is what the syncer reads and takes back.
+                            settings = settings.copy(calendarSync = destination)
+                            saveSettings(settings)
+                            calendarNote = null
+                            if (destination == CalendarSync.Off) calendarName = null
+                            syncCalendar(settings)
+                        }
+                    },
+                    onLocationCadenceChange = { cadence ->
+                        // Asked at the moment an interval is picked, with the
+                        // card's warning about Android's page on screen behind it.
+                        val pick = CadenceRequest.onPick(
+                            cadence,
+                            inFlight = pendingHours != null,
+                            missing = backgroundMissing(),
+                        )
+                        when (pick) {
+                            CadencePick.Ignore -> Unit
+                            CadencePick.Store -> chooseCadence(cadence)
+                            is CadencePick.AskCoarseFirst -> {
+                                pendingHours = (cadence as LocationCadence.Every).hours
+                                coarseBeforeBackground.launch(pick.permissions.toTypedArray())
+                            }
+                            is CadencePick.Ask -> {
+                                pendingHours = (cadence as LocationCadence.Every).hours
+                                backgroundPermission.launch(pick.permissions.toTypedArray())
+                            }
+                        }
+                    },
+                    onDetectLocation = { detectLocation() },
+                    onWatchDurationChange = {
+                        settings = settings.copy(watchDuration = it)
+                        saveSettings(settings)
+                    },
+                    onSave = {
+                        val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
+                        val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
+                        settings = settings.copy(latitude = latitude, longitude = longitude)
+                        saveSettings(settings)
+                        latitudeInput = latitude?.toString().orEmpty()
+                        longitudeInput = longitude?.toString().orEmpty()
+                        // A new position changes the whole schedule, not just the
+                        // reading: dusk somewhere else is at a different time.
+                        checkNow()
+                    },
+                    onPollNow = { checkNow() },
+                    onRequestBatteryExemption = {
+                        // Sends the user to the system list rather than using the
+                        // direct-request intent, which Play forbids and which several OEM
+                        // builds ignore. Off-Play either is permitted; the settings screen
+                        // is the one that behaves consistently.
+                        runCatching {
+                            context.startActivity(
+                                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                            )
+                        }.onFailure {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null),
+                                ),
                             )
                         }
-                    }
-                },
-                onShareEvent = { shareEvent(context, it) },
-                onExportEvent = { exportEvent(context, it) },
-                onLocationModeChange = { mode ->
-                    if (mode == LocationMode.Automatic &&
-                        !AndroidLocationSource.hasPermission(context)
-                    ) {
-                        // Asked at the moment it is wanted rather than on first
-                        // run, so the request arrives with its reason visible
-                        // on screen behind it.
-                        locationPermission.launch(AndroidLocationSource.PERMISSION)
-                    } else {
-                        settings = settings.copy(locationMode = mode)
-                        saveSettings(settings)
-                        locationNote = null
-                        if (mode == LocationMode.Automatic) detectLocation()
-                    }
-                },
-                onCalendarSyncChange = { destination ->
-                    val missing = CALENDAR_PERMISSIONS.filterNot { granted(context, it) }
-                    if (destination != CalendarSync.Off && missing.isNotEmpty()) {
-                        // Asked at the moment somebody picks a destination,
-                        // never on first run. This is the most invasive thing
-                        // the app could ask for, and the request arrives with
-                        // its reason visible on the screen behind it.
-                        settings = settings.copy(calendarSync = destination)
-                        saveSettings(settings)
-                        calendarPermission.launch(missing.toTypedArray())
-                    } else {
-                        // Written before the sync runs, so that switching to
-                        // Off is what the syncer reads and takes back.
-                        settings = settings.copy(calendarSync = destination)
-                        saveSettings(settings)
-                        calendarNote = null
-                        if (destination == CalendarSync.Off) calendarName = null
-                        syncCalendar(settings)
-                    }
-                },
-                onLocationCadenceChange = { cadence ->
-                    // Asked at the moment an interval is picked, with the
-                    // card's warning about Android's page on screen behind it.
-                    val pick = CadenceRequest.onPick(
-                        cadence,
-                        inFlight = pendingHours != null,
-                        missing = backgroundMissing(),
-                    )
-                    when (pick) {
-                        CadencePick.Ignore -> Unit
-                        CadencePick.Store -> chooseCadence(cadence)
-                        is CadencePick.AskCoarseFirst -> {
-                            pendingHours = (cadence as LocationCadence.Every).hours
-                            coarseBeforeBackground.launch(pick.permissions.toTypedArray())
+                    },
+                    onRequestNotifications = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null),
+                                ),
+                            )
                         }
-                        is CadencePick.Ask -> {
-                            pendingHours = (cadence as LocationCadence.Every).hours
-                            backgroundPermission.launch(pick.permissions.toTypedArray())
-                        }
-                    }
-                },
-                onDetectLocation = { detectLocation() },
-                onWatchDurationChange = {
-                    settings = settings.copy(watchDuration = it)
-                    saveSettings(settings)
-                },
-                onSave = {
-                    val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
-                    val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
-                    settings = settings.copy(latitude = latitude, longitude = longitude)
-                    saveSettings(settings)
-                    latitudeInput = latitude?.toString().orEmpty()
-                    longitudeInput = longitude?.toString().orEmpty()
-                    // A new position changes the whole schedule, not just the
-                    // reading: dusk somewhere else is at a different time.
-                    checkNow()
-                },
-                onPollNow = { checkNow() },
-                onRequestBatteryExemption = {
-                    // Sends the user to the system list rather than using the
-                    // direct-request intent, which Play forbids and which several OEM
-                    // builds ignore. Off-Play either is permitted; the settings screen
-                    // is the one that behaves consistently.
-                    runCatching {
-                        context.startActivity(
-                            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
-                        )
-                    }.onFailure {
-                        context.startActivity(
-                            Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", context.packageName, null),
-                            ),
-                        )
-                    }
-                },
-                onRequestNotifications = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        context.startActivity(
-                            Intent(
-                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                Uri.fromParts("package", context.packageName, null),
-                            ),
-                        )
-                    }
-                },
+                    },
+                ),
                 modifier = Modifier.padding(padding),
             )
         }

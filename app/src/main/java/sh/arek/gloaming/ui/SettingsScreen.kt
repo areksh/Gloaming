@@ -62,101 +62,60 @@ import sh.arek.gloaming.ui.theme.LocalPalette
 @Composable
 fun SettingsContent(
     state: MainUiState,
-    onLatitudeChange: (String) -> Unit,
-    onLongitudeChange: (String) -> Unit,
-    onThresholdChange: (Int) -> Unit,
-    onAlertsEnabledChange: (Boolean) -> Unit,
-    onBeforeUnlockChange: (Boolean) -> Unit,
-    onPreciseBeforeUnlockChange: (Boolean) -> Unit,
-    onCloudGateChange: (Boolean) -> Unit,
-    onCloudToleranceChange: (Int) -> Unit,
-    onQuietHoursEnabledChange: (Boolean) -> Unit,
-    onQuietFromChange: (String) -> Unit,
-    onQuietUntilChange: (String) -> Unit,
-    onQuietHoursOverrideChange: (Boolean) -> Unit,
-    onNightVisionChange: (Boolean) -> Unit,
-    onShowEveryConstellationChange: (Boolean) -> Unit,
-    onLogRetentionChange: (Int) -> Unit,
-    onExportLog: () -> Unit,
-    onClearLog: () -> Unit,
-    onAuroraIntervalChange: (Int) -> Unit,
-    onIssIntervalChange: (Int) -> Unit,
-    onBrightIntervalChange: (Int) -> Unit,
-    onTrainIntervalChange: (Int) -> Unit,
-    onPassAlertsChange: (Boolean) -> Unit,
-    onFollowStationChange: (Boolean) -> Unit,
-    onPassLeadChange: (Int) -> Unit,
-    onMinimumElevationChange: (Int) -> Unit,
-    onLiveLeadChange: (Int) -> Unit,
-    onEventAlertsChange: (Boolean) -> Unit,
-    onEventHeadsUpChange: (Int) -> Unit,
-    onEventLeadChange: (Int) -> Unit,
-    onEclipseFollowMaxChange: (Int) -> Unit,
-    onNotifyEveryEventChange: (Boolean) -> Unit,
-    onCalendarSyncChange: (CalendarSync) -> Unit,
-    onAutomaticSettingsChange: (Boolean) -> Unit,
-    onClearVerdicts: () -> Unit,
-    onCometMagnitudeChange: (Int) -> Unit,
-    onCometAltitudeChange: (Int) -> Unit,
-    onCometStaleChange: (Int) -> Unit,
-    onCometMoonChange: (Int) -> Unit,
-    onLocationModeChange: (LocationMode) -> Unit,
-    onLocationCadenceChange: (LocationCadence) -> Unit,
-    onDetectLocation: () -> Unit,
-    onSave: () -> Unit,
+    actions: UiActions = UiActions(),
 ) {
     LocationCard(
         state,
-        onLatitudeChange,
-        onLongitudeChange,
-        onSave,
-        onLocationModeChange,
-        onLocationCadenceChange,
-        onDetectLocation,
+        actions.onLatitudeChange,
+        actions.onLongitudeChange,
+        actions.onSave,
+        actions.onLocationModeChange,
+        actions.onLocationCadenceChange,
+        actions.onDetectLocation,
     )
-    ThresholdCard(state, onThresholdChange, onAlertsEnabledChange)
-    SkyCard(state, onCloudGateChange, onCloudToleranceChange)
+    ThresholdCard(state, actions.onThresholdChange, actions.onAlertsEnabledChange)
+    SkyCard(state, actions.onCloudGateChange, actions.onCloudToleranceChange)
     QuietHoursCard(
         state,
-        onQuietHoursEnabledChange,
-        onQuietFromChange,
-        onQuietUntilChange,
-        onQuietHoursOverrideChange,
+        actions.onQuietHoursEnabledChange,
+        actions.onQuietFromChange,
+        actions.onQuietUntilChange,
+        actions.onQuietHoursOverrideChange,
     )
     InterruptionCard(
         state,
-        onAuroraIntervalChange,
-        onIssIntervalChange,
-        onBrightIntervalChange,
-        onTrainIntervalChange,
-        onPassAlertsChange,
-        onFollowStationChange,
-        onPassLeadChange,
-        onMinimumElevationChange,
-        onLiveLeadChange,
+        actions.onAuroraIntervalChange,
+        actions.onIssIntervalChange,
+        actions.onBrightIntervalChange,
+        actions.onTrainIntervalChange,
+        actions.onPassAlertsChange,
+        actions.onFollowStationChange,
+        actions.onPassLeadChange,
+        actions.onMinimumElevationChange,
+        actions.onLiveLeadChange,
     )
     CalendarCard(
         state,
-        onEventAlertsChange,
-        onEventHeadsUpChange,
-        onEventLeadChange,
-        onEclipseFollowMaxChange,
-        onNotifyEveryEventChange,
-        onCalendarSyncChange,
+        actions.onEventAlertsChange,
+        actions.onEventHeadsUpChange,
+        actions.onEventLeadChange,
+        actions.onEclipseFollowMaxChange,
+        actions.onNotifyEveryEventChange,
+        actions.onCalendarSyncChange,
     )
     CometCard(
         state,
-        onCometMagnitudeChange,
-        onCometAltitudeChange,
-        onCometStaleChange,
-        onCometMoonChange,
+        actions.onCometMagnitudeChange,
+        actions.onCometAltitudeChange,
+        actions.onCometStaleChange,
+        actions.onCometMoonChange,
     )
-    ConstellationCard(state, onShowEveryConstellationChange)
-    AutomaticSettingsCard(state, onAutomaticSettingsChange)
-    VerdictsCard(state, onClearVerdicts)
-    BeforeUnlockCard(state, onBeforeUnlockChange, onPreciseBeforeUnlockChange)
-    NightVisionCard(state, onNightVisionChange)
-    LogCard(state, onLogRetentionChange, onExportLog, onClearLog)
+    ConstellationCard(state, actions.onShowEveryConstellationChange)
+    AutomaticSettingsCard(state, actions.onAutomaticSettingsChange)
+    VerdictsCard(state, actions.onClearVerdicts)
+    BeforeUnlockCard(state, actions.onBeforeUnlockChange, actions.onPreciseBeforeUnlockChange)
+    NightVisionCard(state, actions.onNightVisionChange)
+    LogCard(state, actions.onLogRetentionChange, actions.onExportLog, actions.onClearLog)
     CreditsCard(state)
     VersionFooter()
 }

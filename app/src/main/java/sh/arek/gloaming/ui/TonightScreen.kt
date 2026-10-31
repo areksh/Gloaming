@@ -49,16 +49,9 @@ import sh.arek.gloaming.satellites.SatellitePass
 @Composable
 fun TonightContent(
     state: MainUiState,
-    onWatchingChange: (Boolean) -> Unit,
-    onWatchDurationChange: (WatchDuration) -> Unit,
-    onPollNow: () -> Unit,
-    onRequestBatteryExemption: () -> Unit,
-    onRequestNotifications: () -> Unit,
-    onShareEvent: (SkyEvent) -> Unit = {},
-    onExportEvent: (SkyEvent) -> Unit = {},
-    onVerdict: (Answer) -> Unit = {},
+    actions: UiActions = UiActions(),
 ) {
-    WorthItCard(state, onVerdict)
+    WorthItCard(state, actions.onVerdict)
 
     StatusCard(state)
 
@@ -73,7 +66,7 @@ fun TonightContent(
         MoonCard(tonight)
         PlanetsCard(tonight)
         ConstellationsCard(tonight)
-        EventsCard(tonight, state.nowMillis, onShareEvent, onExportEvent)
+        EventsCard(tonight, state.nowMillis, actions.onShareEvent, actions.onExportEvent)
         CometsCard(tonight)
         SatellitesCard(tonight, state)
     }
@@ -87,7 +80,7 @@ fun TonightContent(
                 "refinement: without it Gloaming cannot do the one thing it is for, " +
                 "and no other setting here works around it.",
             action = "Allow background checks",
-            onAction = onRequestBatteryExemption,
+            onAction = actions.onRequestBatteryExemption,
         )
     }
 
@@ -97,17 +90,17 @@ fun TonightContent(
             body = "Without notification permission the app can watch the sky but " +
                 "cannot tell you about it.",
             action = "Allow notifications",
-            onAction = onRequestNotifications,
+            onAction = actions.onRequestNotifications,
         )
     }
 
-    WatchNowCard(state, onWatchingChange, onWatchDurationChange)
+    WatchNowCard(state, actions.onWatchingChange, actions.onWatchDurationChange)
 
     // Disabled while in flight, and says so. A button that looks idle
     // during the second or two a check takes reads as a broken button, and
     // the second press would only queue the same work again.
     Button(
-        onClick = onPollNow,
+        onClick = actions.onPollNow,
         enabled = !state.checking,
         modifier = Modifier.fillMaxWidth(),
     ) {
