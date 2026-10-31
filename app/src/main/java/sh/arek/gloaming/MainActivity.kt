@@ -60,6 +60,7 @@ import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.LocationRefresh
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
@@ -285,14 +286,25 @@ private fun GloamingApp() {
      * alarm, and for an overdue position it asks for a quarter of an hour from
      * now - so re-arming on every save let somebody adjusting other settings
      * keep pushing that refresh further off.
+     *
+     * The screen's copy is only as fresh as the last time it was brought
+     * forward, and the background refresh may have stored a newer fix since;
+     * saving any other setting from that copy would write the older position
+     * back over it. So a newer stored fix wins, and the screen takes it too.
      */
     fun saveSettings(user: UserSettings) {
         val previous = settingsStore.read()
-        BootAware.saveSettings(context, user)
-        if (user.locationMode != previous.locationMode ||
-            user.locationCadence != previous.locationCadence
+        val saving = LocationRefresh.keepNewerFix(user, previous)
+        BootAware.saveSettings(context, saving)
+        if (saving != user) {
+            settings = saving
+            latitudeInput = saving.latitude?.toString().orEmpty()
+            longitudeInput = saving.longitude?.toString().orEmpty()
+        }
+        if (saving.locationMode != previous.locationMode ||
+            saving.locationCadence != previous.locationCadence
         ) {
-            LocationAlarm.arm(context, user)
+            LocationAlarm.arm(context, saving)
         }
     }
 

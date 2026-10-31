@@ -350,6 +350,10 @@ is a file replacement.
   withdrawn background grant puts the cadence back to opening the app and sets
   `backgroundLocationRevoked` for the screen to explain. The journal says
   whether a refresh happened, never where.
+
+  Every save from the screen goes through `LocationRefresh.keepNewerFix`, so a
+  screen brought forward before a background refresh landed cannot write the
+  older position back over the newer one.
 - **notification:** one channel per category - `aurora`, `iss-passes`,
   `bright-satellites`, `comets`, `eclipses`, `meteor-showers`, `conjunctions` -
   created behind the `SDK_INT >= 26` branch.

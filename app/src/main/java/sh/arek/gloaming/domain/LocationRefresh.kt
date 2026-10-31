@@ -81,4 +81,26 @@ object LocationRefresh {
         val updatedAt = settings.locationUpdatedAt ?: return soonest
         return maxOf(updatedAt + cadence.hours * MILLIS_PER_HOUR, soonest)
     }
+
+    /**
+     * What a save from the screen should write, given what is stored now.
+     *
+     * The screen holds the copy it read when it was last brought forward, and
+     * the background refresh may have stored a newer fix since. Saving any
+     * other setting from that copy would write the older position back over
+     * it. While the position is detected nobody types one, so a newer stored
+     * fix is always the truer answer and keeps its place; a typed position is
+     * left exactly as typed.
+     */
+    fun keepNewerFix(saving: UserSettings, stored: UserSettings): UserSettings {
+        if (saving.locationMode != LocationMode.Automatic) return saving
+        val storedAt = stored.locationUpdatedAt ?: return saving
+        val savingAt = saving.locationUpdatedAt
+        if (savingAt != null && savingAt >= storedAt) return saving
+        return saving.copy(
+            latitude = stored.latitude,
+            longitude = stored.longitude,
+            locationUpdatedAt = storedAt,
+        )
+    }
 }
