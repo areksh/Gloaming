@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -59,7 +60,9 @@ import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.data.isDue
-import sh.arek.gloaming.data.runsInBackground
+import sh.arek.gloaming.domain.CadenceAnswer
+import sh.arek.gloaming.domain.CadencePick
+import sh.arek.gloaming.domain.CadenceRequest
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
@@ -481,11 +484,16 @@ private fun GloamingApp() {
      * silent about the position itself: the log records that a fix was taken
      * and never where it was, which is the same rule everything else here
      * follows.
+     *
+     * [fromOpen] is the detection opening the app does by itself, which leaves
+     * the note alone either way. Nobody asked for it, so it has nothing to
+     * report - and it runs again on coming back from Android's settings page,
+     * where clearing the note would wipe the answer that page just gave.
      */
-    fun detectLocation() {
+    fun detectLocation(fromOpen: Boolean = false) {
         scope.launch {
             detectingLocation = true
-            locationNote = null
+            if (!fromOpen) locationNote = null
             val fix = withContext(Dispatchers.IO) {
                 runCatching { AndroidLocationSource(context).current() }
                     .onFailure { Log.w("Gloaming", "could not read a position", it) }
@@ -494,6 +502,7 @@ private fun GloamingApp() {
             detectingLocation = false
 
             if (fix == null) {
+                if (fromOpen) return@launch
                 // Deliberately not "turn on your GPS". From the screen the app
                 // only reads positions the phone already had, so the honest advice is to
                 // use something that does ask for one, or to type it in.
@@ -512,7 +521,7 @@ private fun GloamingApp() {
             latitudeInput = fix.latitude.toString()
             longitudeInput = fix.longitude.toString()
             saveSettings(settings)
-            locationNote = null
+            if (!fromOpen) locationNote = null
         }
     }
 
@@ -569,6 +578,18 @@ private fun GloamingApp() {
         }
     }
 
+    /**
+     * Straight back to typing it in, rather than leaving a switch on that
+     * cannot do anything. Sec. 7 requires the app be fully functional with
+     * this denied, and a dead control is not that.
+     */
+    fun coarseRefused() {
+        settings = settings.copy(locationMode = LocationMode.Manual)
+        saveSettings(settings)
+        locationNote = "Location permission was declined, so Gloaming will keep using " +
+            "the position you type in."
+    }
+
     val locationPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -577,13 +598,7 @@ private fun GloamingApp() {
             saveSettings(settings)
             detectLocation()
         } else {
-            // Straight back to typing it in, rather than leaving a switch on
-            // that cannot do anything. Sec. 7 requires the app be fully
-            // functional with this denied, and a dead control is not that.
-            settings = settings.copy(locationMode = LocationMode.Manual)
-            saveSettings(settings)
-            locationNote = "Location permission was declined, so Gloaming will keep using " +
-                "the position you type in."
+            coarseRefused()
         }
     }
 
@@ -599,13 +614,16 @@ private fun GloamingApp() {
                 AndroidLocationSource.hasPermission(context) &&
                 stored.locationCadence.isDue(stored.locationUpdatedAt, System.currentTimeMillis())
             ) {
-                detectLocation()
+                detectLocation(fromOpen = true)
             }
         }
     }
 
-    /** The cadence a background grant is being asked for, while Android has the question. */
-    var pendingCadence by remember { mutableStateOf<LocationCadence?>(null) }
+    // The interval a background grant is being asked for, while Android has
+    // the question. Saved across recreation by its hours - only an interval is
+    // ever asked for - because from API 30 the question is a trip to Android's
+    // settings page, and the activity may be rebuilt before it comes back.
+    var pendingHours by rememberSaveable { mutableStateOf<Int?>(null) }
 
     fun backgroundMissing(): List<String> = AndroidLocationSource.backgroundRequest(
         sdk = Build.VERSION.SDK_INT,
@@ -627,17 +645,19 @@ private fun GloamingApp() {
 
     /** Android has answered its last question about the background grant. */
     fun settleBackground() {
-        val cadence = pendingCadence ?: return
-        pendingCadence = null
+        val hours = pendingHours ?: return
+        pendingHours = null
         backgroundLocationOk = AndroidLocationSource.hasBackgroundPermission(context)
-        if (backgroundMissing().isEmpty()) {
-            chooseCadence(cadence)
-        } else {
-            // Back to the cadence that needs nothing more, rather than an
-            // interval that would wake only to find it may not ask.
-            chooseCadence(LocationCadence.OnOpen)
-            locationNote = "Background location was not allowed, so Gloaming will update " +
-                "each time you open it."
+        when (CadenceRequest.answer(backgroundMissing())) {
+            CadenceAnswer.Granted -> chooseCadence(LocationCadence.Every(hours))
+            CadenceAnswer.BackgroundRefused -> {
+                // Back to the cadence that needs nothing more, rather than an
+                // interval that would wake only to find it may not ask.
+                chooseCadence(LocationCadence.OnOpen)
+                locationNote = "Background location was not allowed, so Gloaming will " +
+                    "update each time you open it."
+            }
+            CadenceAnswer.CoarseRefused -> coarseRefused()
         }
     }
 
@@ -651,7 +671,7 @@ private fun GloamingApp() {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) {
         val next = backgroundMissing()
-        if (pendingCadence != null && next == listOf(AndroidLocationSource.BACKGROUND_PERMISSION)) {
+        if (pendingHours != null && next == listOf(AndroidLocationSource.BACKGROUND_PERMISSION)) {
             backgroundPermission.launch(next.toTypedArray())
         } else {
             settleBackground()
@@ -1171,17 +1191,23 @@ private fun GloamingApp() {
                     }
                 },
                 onLocationCadenceChange = { cadence ->
-                    val missing = backgroundMissing()
-                    if (!cadence.runsInBackground || missing.isEmpty()) {
-                        chooseCadence(cadence)
-                    } else {
-                        // Asked at the moment an interval is picked, with the
-                        // card's warning about Android's page on screen behind it.
-                        pendingCadence = cadence
-                        if (missing == listOf(AndroidLocationSource.PERMISSION)) {
-                            coarseBeforeBackground.launch(missing.toTypedArray())
-                        } else {
-                            backgroundPermission.launch(missing.toTypedArray())
+                    // Asked at the moment an interval is picked, with the
+                    // card's warning about Android's page on screen behind it.
+                    val pick = CadenceRequest.onPick(
+                        cadence,
+                        inFlight = pendingHours != null,
+                        missing = backgroundMissing(),
+                    )
+                    when (pick) {
+                        CadencePick.Ignore -> Unit
+                        CadencePick.Store -> chooseCadence(cadence)
+                        is CadencePick.AskCoarseFirst -> {
+                            pendingHours = (cadence as LocationCadence.Every).hours
+                            coarseBeforeBackground.launch(pick.permissions.toTypedArray())
+                        }
+                        is CadencePick.Ask -> {
+                            pendingHours = (cadence as LocationCadence.Every).hours
+                            backgroundPermission.launch(pick.permissions.toTypedArray())
                         }
                     }
                 },

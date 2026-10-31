@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,12 +28,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
@@ -304,13 +307,23 @@ private fun CadenceChoice(
         mutableStateOf((cadence as? LocationCadence.Every)?.hours?.toString().orEmpty())
     }
     val customHours = LocationCadence.parseHours(customInput)
+    // What the field last sent, so finishing twice - Done, then the focus
+    // leaving - asks once. Cleared by any edit, so a retyped answer is sent.
+    var customSent by remember { mutableStateOf<Int?>(null) }
+    var customFocused by remember { mutableStateOf(false) }
+    fun commitCustom() {
+        val hours = customHours ?: return
+        if (hours == customSent) return
+        customSent = hours
+        onLocationCadenceChange(LocationCadence.Every(hours))
+    }
     // Custom stays marked while somebody is typing into it, even through a
-    // number that happens to be a preset. It lets go once the cadence in force
-    // is no longer an interval at all - a refused grant puts it back to opening
+    // number that happens to be a preset. Once an answer has been sent it
+    // follows the cadence in force: a refused grant puts that back to opening
     // the app, and the field would otherwise go on claiming a cadence that is
     // not running.
     val customSelected = storedCustom ||
-        (customOpen && (cadence is LocationCadence.Every || customHours == null))
+        (customOpen && (cadence is LocationCadence.Every || customSent == null))
 
     Text("How often", style = MaterialTheme.typography.bodyMedium)
     for (option in LocationCadence.PRESETS) {
@@ -332,17 +345,19 @@ private fun CadenceChoice(
         tag = CADENCE_TAG_PREFIX + "custom",
         onClick = {
             customInput = (cadence as? LocationCadence.Every)?.hours?.toString().orEmpty()
+            customSent = null
             customOpen = true
         },
     )
     if (customSelected) {
+        // Sent when the typing is finished, never per keystroke: "12" passes
+        // through "1" on the way, and each value sent can bring up Android's
+        // own prompt for the background grant.
         OutlinedTextField(
             value = customInput,
             onValueChange = {
                 customInput = it
-                LocationCadence.parseHours(it)?.let { hours ->
-                    onLocationCadenceChange(LocationCadence.Every(hours))
-                }
+                customSent = null
             },
             label = { Text("Hours") },
             singleLine = true,
@@ -357,8 +372,18 @@ private fun CadenceChoice(
             } else {
                 null
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth().testTag(CADENCE_HOURS_FIELD_TAG),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { commitCustom() }),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged {
+                    if (customFocused && !it.isFocused) commitCustom()
+                    customFocused = it.isFocused
+                }
+                .testTag(CADENCE_HOURS_FIELD_TAG),
         )
     }
 

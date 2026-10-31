@@ -23,6 +23,7 @@ import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
@@ -1023,19 +1024,33 @@ class ScreensTest {
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsNotSelected()
     }
 
-    /** Any whole number of hours the presets miss, and nothing until it is one. */
+    /**
+     * Any whole number of hours the presets miss, sent when the typing is
+     * finished rather than on every keystroke: "12" passes through "1", and
+     * each value sent can bring up Android's own prompt.
+     */
     @Test
-    fun aCustomIntervalIsSentOnceValid() {
+    fun aCustomIntervalIsSentOnDoneOnceValid() {
         show(settings = located.copy(locationMode = LocationMode.Automatic))
 
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().performClick()
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("3")
 
+        assertEquals(null, cadence)
+
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
+
         assertEquals(LocationCadence.Every(3), cadence)
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsSelected()
+    }
 
-        cadence = null
+    @Test
+    fun anInvalidCustomIntervalIsNeverSent() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().performClick()
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("0")
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
 
         assertEquals(null, cadence)
         compose.onNodeWithText("Enter a whole number of hours between 1 and 48.")

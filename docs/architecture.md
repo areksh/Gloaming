@@ -356,10 +356,17 @@ is a file replacement.
   background grant asks Android for it first - one request for both grants on
   API 29, coarse and then background on its own from API 30 (which Android
   answers with its settings page), nothing below 29 - as
-  `AndroidLocationSource.backgroundRequest` works out. A refusal stores "each
-  time you open Gloaming" and says so; picking any cadence clears
-  `backgroundLocationRevoked`. Opening the app detects the position when the
-  cadence says it is due, read from the store rather than the screen's copy.
+  `AndroidLocationSource.backgroundRequest` works out. `domain.CadenceRequest`
+  decides each step: a pick made while a request is still with Android is
+  dropped, since Android answers a second one at once with nothing granted; a
+  refused background grant stores "each time you open Gloaming" and says so,
+  and a refused coarse grant goes back to typing it in, as the switch does.
+  The interval being asked for survives the activity being rebuilt meanwhile.
+  The custom number of hours is sent on Done or when the field loses focus,
+  never per keystroke. Picking any cadence clears `backgroundLocationRevoked`.
+  Opening the app detects the position when the cadence says it is due, read
+  from the store rather than the screen's copy, and leaves the screen's note
+  alone, so the answer from Android's settings page is not wiped on return.
   Every save from the screen goes through `LocationRefresh.keepNewerFix`, so a
   screen brought forward before a background refresh landed cannot write the
   older position back over the newer one.
