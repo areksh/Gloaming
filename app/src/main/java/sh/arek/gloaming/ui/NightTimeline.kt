@@ -4,6 +4,7 @@ import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.SunTimes
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
@@ -91,15 +92,11 @@ object NightTimeline {
         val darkFrom = list.darkFrom
         val darkUntil = list.darkUntil
 
-        // Without civil darkness (a northern midsummer) the sun still sets and
-        // rises, so the night is anchored on now: the coming sunset and the
-        // sunrise after it.
-        val night = if (darkFrom != null && darkUntil != null) {
-            darkFrom..darkUntil
+        val sun = if (darkFrom != null && darkUntil != null) {
+            Twilight.sunTimes(latitude, longitude, darkFrom..darkUntil)
         } else {
-            nowMillis..(nowMillis + 24 * HOUR_MILLIS)
+            nightByTheSun(latitude, longitude, nowMillis)
         }
-        val sun = Twilight.sunTimes(latitude, longitude, night)
         val start = sun.setsAt ?: return null
         val end = sun.risesAt ?: return null
         if (end <= start) return null
@@ -179,6 +176,26 @@ object NightTimeline {
             lanes = lanes(list, start, end),
             nowMillis = nowMillis.takeIf { it in start..end },
         )
+    }
+
+    /**
+     * The night containing [nowMillis], else the coming one, by sunset and
+     * sunrise alone - for a northern midsummer, where civil darkness never
+     * comes but the sun still goes down.
+     *
+     * The sunrise is searched from the sunset, never from now: from now it
+     * would skip a sunrise already past and span a day and more.
+     */
+    private fun nightByTheSun(latitude: Double, longitude: Double, nowMillis: Long): SunTimes {
+        fun nightFrom(anchor: Long): SunTimes {
+            val set = Twilight.sunTimes(latitude, longitude, anchor..(anchor + 24 * HOUR_MILLIS)).setsAt
+                ?: return SunTimes(null, null)
+            return Twilight.sunTimes(latitude, longitude, set..(set + 24 * HOUR_MILLIS))
+        }
+
+        val current = nightFrom(nowMillis)
+        val rise = current.risesAt ?: return current
+        return if (rise >= nowMillis) current else nightFrom(rise + 12 * HOUR_MILLIS)
     }
 
     /**

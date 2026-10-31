@@ -135,6 +135,36 @@ class NightTimelineTest {
         assertTrue("night $hours h", hours in 3.0..8.0)
     }
 
+    private val faroes = UserSettings(latitude = 62.0, longitude = -6.77)
+
+    /** 01:00 local: the night is under way, and now sits inside it. */
+    @Test
+    fun `without civil darkness keeps the night now is in`() {
+        val now = at("2026-06-22T00:00:00Z")
+        val bright = list(darkFrom = null, darkestFrom = null).copy(darkestUntil = null)
+
+        val timeline = build(bright, settings = faroes, nowMillis = now)!!
+
+        assertTrue(timeline.startMillis <= now && now <= timeline.endMillis)
+        assertEquals(now, timeline.nowMillis)
+        val hours = (timeline.endMillis - timeline.startMillis) / 3_600_000.0
+        assertTrue("night $hours h", hours in 3.0..8.0)
+    }
+
+    /** 05:00 local, after sunrise: last night is over, so the coming one. */
+    @Test
+    fun `without civil darkness looks to the coming night after sunrise`() {
+        val now = at("2026-06-22T04:00:00Z")
+        val bright = list(darkFrom = null, darkestFrom = null).copy(darkestUntil = null)
+
+        val timeline = build(bright, settings = faroes, nowMillis = now)!!
+
+        assertTrue("starts ${timeline.startMillis}", timeline.startMillis > now)
+        assertNull(timeline.nowMillis)
+        val hours = (timeline.endMillis - timeline.startMillis) / 3_600_000.0
+        assertTrue("night $hours h", hours in 3.0..8.0)
+    }
+
     @Test
     fun `has no timeline without a position`() {
         assertNull(build(list(), settings = UserSettings()))
