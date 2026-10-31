@@ -115,6 +115,7 @@ class OutlookTest {
         elementsAgeMillis: Long? = HOUR,
         moonAltitude: (Long) -> Double = moonDown,
         planetAltitude: (SkyBody, Long) -> Double = { _, _ -> 30.0 },
+        sunAltitude: (Long) -> Double = sun,
     ) = OutlookInput(
         settings = settings,
         nowMillis = now,
@@ -122,7 +123,7 @@ class OutlookTest {
         auroraProbability = auroraProbability,
         auroraAgeMillis = auroraAgeMillis,
         elementsAgeMillis = elementsAgeMillis,
-        sunAltitude = sun,
+        sunAltitude = sunAltitude,
         moonAltitude = moonAltitude,
         planetAltitude = planetAltitude,
     )
@@ -872,6 +873,27 @@ class OutlookTest {
         )
 
         assertEquals(listOf(Excluded("Saturn", now, Gate.Height, "4", kind = PickKind.Planet)), report.excluded)
+    }
+
+    /**
+     * Dusk is found by a search that stops a hair short of -6 degrees, so a
+     * planet judged at the very start of the dark sees the sun at -5.999997.
+     * That is dark: an evening planet must not be lost to the rounding.
+     */
+    @Test
+    fun `a planet judged at dusk is dark by the time dusk was found`() {
+        val now = at("2026-12-13T15:00:00Z")
+        val jupiter = planet(SkyBody.Jupiter, at("2026-12-13T15:30:00Z"))
+        val duskSun: (Long) -> Double = { t -> if (t == darkFrom) -5.999997 else sun(t) }
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(jupiter)),
+            input(now = now, sunAltitude = duskSun),
+        )
+
+        assertEquals(emptyList<Excluded>(), report.excluded)
+        val goOut = report.outlook as Outlook.GoOut
+        assertEquals(listOf("Jupiter" to darkFrom), goOut.picks.map { it.subject to it.atMillis })
     }
 
     @Test

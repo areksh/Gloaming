@@ -226,6 +226,16 @@ object Outlooks {
 
     private const val HOUR_MILLIS = 60 * 60 * 1000L
 
+    /**
+     * How far above -6 degrees the sun may read and still count as dark.
+     *
+     * Dusk is found by a search that stops a hair short of the line, so at
+     * [TonightList.darkFrom] itself the sun reads -5.999997. A planet whose
+     * best moment is before dusk is judged exactly there, and without this an
+     * evening planet twenty degrees up is set aside as "not dark yet".
+     */
+    private const val DUSK_TOLERANCE_DEGREES = 0.01
+
     /** The dated events worth going out for. The rest are scenery or planning. */
     private val BRIGHT_EVENTS = setOf(
         EventKind.SolarEclipse,
@@ -570,7 +580,7 @@ object Outlooks {
             val until = night.list.darkestUntil
             from != null && until != null && candidate.at in from..until
         } else {
-            night.input.sunAltitude(candidate.at) < Twilight.CIVIL_DEGREES
+            night.input.sunAltitude(candidate.at) <= Twilight.CIVIL_DEGREES + DUSK_TOLERANCE_DEGREES
         }
         return Gate.Darkness.takeUnless { dark }
     }
