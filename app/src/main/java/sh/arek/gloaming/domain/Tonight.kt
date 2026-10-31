@@ -158,6 +158,8 @@ data class TonightList(
  */
 object Tonight {
 
+    private const val HOUR_MILLIS: Long = 60 * 60 * 1000L
+
     /**
      * How far ahead to look when it is the middle of the day.
      *
@@ -297,7 +299,7 @@ object Tonight {
         hourly: List<HourlyCover>,
         tolerance: Int,
     ): ClearSpell? {
-        val next = Twilight.nightAhead(latitude, longitude, night.last + 3_600_000L) ?: return null
+        val next = Twilight.nightAhead(latitude, longitude, night.last + HOUR_MILLIS) ?: return null
         return ClearSpell.first(
             hourly = hourly,
             tolerance = tolerance,
