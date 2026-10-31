@@ -56,4 +56,34 @@ class ScheduleTest {
             text,
         )
     }
+
+    // --- the status line at the head of Tonight ---
+
+    /**
+     * The age and the schedule in one line, because they are read together: a
+     * long gap is only alarming until the second half explains it.
+     */
+    @Test
+    fun `puts the age and the schedule in one line`() {
+        val text = describeStatus(
+            lastPollAt = 100 * hour,
+            now = 100 * hour + 6 * minute,
+            darkness = Darkness.Later(startsAt = 20 * hour + 40 * minute, endsAt = null),
+            localMinuteOfDay = utcMinuteOfDay,
+        )
+
+        assertEquals(
+            "Checked 6 minutes ago. Sun is up. Nothing to see until it gets dark, around 20:40.",
+            text,
+        )
+    }
+
+    /** Without a location there is no darkness to describe, and no half-sentence. */
+    @Test
+    fun `gives only the age when there is no darkness to describe`() {
+        assertEquals(
+            "Not checked yet.",
+            describeStatus(lastPollAt = null, now = hour, darkness = null, localMinuteOfDay = utcMinuteOfDay),
+        )
+    }
 }

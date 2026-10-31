@@ -14,6 +14,7 @@ import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
+import sh.arek.gloaming.domain.StormMode
 import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
 import sh.arek.gloaming.net.Transfer
 import sh.arek.gloaming.net.TransferState
@@ -76,6 +77,38 @@ fun describeAge(lastPollAt: Long?, now: Long): String {
         }
     }
 }
+
+/**
+ * The one line at the head of Tonight: how long ago the app looked, and why it
+ * may not have looked since.
+ *
+ * One line rather than two because they are read together - a long gap is
+ * only alarming until the second half explains it. Without a location there
+ * is no darkness to describe, and the line stops at the age.
+ */
+fun describeStatus(
+    lastPollAt: Long?,
+    now: Long,
+    darkness: Darkness?,
+    localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
+): String {
+    val age = describeAge(lastPollAt, now) + "."
+    return if (darkness == null) age else "$age ${describeSchedule(darkness, localMinuteOfDay)}"
+}
+
+/** What the watch button promises before it is pressed: how often, and for how long. */
+fun describeWatchPlan(duration: WatchDuration): String {
+    val span = if (duration == WatchDuration.UntilLight) "until it gets light" else "for ${duration.label}"
+    return "Checks every ${StormMode.POLL_MINUTES} minutes $span"
+}
+
+/**
+ * What the watch button says while a watch runs: when it will stop on its own,
+ * which is what tapping it would bring forward. Null is a watch whose end the
+ * service has not given, which still says it is running.
+ */
+fun describeWatching(untilMillis: Long?): String =
+    untilMillis?.let { "Watching until ${clock(it)}" } ?: "Watching"
 
 internal fun plural(value: Long) = if (value == 1L) "" else "s"
 

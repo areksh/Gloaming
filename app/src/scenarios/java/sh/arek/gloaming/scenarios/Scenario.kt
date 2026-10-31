@@ -310,6 +310,8 @@ object Scenarios {
             },
             calendar = calendar(scenario),
             tonight = tonight(scenario),
+            outlook = outlook(scenario),
+            hourly = scenario.hourly,
             pendingVerdict = Conditions.decode(scenario.alertState.pendingVerdict),
         )
     }

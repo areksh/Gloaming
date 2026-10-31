@@ -4,17 +4,12 @@ import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.Verdict
+import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
-
-/**
- * The watch switch, which is an action rather than a setting and so is the one
- * control worth reaching by tag: every other switch is identifiable by the
- * setting it sits beside.
- */
-const val WATCH_SWITCH_TAG = "watch-switch"
 
 /**
  * The live-following switch, reached by tag for the same reason: it sits beside
@@ -77,6 +72,8 @@ data class MainUiState(
     val powerSaveMode: Boolean = false,
     /** Whether the foreground watch is running. */
     val watching: Boolean = false,
+    /** When the running watch stops on its own, where that is known. */
+    val watchingUntil: Long? = null,
     /** How much of the app's own log is on disk, for the log card. */
     val logSizeBytes: Long = 0L,
     /**
@@ -89,6 +86,13 @@ data class MainUiState(
     val calendarLoading: Boolean = false,
     /** What there is to see between now and dawn, once it has been worked out. */
     val tonight: TonightList? = null,
+    /**
+     * Tonight in one sentence, decided from [tonight] and the same held
+     * documents, or null until it has been worked out.
+     */
+    val outlook: OutlookReport? = null,
+    /** The held hourly cloud forecast [outlook] was decided against. */
+    val hourly: List<HourlyCover> = emptyList(),
     /** True while a position is being read from the device. */
     val detectingLocation: Boolean = false,
     /**

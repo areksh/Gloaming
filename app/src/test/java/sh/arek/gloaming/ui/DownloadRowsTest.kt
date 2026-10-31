@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.net.Transfer
@@ -213,5 +214,48 @@ class DownloadRowsTest {
     @Test
     fun `speaks unasked when something is wrong`() {
         assertTrue(worthReporting(rows(elements = 14 * day), checking = false))
+    }
+
+    // --- what the status line says when something is wrong ---
+
+    /**
+     * The report sits in a sheet now, so the status line is what speaks
+     * unasked: a fortnight of stale elements has to show on the screen
+     * somebody actually opens, not only behind a tap.
+     */
+    @Test
+    fun `names what is wrong on the status line`() {
+        assertEquals(
+            "Something is wrong with the satellite elements.",
+            describeTrouble(rows(elements = 14 * day), lastError = null),
+        )
+    }
+
+    @Test
+    fun `names every document that is wrong`() {
+        val failing = rows(
+            transfers = listOf(transfer("Space weather", TransferState.Failed, error = "503")),
+            elements = 14 * day,
+        )
+
+        assertEquals(
+            "Something is wrong with the space weather and the satellite elements.",
+            describeTrouble(failing, lastError = null),
+        )
+    }
+
+    /** A failed check with every document fine is still worth a word. */
+    @Test
+    fun `says the last check failed when no document is to blame`() {
+        assertEquals(
+            "The last check failed.",
+            describeTrouble(rows(elements = hour), lastError = "offline"),
+        )
+    }
+
+    /** And nothing at all on an ordinary evening. */
+    @Test
+    fun `says nothing when nothing is wrong`() {
+        assertNull(describeTrouble(rows(elements = hour, comets = hour), lastError = null))
     }
 }

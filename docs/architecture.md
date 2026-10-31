@@ -296,9 +296,11 @@ is a file replacement.
   The two added to `SkyCache` and `WeatherSource` are defaulted to null, so a
   fake in a poller test need not answer something no poller reads.
 
-  Shown as text under the Tonight tab's "check now" button rather than as a
-  card, and absent unless it has something to say: while a check runs, after
-  one has been run, or - asked or not - when something is wrong. That last
+  Shown as text under Check now in Tonight's checks sheet rather than as a
+  card, and absent there unless it has something to say: while a check runs or
+  after one has been run. When something is wrong it speaks asked or not:
+  `ui.describeTrouble` names the documents to blame on the status line at the
+  head of Tonight, which is on the screen without opening anything. That
   clause is the point rather than a hedge; a report that only speaks when
   pressed would have sat silent through the whole fortnight. Only the elements
   (three days) and the comets (a month) are ever marked stale, because those
@@ -391,8 +393,19 @@ is a file replacement.
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
   is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
   Settings); the guide is not one, and is reached from a row in Settings.
-  Tonight and Settings are a scrolling column through `ScrollingSection`, which
-  holds the padding and spacing they share. The calendar is a `LazyColumn`
+  Settings is a scrolling column through `ScrollingSection`, which holds the
+  padding and spacing the sections share. Tonight brings its own column,
+  `TonightScreen`, with the same figures: a `PullToRefreshBox` whose pull runs
+  a check, over the scroll, and the Watch tonight button pinned beneath it
+  rather than scrolled. Its head is `TonightHeader` - the status line, which
+  opens the checks sheet (`ChecksSheet`: Check now, the last error, the
+  downloads report, battery saver), or a banner in its place while background
+  checks or notifications are not allowed; then the date and the outlook. The
+  outlook is decided in `MainActivity` in the same off-main-thread pass as the
+  tonight list, from the same held documents and the held hourly forecast, so
+  the sentence and the night beneath it cannot disagree. The elements' age it
+  is given is how long ago `sats.json` says they were published, not how long
+  the phone has held them, since a 304 keeps the latter young for ever. The calendar is a `LazyColumn`
   owning its own scrolling, because a year ahead is around a hundred entries
   and composing them all cost a frame of 1300ms on opening and every frame of a
   scroll afterwards - and because a lazy list measured inside a scrolling

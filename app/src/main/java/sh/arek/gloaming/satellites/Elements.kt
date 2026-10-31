@@ -1,6 +1,9 @@
 package sh.arek.gloaming.satellites
 
 import com.rtbishop.look4sat.core.domain.predict.OrbitalData
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -106,7 +109,28 @@ data class SatellitesDocument(
      * reading a document that has grown a field it knows nothing about.
      */
     val trains: List<StarlinkTrain> = emptyList(),
-)
+) {
+    /**
+     * [updated] as epoch milliseconds, or null where it cannot be read.
+     *
+     * The publish time, which is how old a device knows the elements to be;
+     * the cache's own age says only when this phone last fetched them, and a
+     * 304 against an object nobody republishes keeps that young for ever.
+     * Unreadable is unknown rather than the epoch, which would read as decades
+     * stale. Parsed by hand because `java.time` is not available at minSdk 24.
+     */
+    fun updatedMillis(): Long? = UPDATED_PATTERNS.firstNotNullOfOrNull { pattern ->
+        runCatching {
+            SimpleDateFormat(pattern, Locale.ROOT).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+                isLenient = false
+            }.parse(updated)?.time
+        }.getOrNull()
+    }
+}
+
+/** What the fetcher writes (`toISOString()`), and the same without milliseconds. */
+private val UPDATED_PATTERNS = listOf("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", "yyyy-MM-dd'T'HH:mm:ss'Z'")
 
 /** Reads `sats.json`. */
 object Elements {

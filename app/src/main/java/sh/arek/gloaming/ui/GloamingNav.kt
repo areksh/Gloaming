@@ -63,7 +63,8 @@ const val GUIDE_BACK_TAG = "guide-back"
  *
  * Each section owns its own scroll, which is why [TonightContent],
  * [CalendarContent], [GuideContent] and [SettingsContent] emit loose children
- * rather than columns of their own.
+ * rather than columns of their own. [TonightScreen] is the one section that
+ * brings its own column, because it pins the watch button under the scroll.
  */
 @Composable
 fun GloamingNav(
@@ -132,9 +133,14 @@ fun GloamingNav(
                 state = aheadScroll,
             )
 
-            Section.Tonight -> ScrollingSection(tonightScroll, content) {
-                TonightContent(state = state, actions = actions)
-            }
+            // Tonight scrolls itself too, with the watch button pinned under
+            // the scroll and pulling down to check.
+            Section.Tonight -> TonightScreen(
+                state = state,
+                actions = actions,
+                scroll = tonightScroll,
+                modifier = content.fillMaxSize(),
+            )
 
             Section.Settings -> if (showGuide) {
                 ScrollingSection(guideScroll, content) {
@@ -220,10 +226,11 @@ private object Icons {
 }
 
 /**
- * A section that scrolls as one column, which Tonight and Settings do.
+ * A section that scrolls as one column, which Settings and the guide do.
  *
  * The padding and spacing live here so the sections look identical to each
- * other - the calendar applies the same figures as its own content padding.
+ * other - the calendar applies the same figures as its own content padding,
+ * and [TonightScreen] to its own column.
  */
 @Composable
 private fun ScrollingSection(

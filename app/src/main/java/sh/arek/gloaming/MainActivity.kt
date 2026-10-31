@@ -47,6 +47,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
@@ -55,6 +56,7 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
@@ -68,6 +70,9 @@ import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
 import sh.arek.gloaming.domain.LocationRefresh
+import sh.arek.gloaming.domain.OutlookInput
+import sh.arek.gloaming.domain.OutlookReport
+import sh.arek.gloaming.domain.Outlooks
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
@@ -353,6 +358,8 @@ private fun GloamingApp() {
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
     var calendarLoading by remember { mutableStateOf(false) }
     var tonight by remember { mutableStateOf<TonightList?>(null) }
+    var outlook by remember { mutableStateOf<OutlookReport?>(null) }
+    var hourly by remember { mutableStateOf(emptyList<HourlyCover>()) }
     var detectingLocation by remember { mutableStateOf(false) }
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
@@ -367,6 +374,7 @@ private fun GloamingApp() {
     var notificationsOk by remember { mutableStateOf(notificationsAllowed()) }
     var saverOn by remember { mutableStateOf(powerSaveMode()) }
     var watching by remember { mutableStateOf(StormService.running) }
+    var watchingUntil by remember { mutableStateOf(StormService.endsAt) }
     var darkness by remember { mutableStateOf(darknessHere()) }
     var logSize by remember { mutableStateOf(Graph.journal(context).sizeBytes()) }
     /** Bumped when a fetched forecast lands, so tonight is worked out again. */
@@ -396,6 +404,7 @@ private fun GloamingApp() {
                 backgroundLocationOk = AndroidLocationSource.hasBackgroundPermission(context)
                 saverOn = powerSaveMode()
                 watching = StormService.running
+                watchingUntil = StormService.endsAt
                 darkness = darknessHere()
                 logSize = Graph.journal(context).sizeBytes()
                 shownAt = System.currentTimeMillis()
@@ -833,45 +842,92 @@ private fun GloamingApp() {
 
     // Worked out from the calendar and the elements already on the device, so
     // it costs no network. Recomputed when the calendar is, when the forecast
-    // arrives, and on the clock tick, because "tonight" moves as the evening
-    // does.
+    // arrives, when a check lands, and on the clock tick, because "tonight"
+    // moves as the evening does.
+    //
+    // The outlook is decided here too, from the same documents and the same
+    // held forecast, so the sentence at the top cannot disagree with the night
+    // beneath it.
     LaunchedEffect(
         calendar,
         settings.latitude,
         settings.longitude,
-        // The two settings the night depends on that nothing else here already
+        // The settings the night depends on that nothing else here already
         // keys on. Without them the card kept quoting the new cloud tolerance
         // against a gap worked out from the old one, which is a sentence that
         // is simply wrong rather than merely stale. The comet settings reach
-        // this through `calendar`, which they already force a recompute of.
+        // this through `calendar`, which they already force a recompute of;
+        // the threshold is the outlook's, for the aurora it judges.
         settings.cloudTolerance,
         settings.minimumPassElevationDegrees,
+        settings.threshold,
         forecastNonce,
+        // A check brings a new reading and possibly new elements, both of
+        // which the outlook reads.
+        alertState.lastPollAt,
         shownAt / TONIGHT_STALE_MILLIS,
     ) {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
             tonight = null
+            outlook = null
+            hourly = emptyList()
             return@LaunchedEffect
         }
-        tonight = withContext(Dispatchers.Default) {
+        val worked = withContext(Dispatchers.Default) {
             runCatching {
                 // Both read the cache and stop. The fetch that fills that cache
-                // is its own effect below, so a slow network cannot hold the
+                // is its own effect above, so a slow network cannot hold the
                 // whole tab blank waiting for a cloud reading.
                 val weather = Graph.weather(context)
-                Tonight.of(
-                    satellites = Graph.satellites(context).cached(),
+                val satellites = Graph.satellites(context)
+                val elements = satellites.cached()
+                val forecast = weather.forecast(latitude, longitude)
+                val now = System.currentTimeMillis()
+                val list = Tonight.of(
+                    satellites = elements,
                     comets = Graph.comets(context).cached(),
                     calendar = calendar,
                     settings = settings,
-                    nowMillis = System.currentTimeMillis(),
+                    nowMillis = now,
                     cloud = weather.lastKnown(latitude, longitude),
-                    hourly = weather.forecast(latitude, longitude),
+                    hourly = forecast,
                 )
+                val probability = alertState.lastProbability
+                val report = runCatching {
+                    Outlooks.of(
+                        list,
+                        OutlookInput(
+                            settings = settings,
+                            nowMillis = now,
+                            hourly = forecast,
+                            auroraProbability = probability,
+                            auroraAgeMillis = alertState.lastPollAt
+                                ?.takeIf { probability != null }
+                                ?.let { now - it },
+                            // How long ago the elements were published, which
+                            // is what SGP4's accuracy runs on. The cache's own
+                            // age stands in only where the publish time cannot
+                            // be read; with no document there is no age at all.
+                            elementsAgeMillis = elements?.let { document ->
+                                document.updatedMillis()?.let { now - it }
+                                    ?: satellites.cachedAgeMillis()
+                            },
+                            sunAltitude = { Twilight.sunAltitude(latitude, longitude, it) },
+                            moonAltitude = { Twilight.moonAltitude(latitude, longitude, it) },
+                            planetAltitude = { body, t ->
+                                Planets.altitude(body, latitude, longitude, t)
+                            },
+                        ),
+                    )
+                }.onFailure { Log.w("Gloaming", "could not work out the outlook", it) }.getOrNull()
+                Triple(list, report, forecast)
             }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()
         }
+        tonight = worked?.first
+        outlook = worked?.second
+        hourly = worked?.third.orEmpty()
     }
 
     GloamingTheme(nightVision = settings.nightVision) {
@@ -898,10 +954,13 @@ private fun GloamingApp() {
                     darkness = darkness,
                     powerSaveMode = saverOn,
                     watching = watching,
+                    watchingUntil = watchingUntil,
                     logSizeBytes = logSize,
                     calendar = calendar,
                     calendarLoading = calendarLoading,
                     tonight = tonight,
+                    outlook = outlook,
+                    hourly = hourly,
                     detectingLocation = detectingLocation,
                     locationNote = locationNote,
                     backgroundLocationAllowed = backgroundLocationOk,
@@ -1028,6 +1087,20 @@ private fun GloamingApp() {
                     onWatchingChange = { wanted ->
                         if (wanted) StormService.watchNow(context) else StormService.stop(context)
                         watching = wanted
+                        // The service fixes its own end once it has started; until
+                        // then the same sum from the same inputs, so the button
+                        // says when straight away.
+                        watchingUntil = if (wanted) {
+                            val now = System.currentTimeMillis()
+                            StormService.endsAt ?: (
+                                now + settings.watchDuration.capMillis(
+                                    now,
+                                    (darkness as? Darkness.Now)?.endsAt,
+                                )
+                            )
+                        } else {
+                            null
+                        }
                     },
                     onPassLeadChange = {
                         settings = settings.copy(passAlertLeadMinutes = it)

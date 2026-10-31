@@ -41,3 +41,12 @@ private fun pad(value: Int): String = if (value < 10) "0$value" else "$value"
  */
 internal fun clock(millis: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
+
+/**
+ * The date over the outlook, "Saturday 31 October", in the device's own zone.
+ *
+ * No year and no place: the year is never in doubt on a screen about tonight,
+ * and there is no geocoder to name the place with.
+ */
+fun describeDate(millis: Long): String =
+    SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(millis))

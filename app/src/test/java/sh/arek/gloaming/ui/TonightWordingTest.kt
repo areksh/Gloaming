@@ -12,6 +12,7 @@ import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
 
@@ -379,4 +380,33 @@ class TonightWordingTest {
         risesAt = risesAt,
         setsAt = setsAt,
     )
+
+    // --- the watch button ---
+
+    /** What the button promises before it is pressed: how often, and for how long. */
+    @Test
+    fun `says how often and for how long a watch would check`() {
+        assertEquals("Checks every 2 minutes for 4 hours", describeWatchPlan(WatchDuration.FourHours))
+        assertEquals("Checks every 2 minutes for 1 hour", describeWatchPlan(WatchDuration.OneHour))
+    }
+
+    @Test
+    fun `says a watch until light runs until it gets light`() {
+        assertEquals(
+            "Checks every 2 minutes until it gets light",
+            describeWatchPlan(WatchDuration.UntilLight),
+        )
+    }
+
+    /** A running watch says when it will stop, which is what tapping it would change. */
+    @Test
+    fun `says until when a running watch goes on`() {
+        assertEquals("Watching until 05:37", describeWatching(at(5) + 37 * 60_000L))
+    }
+
+    /** One the service has not given an end for still says it is running. */
+    @Test
+    fun `says a watch is running when it has no end to give`() {
+        assertEquals("Watching", describeWatching(null))
+    }
 }

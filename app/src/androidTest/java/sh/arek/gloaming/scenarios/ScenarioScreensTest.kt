@@ -1,16 +1,12 @@
 package sh.arek.gloaming.scenarios
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,7 +14,10 @@ import org.junit.runners.Parameterized
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.describeMissingElements
-import sh.arek.gloaming.ui.TonightContent
+import sh.arek.gloaming.ui.OUTLOOK_HEADLINE_TAG
+import sh.arek.gloaming.ui.OutlookWords
+import sh.arek.gloaming.ui.TonightScreen
+import sh.arek.gloaming.ui.WATCH_BUTTON_TAG
 
 /**
  * Every night in the catalogue, drawn on a real device.
@@ -60,17 +59,9 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
     private val tonight: TonightList = requireNotNull(state.tonight)
 
+    /** The whole of Tonight as the app draws it, pinned watch button included. */
     private fun render() {
-        compose.setContent {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                TonightContent(state = state)
-            }
-        }
+        compose.setContent { TonightScreen(state = state) }
     }
 
     /**
@@ -231,6 +222,31 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
         render()
         shown(emptySatellitesSentence())
-        shown("Watch now")
+        // Pinned under the scroll, so there on an empty night without scrolling.
+        compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed().assertTextContains("Watch tonight")
+    }
+
+    /**
+     * The night opens with the sentence the outlook decided, word for word -
+     * and with none where there is no outlook to give, rather than a blank
+     * heading.
+     */
+    @Test
+    fun opensWithTheOutlookItDecided() {
+        render()
+
+        val headline = state.outlook?.let { OutlookWords.headline(it) }
+        if (headline == null) {
+            if (scenario.settings.latitude == null) {
+                shown("Set your location to begin")
+            } else {
+                compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertDoesNotExist()
+            }
+            return
+        }
+        compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertTextEquals(headline)
     }
 }

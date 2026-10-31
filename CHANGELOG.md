@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tonight opens with one sentence about the night.** Under the date, a
+  single line says whether tonight is worth going out for and when - "Cloudy
+  until 23:40, then three clear hours. Go out at midnight for Saturn and
+  Tiangong." - with a second line under it, and it only names what will
+  actually be seen. Above it, one quiet line says when Gloaming last checked
+  and when it next will, and names anything that has gone wrong; tapping it
+  opens a checks sheet holding Check now, the downloads report, the last
+  error, battery saver and the privacy note, which no longer sit among the
+  sky. Pull Tonight down to check now. When background checks or
+  notifications are not allowed, a banner takes that line's place with the
+  way to allow them. Watch now is a "Watch tonight" button pinned at the foot
+  of the screen: it offers the choice of how long in a sheet, and while a
+  watch runs it says until when and stops on a tap.
 - **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot
   of the screen, within thumb's reach. The calendar is now called Ahead, and
   the guide is no longer a tab of its own: it moves under Settings, as "Guide

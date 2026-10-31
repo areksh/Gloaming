@@ -15,7 +15,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -26,8 +31,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.BuildConfig
@@ -53,6 +61,8 @@ import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.MoonTonight
+import sh.arek.gloaming.domain.Outlook
+import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
@@ -86,9 +96,11 @@ class ScreensTest {
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)
 
     private var polled = 0
+    private var exemptionsAsked = 0
+    private var notificationsAsked = 0
     private var verdictsCleared = 0
 
-    /** The last value the watch switch asked for, or null if it was never moved. */
+    /** The last value the watch button asked for, or null if it was never pressed. */
     private var watchRequest: Boolean? = null
     private var auroraInterval: Int? = null
     private var issInterval: Int? = null
@@ -122,14 +134,17 @@ class ScreensTest {
         settings: UserSettings = located,
         alertState: AlertState = AlertState(),
         batteryExempt: Boolean = true,
+        notificationsAllowed: Boolean = true,
         checking: Boolean = false,
         darkness: Darkness? = null,
         powerSaveMode: Boolean = false,
         watching: Boolean = false,
+        watchingUntil: Long? = null,
         logSizeBytes: Long = 0L,
         locationNote: String? = null,
         backgroundLocationAllowed: Boolean = false,
         tonight: TonightList? = null,
+        outlook: OutlookReport? = null,
         calendarName: String? = null,
         pendingVerdict: Conditions? = null,
         recommendations: Recommendations? = null,
@@ -157,16 +172,18 @@ class ScreensTest {
                     quietFromInput = "23:00",
                     quietUntilInput = "07:00",
                     batteryExempt = batteryExempt,
-                    notificationsAllowed = true,
+                    notificationsAllowed = notificationsAllowed,
                     nowMillis = now,
                     checking = checking,
                     darkness = darkness,
                     powerSaveMode = powerSaveMode,
                     watching = watching,
+                    watchingUntil = watchingUntil,
                     logSizeBytes = logSizeBytes,
                     locationNote = locationNote,
                     backgroundLocationAllowed = backgroundLocationAllowed,
                     tonight = tonight,
+                    outlook = outlook,
                     calendarName = calendarName,
                     pendingVerdict = pendingVerdict,
                     recommendations = recommendations,
@@ -176,15 +193,18 @@ class ScreensTest {
                     elementsFailure = elementsFailure,
                 )
 
-                TonightContent(
-                    state = state,
-                    actions = UiActions(
-                        onVerdict = { verdict = it },
-                        onWatchingChange = { watchRequest = it },
-                        onWatchDurationChange = { watchDuration = it },
-                        onPollNow = { polled++ },
-                    ),
+                val tonightActions = UiActions(
+                    onVerdict = { verdict = it },
+                    onWatchingChange = { watchRequest = it },
+                    onWatchDurationChange = { watchDuration = it },
+                    onPollNow = { polled++ },
+                    onRequestBatteryExemption = { exemptionsAsked++ },
+                    onRequestNotifications = { notificationsAsked++ },
                 )
+                TonightContent(state = state, actions = tonightActions)
+                // Pinned under the scroll on the real screen; here it follows
+                // the content, because these tests are about what it says.
+                WatchButton(state = state, actions = tonightActions)
 
                 SettingsContent(
                     state = state,
@@ -232,7 +252,8 @@ class ScreensTest {
 
         compose.onNodeWithText("Aurora").assertExists()
         compose.onNodeWithText("42% probability here").assertExists()
-        compose.onNodeWithText("Checked 10 minutes ago").assertExists()
+        compose.onNodeWithTag(STATUS_LINE_TAG)
+            .assertTextContains("Checked 10 minutes ago", substring = true)
     }
 
     /**
@@ -285,7 +306,19 @@ class ScreensTest {
     fun saysSoBeforeAnythingHasBeenChecked() {
         show(alertState = AlertState())
 
-        compose.onNodeWithText("Not checked yet").assertExists()
+        compose.onNodeWithTag(STATUS_LINE_TAG).assertTextContains("Not checked yet", substring = true)
+    }
+
+    /** The operational chrome is a tap away, behind the line that says how fresh things are. */
+    @Test
+    fun theStatusLineOpensTheChecksSheet() {
+        show()
+        compose.onNodeWithTag(CHECKS_SHEET_TAG).assertDoesNotExist()
+
+        openChecks()
+
+        compose.onNodeWithTag(CHECKS_SHEET_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(CHECK_NOW_TAG).assertIsDisplayed()
     }
 
     // Scrolled to first. The button sits below the fold on a phone, and a
@@ -294,8 +327,9 @@ class ScreensTest {
     @Test
     fun checkNowAsksForACheck() {
         show()
+        openChecks()
 
-        compose.onNodeWithText("Check now").performScrollTo().performClick()
+        compose.onNodeWithTag(CHECK_NOW_TAG).performScrollTo().performClick()
 
         assertEquals(1, polled)
     }
@@ -305,8 +339,9 @@ class ScreensTest {
      * button, and a second press would only queue the same work again.
      */
     @Test
-    fun checkNowSaysWhenItIsBusyAndRefusesASecondPress() {
+    fun checkNowIsBusyWhileChecking() {
         show(checking = true)
+        openChecks()
 
         compose.onNodeWithText("Checking...").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithText("Checking...").performClick()
@@ -317,15 +352,49 @@ class ScreensTest {
     @Test
     fun checkNowIsAvailableWhenIdle() {
         show()
+        openChecks()
 
-        compose.onNodeWithText("Check now").assertIsEnabled()
+        compose.onNodeWithText("Check now").performScrollTo().assertIsEnabled()
     }
 
+    /** Pulling Tonight down is the other way to ask, and asks the same thing. */
+    @Test
+    fun pullingDownAsksForACheck() {
+        compose.setContent {
+            TonightScreen(
+                state = MainUiState(
+                    settings = located,
+                    alertState = AlertState(),
+                    latitudeInput = "55.95",
+                    longitudeInput = "-3.19",
+                    quietFromInput = "23:00",
+                    quietUntilInput = "07:00",
+                    batteryExempt = true,
+                    notificationsAllowed = true,
+                    nowMillis = now,
+                ),
+                actions = UiActions(onPollNow = { polled++ }),
+            )
+        }
+
+        compose.onNodeWithTag(TONIGHT_SCROLL_TAG).performTouchInput { swipeDown() }
+        compose.waitForIdle()
+
+        assertEquals(1, polled)
+    }
+
+    /**
+     * A failed check says so where it is seen, and says what failed where
+     * there is room to.
+     */
     @Test
     fun reportsAFailedCheckRatherThanHidingIt() {
         show(alertState = AlertState(lastPollAt = now - 60_000L, lastError = "offline"))
 
-        compose.onNodeWithText("Last check failed: offline").assertExists()
+        compose.onNodeWithTag(STATUS_LINE_TAG)
+            .assertTextContains("The last check failed.", substring = true)
+        openChecks()
+        compose.onNodeWithText("Last check failed: offline").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -361,7 +430,7 @@ class ScreensTest {
             darkness = Darkness.Later(startsAt = duskAt, endsAt = null),
         )
 
-        compose.onNodeWithText("Checked 11 hours ago").assertExists()
+        compose.onNodeWithText("Checked 11 hours ago", substring = true).assertExists()
         compose.onNodeWithText(
             "Sun is up. Nothing to see until it gets dark, around",
             substring = true,
@@ -379,24 +448,47 @@ class ScreensTest {
     /**
      * The one control in the app that is not a setting but an action, so it is
      * worth proving the tap reaches the caller - this is the same shape of bug
-     * as the "check now" button that ran nothing.
+     * as the "check now" button that ran nothing. Idle, it opens the choice of
+     * how long, and starting is a second, deliberate tap.
      */
     @Test
-    fun theWatchSwitchAsksForAWatch() {
+    fun watchTonightOffersTheDurationsAndStarts() {
         show(watching = false)
 
-        compose.onNodeWithTag(WATCH_SWITCH_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(WATCH_BUTTON_TAG)
+            .assertTextContains("Watch tonight")
+            .assertTextContains("Checks every 2 minutes for 4 hours")
+            .performScrollTo()
+            .performClick()
 
+        compose.onNodeWithTag(WATCH_SHEET_TAG).assertIsDisplayed()
+        // Inside the sheet: the settings below carry "1h" and "2h" of their own.
+        val inSheet = hasAnyAncestor(hasTestTag(WATCH_SHEET_TAG))
+        for (label in listOf("1h", "2h", "4h", "8h", "Dawn")) {
+            compose.onNode(hasText(label) and inSheet).assertExists()
+        }
+        assertEquals(null, watchRequest)
+
+        compose.onNode(hasText("Dawn") and inSheet).performClick()
+        compose.onNodeWithText("Start watching").performScrollTo().performClick()
+
+        assertEquals(WatchDuration.UntilLight, watchDuration)
         assertEquals(true, watchRequest)
     }
 
+    /** Running, it says when it will stop on its own, and a tap stops it now. */
     @Test
-    fun theWatchSwitchAsksToStopOneAlreadyRunning() {
-        show(watching = true)
+    fun aRunningWatchSaysUntilWhenAndStops() {
+        val until = now + 4 * 3_600_000L
+        show(watching = true, watchingUntil = until)
 
-        compose.onNodeWithTag(WATCH_SWITCH_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(WATCH_BUTTON_TAG)
+            .assertTextContains(describeWatching(until))
+            .performScrollTo()
+            .performClick()
 
         assertEquals(false, watchRequest)
+        compose.onNodeWithTag(WATCH_SHEET_TAG).assertDoesNotExist()
     }
 
     /**
@@ -407,12 +499,14 @@ class ScreensTest {
     @Test
     fun mentionsBatterySaverOnlyWhileItIsOn() {
         show(powerSaveMode = false)
+        openChecks()
         compose.onNodeWithText("Battery saver is on.", substring = true).assertDoesNotExist()
     }
 
     @Test
     fun warnsAboutBatterySaverWhenItIsOn() {
         show(powerSaveMode = true)
+        openChecks()
 
         compose.onNodeWithText("Battery saver is on.", substring = true).assertExists()
     }
@@ -487,14 +581,62 @@ class ScreensTest {
     /**
      * The exemption is a requirement rather than a refinement - a Gloaming
      * without it cannot alert anyone overnight, which is the whole app - so the
-     * screen has to say so and offer the way to grant it.
+     * screen has to say so, in place of the status line, and offer the way to
+     * grant it.
      */
     @Test
-    fun demandsTheBatteryExemptionRatherThanWorkingAroundIt() {
+    fun aMissingExemptionReplacesTheStatusLineWithABanner() {
         show(batteryExempt = false)
 
-        compose.onNodeWithText("Gloaming cannot alert you yet").assertExists()
-        compose.onNodeWithText("Allow background checks").assertExists()
+        compose.onNodeWithTag(STATUS_LINE_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(ALERT_BANNER_TAG)
+            .assertTextContains("Gloaming cannot alert you overnight yet")
+        compose.onNodeWithText(
+            "Android holds background checks until the phone next wakes, which overnight " +
+                "means hours. Allowing them is required, not optional.",
+        ).assertExists()
+        compose.onNodeWithText("Allow background checks").performScrollTo().performClick()
+
+        assertEquals(1, exemptionsAsked)
+    }
+
+    /** Without notifications the app can watch but not tell, and it says so the same way. */
+    @Test
+    fun notificationsOffGetsItsOwnBanner() {
+        show(notificationsAllowed = false)
+
+        compose.onNodeWithTag(STATUS_LINE_TAG).assertDoesNotExist()
+        compose.onNodeWithText("Notifications are off").assertExists()
+        compose.onNodeWithText("Gloaming cannot alert you overnight yet").assertDoesNotExist()
+        compose.onNodeWithText("Allow notifications").performScrollTo().performClick()
+
+        assertEquals(1, notificationsAsked)
+    }
+
+    /** The opening sentence, and the line under it, are the first thing about the sky. */
+    @Test
+    fun showsTheOutlookHeadline() {
+        show(
+            outlook = OutlookReport(
+                outlook = Outlook.Overcast(nextClear = null, missed = null),
+                excluded = emptyList(),
+                auroraProbability = 12,
+                threshold = 40,
+            ),
+        )
+
+        compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG)
+            .assertTextEquals("Overcast all night. Nothing worth going out for.")
+        compose.onNodeWithText("The forecast has no clear spell yet.").assertIsDisplayed()
+        compose.onNodeWithText(describeDate(now)).assertIsDisplayed()
+    }
+
+    /** No outlook is guessed at before one has been worked out. */
+    @Test
+    fun saysNothingBeforeTheOutlookIsWorkedOut() {
+        show(outlook = null)
+
+        compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertDoesNotExist()
     }
 
     /**
@@ -806,8 +948,8 @@ class ScreensTest {
     @Test
     fun offersEveryWatchDuration() {
         show()
+        openWatch()
 
-        compose.onNodeWithText("Watch now").performScrollTo().assertExists()
         compose.onNodeWithText("Stops on its own after: 4 hours").assertExists()
         for (label in listOf("1h", "2h", "4h", "8h", "Dawn")) {
             compose.onAllNodesWithText(label).onFirst().assertExists()
@@ -817,8 +959,8 @@ class ScreensTest {
     @Test
     fun reportsTheWatchDurationTheUserPicked() {
         show()
+        openWatch()
 
-        compose.onNodeWithText("Watch now").performScrollTo()
         compose.onAllNodesWithText("Dawn").onFirst().performScrollTo().performClick()
 
         assertEquals(WatchDuration.UntilLight, watchDuration)
@@ -828,8 +970,8 @@ class ScreensTest {
     @Test
     fun explainsWhatHappensWhenTheSkyNeverDarkens() {
         show(settings = located.copy(watchDuration = WatchDuration.UntilLight))
+        openWatch()
 
-        compose.onNodeWithText("Watch now").performScrollTo().assertExists()
         compose.onNodeWithText("it never fully does", substring = true).assertExists()
     }
 
@@ -1336,6 +1478,17 @@ class ScreensTest {
         compose.onNodeWithTag(verdictTag(Answer.Worth)).performScrollTo().performClick()
 
         assertEquals(Answer.Worth, verdict)
+    }
+
+    /** A question about last night goes above everything about tonight. */
+    @Test
+    fun theWorthItQuestionStillComesFirst() {
+        show(pendingVerdict = alerted(now - 3 * 3_600_000L))
+
+        val question = compose.onNodeWithText("Was it worth it?").getUnclippedBoundsInRoot()
+        val status = compose.onNodeWithTag(STATUS_LINE_TAG).getUnclippedBoundsInRoot()
+
+        assertTrue(question.top < status.top)
     }
 
     /** An alert from ten minutes ago has no answer yet, so there is no question. */
@@ -1983,6 +2136,7 @@ class ScreensTest {
                 ),
             ),
         )
+        openChecks()
 
         compose.onNodeWithText("Satellite elements").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Held copy is 14 days old").performScrollTo().assertIsDisplayed()
@@ -2000,6 +2154,7 @@ class ScreensTest {
                 ),
             ),
         )
+        openChecks()
 
         compose.onNodeWithText("Failed 2 hours ago: GET status.json returned 503")
             .performScrollTo()
@@ -2010,6 +2165,7 @@ class ScreensTest {
     @Test
     fun namesWhatIsDownloadingDuringACheck() {
         show(checking = true, downloading = listOf("Aurora grid", "Satellite elements"))
+        openChecks()
 
         compose.onNodeWithText("Downloading: Aurora grid, Satellite elements")
             .performScrollTo()
@@ -2018,20 +2174,23 @@ class ScreensTest {
 
     /**
      * And says something even before the first request has been labelled -
-     * in its own words. "Checking..." is the button's, directly above, and two
+     * in its own words. "Checking..." is the button's, directly above it in the
+     * checks sheet, and two
      * nodes carrying it made this assertion ambiguous as well as the screen
      * repetitive.
      */
     @Test
     fun saysItIsStartingBeforeAnyRequestIsOpen() {
         show(checking = true)
+        openChecks()
 
         compose.onNodeWithText("Starting...").performScrollTo().assertIsDisplayed()
     }
 
     /**
      * Quiet on an ordinary evening. It used to be a standing card, which on a
-     * working install is six lines saying everything is fine.
+     * working install is six lines saying everything is fine - and the status
+     * line raises nothing either.
      */
     @Test
     fun saysNothingAboutDownloadsWhenThereIsNothingToSay() {
@@ -2041,13 +2200,15 @@ class ScreensTest {
             ),
         )
 
+        compose.onNodeWithText("Something is wrong", substring = true).assertDoesNotExist()
+        openChecks()
         compose.onNodeWithTag(DOWNLOADS_CARD_TAG).assertDoesNotExist()
     }
 
     /**
      * But unasked when something is wrong. A report that only speaks when
      * pressed would have sat silent through the whole fortnight that prompted
-     * it.
+     * it, so the status line names what is wrong without being opened.
      */
     @Test
     fun speaksAboutDownloadsUnaskedWhenSomethingIsWrong() {
@@ -2056,6 +2217,24 @@ class ScreensTest {
                 DownloadRow("Satellite elements", listOf("Held copy is 14 days old"), true),
             ),
         )
+
+        compose.onNodeWithTag(STATUS_LINE_TAG).assertTextContains(
+            "Something is wrong with the satellite elements.",
+            substring = true,
+        )
+    }
+
+    /** The report itself is in the checks sheet, not on the face of Tonight. */
+    @Test
+    fun theDownloadsReportSitsInTheChecksSheet() {
+        show(
+            downloads = listOf(
+                DownloadRow("Satellite elements", listOf("Held copy is 14 days old"), true),
+            ),
+        )
+        compose.onNodeWithTag(DOWNLOADS_CARD_TAG).assertDoesNotExist()
+
+        openChecks()
 
         compose.onNodeWithTag(DOWNLOADS_CARD_TAG).assertExists()
     }
@@ -2133,5 +2312,15 @@ class ScreensTest {
             .performScrollTo()
             .assertIsDisplayed()
         compose.onNodeWithText("Not worked out yet", substring = true).assertDoesNotExist()
+    }
+
+    private fun openChecks() {
+        compose.onNodeWithTag(STATUS_LINE_TAG).performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
+    private fun openWatch() {
+        compose.onNodeWithTag(WATCH_BUTTON_TAG).performScrollTo().performClick()
+        compose.waitForIdle()
     }
 }

@@ -89,20 +89,19 @@ class GloamingNavTest {
     /**
      * Tonight is what the app is for, so it is what opens.
      *
-     * The tab, and then Tonight's own content - not that a particular control
-     * happens to sit above the fold. This asserted "Check now" was displayed
-     * without scrolling to it, which is a claim about how tall the cards above
-     * it render, and it began failing on a phone whose app binary had not
-     * changed. It is not a claim the app makes either: once there is a location
-     * the nine sky cards go in above that button, so in real use it is below
-     * the fold regardless. Every other assertion in this class scrolls first.
+     * The tab, and then Tonight's own content. The watch button is the one
+     * part of it that is a claim about position rather than scroll: it is
+     * pinned under the night, so it is on screen without scrolling whatever
+     * the cards above it render as. This once asserted "Check now" displayed
+     * unscrolled, which was a claim about how tall those cards were, and it
+     * began failing on a phone whose app binary had not changed.
      */
     @Test
     fun opensOnTonight() {
         show()
 
         compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
-        compose.onNodeWithText("Check now").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed()
     }
 
     /** The calendar is a tab away and shows what it was given. */

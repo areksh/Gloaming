@@ -124,10 +124,13 @@ handful of small files fetched from a CDN, and the failure mode that matters is
 not a loud one: an upstream can stop republishing while every request from the
 phone goes on politely answering "not modified", and the app will predict
 satellite passes from a fortnight-old catalogue without a word. So a downloads
-card carries both halves - how old the copy on this phone actually is, marked
-when the satellite elements have gone off, and what happened the last time
-anything was fetched, with the reason when it failed. Pressing "check now" shows
-what is being downloaded while it happens.
+report in the checks sheet, behind the status line at the top of Tonight,
+carries both halves - how old the copy on this phone actually is, marked when
+the satellite elements have gone off, and what happened the last time anything
+was fetched, with the reason when it failed - and the status line itself names
+whatever has gone wrong without being opened. Pressing "Check now" there shows
+what is being downloaded while it happens; pulling Tonight down runs the same
+check.
 
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
@@ -506,7 +509,7 @@ exemption granted and a 5-minute interval configured:
 So on this hardware the exemption does its job and battery saver costs nothing
 measurable. That is one AOSP-derived device; the exemption is not honoured on
 every OEM build, which is what dontkillmyapp.com exists to catalogue. The
-**watch now** switch is the escape hatch when it is not: a foreground service
+**Watch tonight** button is the escape hatch when it is not: a foreground service
 runs its own clock, so no alarm policy or batching window reaches it.
 
 Beware of measuring this through `logcat` alone - the ring buffer here holds

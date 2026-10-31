@@ -1,5 +1,7 @@
 package sh.arek.gloaming.ui
 
+import java.util.Locale
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -44,6 +46,22 @@ class TimeOfDayTest {
     fun `round-trips every minute of the day`() {
         for (minute in 0 until 24 * 60) {
             assertEquals(minute, parseTimeOfDay(formatTimeOfDay(minute)))
+        }
+    }
+
+    /** The date over the outlook: the weekday and the day, and no year. */
+    @Test
+    fun `writes the date as the weekday, the day and the month`() {
+        val zone = TimeZone.getDefault()
+        val locale = Locale.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("Europe/London"))
+        Locale.setDefault(Locale.UK)
+        try {
+            // 2026-10-31T20:05:00Z, a Saturday evening in October.
+            assertEquals("Saturday 31 October", describeDate(1_793_477_100_000L))
+        } finally {
+            TimeZone.setDefault(zone)
+            Locale.setDefault(locale)
         }
     }
 }
