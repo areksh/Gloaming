@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -21,13 +22,13 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.EventPlanner
 
 /**
- * The tab bar, which is the app's first navigation of any kind.
+ * The bottom bar, which is the app's only navigation.
  *
  * **These need the device unlocked**, for the reason recorded in [ScreensTest]:
  * behind the keyguard nothing is ever drawn and every assertion fails in a way
  * that looks like a broken harness.
  */
-class GloamingTabsTest {
+class GloamingNavTest {
 
     @get:Rule
     val compose = createComposeRule()
@@ -58,7 +59,7 @@ class GloamingTabsTest {
         calendarLoading: Boolean = false,
     ) {
         compose.setContent {
-            GloamingTabs(
+            GloamingNav(
                 state = MainUiState(
                     settings = settings,
                     alertState = AlertState(),
@@ -98,42 +99,43 @@ class GloamingTabsTest {
     fun opensOnTonight() {
         show()
 
-        compose.onNodeWithText("Tonight").assertIsSelected()
+        compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
         compose.onNodeWithText("Check now").performScrollTo().assertIsDisplayed()
     }
 
     /** The calendar is a tab away and shows what it was given. */
     @Test
-    fun showsTheCalendarOnItsOwnTab() {
+    fun showsTheCalendarAsAhead() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Partial eclipse of the sun").assertIsDisplayed()
     }
 
     /** The settings did not vanish when they moved off the front page. */
     @Test
-    fun showsTheSettingsOnItsOwnTab() {
+    fun showsTheSettingsOnItsOwnSection() {
         show()
 
-        compose.onNodeWithTag(TAB_SETTINGS).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
 
         compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
     }
 
     /**
-     * The guide is a tab away, and is the same every night.
+     * The guide is reached from Settings, and is the same every night.
      *
      * It is the one screen here that needs no location, no forecast and no
      * network, which is why it is worth having somewhere to send a reader who
      * has not set any of that up yet.
      */
     @Test
-    fun showsTheGuideOnItsOwnTab() {
+    fun theGuideIsReachedFromSettings() {
         show()
 
-        compose.onNodeWithTag(TAB_GUIDE).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
 
         compose.onNodeWithText("Finding your way round the sky")
             .performScrollTo()
@@ -146,22 +148,63 @@ class GloamingTabsTest {
      * reader who has not set one up yet is exactly the reader it is for.
      */
     @Test
-    fun showsTheGuideWithoutALocation() {
+    fun theGuideWorksWithoutALocation() {
         show(settings = UserSettings(), calendar = emptyList())
 
-        compose.onNodeWithTag(TAB_GUIDE).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
 
         compose.onNodeWithText("The Plough").performScrollTo().assertIsDisplayed()
     }
 
-    /** Switching away and back does not lose the tab that was chosen. */
+    /** The guide is a page under Settings, not a section of the bar. */
     @Test
-    fun staysOnTheTabItWasLeftOn() {
+    fun thereIsNoGuideSection() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
-        compose.onNodeWithTag(TAB_TONIGHT).performClick()
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onAllNodesWithText("Guide").assertCountEquals(0)
+        compose.onAllNodesWithTag("nav-guide").assertCountEquals(0)
+    }
+
+    /** Leaving the guide returns to Settings, not to somewhere else. */
+    @Test
+    fun theGuideReturnsToSettings() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(GUIDE_BACK_TAG).performClick()
+
+        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * Each section keeps its own scroll position: scrolling Settings down and
+     * visiting another section does not send it back to the top, nor does it
+     * move the others.
+     */
+    @Test
+    fun eachSectionKeepsItsOwnScrollPosition() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithText("Credits and licences", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag(Section.Tonight.tag).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onNodeWithText("Credits and licences", substring = true).assertIsDisplayed()
+    }
+
+    /** Switching away and back does not lose the tab that was chosen. */
+    @Test
+    fun staysOnTheSectionItWasLeftOn() {
+        show()
+
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(Section.Tonight.tag).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Partial eclipse of the sun").assertIsDisplayed()
     }
@@ -175,7 +218,7 @@ class GloamingTabsTest {
     fun asksForALocationBeforeShowingACalendar() {
         show(settings = UserSettings(), calendar = emptyList())
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("The calendar needs a location").assertIsDisplayed()
     }
@@ -185,7 +228,7 @@ class GloamingTabsTest {
     fun saysItIsWorkingWhileTheCalendarIsComputed() {
         show(calendar = emptyList(), calendarLoading = true)
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Working out the year ahead...").assertIsDisplayed()
     }
@@ -197,7 +240,7 @@ class GloamingTabsTest {
     fun offersAStarOnAVisibleEvent() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithTag(starTag(eclipse)).performScrollTo().assertIsDisplayed()
     }
@@ -207,7 +250,7 @@ class GloamingTabsTest {
     fun reportsAStarredEvent() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(starTag(eclipse)).performScrollTo().performClick()
 
         assertEquals(listOf(eclipse), starred)
@@ -218,7 +261,7 @@ class GloamingTabsTest {
     fun saysWhenAnEventIsAlreadyStarred() {
         show(settings = located.copy(starredEvents = setOf(EventPlanner.starKey(eclipse))))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Starred").performScrollTo().assertIsDisplayed()
     }
@@ -235,7 +278,7 @@ class GloamingTabsTest {
         )
         show(calendar = listOf(marginal))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithTag(starTag(marginal)).performScrollTo().assertIsDisplayed()
     }
@@ -260,7 +303,7 @@ class GloamingTabsTest {
         val hidden = eclipse.copy(visibility = Visibility.NotFromHere("below the horizon here"))
         show(calendar = listOf(hidden))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithTag(starTag(hidden)).performScrollTo().assertIsDisplayed()
     }
@@ -277,7 +320,7 @@ class GloamingTabsTest {
         )
         show(calendar = listOf(eclipse, phase))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithTag(kindTag(EventKind.SolarEclipse)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("New and full moon (1)").performScrollTo().assertIsDisplayed()
@@ -289,7 +332,7 @@ class GloamingTabsTest {
         val phase = eclipse.copy(kind = EventKind.MoonPhase, at = eclipse.at + 86_400_000L)
         show(calendar = listOf(eclipse, phase))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(kindTag(EventKind.MoonPhase)).performScrollTo().performClick()
 
         assertEquals(EventKind.MoonPhase, hiddenKind)
@@ -308,7 +351,7 @@ class GloamingTabsTest {
             calendar = listOf(eclipse, phase),
         )
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Partial eclipse of the sun").assertIsDisplayed()
         compose.onAllNodesWithText("Full moon").assertCountEquals(0)
@@ -322,7 +365,7 @@ class GloamingTabsTest {
             calendar = listOf(eclipse, eclipse.copy(kind = EventKind.MoonPhase, at = eclipse.at + 1)),
         )
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Everything is filtered out. Turn a kind back on above.")
             .assertIsDisplayed()
@@ -354,7 +397,7 @@ class GloamingTabsTest {
     fun showsACometInTheCalendar() {
         show(calendar = listOf(comet))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Comet 220P/McNaught").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("39 observers", substring = true)
@@ -367,7 +410,7 @@ class GloamingTabsTest {
     fun reportsAStarredComet() {
         show(calendar = listOf(comet))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(starTag(comet)).performScrollTo().performClick()
 
         assertEquals(listOf(comet), starred)
@@ -378,7 +421,7 @@ class GloamingTabsTest {
     fun offersACometChipOnTheFilter() {
         show(calendar = listOf(comet, eclipse))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(kindTag(EventKind.Comet)).performScrollTo().performClick()
 
         assertEquals(EventKind.Comet, hiddenKind)
@@ -390,13 +433,13 @@ class GloamingTabsTest {
      * Neither needs a permission: sharing is an ACTION_SEND of text, and the
      * .ics goes out through the file provider the log already uses. Here
      * rather than in ScreensTest because the calendar is only reachable
-     * through the tab bar.
+     * through the bottom bar.
      */
     @Test
     fun offersToShareAnEvent() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(shareTag(eclipse)).performScrollTo().performClick()
 
         assertEquals(listOf(eclipse), shared)
@@ -407,7 +450,7 @@ class GloamingTabsTest {
     fun offersToExportAnEventAsACalendarFile() {
         show()
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(exportTag(eclipse)).performScrollTo().performClick()
 
         assertEquals(listOf(eclipse), exported)
@@ -427,7 +470,7 @@ class GloamingTabsTest {
         )
         show(calendar = listOf(elsewhere))
 
-        compose.onNodeWithTag(TAB_CALENDAR).performClick()
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
         compose.onNodeWithTag(shareTag(elsewhere)).performScrollTo().performClick()
 
         assertEquals(listOf(elsewhere), shared)

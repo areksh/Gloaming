@@ -42,7 +42,7 @@ remains before release
 is the part no test suite can do for you: a season of real nights, to calibrate
 the thresholds and confirm the app is worth keeping installed.
 
-On top of that sits a sky calendar, on a tab of its own: eclipses, meteor
+On top of that sits a sky calendar, under Ahead on the bottom bar: eclipses, meteor
 showers, close pairings of planets, Mars, Jupiter and Saturn at opposition,
 Venus at its brightest, new and full moon, the night each constellation stands
 highest at midnight, and the equinoxes and solstices - all
@@ -109,7 +109,7 @@ deliberately not here: that is a catalogue, and Stellarium does it better.
 
 None of which helps if you do not know the words. "On the far side of Polaris
 from the Plough" is a perfectly good direction and useless to somebody who knows
-neither, so there is a Guide tab: the landmarks every direction in the app is
+neither, so there is a guide, under Settings: the landmarks every direction in the app is
 measured from, the vocabulary the other tabs use - magnitude, opposition,
 occultation, radiant, umbra - and the part nobody tells you, which is that your
 eyes take twenty minutes to adapt to the dark and an aurora rarely looks like

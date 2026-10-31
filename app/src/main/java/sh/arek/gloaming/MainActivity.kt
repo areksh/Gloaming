@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -77,7 +78,7 @@ import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
 import sh.arek.gloaming.share.shareText
 import sh.arek.gloaming.ui.DownloadRow
-import sh.arek.gloaming.ui.GloamingTabs
+import sh.arek.gloaming.ui.GloamingNav
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.UiActions
@@ -879,7 +880,7 @@ private fun GloamingApp() {
             modifier = Modifier.fillMaxSize(),
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
-            GloamingTabs(
+            GloamingNav(
                 state = MainUiState(
                     settings = settings,
                     alertState = alertState,
@@ -1261,7 +1262,7 @@ private fun GloamingApp() {
                         }
                     },
                 ),
-                modifier = Modifier.padding(padding),
+                modifier = Modifier.padding(padding).consumeWindowInsets(padding),
             )
         }
     }

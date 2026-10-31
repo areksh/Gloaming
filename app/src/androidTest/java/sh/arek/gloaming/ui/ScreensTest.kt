@@ -69,7 +69,7 @@ import sh.arek.gloaming.satellites.SatellitePass
  *
  * Tonight and Settings are rendered together in one column here rather than
  * through the tab bar, because these assertions are about what each card says
- * and not about which tab it is behind. GloamingTabsTest covers the tabs.
+ * and not about which tab it is behind. GloamingNavTest covers the navigation.
  *
  * **These need the device unlocked.** An activity launched behind the keyguard
  * resumes for an instant and pauses again without ever drawing, so the Compose
