@@ -126,6 +126,9 @@ class OpenMeteoWeather(
     /**
      * The hours ahead, leniently, unlike [parse] above.
      *
+     * Only the total is required of an hour. A layer that is absent or null
+     * stays null, and [HourlyCover.effective] falls back to the total.
+     *
      * A missing or ragged hourly block costs a sentence on a screen; a missing
      * layer in the current reading costs the gate that decides whether to wake
      * somebody. So the strictness that is right for one is wrong for the other,
@@ -137,8 +140,18 @@ class OpenMeteoWeather(
     private fun hours(hourly: Hourly?): List<HourlyCover> {
         val times = hourly?.time ?: return emptyList()
         val cover = hourly.total ?: return emptyList()
-        return times.zip(cover).mapNotNull { (at, total) ->
-            if (at == null || total == null) null else HourlyCover(at * 1000L, total)
+        return times.zip(cover).mapIndexedNotNull { index, (at, total) ->
+            if (at == null || total == null) {
+                null
+            } else {
+                HourlyCover(
+                    at * 1000L,
+                    total,
+                    hourly.low?.getOrNull(index),
+                    hourly.mid?.getOrNull(index),
+                    hourly.high?.getOrNull(index),
+                )
+            }
         }
     }
 
@@ -152,6 +165,9 @@ class OpenMeteoWeather(
     private class Hourly(
         val time: List<Long?>? = null,
         @SerialName("cloud_cover") val total: List<Int?>? = null,
+        @SerialName("cloud_cover_low") val low: List<Int?>? = null,
+        @SerialName("cloud_cover_mid") val mid: List<Int?>? = null,
+        @SerialName("cloud_cover_high") val high: List<Int?>? = null,
     )
 
     @Serializable
@@ -166,8 +182,8 @@ class OpenMeteoWeather(
         private const val CURRENT_FIELDS =
             "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high"
 
-        /** The total only, across the night. See [HourlyCover] for why. */
-        private const val HOURLY_FIELDS = "cloud_cover"
+        /** The total and the layers, across the night. See [HourlyCover] for why. */
+        private const val HOURLY_FIELDS = CURRENT_FIELDS
 
         /**
          * Two days of hours, which is what "tonight" needs from any point in

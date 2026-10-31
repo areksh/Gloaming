@@ -88,6 +88,51 @@ class OpenMeteoWeatherTest {
         assertTrue(url, url.contains("hourly=cloud_cover"))
     }
 
+    @Test
+    fun `asks for the layers in the hourly fields`() = runTest {
+        val http = FakeFetcher.serving(responseJson(total = 10))
+
+        weather(http).cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        val url = http.requested.single()
+        assertTrue(
+            url,
+            url.contains("hourly=cloud_cover%2Ccloud_cover_low%2Ccloud_cover_mid%2Ccloud_cover_high"),
+        )
+    }
+
+    private fun layeredHours(mid: String) = """
+        {"current":{"cloud_cover":10,"cloud_cover_low":0,"cloud_cover_mid":0,
+         "cloud_cover_high":10},
+         "hourly":{"time":[1800000000,1800003600],
+          "cloud_cover":[70,60],"cloud_cover_low":[0,5],
+          "cloud_cover_mid":$mid,"cloud_cover_high":[70,50]}}
+    """.trimIndent()
+
+    @Test
+    fun `reads the cloud layers for each hour`() = runTest {
+        val weather = weather(FakeFetcher.serving(layeredHours("[10,20]")))
+        weather.cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        val hours = weather.forecast(55.94, -3.17)
+
+        assertEquals(HourlyCover(1_800_000_000_000L, 70, 0, 10, 70), hours[0])
+        assertEquals(HourlyCover(1_800_003_600_000L, 60, 5, 20, 50), hours[1])
+    }
+
+    @Test
+    fun `an hour missing a layer keeps its total`() = runTest {
+        val weather = weather(FakeFetcher.serving(layeredHours("[null,20]")))
+        weather.cloudCover(endpoint, latitude = 55.94, longitude = -3.17)
+
+        val hours = weather.forecast(55.94, -3.17)
+
+        assertEquals(2, hours.size)
+        assertEquals(70, hours[0].total)
+        assertNull(hours[0].mid)
+        assertEquals(20, hours[1].mid)
+    }
+
     /**
      * Epoch seconds, not a local ISO string with its offset in a sibling field.
      * The forecast is only ever compared against a darkness window in

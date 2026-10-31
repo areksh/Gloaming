@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
+  was judged on total cloud, so 70% cirrus over an otherwise clear sky counted
+  as closed to a planet or a pass that shines straight through it. The hourly
+  forecast now carries the low, mid and high layers on the same single
+  Open-Meteo request, and a spell is judged on the worse of low and mid cloud or
+  half the high cloud. An older cached forecast without layers is judged on its
+  total, as before.
+
 - **The log can be kept for any number of days up to a year.** The retention
   control offered 1, 3, 7 and 14 days, which suits nobody chasing a fault that
   only shows up once a month. A Custom choice takes any whole number of days
