@@ -99,4 +99,14 @@ class DeviceLocationTest {
     fun `refuses a fix at exactly zero`() {
         assertNull(LocationChoice.best(listOf(fix(1, 10f, latitude = 0.0, longitude = 0.0)), now))
     }
+
+    /** A fix just asked for beats an older cached one that is no better. */
+    @Test
+    fun `prefers a fresh fix to an older cached one of the same accuracy`() {
+        val old = fix(ageMinutes = 10, accuracy = 1500f)
+        val fresh = fix(ageMinutes = 0, accuracy = 1500f, latitude = 56.0)
+
+        assertEquals(fresh, LocationChoice.best(listOf(old, fresh), now))
+        assertEquals(fresh, LocationChoice.best(listOf(fresh, old), now))
+    }
 }

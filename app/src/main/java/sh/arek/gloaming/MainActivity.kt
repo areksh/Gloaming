@@ -455,8 +455,8 @@ private fun GloamingApp() {
             detectingLocation = false
 
             if (fix == null) {
-                // Deliberately not "turn on your GPS". The app only ever reads
-                // positions the phone already had, so the honest advice is to
+                // Deliberately not "turn on your GPS". From the screen the app
+                // only reads positions the phone already had, so the honest advice is to
                 // use something that does ask for one, or to type it in.
                 locationNote = "The phone has no recent position to hand. Open a map app " +
                     "briefly, or switch this off and type it in."
