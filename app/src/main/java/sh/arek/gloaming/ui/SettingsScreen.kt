@@ -1558,7 +1558,7 @@ private fun CalendarCard(
             Text(
                 "Eclipses, meteor showers and close pairings of planets. Only the ones " +
                     "actually visible from where you are will interrupt; the rest are in " +
-                    "the Calendar tab with the reason.",
+                    "the Ahead section with the reason.",
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(
@@ -1590,9 +1590,9 @@ private fun CalendarCard(
                 Text(
                     if (state.settings.notifyAboutEveryEvent) {
                         "Everything visible from where you are will interrupt. Turn this off " +
-                            "and only the events you have starred in the Calendar tab will."
+                            "and only the events you have starred in the Ahead section will."
                     } else {
-                        "Only the events you star in the Calendar tab will interrupt."
+                        "Only the events you star in the Ahead section will interrupt."
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )

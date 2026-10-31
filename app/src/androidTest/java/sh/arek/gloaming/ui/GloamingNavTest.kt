@@ -3,7 +3,9 @@ package sh.arek.gloaming.ui
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.activity.ComponentActivity
+import androidx.test.espresso.Espresso
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -31,7 +33,7 @@ import sh.arek.gloaming.domain.EventPlanner
 class GloamingNavTest {
 
     @get:Rule
-    val compose = createComposeRule()
+    val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val located = UserSettings(latitude = 55.95, longitude = -3.19)
 
@@ -176,6 +178,46 @@ class GloamingNavTest {
         compose.onNodeWithTag(GUIDE_BACK_TAG).performClick()
 
         compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
+    }
+
+    /** System Back from the guide returns to Settings rather than leaving the app. */
+    @Test
+    fun systemBackLeavesTheGuideForSettings() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.waitForIdle()
+        Espresso.pressBack()
+
+        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
+    }
+
+    /** Tapping Settings while the guide is open shows the Settings index again. */
+    @Test
+    fun tappingSettingsWhileInTheGuideShowsTheIndex() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
+    }
+
+    /** Leaving Settings for another section and returning does not reopen the guide. */
+    @Test
+    fun switchingSectionsResetsTheGuide() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(Section.Tonight.tag).performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
     }
 
     /**

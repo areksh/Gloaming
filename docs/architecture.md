@@ -384,19 +384,20 @@ is a file replacement.
 - **ui:** Compose screens; a prominent staleness display that distinguishes
   "quiet/dormant" from "not looked recently" (Sec. 10); red night-vision mode
   and a home-screen widget (Phase 2). Also the guide - `Guide.kt` is pure data
-  like `Credits.kt`, read both by its own page under Settings and by the Explain button on each
-  Tonight card, so a term is worded once and shown in two places.
+  like `Credits.kt`, read both by its own page under Settings and by the Explain
+  button on each Tonight card, so a term is worded once and shown in two
+  places.
 
-  **Navigation is a bottom bar, and each section scrolls itself.**
-  `GloamingNav` is a `Scaffold` with a `NavigationBar` over the `Section`s
-  (Tonight, Ahead, Settings); the guide is not one, and is reached from a row
-  in Settings. Tonight and Settings are a scrolling column through
-  `ScrollingSection`, which holds the padding and spacing they share. The calendar is a `LazyColumn`
+  **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
+  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
+  Settings); the guide is not one, and is reached from a row in Settings.
+  Tonight and Settings are a scrolling column through `ScrollingSection`, which
+  holds the padding and spacing they share. The calendar is a `LazyColumn`
   owning its own scrolling, because a year ahead is around a hundred entries
   and composing them all cost a frame of 1300ms on opening and every frame of a
-  scroll afterwards - and because a lazy list measured inside a scrolling column
-  is given unbounded height, which defeats the laziness and throws. The scroll
-  positions are remembered per section rather than shared.
+  scroll afterwards - and because a lazy list measured inside a scrolling
+  column is given unbounded height, which defeats the laziness and throws. The
+  scroll positions are remembered per section rather than shared.
 
 ### Manifest verification
 

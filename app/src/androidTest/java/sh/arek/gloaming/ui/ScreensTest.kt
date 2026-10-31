@@ -1118,7 +1118,7 @@ class ScreensTest {
     fun explainsWhatStarringDoesOnceItMatters() {
         show(settings = located.copy(notifyAboutEveryEvent = false))
 
-        compose.onNodeWithText("Only the events you star in the Calendar tab will interrupt.")
+        compose.onNodeWithText("Only the events you star in the Ahead section will interrupt.")
             .performScrollTo()
             .assertIsDisplayed()
     }

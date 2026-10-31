@@ -14,16 +14,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 
 /**
- * The guide, as a tab of its own.
+ * The guide, a page under Settings.
  *
  * Emitted as loose children rather than wrapped in a column, like
- * [TonightContent] and [CalendarContent], so the tab owns the scrolling.
+ * [TonightContent] and [CalendarContent], so the section owns the scrolling.
  *
- * A tab rather than a card buried in Settings, because nothing here is a
- * setting and the reader who needs it is the reader least likely to go
- * looking. It is also the only screen in the app that is the same every night,
- * which is why it can sit at the end of the row and be found when wanted
- * rather than competing with tonight.
+ * Not a section of the bottom bar, because nothing here is a setting or
+ * happening tonight: it is the one screen in the app that is the same every
+ * night, so it is found when wanted rather than competing with tonight.
  */
 @Composable
 fun GuideContent() {
@@ -33,9 +31,9 @@ fun GuideContent() {
             Text(
                 "The rest of this app tells you what is up and where. This is the part " +
                     "that assumes you have never done any of it before: the landmarks " +
-                    "every direction is measured from, what the words on the other tabs " +
+                    "every direction is measured from, what the words used elsewhere in the app " +
                     "mean, and what actually helps once you are outside in the dark. " +
-                    "Each card on the Tonight tab can explain its own words too - the " +
+                    "Each card on Tonight can explain its own words too - the " +
                     "Explain button beside its heading.",
                 style = MaterialTheme.typography.bodySmall,
             )

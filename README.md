@@ -83,7 +83,7 @@ Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
 of binoculars, it is out of scope, which is why there are no Uranus oppositions
 and no transits of Mercury.
 
-A third tab answers the questions the calendar structurally cannot. A year of
+Tonight answers the questions the calendar structurally cannot. A year of
 eclipses fits in a list, but a clear night here has hundreds of satellite
 passes, so the split is by shape - dated and sparse in the calendar, nightly and
 dense on Tonight, which leads with the best few rather than the earliest and
@@ -109,15 +109,15 @@ deliberately not here: that is a catalogue, and Stellarium does it better.
 
 None of which helps if you do not know the words. "On the far side of Polaris
 from the Plough" is a perfectly good direction and useless to somebody who knows
-neither, so there is a guide, under Settings: the landmarks every direction in the app is
-measured from, the vocabulary the other tabs use - magnitude, opposition,
-occultation, radiant, umbra - and the part nobody tells you, which is that your
-eyes take twenty minutes to adapt to the dark and an aurora rarely looks like
-the photographs. Each card on Tonight will also explain its own words in place,
-underneath its answer rather than in front of it, because the question gets
-asked while looking at the sentence that raised it. None of it needs a location,
-a forecast or a network, so it is the one screen that works before anything is
-set up.
+neither, so there is a guide, under Settings: the landmarks every direction in
+the app is measured from, the vocabulary the rest of the app uses - magnitude,
+opposition, occultation, radiant, umbra - and the part nobody tells you, which
+is that your eyes take twenty minutes to adapt to the dark and an aurora rarely
+looks like the photographs. Each card on Tonight will also explain its own
+words in place, underneath its answer rather than in front of it, because the
+question gets asked while looking at the sentence that raised it. None of it
+needs a location, a forecast or a network, so it is the one screen that works
+before anything is set up.
 
 Tonight also says what the app is working from. Everything it knows arrives as a
 handful of small files fetched from a CDN, and the failure mode that matters is

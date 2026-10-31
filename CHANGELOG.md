@@ -13,7 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the screen, within thumb's reach. The calendar is now called Ahead, and
   the guide is no longer a tab of its own: it moves under Settings, as "Guide
   to the words".
-
 - **A new look, in light and dark.** Gloaming has its own palette now: a dark
   slate ground with the pink of the Belt of Venus as its accent by night, and a
   light theme that follows the phone's setting for use in daylight. Everything

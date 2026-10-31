@@ -1,5 +1,6 @@
 package sh.arek.gloaming.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -82,6 +83,9 @@ fun GloamingNav(
     val settingsScroll = rememberScrollState()
     val aheadScroll = rememberLazyListState()
 
+    // System Back leaves the guide for Settings rather than the app.
+    BackHandler(enabled = showGuide) { showGuide = false }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = {
@@ -90,7 +94,12 @@ fun GloamingNav(
                 sections.forEachIndexed { index, section ->
                     NavigationBarItem(
                         selected = selected == index,
-                        onClick = { selected = index },
+                        // Choosing a section, Settings included, lands on its
+                        // index: the guide page never outlives a visit to it.
+                        onClick = {
+                            selected = index
+                            showGuide = false
+                        },
                         icon = { SectionIcon(section) },
                         label = { Text(section.label) },
                         modifier = Modifier.testTag(section.tag),
