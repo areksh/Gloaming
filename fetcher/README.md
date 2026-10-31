@@ -145,9 +145,10 @@ the same one `wrangler whoami` prints. The endpoint is assembled from it, so
 pasting the whole URL builds a nonsense hostname; the fetcher checks the format
 and says so rather than letting you find out from a DNS error.
 
-The token needs object read and write, not admin: this reads the breaker flag
-and the health record, writes those plus `sats.json`, and deletes the breaker
-flag when it clears itself. It cannot create or delete buckets.
+The token needs object read and write, not admin: this reads and writes the
+breaker flag, its own record of the last trip and the health record, writes
+`sats.json`, and deletes the first two when the breaker clears. It cannot
+create or delete buckets.
 
 ## 6. Configuration
 
@@ -371,10 +372,15 @@ with `wrangler` authenticated:
 npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --remote
 ```
 
-The next timer run will query again. Left alone, the first run two days after
-the trip lets one request through: a 200 deletes the flag and the run publishes
-as normal, and anything else trips it for another two days and pushes `breaker
-tripped again` (ADR-0015). `sats.json` keeps serving its last good copy
+The next timer run will query again, and pushes `breaker cleared by hand` -
+it cannot see the delete itself, so that arrives with the run rather than the
+command. Left alone, the first run two days after the trip lets one request
+through, pushing `breaker trying again` first: a 200 deletes the flag, pushes
+`breaker cleared itself` and publishes as normal; a refusal pushes `breaker
+tripped again` and no answer pushes `breaker got no answer`, and both hold it
+for another two days (ADR-0015). Leave
+`internal/breaker-known/celestrak.json` alone: it is how a reset by hand is
+told apart from a breaker that never tripped. `sats.json` keeps serving its last good copy
 throughout, and elements stay usable for days, so a tripped breaker degrades
 pass prediction rather than breaking it.
 

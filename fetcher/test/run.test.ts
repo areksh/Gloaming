@@ -234,6 +234,33 @@ describe("run", () => {
     const at = (iso: string) => () => new Date(iso);
     const trippedAt = at("2026-08-20T18:00:00.000Z"); // exactly two days before now()
 
+    /** CelesTrak not answering at all, the way Node reports it. ntfy still works. */
+    function unreachable() {
+      const requests: string[] = [];
+      const pushes: { title: string; body: string }[] = [];
+      const fetcher = (async (url: RequestInfo | URL, init?: RequestInit) => {
+        const target = String(url);
+        if (target.includes("ntfy")) {
+          pushes.push({
+            title: new Headers(init?.headers).get("Title") ?? "",
+            body: String(init?.body ?? ""),
+          });
+          return new Response("ok");
+        }
+        requests.push(target);
+        throw new TypeError("fetch failed", {
+          cause: Object.assign(new Error("connect ETIMEDOUT 104.168.149.178:443"), {
+            code: "ETIMEDOUT",
+          }),
+        });
+      }) as unknown as typeof fetch;
+      return {
+        requests,
+        pushes,
+        alerting: { baseUrl: "https://ntfy.example", topic: "secret-topic", fetch: fetcher },
+      };
+    }
+
     it("still refuses a moment before two days have passed", async () => {
       await run(store, network(503).alerting, config, at("2026-08-20T18:00:00.001Z"));
       const net = network(200, groups);
@@ -253,7 +280,25 @@ describe("run", () => {
       expect(result.published).toBe(true);
       expect(net.requests).toHaveLength(3);
       expect(await readBreaker(store, CELESTRAK_SOURCE)).toBeNull();
-      expect(net.pushes.map((p) => p.title)).toEqual(["Gloaming: celestrak recovered"]);
+    });
+
+    /**
+     * Three pushes, each saying something different: that a request is going
+     * out unapproved, what it got, and that the source is publishing again.
+     */
+    it("says it is trying again, and that it cleared itself", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+      const net = network(200, groups);
+
+      await run(store, net.alerting, config, now);
+
+      expect(net.pushes.map((p) => p.title)).toEqual([
+        "Gloaming: celestrak breaker trying again",
+        "Gloaming: celestrak breaker cleared itself",
+        "Gloaming: celestrak recovered",
+      ]);
+      expect(net.pushes[0]!.body).toContain("HTTP 503");
+      expect(net.pushes[0]!.body).toContain(config.stationsUrl);
     });
 
     it("trips for another two days when the retry is refused", async () => {
@@ -288,10 +333,107 @@ describe("run", () => {
       await run(store, retry.alerting, config, now);
 
       expect(retry.pushes.map((p) => p.title)).toEqual([
+        "Gloaming: celestrak breaker trying again",
         "Gloaming: celestrak breaker tripped again",
       ]);
-      expect(retry.pushes[0]!.body).toContain("HTTP 404");
-      expect(retry.pushes[0]!.body).toContain("2026-08-24T18:00:00.000Z");
+      expect(retry.pushes[1]!.body).toContain("HTTP 404");
+      expect(retry.pushes[1]!.body).toContain("2026-08-24T18:00:00.000Z");
+    });
+
+    /**
+     * An attempt that gets no answer is still a failed attempt, so it waits
+     * another two days like a refused one. Retrying on every run instead would
+     * mean two pushes every two hours for as long as CelesTrak is unreachable.
+     * The trip itself stands: no response arrived to replace it.
+     */
+    it("waits another two days when the retry gets no answer", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+
+      const retry = unreachable();
+      await run(store, retry.alerting, config, now);
+
+      expect(retry.requests).toHaveLength(1);
+      expect(await readBreaker(store, CELESTRAK_SOURCE)).toMatchObject({
+        status: 503,
+        tripped_at: "2026-08-20T18:00:00.000Z",
+        attempted_at: "2026-08-22T18:00:00.000Z",
+      });
+
+      const tooSoon = network(200, groups);
+      await run(store, tooSoon.alerting, config, at("2026-08-24T17:59:59.999Z"));
+      expect(tooSoon.requests).toHaveLength(0);
+
+      const nextRetry = network(200, groups);
+      await run(store, nextRetry.alerting, config, at("2026-08-24T18:00:00.000Z"));
+      expect(nextRetry.requests).toHaveLength(3);
+    });
+
+    it("says the retry got no answer, why, and when the next one is", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+
+      const retry = unreachable();
+      await run(store, retry.alerting, config, now);
+
+      expect(retry.pushes.map((p) => p.title)).toEqual([
+        "Gloaming: celestrak breaker trying again",
+        "Gloaming: celestrak breaker got no answer",
+      ]);
+      expect(retry.pushes[1]!.body).toContain("ETIMEDOUT");
+      expect(retry.pushes[1]!.body).toContain("2026-08-24T18:00:00.000Z");
+    });
+  });
+
+  /**
+   * A manual reset is a `wrangler` delete the fetcher never sees happen, so it
+   * is noticed by the next run: the flag has gone but the fetcher's own record
+   * of the trip has not.
+   */
+  describe("a manual reset", () => {
+    const resetByHand = () => store.objects.delete(breakerKey(CELESTRAK_SOURCE));
+
+    it("is announced by the next run", async () => {
+      await run(store, network(503).alerting, config, now);
+      resetByHand();
+      const net = network(200, groups);
+
+      await run(store, net.alerting, config, now);
+
+      expect(net.pushes.map((p) => p.title)).toEqual([
+        "Gloaming: celestrak breaker cleared by hand",
+        "Gloaming: celestrak recovered",
+      ]);
+      expect(net.pushes[0]!.body).toContain("HTTP 503");
+    });
+
+    it("is announced once", async () => {
+      await run(store, network(503).alerting, config, now);
+      resetByHand();
+      await run(store, network(200, groups).alerting, config, now);
+
+      const net = network(200, groups);
+      await run(store, net.alerting, config, now);
+
+      expect(net.pushes).toHaveLength(0);
+    });
+
+    // The two days are the fetcher's doing; a flag it deleted itself was not
+    // cleared by hand.
+    it("is not claimed for a breaker that cleared itself", async () => {
+      await run(store, network(503).alerting, config, () => new Date("2026-08-20T18:00:00Z"));
+      await run(store, network(200, groups).alerting, config, now);
+
+      const net = network(200, groups);
+      await run(store, net.alerting, config, now);
+
+      expect(net.pushes).toHaveLength(0);
+    });
+
+    it("is not claimed when the breaker was never tripped", async () => {
+      const net = network(200, groups);
+
+      await run(store, net.alerting, config, now);
+
+      expect(net.pushes).toHaveLength(0);
     });
   });
 
@@ -310,7 +452,7 @@ describe("run", () => {
     const net = network(200, groups);
     await run(store, net.alerting, config, now);
 
-    expect(net.pushes.map((p) => p.title)).toEqual(["Gloaming: celestrak recovered"]);
+    expect(net.pushes.map((p) => p.title)).toContain("Gloaming: celestrak recovered");
     expect((await health(store)).state).toBe("ok");
   });
 

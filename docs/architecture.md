@@ -127,11 +127,14 @@ all-on-device, polling-only, no-push posture is ADR-0003.
   `internal/breaker/celestrak.json`; every invocation checks the flag first and
   does not query while it is set. **A human gets two days to reset it** by
   deleting that object; after that one request is let through, a 200 deletes
-  the flag, and anything else trips it afresh for another two days (ADR-0015).
-  `sats.json` keeps serving its last-good copy meanwhile. Tripping POSTs the
-  maintainer ntfy topic, saying when the next attempt will be. This is the
-  single most important CelesTrak requirement (Sec. 3): stop on any non-200, do
-  not back off, do not retry.
+  the flag, and a refusal or no answer at all holds it for another two days
+  (ADR-0015). `sats.json` keeps serving its last-good copy meanwhile. The
+  maintainer ntfy topic hears every step: the trip, an attempt going out, what
+  it got, and a reset by hand - which the fetcher cannot see happen, so it keeps
+  its own copy of each trip at `internal/breaker-known/celestrak.json` and the
+  next run notices the flag has gone. This is the single most important
+  CelesTrak requirement (Sec. 3): stop on any non-200, do not back off, do not
+  retry.
 
   Two details settled in the building, both worth keeping:
 

@@ -409,7 +409,7 @@ get the IP firewalled.
   is set.
 - **A human gets two days to reset it.** A human investigates and clears it; a trip nobody
   gets to clears itself two days on, by letting one request through. A 200 clears the flag
-  and anything else trips it for another two days (ADR-0015). Recovering any sooner would
+  and anything else, including no answer, holds it for another two days (ADR-0015). Recovering any sooner would
   defeat the purpose, and recovering never leaves elements frozen on an unread alert.
 - `sats.json` keeps serving its last good copy with its age surfaced (Sec. 10). Elements stay
   usable for days, so a tripped breaker degrades pass prediction gracefully rather than

@@ -40,9 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on 2026-08-25 a 503 went unnoticed for seventeen hours, and a trip before a
   week away would have run to a week. Now, if nobody has cleared it within two
   days of the trip, the next run lets one request through. A 200 clears the flag
-  and publishes as normal; anything else trips it afresh for another two days
-  and pushes `breaker tripped again`. Every trip alert says when the next
-  attempt will be, and clearing it by hand still works at once (ADR-0015).
+  and publishes as normal; a refusal, or no answer at all, holds it for another
+  two days. Clearing it by hand still works at once (ADR-0015).
+- **Every step of the CelesTrak breaker is pushed to the maintainer.** The trip
+  says when the next attempt will be; an attempt is announced before its
+  request goes out; and what it got - `breaker cleared itself`, `breaker tripped
+  again` or `breaker got no answer` - follows. A reset by hand is announced too,
+  by the next run, which notices the flag has gone while the fetcher's own
+  record of the trip has not.
 
 - **A pass that goes overhead is told as overhead, not given a compass bearing.**
   Azimuth is ill-conditioned near the zenith, where the whole compass converges,
