@@ -78,6 +78,7 @@ class OutlookTest {
         darkestFrom: Long? = this.darkestFrom,
         darkestUntil: Long? = this.darkestUntil,
         passes: List<SatellitePass> = emptyList(),
+        bestPasses: List<SatellitePass> = passes,
         events: List<SkyEvent> = emptyList(),
         comets: List<SkyEvent> = emptyList(),
         noctilucent: SkyEvent? = null,
@@ -91,7 +92,7 @@ class OutlookTest {
         darkFrom = darkFrom,
         darkUntil = if (darkFrom == null) null else darkUntil,
         passes = passes,
-        bestPasses = passes,
+        bestPasses = bestPasses,
         events = events,
         comets = comets,
         noctilucent = noctilucent,
@@ -113,6 +114,7 @@ class OutlookTest {
         auroraAgeMillis: Long? = 10 * MINUTE,
         elementsAgeMillis: Long? = HOUR,
         moonAltitude: (Long) -> Double = moonDown,
+        planetAltitude: (SkyBody, Long) -> Double = { _, _ -> 30.0 },
     ) = OutlookInput(
         settings = settings,
         nowMillis = now,
@@ -122,6 +124,7 @@ class OutlookTest {
         elementsAgeMillis = elementsAgeMillis,
         sunAltitude = sun,
         moonAltitude = moonAltitude,
+        planetAltitude = planetAltitude,
     )
 
     private fun pass(
@@ -176,6 +179,26 @@ class OutlookTest {
         until = darkUntil,
         title = "Comet C/2026 A1",
         detail = "A smudge in the west.",
+        visibility = Visibility.Good,
+    )
+
+    private fun occultation(at: Long) = SkyEvent(
+        kind = EventKind.Occultation,
+        at = at,
+        from = at - HOUR,
+        until = at + HOUR,
+        title = "The moon covers Saturn",
+        detail = "Gone for an hour.",
+        visibility = Visibility.Good,
+    )
+
+    private fun eclipse(kind: EventKind, at: Long) = SkyEvent(
+        kind = kind,
+        at = at,
+        from = at - 40 * MINUTE,
+        until = at + 40 * MINUTE,
+        title = if (kind == EventKind.SolarEclipse) "Eclipse of the sun" else "Eclipse of the moon",
+        detail = "",
         visibility = Visibility.Good,
     )
 
@@ -273,7 +296,7 @@ class OutlookTest {
 
     @Test
     fun `never recommends a pass below the minimum elevation`() {
-        val iss = pass(at("2026-12-13T19:12:00Z"), elevation = 14.2)
+        val iss = pass(at("2026-12-13T19:12:00Z"), elevation = 14.8)
 
         val report = Outlooks.of(tonight(passes = listOf(iss)), input())
 
@@ -287,7 +310,10 @@ class OutlookTest {
     fun `never recommends a planet that stays low`() {
         val mercury = planet(SkyBody.Mercury, at("2026-12-13T19:00:00Z"), altitude = 6.0)
 
-        val report = Outlooks.of(tonight(planets = listOf(mercury)), input())
+        val report = Outlooks.of(
+            tonight(planets = listOf(mercury)),
+            input(planetAltitude = { _, _ -> 6.0 }),
+        )
 
         assertEquals(Gate.Height, report.excluded.single().gate)
     }
@@ -399,7 +425,10 @@ class OutlookTest {
             input(),
         )
 
-        assertEquals(Gate.Darkness, report.excluded.single().gate)
+        assertEquals(
+            listOf(Excluded("Comet C/2026 A1", comet().at, Gate.Darkness, darkness = NEVER_DARK)),
+            report.excluded,
+        )
     }
 
     @Test
@@ -435,14 +464,15 @@ class OutlookTest {
     @Test
     fun `aurora above the threshold while clear now leads`() {
         val now = at("2026-12-13T20:00:00Z")
-        val spell = ClearSpell(now, at("2026-12-14T01:30:00Z"), underway = true, allNight = false)
+        val spell = ClearSpell(now, at("2026-12-14T01:00:00Z"), underway = true, allNight = false)
+        val hourly = hours("2026-12-13T16:00:00Z", *IntArray(9) { 10 }, *IntArray(7) { 90 })
 
         val report = Outlooks.of(
             tonight(clearSpell = spell),
-            input(now = now, auroraProbability = 65),
+            input(now = now, hourly = hourly, auroraProbability = 65),
         )
 
-        assertEquals(Outlook.AuroraNow(65, spell.until), report.outlook)
+        assertEquals(Outlook.AuroraNow(65, spell.until, conditional = false), report.outlook)
     }
 
     @Test
@@ -486,7 +516,7 @@ class OutlookTest {
 
         val report = Outlooks.of(tonight(clearSpell = spell), input(auroraProbability = 55))
 
-        assertEquals(Outlook.AuroraNow(55, darkUntil), report.outlook)
+        assertEquals(Outlook.AuroraNow(55, darkUntil, conditional = false), report.outlook)
     }
 
     @Test
@@ -717,9 +747,32 @@ class OutlookTest {
     }
 
     @Test
-    fun `an event still under way is judged from now rather than its past peak`() {
+    fun `a conjunction past its moment is over`() {
         val now = at("2026-12-13T17:30:00Z")
         val jupiter = conjunction(at("2026-12-13T16:30:00Z"))
+
+        val report = Outlooks.of(tonight(events = listOf(jupiter)), input(now = now))
+
+        assertEquals(
+            listOf(Excluded(jupiter.title, jupiter.at, Gate.Time)),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a comet past its best moment is over`() {
+        val now = at("2026-12-13T20:00:00Z")
+        val comet = comet(at = at("2026-12-13T19:00:00Z"))
+
+        val report = Outlooks.of(tonight(comets = listOf(comet)), input(now = now))
+
+        assertEquals(listOf(Excluded(comet.title, comet.at, Gate.Time)), report.excluded)
+    }
+
+    @Test
+    fun `an event still under way is judged from now rather than its past peak`() {
+        val now = at("2026-12-13T17:30:00Z")
+        val jupiter = occultation(at("2026-12-13T16:50:00Z"))
         val hourly = hours("2026-12-13T16:00:00Z", 90, *IntArray(15) { 10 })
 
         val report = Outlooks.of(
@@ -734,6 +787,279 @@ class OutlookTest {
     }
 
     @Test
+    fun `a solar eclipse needs no darkness, a lunar one does`() {
+        val morning = at("2026-12-14T08:10:00Z")
+        val sunEclipse = eclipse(EventKind.SolarEclipse, morning)
+        val moonEclipse = eclipse(EventKind.LunarEclipse, morning)
+        val hourly = hours("2026-12-13T16:00:00Z", *IntArray(18) { 10 })
+
+        val report = Outlooks.of(
+            tonight(events = listOf(sunEclipse, moonEclipse)),
+            input(hourly = hourly),
+        )
+
+        val picked = (report.outlook as Outlook.GoOut).picks.map { it.subject }
+        assertEquals(
+            listOf(sunEclipse.title) to listOf(moonEclipse.title to Gate.Darkness),
+            picked to report.excluded.map { it.subject to it.gate },
+        )
+    }
+
+    @Test
+    fun `an aurora in daylight is not dark yet`() {
+        val report = Outlooks.of(
+            tonight(),
+            input(now = at("2026-12-13T15:00:00Z"), auroraProbability = 65),
+        )
+
+        assertEquals(
+            listOf(
+                Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Darkness, darkness = NOT_YET),
+            ),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a comet judged in twilight on a night that gets dark is set aside for the twilight`() {
+        val dusk = comet(at = at("2026-12-13T17:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(comets = listOf(dusk)),
+            input(now = at("2026-12-13T16:30:00Z")),
+        )
+
+        assertEquals(
+            listOf(Excluded(dusk.title, dusk.at, Gate.Darkness, darkness = TWILIGHT)),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a pass before dark is set aside for the twilight`() {
+        val iss = pass(at("2026-12-13T16:10:00Z"))
+
+        val report = Outlooks.of(
+            tonight(passes = listOf(iss)),
+            input(now = at("2026-12-13T16:00:00Z")),
+        )
+
+        assertEquals(
+            listOf(Excluded(iss.name, iss.peaksAt, Gate.Darkness, darkness = TWILIGHT)),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a planet past its peak is judged at the height it is then`() {
+        val now = at("2026-12-14T00:30:00Z")
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T18:00:00Z"), altitude = 25.0)
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn)),
+            input(now = now, planetAltitude = { _, t -> if (t >= now) 4.0 else 25.0 }),
+        )
+
+        assertEquals(listOf(Excluded("Saturn", now, Gate.Height, "4")), report.excluded)
+    }
+
+    @Test
+    fun `an aurora without a forecast is conditional`() {
+        val report = Outlooks.of(
+            tonight(),
+            input(
+                settings = settings.copy(cloudGateEnabled = false),
+                now = at("2026-12-13T20:00:00Z"),
+                auroraProbability = 65,
+            ),
+        )
+
+        assertEquals(Outlook.AuroraNow(65, null, conditional = true), report.outlook)
+    }
+
+    @Test
+    fun `stale elements never recommend a pass`() {
+        val iss = pass(at("2026-12-13T19:12:00Z"))
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(passes = listOf(iss), planets = listOf(saturn)),
+            input(elementsAgeMillis = 4 * DAY),
+        )
+
+        assertEquals(listOf(Excluded(iss.name, iss.peaksAt, Gate.Stale)), report.excluded)
+    }
+
+    @Test
+    fun `elements of unknown age are stale`() {
+        val iss = pass(at("2026-12-13T19:12:00Z"))
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(passes = listOf(iss), planets = listOf(saturn)),
+            input(elementsAgeMillis = null),
+        )
+
+        assertEquals(listOf(Excluded(iss.name, iss.peaksAt, Gate.Stale)), report.excluded)
+    }
+
+    /** Clear 18:00-19:00, cloud until 22:00, clear 22:00-02:00, cloud after. */
+    private val twoRuns = hours(
+        "2026-12-13T16:00:00Z",
+        90, 90, 10, 90, 90, 90, 10, 10, 10, 10, 90, 90, 90, 90, 90, 90,
+    )
+    private val firstRun = ClearSpell(
+        from = at("2026-12-13T18:00:00Z"),
+        until = at("2026-12-13T19:00:00Z"),
+        underway = false,
+        allNight = false,
+    )
+
+    @Test
+    fun `the clear hours named are the ones around the first pick`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn), clearSpell = firstRun),
+            input(hourly = twoRuns),
+        )
+
+        val goOut = report.outlook as Outlook.GoOut
+        assertEquals(
+            at("2026-12-13T22:00:00Z") to at("2026-12-14T02:00:00Z"),
+            goOut.clearFrom to goOut.clearUntil,
+        )
+    }
+
+    @Test
+    fun `a shower whose best hour is in a later clear run keeps its best hour`() {
+        val geminids = shower(at = at("2026-12-14T01:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(events = listOf(geminids), clearSpell = firstRun),
+            input(hourly = twoRuns),
+        )
+
+        assertEquals(geminids.at, (report.outlook as Outlook.GoOut).picks.single().atMillis)
+    }
+
+    @Test
+    fun `a shower set aside is listed at its own time, not the time it was judged`() {
+        val geminids = shower(at = at("2026-12-14T03:00:00Z"))
+        val spell = ClearSpell(
+            from = at("2026-12-13T22:00:00Z"),
+            until = at("2026-12-14T01:00:00Z"),
+            underway = false,
+            allNight = false,
+        )
+        val hourly = hours(
+            "2026-12-13T16:00:00Z",
+            90, 90, 90, 90, 90, 90, 10, 10, 10, 90, 90, 90, 90, 90, 90, 90,
+        )
+
+        val report = Outlooks.of(
+            tonight(events = listOf(geminids), clearSpell = spell, moon = moon(0.92)),
+            input(hourly = hourly, moonAltitude = { 30.0 }),
+        )
+
+        assertEquals(
+            listOf(Excluded(geminids.title, geminids.at, Gate.Moon, "92")),
+            report.excluded,
+        )
+    }
+
+    /** A forecast held, but for tomorrow afternoon: none of it is about tonight. */
+    private val tomorrowOnly = hours("2026-12-14T12:00:00Z", 90, 90, 90, 90)
+
+    @Test
+    fun `a forecast that misses tonight is no forecast`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn), clearSpell = null),
+            input(hourly = tomorrowOnly, auroraProbability = 10, auroraAgeMillis = HOUR),
+        )
+
+        assertEquals(
+            Outlook.GoOut(
+                picks = listOf(Pick(PickKind.Planet, "Saturn", saturn.peakAt, planet = saturn)),
+                clearFrom = null,
+                clearUntil = null,
+                conditional = true,
+            ),
+            report.outlook,
+        )
+    }
+
+    @Test
+    fun `a forecast that misses tonight with no reading cannot tell`() {
+        val report = Outlooks.of(
+            tonight(clearSpell = null),
+            input(hourly = tomorrowOnly),
+        )
+
+        assertEquals(
+            Outlook.CannotTell(forecastHeld = false, elementsStale = false),
+            report.outlook,
+        )
+    }
+
+    @Test
+    fun `a faint aurora needs a fully dark sky`() {
+        val report = Outlooks.of(tonight(), input(auroraProbability = 45))
+
+        assertEquals(
+            listOf(
+                Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Darkness, darkness = NOT_YET),
+            ),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a bright moon spoils a faint aurora`() {
+        val report = Outlooks.of(
+            tonight(moon = moon(0.92)),
+            input(
+                now = at("2026-12-13T20:00:00Z"),
+                auroraProbability = 45,
+                moonAltitude = { 30.0 },
+            ),
+        )
+
+        assertEquals(
+            listOf(Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Moon, "92")),
+            report.excluded,
+        )
+    }
+
+    @Test
+    fun `a faint aurora under a dark moonless sky leads`() {
+        val report = Outlooks.of(
+            tonight(),
+            input(now = at("2026-12-13T20:00:00Z"), auroraProbability = 45),
+        )
+
+        assertEquals(Outlook.AuroraNow(45, darkUntil, conditional = false), report.outlook)
+    }
+
+    @Test
+    fun `candidates come from the best passes, not every pass`() {
+        val shadowed = pass(at("2026-12-13T19:12:00Z"), name = "CSS (TIANHE)", sunlitAtPeak = false)
+        val unlisted = pass(at("2026-12-13T20:30:00Z"), name = "NOAA 15")
+
+        val report = Outlooks.of(
+            tonight(passes = listOf(shadowed, unlisted), bestPasses = listOf(shadowed)),
+            input(),
+        )
+
+        assertTrue(
+            report.outlook is Outlook.Quiet &&
+                report.excluded == listOf(Excluded(shadowed.name, shadowed.peaksAt, Gate.Sunlit)),
+        )
+    }
+
+    @Test
     fun `reports the threshold the reading is measured against`() {
         val report = Outlooks.of(tonight(), input(auroraProbability = 10))
 
@@ -741,6 +1067,9 @@ class OutlookTest {
     }
 
     private companion object {
+        val NEVER_DARK = DarknessShortfall.NeverDark
+        val TWILIGHT = DarknessShortfall.Twilight
+        val NOT_YET = DarknessShortfall.NotYet
         const val MINUTE = 60_000L
         const val HOUR = 60 * MINUTE
         const val DAY = 24 * HOUR

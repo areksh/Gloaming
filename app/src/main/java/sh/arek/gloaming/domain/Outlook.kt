@@ -1,8 +1,10 @@
 package sh.arek.gloaming.domain
 
+import kotlin.math.floor
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
+import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.astronomy.Visibility
@@ -29,8 +31,31 @@ data class Pick(
     val planet: PlanetTonight? = null,
 )
 
-/** The tests a recommendation must pass, in the order they are tried. */
-enum class Gate { Visibility, Time, Darkness, Cloud, Moon, Height, Sunlit, Aurora }
+/**
+ * The tests a recommendation must pass, in the order they are tried.
+ *
+ * [Stale] is for passes worked out from orbital elements too old to trust:
+ * the time they give may be minutes out, and a pass is over in four.
+ */
+enum class Gate { Visibility, Stale, Time, Darkness, Cloud, Moon, Height, Sunlit, Aurora }
+
+/**
+ * Why the sky is not dark enough, for a [Gate.Darkness] exclusion.
+ *
+ * The same gate says three different things, and a sentence that says the
+ * wrong one is a false one: "it never gets dark enough tonight" about a comet
+ * judged at dusk on a December night would be untrue.
+ */
+enum class DarknessShortfall {
+    /** Tonight never gets as dark as this needs. */
+    NeverDark,
+
+    /** Judged in twilight on a night that does get dark enough. */
+    Twilight,
+
+    /** The aurora, which is judged at now: not dark yet. */
+    NotYet,
+}
 
 /**
  * Something that was looked at and set aside, with the first reason it failed.
@@ -38,18 +63,22 @@ enum class Gate { Visibility, Time, Darkness, Cloud, Moon, Height, Sunlit, Auror
  * [note] carries what the wording needs and the gate alone does not say:
  * for [Gate.Visibility] the event's own reason; for [Gate.Cloud] the forecast
  * cover at its hour, for [Gate.Moon] the moon's illumination, for
- * [Gate.Height] the highest it gets and for [Gate.Aurora] the probability, each
- * as a whole number (percent or degrees). Null for the rest, and for a cloud
- * failure where the forecast has no hour for it at all.
+ * [Gate.Height] a pass's peak elevation or a planet's altitude when it was
+ * judged (floored), and for [Gate.Aurora] the probability, each as a whole
+ * number (percent or degrees). Null for the rest, and for a cloud failure
+ * where the forecast has no hour for it at all.
  *
- * [atMillis] is the moment it was judged at - a pass's peak, which is what a
- * timeline row matches on - and null for the aurora.
+ * [atMillis] is what a timeline row matches on: a pass's peak, an event's own
+ * [SkyEvent.at] (not the moment it was judged at, which can move with the
+ * clock and the forecast), a planet's judged moment, and null for the aurora.
  */
 data class Excluded(
     val subject: String,
     val atMillis: Long?,
     val gate: Gate,
     val note: String? = null,
+    /** Set on every [Gate.Darkness] exclusion, and only there. */
+    val darkness: DarknessShortfall? = null,
 )
 
 /**
@@ -67,8 +96,12 @@ sealed interface Outlook {
     /** Not enough held to say anything true: no forecast, or stale elements. */
     data class CannotTell(val forecastHeld: Boolean, val elementsStale: Boolean) : Outlook
 
-    /** An aurora above the threshold, dark and clear now. [clearUntil] only with a forecast. */
-    data class AuroraNow(val probability: Int, val clearUntil: Long?) : Outlook
+    /**
+     * An aurora above the threshold, dark and clear now. [clearUntil] only
+     * with a forecast; [conditional] when there is none to say it is clear.
+     */
+    data class AuroraNow(val probability: Int, val clearUntil: Long?, val conditional: Boolean) :
+        Outlook
 
     /** It never gets properly dark tonight. */
     data class NoNight(val noctilucent: Boolean) : Outlook
@@ -84,8 +117,9 @@ sealed interface Outlook {
 
     /**
      * At least one thing worth going out for, best first, at most
-     * [Outlooks.MAX_PICKS]. [clearFrom] and [clearUntil] only with a forecast
-     * that says so; [conditional] when there is none to say it.
+     * [Outlooks.MAX_PICKS]. [clearFrom] and [clearUntil] are the run of clear
+     * hours around the first pick, only with a forecast that says so;
+     * [conditional] when there is none to say it.
      */
     data class GoOut(
         val picks: List<Pick>,
@@ -130,6 +164,8 @@ data class OutlookInput(
     val elementsAgeMillis: Long?,
     val sunAltitude: (Long) -> Double,
     val moonAltitude: (Long) -> Double,
+    /** How high a planet is at a moment, so it is judged then rather than at its peak. */
+    val planetAltitude: (SkyBody, Long) -> Double,
 )
 
 /**
@@ -188,6 +224,17 @@ object Outlooks {
     )
     private val FAINT_EVENTS = setOf(EventKind.MeteorShower, EventKind.Comet)
 
+    /**
+     * Events judged at their moment, and over once it has passed.
+     *
+     * A comet's moment is where it is best placed tonight and a conjunction's
+     * is where the pair is seen closest; the window around either is the whole
+     * night, and "still under way" at four in the morning would be judging a
+     * comet that has set or a pair that has drifted apart. Eclipses,
+     * occultations and showers have a real beginning and end and keep it.
+     */
+    private val MOMENT_EVENTS = setOf(EventKind.Comet, EventKind.Conjunction)
+
     fun of(list: TonightList, input: OutlookInput): OutlookReport {
         val settings = input.settings
         val now = input.nowMillis
@@ -206,26 +253,43 @@ object Outlooks {
             return report(Outlook.NoLocation, emptyList())
         }
 
-        // The cloud gate needs both the setting and a forecast to judge by.
-        // Missing either, nothing can be called clear and every sentence is
-        // conditional - including the clear spell Tonight may have found in a
-        // forecast the user has asked not to be judged by.
-        val cloudGate = settings.cloudGateEnabled && input.hourly.isNotEmpty()
-        val night = Night(list, input, cloudGate, if (cloudGate) list.clearSpell else null)
+        // The cloud gate needs both the setting and a forecast that says
+        // something about tonight. Missing either, nothing can be called clear
+        // and every sentence is conditional - including the clear spell Tonight
+        // may have found in a forecast the user has asked not to be judged by.
+        // A forecast that ends before dusk, or starts tomorrow, is not one:
+        // judged by it, every hour of tonight is missing and the night would
+        // read as overcast.
+        val forecastHeld = coversTonight(list, input)
+        val cloudGate = settings.cloudGateEnabled && forecastHeld
+        // Unknown age is treated as old: a pass time is only as good as the
+        // elements it came from, and nothing says these are recent.
+        val elementsStale = input.elementsAgeMillis
+            ?.let { it > ELEMENTS_STALE_MILLIS }
+            ?: list.bestPasses.isNotEmpty()
+        val spell = if (cloudGate) list.clearSpell else null
+        val night = Night(list, input, cloudGate, spell, elementsStale)
 
         val judged = candidates(list, night).map { it to failures(it, night) }
         val picks = judged.filter { it.second.isEmpty() }.map { it.first.pick }
         val excluded = judged.filter { it.second.isNotEmpty() }.map { (candidate, failed) ->
             val gate = failed.first()
-            val note = note(candidate, gate, night)
-            Excluded(candidate.pick.subject, candidate.excludedAt, gate, note)
+            Excluded(
+                subject = candidate.pick.subject,
+                atMillis = candidate.excludedAt,
+                gate = gate,
+                note = note(candidate, gate, night),
+                darkness = if (gate == Gate.Darkness) shortfall(candidate, night) else null,
+            )
         }
 
         val heardRecently = input.auroraProbability != null &&
             readingAge != null && readingAge < AURORA_KNOWN_MAX_AGE_MILLIS
-        val forecastHeld = input.hourly.isNotEmpty()
-        val elementsStale = (input.elementsAgeMillis ?: 0L) > ELEMENTS_STALE_MILLIS
-        val passesOnly = picks.isNotEmpty() && picks.all { it.kind == PickKind.Pass }
+        // Stale passes are never picked, so "passes would be the only
+        // recommendation" is nothing else picked and a pass held back by its
+        // elements alone.
+        val passesOnly = picks.isEmpty() &&
+            judged.any { it.first.pick.kind == PickKind.Pass && it.second == listOf(Gate.Stale) }
         if ((settings.cloudGateEnabled && !forecastHeld && !heardRecently) ||
             (elementsStale && passesOnly)
         ) {
@@ -236,8 +300,8 @@ object Outlooks {
         // recommended aurora is one that is dark and clear now.
         val probability = input.auroraProbability
         if (probability != null && picks.any { it.kind == PickKind.Aurora }) {
-            val clearUntil = night.spell?.takeIf { it.from <= now }?.until
-            return report(Outlook.AuroraNow(probability, clearUntil), excluded)
+            val clearUntil = night.runAt(now)?.until
+            return report(Outlook.AuroraNow(probability, clearUntil, !cloudGate), excluded)
         }
 
         val darkFrom = list.darkFrom
@@ -250,11 +314,15 @@ object Outlooks {
         }
 
         if (picks.isNotEmpty()) {
+            // The clear hours around the first thing named, not the night's
+            // first clear hours: "clear 18:00 to 19:00, go out at 23:00" would
+            // be two true halves making a false sentence.
+            val run = night.runAt(picks.first().atMillis)
             return report(
                 Outlook.GoOut(
                     picks = picks.take(MAX_PICKS),
-                    clearFrom = night.spell?.from,
-                    clearUntil = night.spell?.until,
+                    clearFrom = run?.from,
+                    clearUntil = run?.until,
                     conditional = !cloudGate,
                 ),
                 excluded,
@@ -271,16 +339,65 @@ object Outlooks {
         )
     }
 
+    /** Whether the forecast has at least one hour inside what is left of tonight's darkness. */
+    private fun coversTonight(list: TonightList, input: OutlookInput): Boolean {
+        val darkFrom = list.darkFrom
+        val darkUntil = list.darkUntil
+        if (darkFrom == null || darkUntil == null) return input.hourly.isNotEmpty()
+        val from = maxOf(darkFrom, input.nowMillis)
+        return input.hourly.any { it.atMillis < darkUntil && it.atMillis + HOUR_MILLIS > from }
+    }
+
     /** What every gate needs to know about tonight. */
     private class Night(
         val list: TonightList,
         val input: OutlookInput,
         val cloudGate: Boolean,
-        /** Tonight's clear spell, only where the cloud gate is judging. */
+        /** Tonight's first clear spell, only where the cloud gate is judging. */
         val spell: ClearSpell?,
+        /** Whether the orbital elements are too old, or of unknown age, to trust a pass time. */
+        val elementsStale: Boolean,
     ) {
         val now: Long get() = input.nowMillis
         val end: Long? get() = list.darkUntil
+
+        /**
+         * The unbroken run of clear hours containing [t], inside what is left
+         * of tonight's darkness, or null where [t] is not in one or the cloud
+         * gate is not judging.
+         *
+         * Clear as [ClearSpell] means it - on the effective cover - and joined
+         * only where one hour starts exactly as the last ends, because a
+         * missing hour is not a clear one.
+         */
+        fun runAt(t: Long): ClearSpell? {
+            val darkFrom = list.darkFrom
+            val darkUntil = list.darkUntil
+            if (!cloudGate || darkFrom == null || darkUntil == null) return null
+            val windowFrom = maxOf(darkFrom, now)
+            if (t < windowFrom || t >= darkUntil) return null
+
+            val tolerance = input.settings.cloudTolerance
+            val clear = input.hourly
+                .filter { it.effective <= tolerance }
+                .map { it.atMillis }
+                .toSet()
+            val hour = clear.firstOrNull { t >= it && t < it + HOUR_MILLIS } ?: return null
+
+            var runFrom = hour
+            while (runFrom - HOUR_MILLIS in clear && runFrom > windowFrom) runFrom -= HOUR_MILLIS
+            var runUntil = hour + HOUR_MILLIS
+            while (runUntil in clear && runUntil < darkUntil) runUntil += HOUR_MILLIS
+
+            val from = maxOf(runFrom, windowFrom)
+            val until = minOf(runUntil, darkUntil)
+            return ClearSpell(
+                from = from,
+                until = until,
+                underway = from <= windowFrom,
+                allNight = from <= windowFrom && until >= darkUntil,
+            )
+        }
     }
 
     /**
@@ -317,20 +434,34 @@ object Outlooks {
             .filter { it.kind in BRIGHT_EVENTS || it.kind in FAINT_EVENTS }
             .map { event ->
                 val faint = event.kind in FAINT_EVENTS
-                val at = if (event.kind == EventKind.MeteorShower) {
-                    showerTime(event, night)
+                if (event.kind in MOMENT_EVENTS) {
+                    Candidate(
+                        pick = Pick(PickKind.Event, event.title, event.at, event = event),
+                        from = event.at,
+                        until = event.at,
+                        faint = faint,
+                        visibility = event.visibility,
+                    )
                 } else {
-                    event.at
+                    val at = if (event.kind == EventKind.MeteorShower) {
+                        showerTime(event, night)
+                    } else {
+                        event.at
+                    }
+                    Candidate(
+                        // Judged from now rather than at a peak already behind
+                        // us, for an event whose window is still running.
+                        pick = Pick(PickKind.Event, event.title, maxOf(at, now), event = event),
+                        from = event.from,
+                        until = event.until,
+                        faint = faint,
+                        visibility = event.visibility,
+                        // Listed at the event's own moment rather than the one
+                        // it was judged at, which moves with the clock and the
+                        // forecast: a timeline row matches on this.
+                        excludedAt = event.at,
+                    )
                 }
-                Candidate(
-                    // Judged from now rather than at a peak already behind us,
-                    // for an event whose window is still running.
-                    pick = Pick(PickKind.Event, event.title, maxOf(at, now), event = event),
-                    from = event.from,
-                    until = event.until,
-                    faint = faint,
-                    visibility = event.visibility,
-                )
             }
 
         val passes = ranked(list.bestPasses).map {
@@ -354,7 +485,7 @@ object Outlooks {
     /**
      * When to judge a shower.
      *
-     * At its best hour if the clear spell covers it. Otherwise from when it
+     * At its best hour if that hour is in a clear run. Otherwise from when it
      * clears, if that is inside the shower's window - moved on to full
      * darkness where the spell starts in twilight, because a shower judged at
      * dusk would fail on darkness for a spell that is still clear an hour
@@ -362,7 +493,7 @@ object Outlooks {
      */
     private fun showerTime(event: SkyEvent, night: Night): Long {
         val spell = night.spell ?: return event.at
-        if (event.at >= spell.from && event.at < spell.until) return event.at
+        if (night.runAt(event.at) != null) return event.at
         val dark = night.list.darkestFrom?.let { maxOf(spell.from, it) } ?: spell.from
         val from = if (dark < spell.until) dark else spell.from
         return if (from in event.from..event.until) from else event.at
@@ -382,6 +513,7 @@ object Outlooks {
     private fun failures(candidate: Candidate, night: Night): List<Gate> {
         val failed = listOfNotNull(
             visibility(candidate),
+            stale(candidate, night),
             time(candidate, night),
             darkness(candidate, night),
             cloud(candidate, night),
@@ -405,6 +537,9 @@ object Outlooks {
         return Gate.Visibility.takeUnless { visibility is Visibility.Good }
     }
 
+    private fun stale(candidate: Candidate, night: Night): Gate? =
+        Gate.Stale.takeIf { candidate.pick.pass != null && night.elementsStale }
+
     private fun time(candidate: Candidate, night: Night): Gate? {
         val end = night.end
         val over = candidate.until < night.now
@@ -413,6 +548,9 @@ object Outlooks {
     }
 
     private fun darkness(candidate: Candidate, night: Night): Gate? {
+        // Seen by daylight by definition; its visibility already says whether
+        // the sun is up from here.
+        if (candidate.pick.event?.kind == EventKind.SolarEclipse) return null
         val dark = if (candidate.faint) {
             val from = night.list.darkestFrom
             val until = night.list.darkestUntil
@@ -421,6 +559,14 @@ object Outlooks {
             night.input.sunAltitude(candidate.at) < Twilight.CIVIL_DEGREES
         }
         return Gate.Darkness.takeUnless { dark }
+    }
+
+    private fun shortfall(candidate: Candidate, night: Night): DarknessShortfall = when {
+        candidate.pick.kind == PickKind.Aurora -> DarknessShortfall.NotYet
+        candidate.faint && (night.list.darkestFrom == null || night.list.darkestUntil == null) ->
+            DarknessShortfall.NeverDark
+        !candidate.faint && night.list.darkFrom == null -> DarknessShortfall.NeverDark
+        else -> DarknessShortfall.Twilight
     }
 
     private fun cloud(candidate: Candidate, night: Night): Gate? {
@@ -443,11 +589,15 @@ object Outlooks {
         val planet = candidate.pick.planet
         val high = when {
             pass != null -> pass.peakElevation >= night.input.settings.minimumPassElevationDegrees
-            planet != null -> planet.peakAltitude >= PLANET_MIN_ALTITUDE
+            planet != null -> planetAltitude(candidate, planet, night) >= PLANET_MIN_ALTITUDE
             else -> true
         }
         return Gate.Height.takeUnless { high }
     }
+
+    /** Where a planet is when it is judged, not where it was at its peak. */
+    private fun planetAltitude(candidate: Candidate, planet: PlanetTonight, night: Night): Double =
+        night.input.planetAltitude(planet.body, candidate.at)
 
     private fun sunlit(candidate: Candidate): Gate? =
         Gate.Sunlit.takeIf { candidate.pick.pass?.sunlitAtPeak == false }
@@ -481,8 +631,11 @@ object Outlooks {
             if (candidate.faint && it.effective <= tolerance) it.total else it.effective
         }?.toString()
         Gate.Moon -> (illumination(night) * 100).roundToInt().toString()
-        Gate.Height -> (candidate.pick.pass?.peakElevation ?: candidate.pick.planet?.peakAltitude)
-            ?.roundToInt()?.toString()
+        // Floored, so "only 14 degrees up" is never more than the truth.
+        Gate.Height -> (
+            candidate.pick.pass?.peakElevation
+                ?: candidate.pick.planet?.let { planetAltitude(candidate, it, night) }
+            )?.let { floor(it).toInt() }?.toString()
         Gate.Aurora -> night.input.auroraProbability?.toString()
         else -> null
     }
