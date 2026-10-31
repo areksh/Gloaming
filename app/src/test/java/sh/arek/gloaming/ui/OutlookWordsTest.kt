@@ -387,29 +387,155 @@ class OutlookWordsTest {
     }
 
     @Test
-    fun `with a forecast but old satellite data it says that instead`() {
+    fun `old satellite data alone says that, and advises fresh data`() {
         val r = report(Outlook.CannotTell(forecastHeld = true, elementsStale = true))
 
         assertEquals(
-            "Gloaming cannot say when satellites pass: its orbital data is days old.",
+            "Gloaming cannot say when satellites pass: its satellite data is too old to trust.",
             OutlookWords.headline(r),
         )
         assertEquals("Check now to fetch fresh data.", OutlookWords.follow(r, now))
     }
 
+    @Test
+    fun `no forecast and old satellite data says both and advises fetching both`() {
+        val r = report(Outlook.CannotTell(forecastHeld = false, elementsStale = true))
+
+        assertEquals(
+            "Gloaming cannot say what tonight holds: it has no recent forecast, " +
+                "and its satellite data is too old to trust.",
+            OutlookWords.headline(r),
+        )
+        assertEquals("Check now to fetch both.", OutlookWords.follow(r, now))
+    }
+
+    @Test
+    fun `nothing missing still cannot tell, without blaming anything`() {
+        val r = report(Outlook.CannotTell(forecastHeld = true, elementsStale = false))
+
+        assertEquals("Gloaming cannot say what tonight holds.", OutlookWords.headline(r))
+        assertEquals("Check now to refresh.", OutlookWords.follow(r, now))
+    }
+
+    @Test
+    fun `two picks far apart in time each get their own`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-13T23:00:00Z"), passPick("Tiangong", "2026-12-14T00:52:00Z")),
+                conditional = true,
+            ),
+        )
+
+        assertEquals(
+            "If it is clear, go out at 23:00 for Saturn, and at 00:52 for Tiangong.",
+            OutlookWords.headline(r),
+        )
+    }
+
+    @Test
+    fun `two picks within a quarter of an hour share one time`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-13T22:00:00Z"), passPick("Tiangong", "2026-12-13T22:15:00Z")),
+                conditional = true,
+            ),
+        )
+
+        assertEquals("If it is clear, go out at 22:00 for Saturn and Tiangong.", OutlookWords.headline(r))
+    }
+
+    @Test
+    fun `a name with its own and is not run into the next`() {
+        val r = report(
+            goOut(
+                listOf(
+                    eventPick(EventKind.Conjunction, "Venus and Jupiter at their closest", "2026-12-13T22:00:00Z"),
+                    planetPick(SkyBody.Saturn, "2026-12-13T22:05:00Z"),
+                ),
+                conditional = true,
+            ),
+        )
+
+        assertEquals(
+            "If it is clear, go out at 22:00 for Venus and Jupiter at their closest, and Saturn.",
+            OutlookWords.headline(r),
+        )
+    }
+
+    @Test
+    fun `a moon conjunction reads as a noun phrase everywhere`() {
+        val moonVenus = eventPick(EventKind.Conjunction, "The moon passes Venus", "2026-12-13T22:00:00Z")
+
+        assertEquals(
+            "If it is clear, go out at 22:00 for the moon passing Venus.",
+            OutlookWords.headline(report(goOut(listOf(moonVenus), conditional = true))),
+        )
+        assertEquals(
+            "Cloud will hide the moon passing Venus tonight.",
+            OutlookWords.follow(report(Outlook.Overcast(null, moonVenus)), now),
+        )
+        assertEquals(
+            "The moon passing Venus is still worth a look.",
+            OutlookWords.follow(
+                report(
+                    goOut(listOf(moonVenus), conditional = true),
+                    excluded = listOf(Excluded("Leonids at their best", 0L, Gate.Moon, "92")),
+                ),
+                now,
+            ),
+        )
+    }
+
+    @Test
+    fun `a planet conjunction keeps its planet's capital`() {
+        val pair = eventPick(EventKind.Conjunction, "Venus and Jupiter at their closest", "2026-12-13T22:00:00Z")
+
+        assertEquals(
+            "If it is clear, go out at 22:00 for Venus and Jupiter at their closest.",
+            OutlookWords.headline(report(goOut(listOf(pair), conditional = true))),
+        )
+    }
+
+    @Test
+    fun `a spell's hours are counted down`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-13T21:30:00Z")),
+                from = "2026-12-13T21:00:00Z",
+                until = "2026-12-13T23:30:00Z",
+            ),
+        )
+
+        assertEquals(
+            "Cloudy until 21:00, then two clear hours. Go out from 21:00 for Saturn.",
+            OutlookWords.headline(r),
+        )
+    }
+
     // ---- excluded
 
-    private fun excluded(gate: Gate, note: String? = null, darkness: DarknessShortfall? = null, kind: PickKind? = null) =
-        OutlookWords.excluded(Excluded("x", 0L, gate, note, darkness, kind))
+    private fun excluded(
+        gate: Gate,
+        note: String? = null,
+        darkness: DarknessShortfall? = null,
+        kind: PickKind? = null,
+        atMillis: Long? = 0L,
+    ) = OutlookWords.excluded(Excluded("x", atMillis, gate, note, darkness, kind), 40, now)
 
     @Test
     fun `each gate has its own reason`() {
         assertEquals("Forecast 80% cloud when it crosses.", excluded(Gate.Cloud, "80"))
         assertEquals("The moon is up and 70% lit, which washes it out.", excluded(Gate.Moon, "70"))
         assertEquals("In the earth's shadow, so it will not show.", excluded(Gate.Sunlit))
-        assertEquals("Already over.", excluded(Gate.Time))
         assertEquals("Satellite times are days old, so they cannot be trusted.", excluded(Gate.Stale))
         assertEquals("The radiant is low.", excluded(Gate.Visibility, "The radiant is low."))
+    }
+
+    @Test
+    fun `time says already over only for something that has gone`() {
+        assertEquals("Already over.", excluded(Gate.Time, atMillis = now - 1))
+        assertEquals("Not during tonight's darkness.", excluded(Gate.Time, atMillis = now + 1))
+        assertEquals("Not during tonight's darkness.", excluded(Gate.Time, atMillis = null))
     }
 
     @Test
@@ -437,14 +563,14 @@ class OutlookWordsTest {
     fun `a weak aurora gives its figure`() {
         val e = Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Aurora, "12")
 
-        assertEquals("12%, too weak to see from here.", OutlookWords.excluded(e, threshold = 40))
+        assertEquals("12%, too weak to see from here.", OutlookWords.excluded(e, 40, now))
     }
 
     @Test
     fun `an aurora above the threshold that was held back is an old reading`() {
         val e = Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Aurora, "65")
 
-        assertEquals("65%, but the reading is too old to act on.", OutlookWords.excluded(e, threshold = 40))
+        assertEquals("65%, but the reading is too old to act on.", OutlookWords.excluded(e, 40, now))
     }
 
     // ---- alerts

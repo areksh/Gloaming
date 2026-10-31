@@ -31,6 +31,7 @@ object OutlookWords {
     private const val HOUR_MILLIS = 60 * 60 * 1000L
     private const val DAY_MILLIS = 24 * HOUR_MILLIS
     private const val MIDNIGHT_MARGIN_MINUTES = 30
+    private const val SHARED_TIME_MILLIS = 15 * 60 * 1000L
     private const val HIGH_DEGREES = 50.0
     private const val LOW_DEGREES = 25.0
     private const val SHOWER_SUFFIX = " at their best"
@@ -41,12 +42,16 @@ object OutlookWords {
     /** The opening sentence, or null where there is no outlook to give. */
     fun headline(report: OutlookReport): String? = when (val outlook = report.outlook) {
         Outlook.NoLocation -> null
-        is Outlook.CannotTell ->
-            if (outlook.forecastHeld) {
-                "Gloaming cannot say when satellites pass: its orbital data is days old."
-            } else {
+        is Outlook.CannotTell -> when {
+            !outlook.forecastHeld && outlook.elementsStale ->
+                "Gloaming cannot say what tonight holds: it has no recent forecast, " +
+                    "and its satellite data is too old to trust."
+            !outlook.forecastHeld ->
                 "Gloaming cannot say what tonight holds: it has no recent forecast."
-            }
+            outlook.elementsStale ->
+                "Gloaming cannot say when satellites pass: its satellite data is too old to trust."
+            else -> "Gloaming cannot say what tonight holds."
+        }
         is Outlook.AuroraNow ->
             if (outlook.conditional) {
                 "If it is clear, aurora is likely now: ${outlook.probability}% here. " +
@@ -73,8 +78,12 @@ object OutlookWords {
      */
     fun follow(report: OutlookReport, nowMillis: Long): String? = when (val outlook = report.outlook) {
         Outlook.NoLocation -> null
-        is Outlook.CannotTell ->
-            if (outlook.forecastHeld) "Check now to fetch fresh data." else "Check now to fetch one."
+        is Outlook.CannotTell -> when {
+            !outlook.forecastHeld && outlook.elementsStale -> "Check now to fetch both."
+            !outlook.forecastHeld -> "Check now to fetch one."
+            outlook.elementsStale -> "Check now to fetch fresh data."
+            else -> "Check now to refresh."
+        }
         is Outlook.AuroraNow ->
             "It can fade within the hour. Watch tonight keeps checking every " +
                 "${StormMode.POLL_MINUTES} minutes."
@@ -87,10 +96,16 @@ object OutlookWords {
     }
 
     /** Why a candidate was set aside, for the list of what was not chosen. */
-    fun excluded(e: Excluded, threshold: Int? = null): String = when (e.gate) {
+    fun excluded(e: Excluded, threshold: Int, nowMillis: Long): String = when (e.gate) {
         Gate.Visibility -> e.note ?: "It will not be well placed from here."
         Gate.Stale -> "Satellite times are days old, so they cannot be trusted."
-        Gate.Time -> "Already over."
+        // A time gate also fails for something that starts after the darkness ends.
+        Gate.Time ->
+            if (e.atMillis != null && e.atMillis < nowMillis) {
+                "Already over."
+            } else {
+                "Not during tonight's darkness."
+            }
         Gate.Darkness -> when (e.darkness) {
             DarknessShortfall.NeverDark -> "It never gets dark enough tonight."
             DarknessShortfall.NotYet -> "It is not dark enough yet."
@@ -108,7 +123,7 @@ object OutlookWords {
         Gate.Sunlit -> "In the earth's shadow, so it will not show."
         // Held back at or above the threshold can only mean the reading is old.
         Gate.Aurora ->
-            if (threshold != null && (e.note?.toIntOrNull() ?: 0) >= threshold) {
+            if ((e.note?.toIntOrNull() ?: 0) >= threshold) {
                 "${e.note}%, but the reading is too old to act on."
             } else {
                 "${e.note}%, too weak to see from here."
@@ -122,24 +137,43 @@ object OutlookWords {
     }
 
     private fun goOut(outlook: Outlook.GoOut): String {
-        val names = names(outlook.picks)
         val first = outlook.picks.first().atMillis
-        if (outlook.conditional) return "If it is clear, go out ${at(first)} for $names."
+        if (outlook.conditional) return "If it is clear, ${goClause(outlook.picks, at(first))}."
 
         val from = outlook.clearFrom
         val until = outlook.clearUntil
-        if (from == null || until == null) return "Go out ${at(first)} for $names."
+        if (from == null || until == null) return "${goClause(outlook.picks, at(first)).capital()}."
 
         return when {
-            outlook.clearAllNight -> "Clear all night. Go out ${at(first)} for $names."
+            outlook.clearAllNight ->
+                "Clear all night. ${goClause(outlook.picks, at(first)).capital()}."
             outlook.clearUnderway ->
-                "Clear until ${clock(until)}. Go out ${at(first)} for $names."
-            else ->
+                "Clear until ${clock(until)}. ${goClause(outlook.picks, at(first)).capital()}."
+            else -> {
+                val start = if (nearMidnight(from)) "at midnight" else "from ${clock(from)}"
                 "Cloudy until ${clock(from)}, then ${hours(until - from)}. " +
-                    "Go out ${if (nearMidnight(from)) "at midnight" else "from ${clock(from)}"} " +
-                    "for $names."
+                    "${goClause(outlook.picks, start).capital()}."
+            }
         }
     }
+
+    /**
+     * "go out WHEN for X". Picks more than a quarter of an hour apart each get
+     * their own time, because one time for both would send somebody out for
+     * the second long before it is there.
+     */
+    private fun goClause(picks: List<Pick>, firstWhen: String): String {
+        val second = picks.getOrNull(1)
+        val apart = second != null &&
+            Math.abs(second.atMillis - picks.first().atMillis) > SHARED_TIME_MILLIS &&
+            // Both inside the half hour round midnight say "at midnight".
+            at(second.atMillis) != firstWhen
+        if (!apart) return "go out $firstWhen for ${names(picks)}"
+        return "go out $firstWhen for ${pickName(picks.first())}, and ${at(second!!.atMillis)} " +
+            "for ${pickName(second)}"
+    }
+
+    private fun String.capital(): String = replaceFirstChar { it.uppercase() }
 
     /** How the clear weather runs, for a sentence that goes on to say what spoils it. */
     private fun clearLead(outlook: Outlook.GoOut, startedPhrase: String): String? {
@@ -183,8 +217,8 @@ object OutlookWords {
     private fun stillWorthALook(picks: List<Pick>): String? {
         if (picks.isEmpty()) return null
         val names = names(picks)
-        if (picks.size > 1) return "$names are still worth a look."
-        return "$names is still worth a look${where(picks.first())}."
+        if (picks.size > 1) return "${names.capital()} are still worth a look."
+        return "${names.capital()} is still worth a look${where(picks.first())}."
     }
 
     /**
@@ -241,7 +275,7 @@ object OutlookWords {
     }
 
     private fun hours(span: Long): String {
-        val count = Math.round(span.toDouble() / HOUR_MILLIS).toInt().coerceAtLeast(1)
+        val count = (span / HOUR_MILLIS).toInt().coerceAtLeast(1)
         if (count == 1) return "an hour of clear sky"
         val word = NUMBERS.getOrNull(count - 1) ?: count.toString()
         return "$word clear hours"
@@ -257,7 +291,11 @@ object OutlookWords {
         return minute <= MIDNIGHT_MARGIN_MINUTES || minute >= 24 * 60 - MIDNIGHT_MARGIN_MINUTES
     }
 
-    private fun names(picks: List<Pick>): String = picks.joinToString(" and ") { pickName(it) }
+    /** Two names joined by "and", or by a comma where a name has its own "and" in it. */
+    private fun names(picks: List<Pick>): String {
+        val named = picks.map { pickName(it) }
+        return named.joinToString(if (named.any { " and " in it }) ", and " else " and ")
+    }
 
     /**
      * What a pick is called in a sentence. Eclipse and occultation titles are
@@ -269,7 +307,10 @@ object OutlookWords {
         return when (pick.event?.kind) {
             EventKind.MeteorShower -> showerName(pick.subject)
             EventKind.SolarEclipse, EventKind.LunarEclipse -> "the $lower"
-            EventKind.Occultation -> lower.replace(" passes ", " passing ")
+            EventKind.Occultation, EventKind.Conjunction ->
+                // "The moon passes Venus" is a sentence; "Venus and Jupiter at their
+                // closest" is already a phrase and keeps its planet's capital.
+                if (pick.subject.startsWith("The ")) lower.replace(" passes ", " passing ") else pick.subject
             else -> pick.subject
         }
     }
