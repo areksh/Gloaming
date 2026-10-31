@@ -5,10 +5,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -134,8 +141,11 @@ class ScreensTest {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // Follows the retention the screen reports, as the real one
+                // does, so a test can pick a preset and see what comes next.
+                var shown by remember { mutableStateOf(settings) }
                 val state = MainUiState(
-                    settings = settings,
+                    settings = shown,
                     alertState = alertState,
                     latitudeInput = "55.95",
                     longitudeInput = "-3.19",
@@ -186,7 +196,10 @@ class ScreensTest {
                     onQuietHoursOverrideChange = {},
                     onNightVisionChange = {},
                     onShowEveryConstellationChange = { everyConstellation = it },
-                    onLogRetentionChange = { logRetention = it },
+                    onLogRetentionChange = {
+                        logRetention = it
+                        shown = shown.copy(logRetentionDays = it)
+                    },
                     onExportLog = { exported++ },
                     onClearLog = { cleared++ },
                     onAuroraIntervalChange = { auroraInterval = it },
@@ -634,6 +647,29 @@ class ScreensTest {
         compose.onNodeWithTag(LOG_RETENTION_FIELD_TAG).performScrollTo().performTextReplacement("30")
 
         assertEquals(30, logRetention)
+    }
+
+    @Test
+    fun marksCustomSelectedOnlyWhenTheRetentionIsNotAPreset() {
+        show(settings = located.copy(logRetentionDays = 30))
+        compose.onNodeWithTag(LOG_RETENTION_CUSTOM_TAG).performScrollTo().assertIsSelected()
+    }
+
+    @Test
+    fun leavesCustomUnselectedForAPresetRetention() {
+        show(settings = located.copy(logRetentionDays = 7))
+        compose.onNodeWithTag(LOG_RETENTION_CUSTOM_TAG).performScrollTo().assertIsNotSelected()
+    }
+
+    @Test
+    fun seedsTheCustomFieldFromTheRetentionInForce() {
+        show(settings = located.copy(logRetentionDays = 7))
+
+        compose.onNodeWithTag(choiceTag("Keep", "3d")).performScrollTo().performClick()
+        compose.onNodeWithTag(LOG_RETENTION_CUSTOM_TAG).performScrollTo().performClick()
+
+        compose.onNodeWithTag(LOG_RETENTION_FIELD_TAG).performScrollTo()
+            .assertTextEquals("Days", "3")
     }
 
     @Test

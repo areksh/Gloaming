@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
@@ -955,11 +957,18 @@ private fun LogCard(
 
             // A preset the person typed is still a custom entry while they are
             // editing it, so this is a flag and not "is the value a preset".
-            OutlinedButton(
-                onClick = { customOpen = true },
-                modifier = Modifier.testTag(LOG_RETENTION_CUSTOM_TAG),
-            ) {
-                Text("Custom")
+            val customSelected = days !in UserSettings.LOG_RETENTION_CHOICES
+            val onCustom = {
+                customInput = days.takeIf { it > 0 }?.toString().orEmpty()
+                customOpen = true
+            }
+            val customModifier = Modifier
+                .testTag(LOG_RETENTION_CUSTOM_TAG)
+                .semantics { selected = customSelected }
+            if (customSelected) {
+                Button(onClick = onCustom, modifier = customModifier) { Text("Custom") }
+            } else {
+                OutlinedButton(onClick = onCustom, modifier = customModifier) { Text("Custom") }
             }
             if (customOpen) {
                 OutlinedTextField(
