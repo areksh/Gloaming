@@ -117,6 +117,14 @@ data class TonightList(
      * the card is that somebody believes it when it says the sky is empty.
      */
     val elementsHeld: Boolean = true,
+    /**
+     * The first clear spell of the night after tonight.
+     *
+     * Looked for only when tonight has none, and only where the forecast
+     * reaches that night; otherwise null, which is "not known" rather than
+     * "cloudy".
+     */
+    val nextClearSpell: ClearSpell? = null,
 ) {
     /**
      * Whether there is nothing happening tonight.
@@ -223,6 +231,21 @@ object Tonight {
             ?.let { Constellations.tonight(latitude, longitude, it) }
             .orEmpty()
 
+        val clearSpell = night?.let {
+            ClearSpell.first(
+                hourly = hourly,
+                tolerance = settings.cloudTolerance,
+                darkFrom = it.first,
+                darkUntil = it.last,
+                nowMillis = nowMillis,
+            )
+        }
+        val nextClearSpell = if (clearSpell == null && night != null) {
+            nextNightSpell(latitude, longitude, night, hourly, settings.cloudTolerance)
+        } else {
+            null
+        }
+
         return TonightList(
             darkFrom = night?.first,
             darkUntil = night?.last,
@@ -261,15 +284,26 @@ object Tonight {
                 everyConstellation.filter { it.isCircumpolar }.map { it.constellation.name }
             },
             elementsHeld = satellites != null,
-            clearSpell = night?.let {
-                ClearSpell.first(
-                    hourly = hourly,
-                    tolerance = settings.cloudTolerance,
-                    darkFrom = it.first,
-                    darkUntil = it.last,
-                    nowMillis = nowMillis,
-                )
-            },
+            clearSpell = clearSpell,
+            nextClearSpell = nextClearSpell,
+        )
+    }
+
+    /** The first clear spell of the night after [night], if the forecast reaches it. */
+    private fun nextNightSpell(
+        latitude: Double,
+        longitude: Double,
+        night: LongRange,
+        hourly: List<HourlyCover>,
+        tolerance: Int,
+    ): ClearSpell? {
+        val next = Twilight.nightAhead(latitude, longitude, night.last + 3_600_000L) ?: return null
+        return ClearSpell.first(
+            hourly = hourly,
+            tolerance = tolerance,
+            darkFrom = next.first,
+            darkUntil = next.last,
+            nowMillis = next.first,
         )
     }
 
