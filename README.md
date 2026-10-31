@@ -312,7 +312,8 @@ Edinburgh, not because a fixture says so. What is genuinely invented is the
 small part the sky does not decide: the cloud forecast, the satellite elements
 and the aurora reading.
 
-Each night declares what it is supposed to show, and `ScenariosTest` proves it -
+Each night declares what it is supposed to show, and where it is about the
+opening sentence the outlook it should give, and `ScenariosTest` proves both -
 without that, a screen test against a scenario that had quietly gone empty would
 pass exactly as happily as one against a full one. `ScenarioScreensTest` then
 renders every one of them through the real Tonight tab on the device, and

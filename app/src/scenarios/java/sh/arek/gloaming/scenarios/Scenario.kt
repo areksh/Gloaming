@@ -1,5 +1,7 @@
 package sh.arek.gloaming.scenarios
 
+import kotlin.reflect.KClass
+import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
@@ -10,6 +12,10 @@ import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.Outlook
+import sh.arek.gloaming.domain.OutlookInput
+import sh.arek.gloaming.domain.OutlookReport
+import sh.arek.gloaming.domain.Outlooks
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -79,6 +85,12 @@ data class Scenario(
      * tab raise it.
      */
     val calendarDays: Int = 3,
+    /**
+     * The opening sentence this night must come out as, or null where the
+     * night is not about it. Checked against [Scenarios.outlook] in the JVM
+     * suite, like [shows].
+     */
+    val outlook: KClass<out Outlook>? = null,
 ) {
     val latitude: Double? get() = settings.latitude
     val longitude: Double? get() = settings.longitude
@@ -234,6 +246,38 @@ object Scenarios {
         cloud = scenario.cloud,
         hourly = scenario.hourly,
     )
+
+    /**
+     * Tonight's outlook, from [Outlooks.of] over [tonight] and the scenario's
+     * own readings.
+     *
+     * The elements' age is how long before now the satellite document says it
+     * was published, which is all a device knows about them; with no document
+     * there is no age, and nothing for it to judge.
+     */
+    fun outlook(scenario: Scenario): OutlookReport {
+        val now = scenario.nowMillis
+        // Without a position the outlook stops at NoLocation before it asks
+        // where anything is, so these are never read for a real answer.
+        val latitude = scenario.latitude ?: 0.0
+        val longitude = scenario.longitude ?: 0.0
+        val probability = scenario.alertState.lastProbability
+        val lastPollAt = scenario.alertState.lastPollAt
+        return Outlooks.of(
+            tonight(scenario),
+            OutlookInput(
+                settings = scenario.settings,
+                nowMillis = now,
+                hourly = scenario.hourly,
+                auroraProbability = probability,
+                auroraAgeMillis = lastPollAt?.takeIf { probability != null }?.let { now - it },
+                elementsAgeMillis = scenario.satellites?.let { now - at(it.updated) },
+                sunAltitude = { Twilight.sunAltitude(latitude, longitude, it) },
+                moonAltitude = { Twilight.moonAltitude(latitude, longitude, it) },
+                planetAltitude = { body, t -> Planets.altitude(body, latitude, longitude, t) },
+            ),
+        )
+    }
 
     /**
      * The whole screen state for that night.

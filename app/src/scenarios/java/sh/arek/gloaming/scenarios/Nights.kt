@@ -4,6 +4,7 @@ import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.VerdictChannel
+import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.scenarios.Fixtures.cometsDocument
 import sh.arek.gloaming.scenarios.Fixtures.haleBopp
 import sh.arek.gloaming.scenarios.Fixtures.hourly
@@ -200,6 +201,28 @@ internal object Nights {
             shows = setOf(Shows.Shower, Shows.Caveat),
             nowMillis = at("2026-05-05T18:00:00Z"),
             settings = at(Places.edinburgh),
+        ),
+        Scenario(
+            name = "draconids-under-a-gibbous-moon",
+            about = "8 October 2027 under a clear forecast: the Draconids with a " +
+                "moon 63 per cent lit and up, so the outlook sends you out for " +
+                "Saturn and Jupiter instead and says what the moon is costing",
+            shows = setOf(
+                Shows.Events,
+                Shows.Shower,
+                Shows.UnderWay,
+                Shows.Moon,
+                Shows.Cloud,
+                Shows.ClearSpell,
+            ),
+            nowMillis = at("2027-10-08T21:00:00Z"),
+            settings = at(Places.edinburgh),
+            outlook = Outlook.GoOut::class,
+            cloud = Fixtures.clear,
+            hourly = hourly(
+                at("2027-10-08T16:00:00Z"),
+                5, 6, 4, 5, 8, 6, 5, 4, 6, 7, 5, 4, 6, 5, 8, 6,
+            ),
         ),
     )
 
@@ -429,6 +452,7 @@ internal object Nights {
                 shows = setOf(Shows.Cloud, Shows.ClearSpell, Shows.ClearSpellUnderway),
                 nowMillis = night,
                 settings = place,
+                outlook = Outlook.GoOut::class,
                 cloud = Fixtures.clear,
                 hourly = hourly(evening, 5, 5, 8, 4, 6, 5, 10, 8, 5, 4, 6, 9, 7, 5, 6, 8),
             ),
@@ -440,6 +464,7 @@ internal object Nights {
                 absent = setOf(Shows.ClearSpell),
                 nowMillis = night,
                 settings = place,
+                outlook = Outlook.Overcast::class,
                 cloud = Fixtures.overcast,
                 hourly = hourly(
                     evening,
@@ -454,6 +479,7 @@ internal object Nights {
                 absent = setOf(Shows.ClearSpellUnderway),
                 nowMillis = at("2026-12-13T21:00:00Z"),
                 settings = place,
+                outlook = Outlook.GoOut::class,
                 cloud = Fixtures.overcast,
                 hourly = hourly(
                     evening,
@@ -467,6 +493,7 @@ internal object Nights {
                 shows = setOf(Shows.Cloud, Shows.ClearSpell, Shows.ClearSpellUnderway),
                 nowMillis = at("2026-12-14T01:00:00Z"),
                 settings = place,
+                outlook = Outlook.GoOut::class,
                 cloud = Fixtures.broken,
                 hourly = hourly(
                     evening,
@@ -494,6 +521,7 @@ internal object Nights {
                 absent = setOf(Shows.Cloud, Shows.ClearSpell),
                 nowMillis = night,
                 settings = place,
+                outlook = Outlook.CannotTell::class,
                 cloud = null,
             ),
         )
@@ -526,6 +554,17 @@ internal object Nights {
             shows = setOf(Shows.NoNight),
             nowMillis = at("2027-06-21T22:00:00Z"),
             settings = at(Places.tromso),
+        ),
+        Scenario(
+            name = "a-clear-forecast-under-the-midnight-sun",
+            about = "The same night with a forecast held, so the outlook has " +
+                "everything it needs and still has to say there is no night",
+            shows = setOf(Shows.NoNight, Shows.Cloud),
+            nowMillis = at("2027-06-21T22:00:00Z"),
+            settings = at(Places.tromso),
+            outlook = Outlook.NoNight::class,
+            cloud = Fixtures.clear,
+            hourly = hourly(at("2027-06-21T20:00:00Z"), 5, 4, 6, 5, 8, 6, 5, 4, 6, 7, 5, 4),
         ),
         Scenario(
             name = "twilight-at-the-equator",
@@ -575,6 +614,7 @@ internal object Nights {
                 shows = setOf(Shows.Aurora, Shows.Cloud),
                 nowMillis = night,
                 settings = place,
+                outlook = Outlook.AuroraNow::class,
                 cloud = Fixtures.clear,
                 alertState = AlertState(
                     lastAlertAt = night - 20 * 60 * 1000L,
@@ -641,6 +681,7 @@ internal object Nights {
                 absent = setOf(Shows.Aurora),
                 nowMillis = night,
                 settings = place,
+                outlook = Outlook.CannotTell::class,
                 alertState = AlertState(
                     lastPollAt = night - 90 * 60 * 1000L,
                     lastError = "Unable to resolve host",
@@ -669,6 +710,19 @@ internal object Nights {
             absent = setOf(Shows.Events, Shows.Passes, Shows.Comets),
             nowMillis = at("2026-02-24T22:00:00Z"),
             settings = at(Places.edinburgh),
+        ),
+        Scenario(
+            name = "clear-late-with-nothing-up",
+            about = "Edinburgh on 20 May 2026, cloudy until eleven and clear after: " +
+                "Venus and Jupiter are lost to the cloud at dusk and too low once " +
+                "it clears, so the outlook has nothing to send you out for",
+            shows = setOf(Shows.Nothing, Shows.Cloud, Shows.ClearSpell),
+            absent = setOf(Shows.ClearSpellUnderway, Shows.Events),
+            nowMillis = at("2026-05-20T21:00:00Z"),
+            settings = at(Places.edinburgh),
+            outlook = Outlook.Quiet::class,
+            cloud = Fixtures.overcast,
+            hourly = hourly(at("2026-05-20T18:00:00Z"), 90, 92, 95, 94, 88, 10, 8, 6, 5, 8, 10, 12),
         ),
     )
 

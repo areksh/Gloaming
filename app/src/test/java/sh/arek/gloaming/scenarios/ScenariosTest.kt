@@ -8,6 +8,7 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
 
@@ -182,6 +183,46 @@ class ScenariosTest {
                 passes.map { it.risesAt },
             )
         }
+    }
+
+    /**
+     * The opening sentence is decided by the shipped [sh.arek.gloaming.domain.Outlooks]
+     * over the same night, so a change to a gate that moves a night to a
+     * different outcome says which night and what it became.
+     */
+    @Test
+    fun `each night's outlook is the one it declares`() {
+        val wrong = Scenarios.all.filter { it.outlook != null }.mapNotNull { scenario ->
+            val outlook = Scenarios.outlook(scenario).outlook
+            "${scenario.name} reads as $outlook".takeIf { outlook::class != scenario.outlook }
+        }
+
+        assertTrue(wrong.joinToString("\n"), wrong.isEmpty())
+    }
+
+    /**
+     * Every outcome a located device can reach has a night that reaches it.
+     * Listed by hand rather than reflected, and without
+     * [Outlook.NoLocation], which is a setup prompt rather than a sentence.
+     */
+    @Test
+    fun `the catalogue covers every outlook`() {
+        val expected = setOf(
+            Outlook.CannotTell::class,
+            Outlook.AuroraNow::class,
+            Outlook.NoNight::class,
+            Outlook.Overcast::class,
+            Outlook.GoOut::class,
+            Outlook.Quiet::class,
+        )
+
+        val declared = Scenarios.all.mapNotNull { it.outlook }.toSet()
+
+        // By simple name, which needs no kotlin-reflect to print.
+        assertEquals(
+            expected.map { it.simpleName }.toSet(),
+            declared.map { it.simpleName }.toSet(),
+        )
     }
 
     /** A gap in the cloud is inside tonight's darkness or it is not a gap. */
