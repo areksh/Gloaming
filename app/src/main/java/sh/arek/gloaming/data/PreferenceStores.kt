@@ -62,6 +62,9 @@ private const val KEY_LAST_BRIGHT_ALERT_AT = "last_bright_alert_at"
 private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
 private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
+private const val KEY_LOCATION_CADENCE = "location_cadence"
+private const val KEY_LOCATION_CADENCE_HOURS = "location_cadence_hours"
+private const val KEY_LOCATION_UPDATED_AT = "location_updated_at"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
 private const val KEY_EVERY_CONSTELLATION = "show_every_constellation"
@@ -223,6 +226,15 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             } else {
                 LocationMode.Manual
             },
+            locationCadence = when (prefs.getString(KEY_LOCATION_CADENCE, null)) {
+                "manual" -> LocationCadence.Manual
+                "every" -> LocationCadence.Every(
+                    prefs.getInt(KEY_LOCATION_CADENCE_HOURS, LocationCadence.MIN_HOURS)
+                        .coerceIn(LocationCadence.MIN_HOURS, LocationCadence.MAX_HOURS),
+                )
+                else -> LocationCadence.OnOpen
+            },
+            locationUpdatedAt = prefs.getLong(KEY_LOCATION_UPDATED_AT, UNSET).takeIf { it != UNSET },
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
             showEveryConstellation = prefs.getBoolean(KEY_EVERY_CONSTELLATION, false),
@@ -318,6 +330,26 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_LIVE_MAX, settings.liveFollowMaxMinutes)
             putInt(KEY_LOG_RETENTION, settings.logRetentionDays)
             putBoolean(KEY_LOCATION_AUTOMATIC, settings.locationMode == LocationMode.Automatic)
+            when (val cadence = settings.locationCadence) {
+                LocationCadence.OnOpen -> {
+                    putString(KEY_LOCATION_CADENCE, "open")
+                    remove(KEY_LOCATION_CADENCE_HOURS)
+                }
+                LocationCadence.Manual -> {
+                    putString(KEY_LOCATION_CADENCE, "manual")
+                    remove(KEY_LOCATION_CADENCE_HOURS)
+                }
+                is LocationCadence.Every -> {
+                    putString(KEY_LOCATION_CADENCE, "every")
+                    putInt(KEY_LOCATION_CADENCE_HOURS, cadence.hours)
+                }
+            }
+            val updatedAt = settings.locationUpdatedAt
+            if (updatedAt == null) {
+                remove(KEY_LOCATION_UPDATED_AT)
+            } else {
+                putLong(KEY_LOCATION_UPDATED_AT, updatedAt)
+            }
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
             putBoolean(KEY_EVERY_EVENT, settings.notifyAboutEveryEvent)
             putBoolean(KEY_EVERY_CONSTELLATION, settings.showEveryConstellation)
@@ -389,6 +421,9 @@ internal val SETTINGS_KEYS = listOf(
     KEY_LIVE_LEAD,
     KEY_LIVE_MAX,
     KEY_LOCATION_AUTOMATIC,
+    KEY_LOCATION_CADENCE,
+    KEY_LOCATION_CADENCE_HOURS,
+    KEY_LOCATION_UPDATED_AT,
     KEY_LOG_RETENTION,
     KEY_LONGITUDE,
     KEY_MINIMUM_ELEVATION,

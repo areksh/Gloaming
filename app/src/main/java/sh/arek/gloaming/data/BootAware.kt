@@ -27,6 +27,11 @@ import kotlin.math.roundToInt
  * - **Settings used by the poll** live in device-encrypted storage only when
  *   before-unlock alerting is switched on, and then carry the observer's
  *   *grid cell* rather than the position typed in.
+ * - **The location cadence and when the position was last refreshed** are
+ *   ordinary settings, kept beside the precise position in
+ *   credential-encrypted storage (the mirror carries a copy, like the rest of
+ *   the settings). Only the background location alarm reads
+ *   them, and that only runs while unlocked.
  * - **The precise position** never leaves credential-encrypted storage, and
  *   nor does the cloud reading taken at it - see [weatherCacheContext].
  */

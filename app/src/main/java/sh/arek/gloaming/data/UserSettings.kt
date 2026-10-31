@@ -297,6 +297,12 @@ data class UserSettings(
      */
     val locationMode: LocationMode = LocationMode.Manual,
 
+    /** How often a detected position is refreshed. See [LocationCadence]. */
+    val locationCadence: LocationCadence = LocationCadence.OnOpen,
+
+    /** When the position was last refreshed, or null if it never has been. */
+    val locationUpdatedAt: Long? = null,
+
     /**
      * Kinds of event the user does not want to see or hear about.
      *

@@ -113,6 +113,8 @@ class PreferenceStoresTest {
         eventAlertLeadMinutes = 240,
         eclipseFollowMaxMinutes = 240,
         locationMode = LocationMode.Automatic,
+        locationCadence = LocationCadence.Every(12),
+        locationUpdatedAt = 1_800_000_000_000L,
         notifyAboutEveryEvent = false,
         starredEvents = setOf("SolarEclipse|1817197223000"),
         calendarSync = CalendarSync.OwnCalendar,
@@ -216,6 +218,22 @@ class PreferenceStoresTest {
         assertNull(settings.quietHours)
         assertEquals(false, settings.quietHoursOverride)
         assertEquals(false, settings.nightVision)
+    }
+
+    @Test
+    fun `reads an unknown cadence as each time the app opens`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "fortnightly").apply()
+
+        assertEquals(LocationCadence.OnOpen, PreferencesSettingsStore(prefs).read().locationCadence)
+    }
+
+    @Test
+    fun `clamps stored interval hours to one through forty-eight`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "every").putInt("location_cadence_hours", 500).apply()
+
+        assertEquals(LocationCadence.Every(48), PreferencesSettingsStore(prefs).read().locationCadence)
     }
 
     @Test
