@@ -1120,3 +1120,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0011 - a derived-settings layer rather than writing calibrated values.
 - ADR-0012 - constellations as the one exception to the star exclusion.
 - ADR-0013 - R8 on for release, with the app's own classes kept.
+- ADR-0014 - no CI: a hook and a release command.
