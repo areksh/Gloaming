@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A new look, in light and dark.** Gloaming has its own palette now: a dark
+  slate ground with the pink of the Belt of Venus as its accent by night, and a
+  light theme that follows the phone's setting for use in daylight. Everything
+  is set in Atkinson Hyperlegible Next, a typeface designed for legibility,
+  with figures that line up in columns of times; it is bundled with the app
+  under the SIL Open Font Licence, credited in full under Credits and
+  licences. Night vision is unchanged: pure red on black. Wallpaper-derived
+  colour (Android 12 and later) has been removed to make this possible, since
+  the palette is now the app's own.
 - **You choose how often the phone's approximate position is refreshed.** A
   detected position used to be read only when asked, so a phone carried to a
   dark site went on being judged at home - darkness, cloud and every pass -

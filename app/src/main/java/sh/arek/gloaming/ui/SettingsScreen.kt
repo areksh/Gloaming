@@ -51,6 +51,7 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
 import sh.arek.gloaming.domain.Recommendation
+import sh.arek.gloaming.ui.theme.LocalPalette
 
 /**
  * Everything that is a setting rather than a state of the sky.
@@ -392,7 +393,7 @@ private fun CadenceChoice(
             "Android no longer lets Gloaming read your position in the background, so it " +
                 "now updates each time you open the app.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+            color = LocalPalette.current.alarm,
         )
     }
     // Said before any interval is picked, because picking one is what brings
@@ -402,7 +403,7 @@ private fun CadenceChoice(
             "Android will ask you to allow location all the time. Choose approximate " +
                 "there too; Gloaming never asks for more.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+            color = LocalPalette.current.alarm,
         )
     }
 }
