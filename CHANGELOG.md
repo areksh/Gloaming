@@ -9,18 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The phone's approximate position can be refreshed in the background.** A
-  detected position used to be read only while the app was open, so a phone
-  carried to a dark site went on being judged at home - darkness, cloud and
-  every pass - until somebody opened the app. A cadence of whole hours, from
-  one to forty-eight, can now refresh it on an alarm of its own: one coarse
-  fix per wake from the network provider, or the platform's fused provider
-  where that is off (Android 12 and later), never GPS, never logged and never
-  sent. It needs Android's "Allow all the time" location grant, which is
-  asked for only when such a cadence is chosen; if the grant is later taken
-  away, the app goes back to refreshing when it is opened. A refresh due
-  while the phone is locked after a reboot waits for the unlock. ADR-0016
-  records why the app now declares a permission it once promised never to.
+- **You choose how often the phone's approximate position is refreshed.** A
+  detected position used to be read only when asked, so a phone carried to a
+  dark site went on being judged at home - darkness, cloud and every pass -
+  until somebody pressed the button. The location card now offers each time
+  Gloaming opens (the default), every hour, every 6 hours, once a day, any
+  whole number of hours from one to forty-eight, or only on Update now, and
+  says when the position was last updated. The intervals refresh it on an
+  alarm of their own: one coarse fix per wake from the network provider, or
+  the platform's fused provider where that is off (Android 12 and later),
+  never GPS, never logged and never sent. They need Android's "Allow all the
+  time" location grant, which is asked for only when one is picked, and the
+  card warns that Android's page will offer precise location too; if it is
+  refused, or later taken away, the app goes back to refreshing when it is
+  opened and the card says why. A refresh due while the phone is locked after
+  a reboot waits for the unlock. ADR-0016 records why the app now declares a
+  permission it once promised never to.
 
 - **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
   was judged on total cloud, so 70% cirrus over an otherwise clear sky counted

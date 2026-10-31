@@ -45,6 +45,7 @@ import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
@@ -100,6 +101,7 @@ class ScreensTest {
     private var eventHeadsUp: Int? = null
     private var eventLead: Int? = null
     private var locationMode: LocationMode? = null
+    private var cadence: LocationCadence? = null
     private var detected = 0
     private var everyEvent: Boolean? = null
     private var everyConstellation: Boolean? = null
@@ -125,6 +127,7 @@ class ScreensTest {
         watching: Boolean = false,
         logSizeBytes: Long = 0L,
         locationNote: String? = null,
+        backgroundLocationAllowed: Boolean = false,
         tonight: TonightList? = null,
         calendarName: String? = null,
         pendingVerdict: Conditions? = null,
@@ -141,8 +144,9 @@ class ScreensTest {
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Follows the retention the screen reports, as the real one
-                // does, so a test can pick a preset and see what comes next.
+                // Follows the retention and the cadence the screen reports, as
+                // the real one does, so a test can pick a preset and see what
+                // comes next.
                 var shown by remember { mutableStateOf(settings) }
                 val state = MainUiState(
                     settings = shown,
@@ -160,6 +164,7 @@ class ScreensTest {
                     watching = watching,
                     logSizeBytes = logSizeBytes,
                     locationNote = locationNote,
+                    backgroundLocationAllowed = backgroundLocationAllowed,
                     tonight = tonight,
                     calendarName = calendarName,
                     pendingVerdict = pendingVerdict,
@@ -224,6 +229,10 @@ class ScreensTest {
                     onCometStaleChange = {},
                     onCometMoonChange = { cometMoon = it },
                     onLocationModeChange = { locationMode = it },
+                    onLocationCadenceChange = {
+                        cadence = it
+                        shown = shown.copy(locationCadence = it)
+                    },
                     onDetectLocation = { detected++ },
                     onSave = {},
                 )
@@ -959,7 +968,7 @@ class ScreensTest {
     fun hidesTheTypedFieldsWhileThePhoneIsAsked() {
         show(settings = located.copy(locationMode = LocationMode.Automatic))
 
-        compose.onNodeWithText("Use my position now").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Update now").performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText("Latitude").assertCountEquals(0)
     }
 
@@ -975,15 +984,108 @@ class ScreensTest {
 
     /**
      * The promise is specific and has to be on the screen where it is made, not
-     * only in the store listing: roughly, and only while the app is open.
+     * only in the store listing: roughly, and never the GPS, whichever cadence
+     * is chosen.
      */
     @Test
     fun saysWhatItWillAndWillNotDoWithYourPosition() {
         show(settings = located.copy(locationMode = LocationMode.Automatic))
 
-        compose.onNodeWithText("never asks for your position in the background", substring = true)
+        compose.onNodeWithText("Approximate only", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
+        compose.onNodeWithText("never turns the GPS on", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** A preset is reported as a request: asking Android for more is the caller's job. */
+    @Test
+    fun choosingEverySixHoursAsksForThatCadence() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "6").performScrollTo().performClick()
+
+        assertEquals(LocationCadence.Every(6), cadence)
+    }
+
+    @Test
+    fun marksTheCadenceInForceSelected() {
+        show(
+            settings = located.copy(
+                locationMode = LocationMode.Automatic,
+                locationCadence = LocationCadence.Every(24),
+            ),
+        )
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "24").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsNotSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsNotSelected()
+    }
+
+    /** Any whole number of hours the presets miss, and nothing until it is one. */
+    @Test
+    fun aCustomIntervalIsSentOnceValid() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().performClick()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("3")
+
+        assertEquals(LocationCadence.Every(3), cadence)
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsSelected()
+
+        cadence = null
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("0")
+
+        assertEquals(null, cadence)
+        compose.onNodeWithText("Enter a whole number of hours between 1 and 48.")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** The cadence changed without anybody touching it, so the card says why. */
+    @Test
+    fun saysWhenBackgroundLocationWasTakenAway() {
+        show(
+            settings = located.copy(
+                locationMode = LocationMode.Automatic,
+                backgroundLocationRevoked = true,
+            ),
+        )
+
+        compose.onNodeWithText(
+            "Android no longer lets Gloaming read your position in the background, so it " +
+                "now updates each time you open the app.",
+        ).performScrollTo().assertIsDisplayed()
+    }
+
+    private val allTheTimeWarning = "Android will ask you to allow location all the time. " +
+        "Choose approximate there too; Gloaming never asks for more."
+
+    /** Warned before Android's own prompt arrives, so the system page is no surprise. */
+    @Test
+    fun warnsOfTheAllTheTimePromptBeforeItIsAllowed() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText(allTheTimeWarning).performScrollTo().assertIsDisplayed()
+    }
+
+    /** Once it has been answered yes there is nothing left for Android to ask. */
+    @Test
+    fun saysNothingOfThePromptOnceItIsAllowed() {
+        show(
+            settings = located.copy(locationMode = LocationMode.Automatic),
+            backgroundLocationAllowed = true,
+        )
+
+        compose.onAllNodesWithText(allTheTimeWarning).assertCountEquals(0)
+    }
+
+    @Test
+    fun saysWhenThePositionWasLastUpdated() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText("Not updated yet").performScrollTo().assertIsDisplayed()
     }
 
     /** A refusal is reported rather than left as a switch that does nothing. */

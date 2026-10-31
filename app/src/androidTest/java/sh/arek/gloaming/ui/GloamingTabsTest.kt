@@ -116,6 +116,7 @@ class GloamingTabsTest {
                 onCometStaleChange = {},
                 onCometMoonChange = {},
                 onLocationModeChange = {},
+                onLocationCadenceChange = {},
                 onDetectLocation = {},
                 onWatchingChange = {},
                 onWatchDurationChange = {},

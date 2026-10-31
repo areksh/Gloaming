@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -16,6 +17,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
@@ -39,6 +42,7 @@ import java.util.Locale
 import sh.arek.gloaming.BuildConfig
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.AlertDecision
@@ -93,6 +97,7 @@ fun SettingsContent(
     onCometStaleChange: (Int) -> Unit,
     onCometMoonChange: (Int) -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
+    onLocationCadenceChange: (LocationCadence) -> Unit,
     onDetectLocation: () -> Unit,
     onSave: () -> Unit,
 ) {
@@ -102,6 +107,7 @@ fun SettingsContent(
         onLongitudeChange,
         onSave,
         onLocationModeChange,
+        onLocationCadenceChange,
         onDetectLocation,
     )
     ThresholdCard(state, onThresholdChange, onAlertsEnabledChange)
@@ -185,6 +191,7 @@ private fun LocationCard(
     onLongitudeChange: (String) -> Unit,
     onSave: () -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
+    onLocationCadenceChange: (LocationCadence) -> Unit,
     onDetectLocation: () -> Unit,
 ) {
     val automatic = state.settings.locationMode == LocationMode.Automatic
@@ -204,7 +211,7 @@ private fun LocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Let the phone tell me", style = MaterialTheme.typography.bodyMedium)
+                Text("Ask the phone", style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = automatic,
                     onCheckedChange = {
@@ -217,23 +224,14 @@ private fun LocationCard(
             }
 
             if (automatic) {
+                // True of every cadence below, the background ones included:
+                // the background grant extends the coarse one in time, never in
+                // precision (ADR-0016).
                 Text(
-                    "Only while the app is open, and only roughly - to about a kilometre, " +
-                        "which is all any of the forecasts use. Gloaming never asks for your " +
-                        "position in the background and never turns the GPS on; it reads the " +
-                        "last position the phone already had.",
+                    "Approximate only: to within a few kilometres, which is all the sky " +
+                        "needs. Gloaming never turns the GPS on and never logs where you are.",
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Button(
-                    onClick = onDetectLocation,
-                    enabled = !state.detectingLocation,
-                    modifier = Modifier.fillMaxWidth().testTag(DETECT_LOCATION_TAG),
-                ) {
-                    Text(if (state.detectingLocation) "Looking..." else "Use my position now")
-                }
-                state.locationNote?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall)
-                }
                 Text(
                     if (state.settings.hasLocation) {
                         "Using ${coordinates(state.settings.latitude!!, state.settings.longitude!!)}."
@@ -242,10 +240,25 @@ private fun LocationCard(
                     },
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                Text(
+                    describeLocationUpdated(state.settings.locationUpdatedAt, state.nowMillis),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Button(
+                    onClick = onDetectLocation,
+                    enabled = !state.detectingLocation,
+                    modifier = Modifier.fillMaxWidth().testTag(DETECT_LOCATION_TAG),
+                ) {
+                    Text(if (state.detectingLocation) "Looking..." else "Update now")
+                }
+                state.locationNote?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall)
+                }
+                CadenceChoice(state, onLocationCadenceChange)
             } else {
                 Text(
-                    "North and east are positive. Typing it in is also how you ask about " +
-                        "somewhere you are not.",
+                    "Nothing is asked of the phone at all. North and east are positive. " +
+                        "Typing it in is also how you ask about somewhere you are not.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 OutlinedTextField(
@@ -268,6 +281,142 @@ private fun LocationCard(
             }
         }
     }
+}
+
+/**
+ * How often a detected position is refreshed: the presets, then any whole
+ * number of hours.
+ *
+ * Each choice is reported rather than acted on. A background cadence needs a
+ * grant Android asks for in its own words, and the caller owns that exchange
+ * and decides what is stored if the answer is no - so what is marked here is
+ * always the cadence in force, not the last one tapped.
+ */
+@Composable
+private fun CadenceChoice(
+    state: MainUiState,
+    onLocationCadenceChange: (LocationCadence) -> Unit,
+) {
+    val cadence = state.settings.locationCadence
+    val storedCustom = cadence is LocationCadence.Every && cadence !in LocationCadence.PRESETS
+    var customOpen by remember { mutableStateOf(storedCustom) }
+    var customInput by remember {
+        mutableStateOf((cadence as? LocationCadence.Every)?.hours?.toString().orEmpty())
+    }
+    val customHours = LocationCadence.parseHours(customInput)
+    // Custom stays marked while somebody is typing into it, even through a
+    // number that happens to be a preset. It lets go once the cadence in force
+    // is no longer an interval at all - a refused grant puts it back to opening
+    // the app, and the field would otherwise go on claiming a cadence that is
+    // not running.
+    val customSelected = storedCustom ||
+        (customOpen && (cadence is LocationCadence.Every || customHours == null))
+
+    Text("How often", style = MaterialTheme.typography.bodyMedium)
+    for (option in LocationCadence.PRESETS) {
+        CadenceRow(
+            label = describeCadence(option),
+            detail = cadenceDetail(option),
+            selected = !customSelected && cadence == option,
+            tag = CADENCE_TAG_PREFIX + cadenceTagSuffix(option),
+            onClick = {
+                customOpen = false
+                onLocationCadenceChange(option)
+            },
+        )
+    }
+    CadenceRow(
+        label = "Custom",
+        detail = null,
+        selected = customSelected,
+        tag = CADENCE_TAG_PREFIX + "custom",
+        onClick = {
+            customInput = (cadence as? LocationCadence.Every)?.hours?.toString().orEmpty()
+            customOpen = true
+        },
+    )
+    if (customSelected) {
+        OutlinedTextField(
+            value = customInput,
+            onValueChange = {
+                customInput = it
+                LocationCadence.parseHours(it)?.let { hours ->
+                    onLocationCadenceChange(LocationCadence.Every(hours))
+                }
+            },
+            label = { Text("Hours") },
+            singleLine = true,
+            isError = customHours == null,
+            supportingText = if (customHours == null) {
+                {
+                    Text(
+                        "Enter a whole number of hours between ${LocationCadence.MIN_HOURS} " +
+                            "and ${LocationCadence.MAX_HOURS}.",
+                    )
+                }
+            } else {
+                null
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag(CADENCE_HOURS_FIELD_TAG),
+        )
+    }
+
+    if (state.settings.backgroundLocationRevoked) {
+        Text(
+            "Android no longer lets Gloaming read your position in the background, so it " +
+                "now updates each time you open the app.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+    // Said before any interval is picked, because picking one is what brings
+    // up Android's page, and that page offers precise location too.
+    if (!state.backgroundLocationAllowed) {
+        Text(
+            "Android will ask you to allow location all the time. Choose approximate " +
+                "there too; Gloaming never asks for more.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+@Composable
+private fun CadenceRow(
+    label: String,
+    detail: String?,
+    selected: Boolean,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+/** Why somebody would pick a cadence, where the label alone does not say. */
+private fun cadenceDetail(cadence: LocationCadence): String? = when (cadence) {
+    LocationCadence.OnOpen -> "Enough if you mostly watch from home."
+    LocationCadence.Every(6) -> "Keeps alerts right when you travel without opening the app."
+    LocationCadence.Every(24) -> "Keeps up with you on trips, using less battery."
+    else -> null
+}
+
+private fun cadenceTagSuffix(cadence: LocationCadence): String = when (cadence) {
+    LocationCadence.OnOpen -> "open"
+    LocationCadence.Manual -> "manual"
+    is LocationCadence.Every -> cadence.hours.toString()
 }
 
 @Composable
@@ -660,6 +809,9 @@ const val LOG_RETENTION_CUSTOM_TAG = "log-retention-custom"
 const val LOG_RETENTION_FIELD_TAG = "log-retention-field"
 const val EVERY_EVENT_SWITCH_TAG = "every-event-switch"
 const val DETECT_LOCATION_TAG = "detect-location"
+/** A cadence row: the prefix, then "open", "manual", "custom" or its hours. */
+const val CADENCE_TAG_PREFIX = "cadence:"
+const val CADENCE_HOURS_FIELD_TAG = "cadence-hours-field"
 
 /** How a chip in a [ChoiceRow] is reached from a test. */
 fun choiceTag(label: String, rendered: String): String = "choice:$label:$rendered"

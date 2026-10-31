@@ -24,6 +24,7 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.Answer
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
 
@@ -98,6 +99,7 @@ fun GloamingTabs(
     onCometStaleChange: (Int) -> Unit,
     onCometMoonChange: (Int) -> Unit,
     onLocationModeChange: (LocationMode) -> Unit,
+    onLocationCadenceChange: (LocationCadence) -> Unit,
     onDetectLocation: () -> Unit,
     onWatchingChange: (Boolean) -> Unit,
     onWatchDurationChange: (WatchDuration) -> Unit,
@@ -229,6 +231,7 @@ fun GloamingTabs(
                         onCometStaleChange = onCometStaleChange,
                         onCometMoonChange = onCometMoonChange,
                         onLocationModeChange = onLocationModeChange,
+                        onLocationCadenceChange = onLocationCadenceChange,
                         onDetectLocation = onDetectLocation,
                         onSave = onSave,
                     )

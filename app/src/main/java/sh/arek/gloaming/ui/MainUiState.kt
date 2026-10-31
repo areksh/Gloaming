@@ -97,6 +97,12 @@ data class MainUiState(
      */
     val locationNote: String? = null,
     /**
+     * Whether Android already lets the position be read in the background, so
+     * the card can warn about the "all the time" prompt only while there is
+     * still one to come.
+     */
+    val backgroundLocationAllowed: Boolean = false,
+    /**
      * The calendar starred events are being written into, by name.
      *
      * Named because "your default calendar" on a phone with four of them is not

@@ -53,10 +53,13 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.QuietHours
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.Verdict
+import sh.arek.gloaming.data.isDue
+import sh.arek.gloaming.data.runsInBackground
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
@@ -350,6 +353,9 @@ private fun GloamingApp() {
     var calendarNonce by remember { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
     var locationNote by remember { mutableStateOf<String?>(null) }
+    var backgroundLocationOk by remember {
+        mutableStateOf(AndroidLocationSource.hasBackgroundPermission(context))
+    }
 
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryOk by remember { mutableStateOf(batteryExempt()) }
@@ -382,6 +388,7 @@ private fun GloamingApp() {
                 alertState = stateStore.read()
                 batteryOk = batteryExempt()
                 notificationsOk = notificationsAllowed()
+                backgroundLocationOk = AndroidLocationSource.hasBackgroundPermission(context)
                 saverOn = powerSaveMode()
                 watching = StormService.running
                 darkness = darknessHere()
@@ -577,6 +584,77 @@ private fun GloamingApp() {
             saveSettings(settings)
             locationNote = "Location permission was declined, so Gloaming will keep using " +
                 "the position you type in."
+        }
+    }
+
+    // Opening the app is a refresh for every cadence that counts it as one:
+    // each time for the default, and for an interval only once it is due, so
+    // a phone opened often does not ask the system more than it was told to.
+    // Read from the store rather than the screen's copy, which is brought
+    // forward only on resume and so after this.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val stored = settingsStore.read()
+            if (stored.locationMode == LocationMode.Automatic &&
+                AndroidLocationSource.hasPermission(context) &&
+                stored.locationCadence.isDue(stored.locationUpdatedAt, System.currentTimeMillis())
+            ) {
+                detectLocation()
+            }
+        }
+    }
+
+    /** The cadence a background grant is being asked for, while Android has the question. */
+    var pendingCadence by remember { mutableStateOf<LocationCadence?>(null) }
+
+    fun backgroundMissing(): List<String> = AndroidLocationSource.backgroundRequest(
+        sdk = Build.VERSION.SDK_INT,
+        coarseGranted = AndroidLocationSource.hasPermission(context),
+        backgroundGranted = AndroidLocationSource.hasBackgroundPermission(context),
+    )
+
+    /**
+     * Stores the cadence somebody picked.
+     *
+     * Picking one is the answer to a withdrawn grant as well, so the note
+     * about that goes with it.
+     */
+    fun chooseCadence(cadence: LocationCadence) {
+        settings = settings.copy(locationCadence = cadence, backgroundLocationRevoked = false)
+        saveSettings(settings)
+        locationNote = null
+    }
+
+    /** Android has answered its last question about the background grant. */
+    fun settleBackground() {
+        val cadence = pendingCadence ?: return
+        pendingCadence = null
+        backgroundLocationOk = AndroidLocationSource.hasBackgroundPermission(context)
+        if (backgroundMissing().isEmpty()) {
+            chooseCadence(cadence)
+        } else {
+            // Back to the cadence that needs nothing more, rather than an
+            // interval that would wake only to find it may not ask.
+            chooseCadence(LocationCadence.OnOpen)
+            locationNote = "Background location was not allowed, so Gloaming will update " +
+                "each time you open it."
+        }
+    }
+
+    val backgroundPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { settleBackground() }
+
+    // From Android 11 the background grant cannot be asked for alongside the
+    // coarse one, so coarse goes first and background follows on its own.
+    val coarseBeforeBackground = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        val next = backgroundMissing()
+        if (pendingCadence != null && next == listOf(AndroidLocationSource.BACKGROUND_PERMISSION)) {
+            backgroundPermission.launch(next.toTypedArray())
+        } else {
+            settleBackground()
         }
     }
 
@@ -804,6 +882,7 @@ private fun GloamingApp() {
                     tonight = tonight,
                     detectingLocation = detectingLocation,
                     locationNote = locationNote,
+                    backgroundLocationAllowed = backgroundLocationOk,
                     calendarName = calendarName,
                     calendarNote = calendarNote,
                     pendingVerdict = Conditions.decode(alertState.pendingVerdict),
@@ -1089,6 +1168,21 @@ private fun GloamingApp() {
                         calendarNote = null
                         if (destination == CalendarSync.Off) calendarName = null
                         syncCalendar(settings)
+                    }
+                },
+                onLocationCadenceChange = { cadence ->
+                    val missing = backgroundMissing()
+                    if (!cadence.runsInBackground || missing.isEmpty()) {
+                        chooseCadence(cadence)
+                    } else {
+                        // Asked at the moment an interval is picked, with the
+                        // card's warning about Android's page on screen behind it.
+                        pendingCadence = cadence
+                        if (missing == listOf(AndroidLocationSource.PERMISSION)) {
+                            coarseBeforeBackground.launch(missing.toTypedArray())
+                        } else {
+                            backgroundPermission.launch(missing.toTypedArray())
+                        }
                     }
                 },
                 onDetectLocation = { detectLocation() },

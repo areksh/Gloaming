@@ -1,11 +1,16 @@
 package sh.arek.gloaming.ui
 
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
@@ -504,4 +509,37 @@ fun describeMissingElements(everChecked: Boolean, failure: String?): SatellitesN
             "what is crossing tonight. Press Check now to try again.",
         alarming = true,
     )
+}
+
+/** How often the phone's position is refreshed, as the location card offers it. */
+fun describeCadence(cadence: LocationCadence): String = when (cadence) {
+    LocationCadence.OnOpen -> "Each time you open Gloaming"
+    LocationCadence.Manual -> "Only when you tap Update now"
+    is LocationCadence.Every -> when (cadence.hours) {
+        1 -> "Every hour"
+        24 -> "Once a day"
+        else -> "Every ${cadence.hours} hours"
+    }
+}
+
+/**
+ * When the detected position was last refreshed.
+ *
+ * The time alone for today, and the date as well otherwise, judged in the
+ * phone's own zone: a refresh from the background is the one thing on the card
+ * that changes while nobody is looking, so it says when.
+ */
+fun describeLocationUpdated(updatedAt: Long?, now: Long): String {
+    if (updatedAt == null) return "Not updated yet"
+    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(updatedAt))
+    if (sameLocalDay(updatedAt, now)) return "Last updated at $time"
+    val date = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(updatedAt))
+    return "Last updated $date at $time"
+}
+
+private fun sameLocalDay(a: Long, b: Long): Boolean {
+    val first = Calendar.getInstance().apply { timeInMillis = a }
+    val second = Calendar.getInstance().apply { timeInMillis = b }
+    return first.get(Calendar.YEAR) == second.get(Calendar.YEAR) &&
+        first.get(Calendar.DAY_OF_YEAR) == second.get(Calendar.DAY_OF_YEAR)
 }

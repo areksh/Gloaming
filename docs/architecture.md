@@ -351,6 +351,15 @@ is a file replacement.
   `backgroundLocationRevoked` for the screen to explain. The journal says
   whether a refresh happened, never where.
 
+  The cadence is picked on the settings screen's location card, which reports
+  the choice and leaves the asking to `MainActivity`: an interval without the
+  background grant asks Android for it first - one request for both grants on
+  API 29, coarse and then background on its own from API 30 (which Android
+  answers with its settings page), nothing below 29 - as
+  `AndroidLocationSource.backgroundRequest` works out. A refusal stores "each
+  time you open Gloaming" and says so; picking any cadence clears
+  `backgroundLocationRevoked`. Opening the app detects the position when the
+  cadence says it is due, read from the store rather than the screen's copy.
   Every save from the screen goes through `LocationRefresh.keepNewerFix`, so a
   screen brought forward before a background refresh landed cannot write the
   older position back over the newer one.

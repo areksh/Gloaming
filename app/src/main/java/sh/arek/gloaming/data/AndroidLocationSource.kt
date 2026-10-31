@@ -115,6 +115,9 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
          */
         const val PERMISSION: String = Manifest.permission.ACCESS_COARSE_LOCATION
 
+        /** The coarse grant, extended in time for a cadence the user chose (ADR-0016). */
+        const val BACKGROUND_PERMISSION: String = Manifest.permission.ACCESS_BACKGROUND_LOCATION
+
         /**
          * Whether a receiver may ask for a position with no screen open. Below
          * API 29 the coarse grant already covers it.
@@ -125,6 +128,28 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
                     context,
                     Manifest.permission.ACCESS_BACKGROUND_LOCATION,
                 ) == PackageManager.PERMISSION_GRANTED
+
+        /**
+         * What to ask for so a background cadence can run, or nothing if it
+         * already can.
+         *
+         * Below API 29 the coarse grant covers the background too. On 29 both
+         * go in one request. From 30 Android refuses a background request
+         * made alongside the coarse one, so coarse is asked for first and
+         * background on its own afterwards - which Android answers by sending
+         * the user to its settings page rather than with a dialog.
+         */
+        fun backgroundRequest(
+            sdk: Int,
+            coarseGranted: Boolean,
+            backgroundGranted: Boolean,
+        ): List<String> = when {
+            sdk < Build.VERSION_CODES.Q -> if (coarseGranted) emptyList() else listOf(PERMISSION)
+            coarseGranted && backgroundGranted -> emptyList()
+            sdk == Build.VERSION_CODES.Q -> listOf(PERMISSION, BACKGROUND_PERMISSION)
+            !coarseGranted -> listOf(PERMISSION)
+            else -> listOf(BACKGROUND_PERMISSION)
+        }
 
         fun hasPermission(context: Context): Boolean =
             ContextCompat.checkSelfPermission(context, PERMISSION) ==
