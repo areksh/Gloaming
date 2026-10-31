@@ -319,4 +319,27 @@ class TwilightTest {
             0.0,
         )
     }
+
+    /** Published Edinburgh times, 15:39 on the 14th and 08:39 on the 15th UTC, within two minutes. */
+    @Test
+    fun `finds sunset and sunrise around a December night`() {
+        val night = Twilight.nightAhead(55.9533, -3.1883, at("2026-12-14T12:00:00Z"))!!
+
+        val sun = Twilight.sunTimes(55.9533, -3.1883, night)
+
+        val twoMinutes = 2 * 60 * 1000L
+        assertTrue("sunset ${sun.setsAt}", abs(sun.setsAt!! - at("2026-12-14T15:39:00Z")) <= twoMinutes)
+        assertTrue("sunrise ${sun.risesAt}", abs(sun.risesAt!! - at("2026-12-15T08:39:00Z")) <= twoMinutes)
+    }
+
+    /** Midsummer on Svalbard: the sun neither sets nor rises, which is an answer. */
+    @Test
+    fun `finds neither sunset nor sunrise in the midnight sun`() {
+        val night = at("2026-06-21T20:00:00Z")..at("2026-06-22T04:00:00Z")
+
+        val sun = Twilight.sunTimes(78.2, 15.6, night)
+
+        assertNull(sun.setsAt)
+        assertNull(sun.risesAt)
+    }
 }
