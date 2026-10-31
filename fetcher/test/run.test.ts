@@ -21,6 +21,10 @@ class MemoryStore implements ObjectStore {
   async put(key: string, body: string, options: PutOptions = {}): Promise<void> {
     this.objects.set(key, { body, options });
   }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
 }
 
 const HEADER =
@@ -243,6 +247,7 @@ describe("run", () => {
       put: async () => {
         throw new Error("R2 PUT failed", { cause: new Error("the signing key was rejected") });
       },
+      delete: async () => {},
     };
     const net = network(200, groups);
 
@@ -264,6 +269,9 @@ describe("run", () => {
       },
       put: async () => {
         throw new Error("R2 PUT returned 400");
+      },
+      delete: async () => {
+        throw new Error("R2 DELETE returned 400");
       },
     };
     const net = network(200, groups);

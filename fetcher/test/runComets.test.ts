@@ -20,6 +20,10 @@ class MemoryStore implements ObjectStore {
   async put(key: string, body: string, options: PutOptions = {}): Promise<void> {
     this.objects.set(key, { body, options });
   }
+
+  async delete(key: string): Promise<void> {
+    this.objects.delete(key);
+  }
 }
 
 const LEMMON =

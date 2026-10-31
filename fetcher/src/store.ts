@@ -11,6 +11,7 @@ import { explainFailure } from "../../worker/src/network";
 export interface ObjectStore {
   get(key: string): Promise<string | null>;
   put(key: string, body: string, options?: PutOptions): Promise<void>;
+  delete(key: string): Promise<void>;
 }
 
 export interface PutOptions {
@@ -110,6 +111,13 @@ export class R2Store implements ObjectStore {
     const response = await this.send(key, { method: "PUT", body, headers });
     if (!response.ok) {
       throw new Error(`R2 PUT ${key} returned ${response.status}`);
+    }
+  }
+
+  async delete(key: string): Promise<void> {
+    const response = await this.send(key, { method: "DELETE" });
+    if (!response.ok) {
+      throw new Error(`R2 DELETE ${key} returned ${response.status}`);
     }
   }
 }

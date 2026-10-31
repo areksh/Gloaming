@@ -90,6 +90,26 @@ describe("R2Store", () => {
     await expect(new R2Store(credentials).put("v1/sats.json", "{}")).rejects.toThrow(/500/);
   });
 
+  // S3 answers a delete with 204 whether or not the object was there.
+  it("deletes an object", async () => {
+    stubFetch(() => new Response(null, { status: 204 }));
+
+    await new R2Store(credentials).delete("internal/breaker/celestrak.json");
+
+    expect(calls[0]!.method).toBe("DELETE");
+    expect(calls[0]!.url).toBe(
+      "https://abc123.r2.cloudflarestorage.com/gloaming-data/internal/breaker/celestrak.json",
+    );
+  });
+
+  it("raises when a delete is refused", async () => {
+    stubFetch(() => new Response("denied", { status: 403 }));
+
+    await expect(
+      new R2Store(credentials).delete("internal/breaker/celestrak.json"),
+    ).rejects.toThrow(/403/);
+  });
+
   /**
    * R2 being unreachable and an upstream being unreachable are reported
    * identically by Node - `fetch failed`, with the reason nested underneath -
