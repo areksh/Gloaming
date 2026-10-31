@@ -71,7 +71,8 @@ object NightTimeline {
 
     /**
      * Null when there is no sunset or no sunrise to bound the night - the
-     * midnight sun, the polar night, or no position at all.
+     * midnight sun, the polar night, or no position at all. A night with
+     * no civil darkness but a sunset and sunrise still has a timeline.
      *
      * Passes are the list's best ones only, so every pass row has a verdict
      * from the outlook to match. Passes and events match a verdict on subject
@@ -87,10 +88,18 @@ object NightTimeline {
     ): Timeline? {
         val latitude = settings.latitude ?: return null
         val longitude = settings.longitude ?: return null
-        val darkFrom = list.darkFrom ?: return null
-        val darkUntil = list.darkUntil ?: return null
+        val darkFrom = list.darkFrom
+        val darkUntil = list.darkUntil
 
-        val sun = Twilight.sunTimes(latitude, longitude, darkFrom..darkUntil)
+        // Without civil darkness (a northern midsummer) the sun still sets and
+        // rises, so the night is anchored on now: the coming sunset and the
+        // sunrise after it.
+        val night = if (darkFrom != null && darkUntil != null) {
+            darkFrom..darkUntil
+        } else {
+            nowMillis..(nowMillis + 24 * HOUR_MILLIS)
+        }
+        val sun = Twilight.sunTimes(latitude, longitude, night)
         val start = sun.setsAt ?: return null
         val end = sun.risesAt ?: return null
         if (end <= start) return null
@@ -111,7 +120,7 @@ object NightTimeline {
         }
 
         row(start, "Sunset", RowSubject.Twilight)
-        row(darkFrom, "Dark enough for aurora", RowSubject.Twilight)
+        darkFrom?.let { row(it, "Dark enough for aurora", RowSubject.Twilight) }
         list.darkestFrom?.takeIf { it != darkFrom }?.let { row(it, "Fully dark", RowSubject.Twilight) }
 
         for (pass in list.bestPasses) {
@@ -159,7 +168,7 @@ object NightTimeline {
             if (!spell.allNight && spell.until < end) row(spell.until, "Cloud returns", RowSubject.Clear)
         }
 
-        (list.darkestUntil ?: darkUntil).let { row(it, "First light", RowSubject.Twilight) }
+        (list.darkestUntil ?: darkUntil)?.let { row(it, "First light", RowSubject.Twilight) }
         row(end, "Sunrise", RowSubject.Twilight)
 
         return Timeline(

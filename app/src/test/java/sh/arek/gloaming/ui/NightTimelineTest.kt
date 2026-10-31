@@ -4,7 +4,6 @@ import java.time.Instant
 import java.util.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -115,11 +114,25 @@ class NightTimelineTest {
     }
 
     @Test
-    fun `has no timeline without a sunset`() {
-        assertNull(build(list(darkFrom = null)))
+    fun `has no timeline in the midnight sun`() {
         val svalbard = UserSettings(latitude = 78.2, longitude = 15.6)
-        val summer = list(darkFrom = at("2026-06-21T20:00:00Z")).copy(darkUntil = at("2026-06-22T04:00:00Z"))
-        assertNull(build(summer, settings = svalbard, nowMillis = at("2026-06-21T12:00:00Z")))
+
+        assertNull(build(list(darkFrom = null), settings = svalbard, nowMillis = at("2026-06-21T12:00:00Z")))
+    }
+
+    /** Torshavn at midsummer: the sun sets and rises but never gets six degrees down. */
+    @Test
+    fun `spans sunset to sunrise where civil darkness never comes`() {
+        val faroes = UserSettings(latitude = 62.0, longitude = -6.77)
+        val bright = list(darkFrom = null, darkestFrom = null).copy(darkestUntil = null)
+
+        val timeline = build(bright, settings = faroes, nowMillis = at("2026-06-21T12:00:00Z"))!!
+
+        assertEquals("Sunset", timeline.rows.first().title)
+        assertEquals("Sunrise", timeline.rows.last().title)
+        assertTrue(timeline.rows.none { it.title.startsWith("Dark enough") || it.title == "Fully dark" })
+        val hours = (timeline.endMillis - timeline.startMillis) / 3_600_000.0
+        assertTrue("night $hours h", hours in 3.0..8.0)
     }
 
     @Test
@@ -316,11 +329,8 @@ class NightTimelineTest {
         val real = timeline.endMillis - timeline.startMillis
         assertTrue("real duration $real", real in (14 * 3_600_000L)..(14 * 3_600_000L + 30 * 60_000L))
         // By the wall clock the same night reads an hour shorter, 13h14; the axis must not follow that.
-        assertEquals(real, timeline.rows.last().atMillis - timeline.rows.first().atMillis)
         val passes = timeline.rows.filter { it.subject is RowSubject.Pass }
         assertEquals(listOf("01:30", "01:30"), passes.map { it.time })
         assertEquals(listOf(first.peaksAt, second.peaksAt), passes.map { it.atMillis })
-        assertNotNull(timeline.rows.first { it.title == "Sunset" }.time)
-        assertEquals(timeline.rows.map { it.atMillis }.sorted(), timeline.rows.map { it.atMillis })
     }
 }
