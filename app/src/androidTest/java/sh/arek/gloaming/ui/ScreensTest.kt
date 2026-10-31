@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -622,6 +623,30 @@ class ScreensTest {
         compose.onNodeWithTag(choiceTag("Keep", "Off")).performScrollTo().performClick()
 
         assertEquals(0, logRetention)
+    }
+
+    /** Any number of days up to a year, for somebody the presets do not suit. */
+    @Test
+    fun savesACustomRetentionOnceItIsAValidNumber() {
+        show(logSizeBytes = 2048)
+
+        compose.onNodeWithTag(LOG_RETENTION_CUSTOM_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(LOG_RETENTION_FIELD_TAG).performScrollTo().performTextReplacement("30")
+
+        assertEquals(30, logRetention)
+    }
+
+    @Test
+    fun saysSoAndSavesNothingForAnOutOfRangeRetention() {
+        show(logSizeBytes = 2048)
+
+        compose.onNodeWithTag(LOG_RETENTION_CUSTOM_TAG).performScrollTo().performClick()
+        compose.onNodeWithTag(LOG_RETENTION_FIELD_TAG).performScrollTo().performTextReplacement("400")
+
+        assertEquals(null, logRetention)
+        compose.onNodeWithText("Enter a whole number of days between 1 and 365.")
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test

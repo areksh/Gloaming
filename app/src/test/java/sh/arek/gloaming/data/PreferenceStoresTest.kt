@@ -12,6 +12,23 @@ class PreferenceStoresTest {
 
     private fun settingsStore() = PreferencesSettingsStore(FakeSharedPreferences())
 
+    @Test
+    fun `keeps a custom retention`() {
+        val store = settingsStore()
+
+        store.write(UserSettings(logRetentionDays = 30))
+
+        assertEquals(30, store.read().logRetentionDays)
+    }
+
+    @Test
+    fun `clamps a stored retention beyond a year`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putInt("log_retention_days", 9999).commit()
+
+        assertEquals(365, PreferencesSettingsStore(prefs).read().logRetentionDays)
+    }
+
     /**
      * The position must come back exactly as typed.
      *

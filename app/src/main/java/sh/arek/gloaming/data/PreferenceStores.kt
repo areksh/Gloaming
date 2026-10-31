@@ -256,7 +256,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             logRetentionDays = prefs.getInt(
                 KEY_LOG_RETENTION,
                 UserSettings.DEFAULT_LOG_RETENTION_DAYS,
-            ),
+            ).coerceIn(0, UserSettings.MAX_LOG_RETENTION_DAYS),
             cometMagnitudeThreshold = prefs.getInt(
                 KEY_COMET_MAGNITUDE,
                 UserSettings.DEFAULT_COMET_MAGNITUDE,

@@ -654,6 +654,8 @@ private fun InterruptionCard(
 @OptIn(ExperimentalLayoutApi::class)
 /** The location controls, which sit beside sentences rather than values. */
 const val LOCATION_MODE_SWITCH_TAG = "location-mode-switch"
+const val LOG_RETENTION_CUSTOM_TAG = "log-retention-custom"
+const val LOG_RETENTION_FIELD_TAG = "log-retention-field"
 const val EVERY_EVENT_SWITCH_TAG = "every-event-switch"
 const val DETECT_LOCATION_TAG = "detect-location"
 
@@ -927,6 +929,9 @@ private fun LogCard(
     onExportLog: () -> Unit,
     onClearLog: () -> Unit,
 ) {
+    val days = state.settings.logRetentionDays
+    var customOpen by remember { mutableStateOf(days !in UserSettings.LOG_RETENTION_CHOICES) }
+    var customInput by remember { mutableStateOf(if (days > 0) days.toString() else "") }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Gloaming's own log", style = MaterialTheme.typography.titleMedium)
@@ -942,8 +947,44 @@ private fun LogCard(
                 value = describeRetention(state.settings.logRetentionDays),
                 choices = UserSettings.LOG_RETENTION_CHOICES,
                 render = { if (it == 0) "Off" else "${it}d" },
-                onChange = onLogRetentionChange,
+                onChange = {
+                    customOpen = false
+                    onLogRetentionChange(it)
+                },
             )
+
+            // A preset the person typed is still a custom entry while they are
+            // editing it, so this is a flag and not "is the value a preset".
+            OutlinedButton(
+                onClick = { customOpen = true },
+                modifier = Modifier.testTag(LOG_RETENTION_CUSTOM_TAG),
+            ) {
+                Text("Custom")
+            }
+            if (customOpen) {
+                OutlinedTextField(
+                    value = customInput,
+                    onValueChange = {
+                        customInput = it
+                        UserSettings.parseLogRetention(it)?.let(onLogRetentionChange)
+                    },
+                    label = { Text("Days") },
+                    singleLine = true,
+                    isError = UserSettings.parseLogRetention(customInput) == null,
+                    supportingText = if (UserSettings.parseLogRetention(customInput) == null) {
+                        {
+                            Text(
+                                "Enter a whole number of days between 1 and " +
+                                    "${UserSettings.MAX_LOG_RETENTION_DAYS}.",
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth().testTag(LOG_RETENTION_FIELD_TAG),
+                )
+            }
 
             Text(
                 "It records decisions - what was checked, what was announced, when the " +

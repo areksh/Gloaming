@@ -558,6 +558,13 @@ data class UserSettings(
         /** What the retention control offers, in days. Zero means keep none. */
         val LOG_RETENTION_CHOICES = listOf(0, 1, 3, 7, 14)
 
+        /** The longest the log may be kept, which the custom entry and a stored value are held to. */
+        const val MAX_LOG_RETENTION_DAYS = 365
+
+        /** Whole days from one to [MAX_LOG_RETENTION_DAYS], or null for anything else. */
+        fun parseLogRetention(input: String): Int? =
+            input.trim().toIntOrNull()?.takeIf { it in 1..MAX_LOG_RETENTION_DAYS }
+
         /** Two days: long enough to change plans, short enough to still be the same week. */
         const val DEFAULT_EVENT_HEADS_UP_DAYS = 2
 

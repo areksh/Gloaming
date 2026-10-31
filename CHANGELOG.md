@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The log can be kept for any number of days up to a year.** The retention
+  control offered 1, 3, 7 and 14 days, which suits nobody chasing a fault that
+  only shows up once a month. A Custom choice takes any whole number of days
+  from 1 to 365 and says so plainly when the number is outside that; a stored
+  value beyond a year is held to a year on read.
+
 - **The journal says when a poll was killed, and when a wake arrived late.**
   Two things it could previously only imply. A `goAsync` broadcast is killed at
   sixty seconds without running its `finally`, so a killed poll wrote whichever
