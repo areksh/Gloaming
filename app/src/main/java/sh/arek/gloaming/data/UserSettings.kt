@@ -101,7 +101,11 @@ enum class LocationMode {
     /** Typed in. The default, and the one that always works. */
     Manual,
 
-    /** Read from the device when the app is open. Never in the background. */
+    /**
+     * Read from the device: when the app is opened, when asked, or in the
+     * background on an interval the user chose - see [LocationCadence] and
+     * ADR-0016. Coarse in every case.
+     */
     Automatic,
 }
 
@@ -302,6 +306,14 @@ data class UserSettings(
 
     /** When the position was last refreshed, or null if it never has been. */
     val locationUpdatedAt: Long? = null,
+
+    /**
+     * Set when a background refresh found the permission it needs had been
+     * taken away, and so put the cadence back to [LocationCadence.OnOpen].
+     * Kept so the screen can say why the choice changed under the user;
+     * cleared when they choose a cadence again.
+     */
+    val backgroundLocationRevoked: Boolean = false,
 
     /**
      * Kinds of event the user does not want to see or hear about.

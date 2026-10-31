@@ -747,11 +747,16 @@ permanently denied.
   the app is open; the detected position is then stored and every scheduled wake uses that,
   exactly as it uses a typed-in one. This is the difference between a convenience and
   tracking, and it also sidesteps the Android 10 background-location grant, which most of
-  this audience would refuse and be right to.
+  this audience would refuse and be right to. **Superseded 2026-10-31 by ADR-0016:** the
+  user may now choose to have the coarse position refreshed in the background on a cadence
+  they pick. It stays off unless chosen, coarse, unlogged and never sent; a position
+  stored at home while the phone sits at a dark site was the failure that outweighed it.
 - **Last-known fixes only; no location updates are requested.** Gloaming never turns the GPS
   on, so asking costs no battery: it reads positions other apps have already caused the
   system to record. The cost is that the answer is sometimes nothing, which is reported
-  plainly rather than papered over.
+  plainly rather than papered over. The background refresh is the one exception: it asks
+  the network provider for a single approximate fix per wake, with a timeout, and still
+  subscribes to nothing.
 
 A fix is refused if it is over half an hour old, vaguer than fifty kilometres, or at
 exactly zero. The staleness rule matters most: somebody drives out of town to a dark site,

@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
+import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CometRepository
 import sh.arek.gloaming.data.FileCometCache
@@ -14,6 +15,7 @@ import sh.arek.gloaming.data.FileVerdictLog
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.Journal
+import sh.arek.gloaming.data.LocationSource
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
 import sh.arek.gloaming.data.PreferencesAlertStateStore
@@ -311,4 +313,8 @@ object Graph {
 
     fun calendarWriter(context: Context): CalendarWriter =
         AndroidCalendarWriter(context.applicationContext)
+
+    /** The phone's own position, for the background refresh. See [AndroidLocationSource]. */
+    fun locationSource(context: Context): LocationSource =
+        AndroidLocationSource(context.applicationContext)
 }

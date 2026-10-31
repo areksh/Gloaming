@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The phone's approximate position can be refreshed in the background.** A
+  detected position used to be read only while the app was open, so a phone
+  carried to a dark site went on being judged at home - darkness, cloud and
+  every pass - until somebody opened the app. A cadence of whole hours, from
+  one to forty-eight, can now refresh it on an alarm of its own: one coarse
+  fix per wake from the network provider, never GPS, never logged and never
+  sent. It needs Android's "Allow all the time" location grant, which is
+  asked for only when such a cadence is chosen; if the grant is later taken
+  away, the app goes back to refreshing when it is opened. A refresh due
+  while the phone is locked after a reboot waits for the unlock. ADR-0016
+  records why the app now declares a permission it once promised never to.
+
 - **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
   was judged on total cloud, so 70% cirrus over an otherwise clear sky counted
   as closed to a planet or a pass that shines straight through it. The hourly

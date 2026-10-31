@@ -76,6 +76,7 @@ import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.ui.theme.GloamingTheme
+import sh.arek.gloaming.work.LocationAlarm
 import sh.arek.gloaming.work.PassAlarm
 import sh.arek.gloaming.work.PollAlarm
 import sh.arek.gloaming.work.Refresh
@@ -276,6 +277,17 @@ private fun GloamingApp() {
         mutableStateOf(formatTimeOfDay(settings.quietHours?.endMinute ?: DEFAULT_QUIET_UNTIL))
     }
 
+    /**
+     * Every save from this screen, so the background location alarm always
+     * follows what was saved. Arming is idempotent and cheap - one slot,
+     * replaced or cancelled - so it is not worth deciding which saves could
+     * have changed the cadence or the mode.
+     */
+    fun saveSettings(user: UserSettings) {
+        BootAware.saveSettings(context, user)
+        LocationAlarm.arm(context, user)
+    }
+
     fun batteryExempt(): Boolean {
         val power = context.getSystemService(PowerManager::class.java)
         return power?.isIgnoringBatteryOptimizations(context.packageName) ?: true
@@ -466,7 +478,7 @@ private fun GloamingApp() {
             settings = settings.copy(latitude = fix.latitude, longitude = fix.longitude)
             latitudeInput = fix.latitude.toString()
             longitudeInput = fix.longitude.toString()
-            BootAware.saveSettings(context, settings)
+            saveSettings(settings)
             locationNote = null
         }
     }
@@ -518,7 +530,7 @@ private fun GloamingApp() {
             // that cannot do anything. A control that silently does nothing is
             // worse than one that says why.
             settings = settings.copy(calendarSync = CalendarSync.Off)
-            BootAware.saveSettings(context, settings)
+            saveSettings(settings)
             calendarNote = "Calendar permission was declined, so nothing is being written. " +
                 "Share and Export on each event still work without it."
         }
@@ -529,14 +541,14 @@ private fun GloamingApp() {
     ) { granted ->
         if (granted) {
             settings = settings.copy(locationMode = LocationMode.Automatic)
-            BootAware.saveSettings(context, settings)
+            saveSettings(settings)
             detectLocation()
         } else {
             // Straight back to typing it in, rather than leaving a switch on
             // that cannot do anything. Sec. 7 requires the app be fully
             // functional with this denied, and a dead control is not that.
             settings = settings.copy(locationMode = LocationMode.Manual)
-            BootAware.saveSettings(context, settings)
+            saveSettings(settings)
             locationNote = "Location permission was declined, so Gloaming will keep using " +
                 "the position you type in."
         }
@@ -776,36 +788,36 @@ private fun GloamingApp() {
                 onLongitudeChange = { longitudeInput = it },
                 onThresholdChange = {
                     settings = settings.copy(threshold = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onAlertsEnabledChange = {
                     settings = settings.copy(alertsEnabled = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     if (it) PollAlarm.schedule(context, settings.pollIntervalMinutes) else PollAlarm.cancel(context)
                 },
                 onBeforeUnlockChange = {
                     settings = settings.copy(alertsBeforeUnlock = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 // Coarsening again clears the cloud reading taken at the finer
                 // position; BootAware.saveSettings owns that.
                 onPreciseBeforeUnlockChange = {
                     settings = settings.copy(preciseLocationBeforeUnlock = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onCloudGateChange = {
                     settings = settings.copy(cloudGateEnabled = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onCloudToleranceChange = {
                     settings = settings.copy(cloudTolerance = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onQuietHoursEnabledChange = { enabled ->
                     settings = settings.copy(
                         quietHours = if (enabled) quietHoursFrom(quietFromInput, quietUntilInput) else null,
                     )
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 // Applied as typed, and only when both fields parse. A half-typed
                 // "2" must not become quiet hours starting at two in the morning.
@@ -813,31 +825,31 @@ private fun GloamingApp() {
                     quietFromInput = typed
                     quietHoursFrom(typed, quietUntilInput)?.let {
                         settings = settings.copy(quietHours = it)
-                        BootAware.saveSettings(context, settings)
+                        saveSettings(settings)
                     }
                 },
                 onQuietUntilChange = { typed ->
                     quietUntilInput = typed
                     quietHoursFrom(quietFromInput, typed)?.let {
                         settings = settings.copy(quietHours = it)
-                        BootAware.saveSettings(context, settings)
+                        saveSettings(settings)
                     }
                 },
                 onQuietHoursOverrideChange = {
                     settings = settings.copy(quietHoursOverride = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onNightVisionChange = {
                     settings = settings.copy(nightVision = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onShowEveryConstellationChange = {
                     settings = settings.copy(showEveryConstellation = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onLogRetentionChange = {
                     settings = settings.copy(logRetentionDays = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     // Turning it off means off now, not once the next poll gets
                     // round to pruning. Somebody switching it off is asking for
                     // the log to stop existing, not to stop growing.
@@ -854,23 +866,23 @@ private fun GloamingApp() {
                 },
                 onAuroraIntervalChange = {
                     settings = settings.copy(auroraAlertIntervalMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onIssIntervalChange = {
                     settings = settings.copy(issPassAlertIntervalMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onBrightIntervalChange = {
                     settings = settings.copy(brightPassAlertIntervalMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onTrainIntervalChange = {
                     settings = settings.copy(trainPassAlertIntervalMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onPassAlertsChange = {
                     settings = settings.copy(passAlertsEnabled = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 // Turning it off drops whatever pass is queued. There is one
                 // slot and it carries no record of how it was filled, so this
@@ -879,7 +891,7 @@ private fun GloamingApp() {
                 // want this should not have a tracker start anyway.
                 onFollowStationChange = {
                     settings = settings.copy(followStationPassesAutomatically = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     if (!it) PassAlarm.cancel(context)
                 },
                 // Optimistic, then corrected. The service reports itself
@@ -891,35 +903,35 @@ private fun GloamingApp() {
                 },
                 onPassLeadChange = {
                     settings = settings.copy(passAlertLeadMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onMinimumElevationChange = {
                     settings = settings.copy(minimumPassElevationDegrees = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onLiveLeadChange = {
                     settings = settings.copy(liveFollowLeadMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onEventAlertsChange = {
                     settings = settings.copy(eventAlertsEnabled = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onEventHeadsUpChange = {
                     settings = settings.copy(eventHeadsUpDays = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onEventLeadChange = {
                     settings = settings.copy(eventAlertLeadMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onEclipseFollowMaxChange = {
                     settings = settings.copy(eclipseFollowMaxMinutes = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onNotifyEveryEventChange = {
                     settings = settings.copy(notifyAboutEveryEvent = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 // The four comet controls bump the calendar nonce as well as
                 // saving, because all four change which comets belong in the
@@ -927,22 +939,22 @@ private fun GloamingApp() {
                 // here, which only changes when the app speaks.
                 onCometMagnitudeChange = {
                     settings = settings.copy(cometMagnitudeThreshold = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     calendarNonce++
                 },
                 onCometAltitudeChange = {
                     settings = settings.copy(minimumCometAltitudeDegrees = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     calendarNonce++
                 },
                 onCometStaleChange = {
                     settings = settings.copy(cometObservationStaleDays = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     calendarNonce++
                 },
                 onCometMoonChange = {
                     settings = settings.copy(cometMoonTolerance = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     calendarNonce++
                 },
                 onToggleStar = { event ->
@@ -958,7 +970,7 @@ private fun GloamingApp() {
                         // past does not sit in the preferences file forever.
                         starredEvents = EventPlanner.pruneStars(kept, System.currentTimeMillis()),
                     )
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
 
                     // Said only when the star cannot change anything, and only
                     // when putting one on: somebody removing a star already
@@ -987,11 +999,11 @@ private fun GloamingApp() {
                             hidden + kind.name
                         },
                     )
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onAutomaticSettingsChange = {
                     settings = settings.copy(automaticSettings = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onClearVerdicts = {
                     Graph.verdicts(context).clear()
@@ -1028,7 +1040,7 @@ private fun GloamingApp() {
                         locationPermission.launch(AndroidLocationSource.PERMISSION)
                     } else {
                         settings = settings.copy(locationMode = mode)
-                        BootAware.saveSettings(context, settings)
+                        saveSettings(settings)
                         locationNote = null
                         if (mode == LocationMode.Automatic) detectLocation()
                     }
@@ -1041,13 +1053,13 @@ private fun GloamingApp() {
                         // the app could ask for, and the request arrives with
                         // its reason visible on the screen behind it.
                         settings = settings.copy(calendarSync = destination)
-                        BootAware.saveSettings(context, settings)
+                        saveSettings(settings)
                         calendarPermission.launch(missing.toTypedArray())
                     } else {
                         // Written before the sync runs, so that switching to
                         // Off is what the syncer reads and takes back.
                         settings = settings.copy(calendarSync = destination)
-                        BootAware.saveSettings(context, settings)
+                        saveSettings(settings)
                         calendarNote = null
                         if (destination == CalendarSync.Off) calendarName = null
                         syncCalendar(settings)
@@ -1056,13 +1068,13 @@ private fun GloamingApp() {
                 onDetectLocation = { detectLocation() },
                 onWatchDurationChange = {
                     settings = settings.copy(watchDuration = it)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                 },
                 onSave = {
                     val latitude = latitudeInput.trim().toDoubleOrNull()?.takeIf { it in -90.0..90.0 }
                     val longitude = longitudeInput.trim().toDoubleOrNull()?.takeIf { it in -360.0..360.0 }
                     settings = settings.copy(latitude = latitude, longitude = longitude)
-                    BootAware.saveSettings(context, settings)
+                    saveSettings(settings)
                     latitudeInput = latitude?.toString().orEmpty()
                     longitudeInput = longitude?.toString().orEmpty()
                     // A new position changes the whole schedule, not just the

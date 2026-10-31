@@ -21,9 +21,13 @@ class ManifestPermissionsTest {
     private val intended = setOf(
         // Fetching the manifest, status and grid.
         "android.permission.INTERNET",
-        // Offered as a convenience, never required: coarse only, foreground
-        // only, and the app is fully functional with it denied forever.
+        // Offered as a convenience, never required: coarse only, and the app
+        // is fully functional with it denied forever.
         "android.permission.ACCESS_COARSE_LOCATION",
+        // Only for refreshing that coarse position on a cadence the user
+        // chose, with no screen open. Asked for when somebody picks one, never
+        // otherwise. See ADR-0016.
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
         // Held while a scheduled poll runs so the device does not sleep mid-fetch.
         "android.permission.WAKE_LOCK",
         // Re-arms the alarm after a reboot; alarms do not survive a restart.
@@ -101,9 +105,15 @@ class ManifestPermissionsTest {
      */
     @Test
     fun `asks for coarse location and never fine`() {
-        val location = declaredPermissions().filter { it.contains("LOCATION") }
+        val location = declaredPermissions().filter { it.contains("LOCATION") }.toSet()
 
-        assertEquals(listOf("android.permission.ACCESS_COARSE_LOCATION"), location)
+        assertEquals(
+            setOf(
+                "android.permission.ACCESS_COARSE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+            ),
+            location,
+        )
     }
 
     /**
@@ -127,19 +137,22 @@ class ManifestPermissionsTest {
     }
 
     /**
-     * The line that must never be crossed. Background location would turn a
-     * convenience into tracking, and nothing in the app needs it: a position is
-     * read only while somebody is looking at the screen, and the stored one is
-     * what every scheduled wake uses.
+     * The line that moved, and the one that did not.
+     *
+     * This used to forbid background location outright, while a position was
+     * only ever read with somebody looking at the screen. ADR-0016 lets the
+     * user choose to have the approximate position refreshed on a cadence, so
+     * the background grant is now declared - but it extends the coarse one in
+     * time, never in precision. Fine location stays out: background access to
+     * a precise position would be tracking, and nothing here uses one.
      */
     @Test
-    fun `never asks to know where you are in the background`() {
+    fun `never asks for a precise position, in the background or otherwise`() {
         // The declarations, not the raw file: the manifest comment says in
-        // words that there is no background location, and grepping the text
-        // caught its own explanation.
+        // words that there is no fine location, and grepping the text would
+        // catch its own explanation.
         val declared = declaredPermissions()
 
-        assertTrue(declared.toString(), "android.permission.ACCESS_BACKGROUND_LOCATION" !in declared)
         assertTrue(declared.toString(), "android.permission.ACCESS_FINE_LOCATION" !in declared)
     }
 }

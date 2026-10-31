@@ -10,10 +10,13 @@ out on its own schedule and nothing reaches in.
 
 You can type your position in or let the phone tell it, whichever you prefer,
 and switch between the two whenever you like. Letting the phone tell it asks for
-**coarse** location and nothing more, only while the app is open, and never in
-the background - Gloaming does not even turn the GPS on, it reads the last
-position the phone already had. Typing it in works with location denied forever,
-and is also how you ask about somewhere you are not.
+**coarse** location and nothing more, and Gloaming never turns the GPS on. By
+default it reads the position when you open the app; if you choose, it can also
+refresh it in the background every few hours, which needs Android's "Allow all
+the time" grant and is off unless you pick it (ADR-0016). Either way the
+position is never logged, and is used exactly as a typed one would be. Typing it
+in works with location denied forever, and is also how you ask about somewhere
+you are not.
 
 Satellite passes follow the same rule: the orbital elements are published once,
 for everybody, and every prediction happens on your phone. CelesTrak never sees

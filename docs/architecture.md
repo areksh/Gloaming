@@ -236,9 +236,10 @@ Recreated as a Compose project matching Sec. 7: `minSdk 24`,
 No Play Services anywhere; `LocationManager` only (never the fused provider),
 with manual location entry as a first-class input and the app fully functional
 with location permission permanently denied (Sec. 7, Sec. 11). Detecting the
-position is offered as of 2026-08-25 and is coarse, foreground-only and
-last-known-fix-only - see Sec. 7 of the sourcing document for the three limits
-and why each one holds.
+position is offered as of 2026-08-25 and is coarse - see Sec. 7 of the sourcing
+document for its limits and why each one holds. As of 2026-10-31 the user may
+also choose to have it refreshed in the background on a cadence of their own
+(ADR-0016); otherwise it is read when the app is opened or when asked.
 
 Note on the build: AGP 9 has built-in Kotlin support, so the
 `org.jetbrains.kotlin.android` plugin is not applied (AGP rejects it). Only
@@ -332,6 +333,21 @@ is a file replacement.
   (Sec. 2); the battery-optimisation-exemption
   request flow; and storm-mode as a `specialUse` foreground service that runs
   only for the duration of an event.
+
+  **The background location refresh has an alarm of its own** (ADR-0016).
+  `work.LocationAlarm` arms an inexact `setAndAllowWhileIdle` at
+  `domain.LocationRefresh.nextAt` - one interval after the last refresh, never
+  sooner than a quarter of an hour - and cancels it for any cadence the
+  background does not answer. It is armed on every settings save from the
+  screen, and by `BootReceiver` once the phone is unlocked after a boot or an
+  update. `work.LocationReceiver` is deliberately not Direct Boot aware: it
+  returns at once while locked, because its settings are credential-encrypted
+  and the reboot that locked the phone cleared the alarm anyway. Unlocked, it
+  asks `LocationRefresh.skip` whether to run, takes one fresh coarse fix inside
+  a thirty-second budget, saves it with `locationUpdatedAt`, and re-arms. A
+  withdrawn background grant puts the cadence back to opening the app and sets
+  `backgroundLocationRevoked` for the screen to explain. The journal says
+  whether a refresh happened, never where.
 - **notification:** one channel per category - `aurora`, `iss-passes`,
   `bright-satellites`, `comets`, `eclipses`, `meteor-showers`, `conjunctions` -
   created behind the `SDK_INT >= 26` branch.
@@ -1125,3 +1141,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0013 - R8 on for release, with the app's own classes kept.
 - ADR-0014 - no CI: a hook and a release command.
 - ADR-0015 - the CelesTrak breaker clears itself after two days.
+- ADR-0016 - background location on a cadence the user chooses.

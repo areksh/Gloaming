@@ -65,6 +65,7 @@ private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
 private const val KEY_LOCATION_CADENCE = "location_cadence"
 private const val KEY_LOCATION_CADENCE_HOURS = "location_cadence_hours"
 private const val KEY_LOCATION_UPDATED_AT = "location_updated_at"
+private const val KEY_BACKGROUND_REVOKED = "background_location_revoked"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
 private const val KEY_EVERY_CONSTELLATION = "show_every_constellation"
@@ -235,6 +236,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 else -> LocationCadence.OnOpen
             },
             locationUpdatedAt = prefs.getLong(KEY_LOCATION_UPDATED_AT, UNSET).takeIf { it != UNSET },
+            backgroundLocationRevoked = prefs.getBoolean(KEY_BACKGROUND_REVOKED, false),
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
             showEveryConstellation = prefs.getBoolean(KEY_EVERY_CONSTELLATION, false),
@@ -350,6 +352,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             } else {
                 putLong(KEY_LOCATION_UPDATED_AT, updatedAt)
             }
+            putBoolean(KEY_BACKGROUND_REVOKED, settings.backgroundLocationRevoked)
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
             putBoolean(KEY_EVERY_EVENT, settings.notifyAboutEveryEvent)
             putBoolean(KEY_EVERY_CONSTELLATION, settings.showEveryConstellation)
@@ -399,6 +402,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_ALERTS_ENABLED,
     KEY_AURORA_INTERVAL,
     KEY_AUTOMATIC_SETTINGS,
+    KEY_BACKGROUND_REVOKED,
     KEY_BEFORE_UNLOCK,
     KEY_BRIGHT_INTERVAL,
     KEY_CALENDAR_SYNC,

@@ -115,6 +115,7 @@ class PreferenceStoresTest {
         locationMode = LocationMode.Automatic,
         locationCadence = LocationCadence.Every(12),
         locationUpdatedAt = 1_800_000_000_000L,
+        backgroundLocationRevoked = true,
         notifyAboutEveryEvent = false,
         starredEvents = setOf("SolarEclipse|1817197223000"),
         calendarSync = CalendarSync.OwnCalendar,
