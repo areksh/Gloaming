@@ -1,5 +1,9 @@
 package sh.arek.gloaming.ui
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 /**
  * A time of day typed by the user, as minutes since midnight.
  *
@@ -30,3 +34,10 @@ fun formatTimeOfDay(minuteOfDay: Int): String {
 }
 
 private fun pad(value: Int): String = if (value < 10) "0$value" else "$value"
+
+/**
+ * The device's own clock and zone. A time printed in UTC would be wrong by an
+ * hour for half the year here and by more elsewhere.
+ */
+internal fun clock(millis: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))

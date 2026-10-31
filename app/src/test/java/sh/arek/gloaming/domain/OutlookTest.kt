@@ -229,6 +229,17 @@ class OutlookTest {
     }
 
     @Test
+    fun `go out says whether the clear run has begun and covers the night`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(tonight(planets = listOf(saturn)), input())
+
+        val goOut = report.outlook as Outlook.GoOut
+        assertTrue(goOut.clearUnderway)
+        assertTrue(goOut.clearAllNight)
+    }
+
+    @Test
     fun `recommends a planet only inside the clear spell`() {
         val spell = ClearSpell(
             from = at("2026-12-13T22:00:00Z"),
@@ -301,7 +312,7 @@ class OutlookTest {
         val report = Outlooks.of(tonight(passes = listOf(iss)), input())
 
         assertEquals(
-            listOf(Excluded("ISS (ZARYA)", iss.peaksAt, Gate.Height, "14")),
+            listOf(Excluded("ISS (ZARYA)", iss.peaksAt, Gate.Height, "14", kind = PickKind.Pass)),
             report.excluded,
         )
     }
@@ -860,7 +871,7 @@ class OutlookTest {
             input(now = now, planetAltitude = { _, t -> if (t >= now) 4.0 else 25.0 }),
         )
 
-        assertEquals(listOf(Excluded("Saturn", now, Gate.Height, "4")), report.excluded)
+        assertEquals(listOf(Excluded("Saturn", now, Gate.Height, "4", kind = PickKind.Planet)), report.excluded)
     }
 
     @Test

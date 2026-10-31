@@ -79,6 +79,12 @@ data class Excluded(
     val note: String? = null,
     /** Set on every [Gate.Darkness] exclusion, and only there. */
     val darkness: DarknessShortfall? = null,
+    /**
+     * Set on every [Gate.Height] exclusion, and only there: whether the figure
+     * in [note] is a pass's peak or a planet's height when it was judged, which
+     * the sentence has to say differently.
+     */
+    val kind: PickKind? = null,
 )
 
 /**
@@ -119,13 +125,18 @@ sealed interface Outlook {
      * At least one thing worth going out for, best first, at most
      * [Outlooks.MAX_PICKS]. [clearFrom] and [clearUntil] are the run of clear
      * hours around the first pick, only with a forecast that says so;
-     * [conditional] when there is none to say it.
+     * [conditional] when there is none to say it. [clearUnderway] is whether
+     * that run has already begun and [clearAllNight] whether it covers all the
+     * darkness still to come: "cloudy until" and "clear all night" are
+     * different sentences, and the times alone cannot tell them apart.
      */
     data class GoOut(
         val picks: List<Pick>,
         val clearFrom: Long?,
         val clearUntil: Long?,
         val conditional: Boolean,
+        val clearUnderway: Boolean = false,
+        val clearAllNight: Boolean = false,
     ) : Outlook
 
     /**
@@ -280,6 +291,7 @@ object Outlooks {
                 gate = gate,
                 note = note(candidate, gate, night),
                 darkness = if (gate == Gate.Darkness) shortfall(candidate, night) else null,
+                kind = candidate.pick.kind.takeIf { gate == Gate.Height },
             )
         }
 
@@ -324,6 +336,8 @@ object Outlooks {
                     clearFrom = run?.from,
                     clearUntil = run?.until,
                     conditional = !cloudGate,
+                    clearUnderway = run?.underway ?: false,
+                    clearAllNight = run?.allNight ?: false,
                 ),
                 excluded,
             )

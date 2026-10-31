@@ -29,9 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.SkyEvent
@@ -813,10 +810,3 @@ internal fun describePassLine(pass: SatellitePass): String =
     "${clock(pass.risesAt)}  ${pass.name} - rises ${Compass.of(pass.riseAzimuth).label}, " +
         "highest ${pass.peakElevation.roundToInt()} degrees ${Compass.of(pass.peakAzimuth).label} " +
         "at ${clock(pass.peaksAt)}"
-
-/**
- * The device's own clock and zone. A time printed in UTC would be wrong by an
- * hour for half the year here and by more elsewhere.
- */
-internal fun clock(millis: Long): String =
-    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
