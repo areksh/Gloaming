@@ -68,7 +68,8 @@ fun TonightScreen(
     Column(modifier) {
         PullToRefreshBox(
             isRefreshing = state.checking,
-            onRefresh = actions.onPollNow,
+            // Not while one is in flight, as Check now is disabled then too.
+            onRefresh = { if (!state.checking) actions.onPollNow() },
             modifier = Modifier.weight(1f),
         ) {
             Column(

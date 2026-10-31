@@ -44,8 +44,9 @@ const val OUTLOOK_HEADLINE_TAG = "outlook-headline"
  * the app last looked and why it may not have looked since, with everything
  * operational a tap away in the checks sheet. It only raises its voice when
  * something is wrong. When background checks or notifications are not
- * allowed, a banner takes its place, because then the freshness of anything
- * is beside the point - the app cannot do the one thing it is for.
+ * allowed, a banner goes above it, because then the app cannot do the one
+ * thing it is for. The line stays under the banner: a phone that cannot alert
+ * is exactly the one whose downloads and last error somebody wants to see.
  *
  * Then the outlook: one sentence, decided by [sh.arek.gloaming.domain.Outlooks]
  * and worded by [OutlookWords], with nothing in its place until it has been
@@ -71,9 +72,7 @@ fun TonightHeader(state: MainUiState, actions: UiActions, onOpenChecks: () -> Un
             onAction = actions.onRequestNotifications,
         )
     }
-    if (state.batteryExempt && state.notificationsAllowed) {
-        StatusLine(state, onOpenChecks)
-    }
+    StatusLine(state, onOpenChecks)
 
     OutlookLines(state)
 }

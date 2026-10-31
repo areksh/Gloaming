@@ -55,10 +55,11 @@ const val WATCH_SHEET_TAG = "watch-sheet"
 fun WatchButton(state: MainUiState, actions: UiActions) {
     val palette = LocalPalette.current
     var choosing by rememberSaveable { mutableStateOf(false) }
+    val running = watchRunning(state.watching, state.watchingUntil, state.nowMillis)
 
     Button(
         onClick = {
-            if (state.watching) actions.onWatchingChange(false) else choosing = true
+            if (running) actions.onWatchingChange(false) else choosing = true
         },
         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag(WATCH_BUTTON_TAG),
         colors = ButtonDefaults.buttonColors(
@@ -67,7 +68,7 @@ fun WatchButton(state: MainUiState, actions: UiActions) {
         ),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (state.watching) {
+            if (running) {
                 Text(describeWatching(state.watchingUntil), fontWeight = FontWeight.Bold)
                 Text("Tap to stop", style = MaterialTheme.typography.bodySmall)
             } else {
@@ -82,7 +83,7 @@ fun WatchButton(state: MainUiState, actions: UiActions) {
 
     // Closed as soon as a watch is running: the button now stops it, and a
     // sheet offering to start one would be offering the wrong thing.
-    if (choosing && !state.watching) {
+    if (choosing && !running) {
         WatchSheet(
             state = state,
             onDurationChange = actions.onWatchDurationChange,

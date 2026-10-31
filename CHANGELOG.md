@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   opens a checks sheet holding Check now, the downloads report, the last
   error, battery saver and the privacy note, which no longer sit among the
   sky. Pull Tonight down to check now. When background checks or
-  notifications are not allowed, a banner takes that line's place with the
-  way to allow them. Watch now is a "Watch tonight" button pinned at the foot
+  notifications are not allowed, a banner above that line says so and offers
+  the way to allow them. Watch now is a "Watch tonight" button pinned at the foot
   of the screen: it offers the choice of how long in a sheet, and while a
   watch runs it says until when and stops on a tap.
 - **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot

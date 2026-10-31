@@ -360,6 +360,20 @@ class ScreensTest {
     /** Pulling Tonight down is the other way to ask, and asks the same thing. */
     @Test
     fun pullingDownAsksForACheck() {
+        pullDown(checking = false)
+
+        assertEquals(1, polled)
+    }
+
+    /** Not while one is already running, which is what Check now refuses too. */
+    @Test
+    fun pullingDownWhileCheckingAsksNothing() {
+        pullDown(checking = true)
+
+        assertEquals(0, polled)
+    }
+
+    private fun pullDown(checking: Boolean) {
         compose.setContent {
             TonightScreen(
                 state = MainUiState(
@@ -372,6 +386,7 @@ class ScreensTest {
                     batteryExempt = true,
                     notificationsAllowed = true,
                     nowMillis = now,
+                    checking = checking,
                 ),
                 actions = UiActions(onPollNow = { polled++ }),
             )
@@ -379,8 +394,6 @@ class ScreensTest {
 
         compose.onNodeWithTag(TONIGHT_SCROLL_TAG).performTouchInput { swipeDown() }
         compose.waitForIdle()
-
-        assertEquals(1, polled)
     }
 
     /**
@@ -492,6 +505,23 @@ class ScreensTest {
     }
 
     /**
+     * A watch that has reached its end while the screen stayed open reads as
+     * idle again, and a tap offers a new one rather than stopping nothing.
+     */
+    @Test
+    fun aWatchPastItsEndReadsAsIdleAgain() {
+        show(watching = true, watchingUntil = now - 60_000L)
+
+        compose.onNodeWithTag(WATCH_BUTTON_TAG)
+            .assertTextContains("Watch tonight")
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(null, watchRequest)
+        compose.onNodeWithTag(WATCH_SHEET_TAG).assertIsDisplayed()
+    }
+
+    /**
      * The saver notice is raised only when the saver is actually on. A standing
      * warning about a mode nobody has enabled trains people to ignore the
      * warnings that matter.
@@ -581,14 +611,16 @@ class ScreensTest {
     /**
      * The exemption is a requirement rather than a refinement - a Gloaming
      * without it cannot alert anyone overnight, which is the whole app - so the
-     * screen has to say so, in place of the status line, and offer the way to
+     * screen has to say so, above the status line, and offer the way to
      * grant it.
      */
     @Test
-    fun aMissingExemptionReplacesTheStatusLineWithABanner() {
+    fun aMissingExemptionPutsABannerAboveTheStatusLine() {
         show(batteryExempt = false)
 
-        compose.onNodeWithTag(STATUS_LINE_TAG).assertDoesNotExist()
+        val banner = compose.onNodeWithTag(ALERT_BANNER_TAG).getUnclippedBoundsInRoot()
+        val status = compose.onNodeWithTag(STATUS_LINE_TAG).getUnclippedBoundsInRoot()
+        assertTrue(banner.bottom <= status.top)
         compose.onNodeWithTag(ALERT_BANNER_TAG)
             .assertTextContains("Gloaming cannot alert you overnight yet")
         compose.onNodeWithText(
@@ -605,12 +637,25 @@ class ScreensTest {
     fun notificationsOffGetsItsOwnBanner() {
         show(notificationsAllowed = false)
 
-        compose.onNodeWithTag(STATUS_LINE_TAG).assertDoesNotExist()
         compose.onNodeWithText("Notifications are off").assertExists()
         compose.onNodeWithText("Gloaming cannot alert you overnight yet").assertDoesNotExist()
         compose.onNodeWithText("Allow notifications").performScrollTo().performClick()
 
         assertEquals(1, notificationsAsked)
+    }
+
+    /**
+     * The checks stay reachable under a banner: a phone that cannot alert is
+     * exactly the one whose downloads and last error somebody wants to see.
+     */
+    @Test
+    fun theStatusLineStillOpensTheChecksSheetUnderABanner() {
+        show(batteryExempt = false, notificationsAllowed = false)
+
+        compose.onNodeWithTag(STATUS_LINE_TAG).performScrollTo().assertIsDisplayed()
+        openChecks()
+
+        compose.onNodeWithTag(CHECKS_SHEET_TAG).assertIsDisplayed()
     }
 
     /** The opening sentence, and the line under it, are the first thing about the sky. */

@@ -110,6 +110,17 @@ fun describeWatchPlan(duration: WatchDuration): String {
 fun describeWatching(untilMillis: Long?): String =
     untilMillis?.let { "Watching until ${clock(it)}" } ?: "Watching"
 
+/**
+ * Whether a watch is running as far as the screen can tell.
+ *
+ * Past its own end it has stopped, whatever the screen last heard: the
+ * service ends it at the cap and nothing tells a screen left open, which
+ * would otherwise go on saying "Watching until" a time already gone. One
+ * with no known end is taken at its word.
+ */
+fun watchRunning(watching: Boolean, untilMillis: Long?, nowMillis: Long): Boolean =
+    watching && (untilMillis == null || nowMillis < untilMillis)
+
 internal fun plural(value: Long) = if (value == 1L) "" else "s"
 
 /**

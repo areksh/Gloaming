@@ -3,6 +3,7 @@ package sh.arek.gloaming.ui
 import java.util.TimeZone
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -408,5 +409,24 @@ class TonightWordingTest {
     @Test
     fun `says a watch is running when it has no end to give`() {
         assertEquals("Watching", describeWatching(null))
+    }
+
+    /**
+     * A watch past its own end has stopped, whatever the screen last heard:
+     * the service ends it at the cap, and nothing tells a screen left open.
+     */
+    @Test
+    fun `counts a watch past its end as stopped`() {
+        val until = at(5)
+
+        assertTrue(watchRunning(watching = true, untilMillis = until, nowMillis = until - 1))
+        assertFalse(watchRunning(watching = true, untilMillis = until, nowMillis = until))
+        assertFalse(watchRunning(watching = false, untilMillis = until, nowMillis = until - 1))
+    }
+
+    /** One with no end known is taken at its word. */
+    @Test
+    fun `counts a watch with no known end as running`() {
+        assertTrue(watchRunning(watching = true, untilMillis = null, nowMillis = at(5)))
     }
 }

@@ -397,20 +397,21 @@ is a file replacement.
   padding and spacing the sections share. Tonight brings its own column,
   `TonightScreen`, with the same figures: a `PullToRefreshBox` whose pull runs
   a check, over the scroll, and the Watch tonight button pinned beneath it
-  rather than scrolled. Its head is `TonightHeader` - the status line, which
-  opens the checks sheet (`ChecksSheet`: Check now, the last error, the
-  downloads report, battery saver), or a banner in its place while background
-  checks or notifications are not allowed; then the date and the outlook. The
-  outlook is decided in `MainActivity` in the same off-main-thread pass as the
-  tonight list, from the same held documents and the held hourly forecast, so
-  the sentence and the night beneath it cannot disagree. The elements' age it
-  is given is how long ago `sats.json` says they were published, not how long
-  the phone has held them, since a 304 keeps the latter young for ever. The calendar is a `LazyColumn`
-  owning its own scrolling, because a year ahead is around a hundred entries
-  and composing them all cost a frame of 1300ms on opening and every frame of a
-  scroll afterwards - and because a lazy list measured inside a scrolling
-  column is given unbounded height, which defeats the laziness and throws. The
-  scroll positions are remembered per section rather than shared.
+  rather than scrolled. Its head is `TonightHeader` - a banner while
+  background checks or notifications are not allowed, then the status line,
+  which stays under it and opens the checks sheet (`ChecksSheet`: Check now,
+  the last error, the downloads report, battery saver); then the date and the
+  outlook. The outlook is decided in `MainActivity` in the same off-main-thread
+  pass as the tonight list, from the same held documents and the held hourly
+  forecast, so the sentence and the night beneath it cannot disagree. The
+  elements' age it is given is how long ago `sats.json` says they were
+  published, not how long the phone has held them, since a 304 keeps the
+  latter young for ever. The calendar is a `LazyColumn` owning its own
+  scrolling, because a year ahead is around a hundred entries and composing
+  them all cost a frame of 1300ms on opening and every frame of a scroll
+  afterwards - and because a lazy list measured inside a scrolling column is
+  given unbounded height, which defeats the laziness and throws. The scroll
+  positions are remembered per section rather than shared.
 
 ### Manifest verification
 
