@@ -114,6 +114,22 @@ object Planets {
             .sortedByDescending { it.peakAltitude }
     }
 
+    /**
+     * How high [body] is at one moment, in degrees, refracted like the rest.
+     *
+     * For judging a planet at the time somebody would be looking rather than
+     * at its peak: highest at six in the evening says little about half past
+     * midnight, when it may be skimming the rooftops or gone.
+     */
+    fun altitude(body: SkyBody, latitude: Double, longitude: Double, atMillis: Long): Double =
+        position(bodyOf(body), Observer(latitude, longitude, 0.0), atMillis).altitude
+
+    private fun position(engineBody: Body, observer: Observer, atMillis: Long) =
+        Time.fromMillisecondsSince1970(atMillis).let { time ->
+            val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
+            horizon(time, observer, position.ra, position.dec, Refraction.Normal)
+        }
+
     private fun barFor(body: SkyBody) =
         if (body == SkyBody.Mercury) MERCURY_DEGREES else VISIBLE_DEGREES
 
@@ -131,9 +147,7 @@ object Planets {
         // the transit at all.
         var at = night.first
         while (at <= night.last) {
-            val time = Time.fromMillisecondsSince1970(at)
-            val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
-            val above = horizon(time, observer, position.ra, position.dec, Refraction.Normal)
+            val above = position(engineBody, observer, at)
             if (above.altitude > peakAltitude) {
                 peakAltitude = above.altitude
                 peakAzimuth = above.azimuth

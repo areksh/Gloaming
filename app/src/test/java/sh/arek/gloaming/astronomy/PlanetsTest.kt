@@ -42,6 +42,21 @@ class PlanetsTest {
         assertTrue(jupiter.toString(), jupiter.magnitude < -2.0)
     }
 
+    /**
+     * The altitude at one moment agrees with the sweep's own highest point, so
+     * a planet judged hours after its peak is judged at the height it is then.
+     */
+    @Test
+    fun `gives a planet's altitude at a moment, matching its peak`() {
+        val jupiter = tonight("2027-01-10T17:00:00Z", "2027-01-11T07:00:00Z")
+            .single { it.body == SkyBody.Jupiter }
+
+        val altitude =
+            Planets.altitude(SkyBody.Jupiter, edinburgh.first, edinburgh.second, jupiter.peakAt)
+
+        assertEquals(jupiter.peakAltitude, altitude, 0.5)
+    }
+
     /** Highest first: what somebody will actually be able to find. */
     @Test
     fun `lists the planets highest first`() {
