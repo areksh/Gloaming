@@ -36,9 +36,10 @@ first-class.
   in time, not in precision. `ACCESS_FINE_LOCATION` remains undeclared, and
   `ManifestPermissionsTest` says so.
 - **One fix per wake.** `LocationAlarm` arms an inexact alarm and
-  `LocationReceiver` asks the network provider for a single approximate fix
-  with a twenty-second timeout. No updates are subscribed to and GPS is never
-  asked.
+  `LocationReceiver` asks for a single approximate fix with a twenty-second
+  timeout: from the network provider, or from the platform's own fused
+  provider where the network provider is off (API 31 and later). No updates
+  are subscribed to and GPS is never asked.
 - **Never logged, never sent.** The journal records that a refresh happened or
   why it did not, and never where the phone was. The position goes where a
   typed one does: credential-encrypted storage, and the whole-degree mirror if
@@ -61,9 +62,12 @@ first-class.
   lose nothing they had before.
 - The alarm is inexact, so the system attaches a window of up to an hour to
   it. "Every hour" means a refresh somewhere within about an hour and three
-  quarters, and longer intervals arrive up to an hour late. A refresh that
-  finds no fix tries again after a quarter of an hour rather than a whole
-  interval.
+  quarters, and longer intervals arrive up to an hour late.
+- The next refresh is one interval after the last, but never sooner than a
+  quarter of an hour away. A position that has never been refreshed counts as
+  overdue, so the first refresh after a cadence is chosen comes after that
+  quarter of an hour, and so does the retry after a refresh that finds no
+  fix. A position detected on the screen counts as a refresh too.
 - A refresh that falls due before first unlock waits for the unlock. The
   overnight polls go on using the last stored position meanwhile, which is
   what they did before this decision.

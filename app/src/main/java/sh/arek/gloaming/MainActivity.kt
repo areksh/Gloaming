@@ -278,14 +278,22 @@ private fun GloamingApp() {
     }
 
     /**
-     * Every save from this screen, so the background location alarm always
-     * follows what was saved. Arming is idempotent and cheap - one slot,
-     * replaced or cancelled - so it is not worth deciding which saves could
-     * have changed the cadence or the mode.
+     * Every save from this screen, so the background location alarm follows
+     * the mode and the cadence as saved.
+     *
+     * Re-armed only when one of those two changed. Arming replaces the pending
+     * alarm, and for an overdue position it asks for a quarter of an hour from
+     * now - so re-arming on every save let somebody adjusting other settings
+     * keep pushing that refresh further off.
      */
     fun saveSettings(user: UserSettings) {
+        val previous = settingsStore.read()
         BootAware.saveSettings(context, user)
-        LocationAlarm.arm(context, user)
+        if (user.locationMode != previous.locationMode ||
+            user.locationCadence != previous.locationCadence
+        ) {
+            LocationAlarm.arm(context, user)
+        }
     }
 
     fun batteryExempt(): Boolean {
@@ -475,7 +483,13 @@ private fun GloamingApp() {
                 return@launch
             }
 
-            settings = settings.copy(latitude = fix.latitude, longitude = fix.longitude)
+            // Stamped here as well as by the background refresh, so the next
+            // one is counted from this fix rather than treated as overdue.
+            settings = settings.copy(
+                latitude = fix.latitude,
+                longitude = fix.longitude,
+                locationUpdatedAt = System.currentTimeMillis(),
+            )
             latitudeInput = fix.latitude.toString()
             longitudeInput = fix.longitude.toString()
             saveSettings(settings)

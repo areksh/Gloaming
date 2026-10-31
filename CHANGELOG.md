@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carried to a dark site went on being judged at home - darkness, cloud and
   every pass - until somebody opened the app. A cadence of whole hours, from
   one to forty-eight, can now refresh it on an alarm of its own: one coarse
-  fix per wake from the network provider, never GPS, never logged and never
+  fix per wake from the network provider, or the platform's fused provider
+  where that is off (Android 12 and later), never GPS, never logged and never
   sent. It needs Android's "Allow all the time" location grant, which is
   asked for only when such a cadence is chosen; if the grant is later taken
   away, the app goes back to refreshing when it is opened. A refresh due

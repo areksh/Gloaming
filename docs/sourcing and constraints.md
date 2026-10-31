@@ -755,8 +755,8 @@ permanently denied.
   on, so asking costs no battery: it reads positions other apps have already caused the
   system to record. The cost is that the answer is sometimes nothing, which is reported
   plainly rather than papered over. The background refresh is the one exception: it asks
-  the network provider for a single approximate fix per wake, with a timeout, and still
-  subscribes to nothing.
+  for a single approximate fix per wake, with a timeout - from the network provider, or the
+  platform's fused provider where that is off (API 31+) - and still subscribes to nothing.
 
 A fix is refused if it is over half an hour old, vaguer than fifty kilometres, or at
 exactly zero. The staleness rule matters most: somebody drives out of town to a dark site,

@@ -337,10 +337,12 @@ is a file replacement.
   **The background location refresh has an alarm of its own** (ADR-0016).
   `work.LocationAlarm` arms an inexact `setAndAllowWhileIdle` at
   `domain.LocationRefresh.nextAt` - one interval after the last refresh, never
-  sooner than a quarter of an hour - and cancels it for any cadence the
-  background does not answer. It is armed on every settings save from the
-  screen, and by `BootReceiver` once the phone is unlocked after a boot or an
-  update. `work.LocationReceiver` is deliberately not Direct Boot aware: it
+  sooner than a quarter of an hour, and that quarter of an hour when there has
+  never been one - and cancels it for any cadence the background does not
+  answer. It is armed when a save from the screen changes the location mode or
+  the cadence, and by `BootReceiver` once the phone is unlocked after a boot or
+  an update. Detecting the position on the screen stamps `locationUpdatedAt`
+  too. `work.LocationReceiver` is deliberately not Direct Boot aware: it
   returns at once while locked, because its settings are credential-encrypted
   and the reboot that locked the phone cleared the alarm anyway. Unlocked, it
   asks `LocationRefresh.skip` whether to run, takes one fresh coarse fix inside

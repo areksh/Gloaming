@@ -40,6 +40,12 @@ class LocationRefreshTest {
             RefreshSkip.NotBackground,
             skip(due.copy(locationCadence = LocationCadence.Manual)),
         )
+        // The cadence is named ahead of a missing grant: it is the reason the
+        // user can act on, and the grant does not matter for it.
+        assertEquals(
+            RefreshSkip.NotBackground,
+            skip(due.copy(locationCadence = LocationCadence.OnOpen), backgroundPermission = false),
+        )
     }
 
     @Test
@@ -74,11 +80,19 @@ class LocationRefreshTest {
         assertEquals(now + 4 * hour, LocationRefresh.nextAt(settings, now))
     }
 
+    /**
+     * Never refreshed means overdue, not "a whole interval from whenever this
+     * was asked": the latter pushed a 48 hour cadence's first refresh two days
+     * out, and again on every save that re-armed it.
+     */
     @Test
-    fun `next refresh is a whole interval away when there has never been one`() {
-        val settings = due.copy(locationUpdatedAt = null)
+    fun `a never-refreshed interval tries soon`() {
+        val settings = due.copy(
+            locationCadence = LocationCadence.Every(48),
+            locationUpdatedAt = null,
+        )
 
-        assertEquals(now + 6 * hour, LocationRefresh.nextAt(settings, now))
+        assertEquals(now + 15 * 60_000L, LocationRefresh.nextAt(settings, now))
     }
 
     @Test

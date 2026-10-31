@@ -68,13 +68,17 @@ object LocationRefresh {
     /**
      * When the next refresh should be asked for, or null if none should be.
      *
-     * One interval after the last refresh, or after [now] when there has never
-     * been one, and never sooner than a quarter of an hour from [now].
+     * One interval after the last refresh, and never sooner than a quarter of
+     * an hour from [now]. A position never refreshed is overdue, so it gets the
+     * quarter of an hour: counting an interval from [now] instead pushed the
+     * first refresh a whole interval out on every wake that found no fix and
+     * on every save that re-armed it.
      */
     fun nextAt(settings: UserSettings, now: Long): Long? {
         if (settings.locationMode != LocationMode.Automatic) return null
         val cadence = settings.locationCadence as? LocationCadence.Every ?: return null
-        val due = (settings.locationUpdatedAt ?: now) + cadence.hours * MILLIS_PER_HOUR
-        return maxOf(due, now + MINIMUM_DELAY_MILLIS)
+        val soonest = now + MINIMUM_DELAY_MILLIS
+        val updatedAt = settings.locationUpdatedAt ?: return soonest
+        return maxOf(updatedAt + cadence.hours * MILLIS_PER_HOUR, soonest)
     }
 }

@@ -64,9 +64,10 @@ class LocationReceiver : BroadcastReceiver() {
                 Notes.w(application, TAG, "location refresh failed", error)
             } finally {
                 // Whatever happened, from the settings as they now stand: a
-                // cadence put back to opening the app cancels the alarm, a
-                // refresh that found nothing retries after the floor, and one
-                // that stored a fix waits a whole interval.
+                // cadence put back to opening the app cancels the alarm; a
+                // refresh that found nothing left the position overdue or
+                // never refreshed, so it retries after the quarter-hour floor;
+                // and one that stored a fix waits a whole interval.
                 runCatching { LocationAlarm.arm(application, Graph.settings(application).read()) }
                     .onFailure {
                         Notes.w(application, TAG, "could not arm the next location refresh", it)
@@ -87,7 +88,12 @@ class LocationReceiver : BroadcastReceiver() {
             val skip = LocationRefresh.skip(
                 settings = settings,
                 unlocked = UserManagerCompat.isUserUnlocked(context),
-                backgroundPermission = AndroidLocationSource.hasBackgroundPermission(context),
+                // Both, because below API 29 the background answer is always
+                // yes and only the coarse grant can be taken away. Without it a
+                // withdrawn grant there read as "no fix" and retried every
+                // quarter of an hour for good.
+                backgroundPermission = AndroidLocationSource.hasPermission(context) &&
+                    AndroidLocationSource.hasBackgroundPermission(context),
                 now = now,
             )
         ) {
