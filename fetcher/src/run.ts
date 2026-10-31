@@ -196,8 +196,8 @@ export async function run(
  * **Deliberately no circuit breaker.** The one on CelesTrak exists because
  * CelesTrak's usage policy demands stopping on any non-200 and Kelso states it
  * is what keeps an IP off the firewall (Sec. 3). Neither the MPC nor COBS asks
- * for anything of the kind, and a manual-reset breaker on them would mean one
- * transient 500 halts comet updates until a human notices. What they get
+ * for anything of the kind, and a breaker on them would mean one transient
+ * 500 halts comet updates for two days unless a human notices. What they get
  * instead is what any polite client owes: a named User-Agent, one request a
  * day, and a failure recorded and alerted on rather than retried.
  */

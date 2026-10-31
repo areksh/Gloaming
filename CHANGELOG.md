@@ -35,6 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The CelesTrak breaker clears itself after two days.** It used to reset only
+  by hand, so an unread alert left elements frozen for as long as nobody looked:
+  on 2026-08-25 a 503 went unnoticed for seventeen hours, and a trip before a
+  week away would have run to a week. Now, if nobody has cleared it within two
+  days of the trip, the next run lets one request through. A 200 clears the flag
+  and publishes as normal; anything else trips it afresh for another two days
+  and pushes `breaker tripped again`. Every trip alert says when the next
+  attempt will be, and clearing it by hand still works at once (ADR-0015).
+
 - **A pass that goes overhead is told as overhead, not given a compass bearing.**
   Azimuth is ill-conditioned near the zenith, where the whole compass converges,
   so the bearing of the highest point is the one number in a pass that a

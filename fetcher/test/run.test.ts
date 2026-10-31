@@ -224,6 +224,85 @@ describe("run", () => {
     expect((await health(store)).consecutive_failures).toBe(2);
   });
 
+  /**
+   * A trip clears itself two days on if nobody has cleared it by hand. One
+   * request is let through; a 200 clears the flag, and anything else trips it
+   * afresh for another two days. Elements stay usable for days, so two days is
+   * the gap a human gets to look before another request leaves.
+   */
+  describe("two days after a trip", () => {
+    const at = (iso: string) => () => new Date(iso);
+    const trippedAt = at("2026-08-20T18:00:00.000Z"); // exactly two days before now()
+
+    it("still refuses a moment before two days have passed", async () => {
+      await run(store, network(503).alerting, config, at("2026-08-20T18:00:00.001Z"));
+      const net = network(200, groups);
+
+      const result = await run(store, net.alerting, config, now);
+
+      expect(result.published).toBe(false);
+      expect(net.requests).toHaveLength(0);
+    });
+
+    it("tries again, and clears itself on a 200", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+      const net = network(200, groups);
+
+      const result = await run(store, net.alerting, config, now);
+
+      expect(result.published).toBe(true);
+      expect(net.requests).toHaveLength(3);
+      expect(await readBreaker(store, CELESTRAK_SOURCE)).toBeNull();
+      expect(net.pushes.map((p) => p.title)).toEqual(["Gloaming: celestrak recovered"]);
+    });
+
+    it("trips for another two days when the retry is refused", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+
+      const retry = network(404, groups);
+      await run(store, retry.alerting, config, now);
+
+      expect(retry.requests).toHaveLength(1);
+      expect(await readBreaker(store, CELESTRAK_SOURCE)).toMatchObject({
+        status: 404,
+        tripped_at: "2026-08-22T18:00:00.000Z",
+      });
+
+      const tooSoon = network(200, groups);
+      await run(store, tooSoon.alerting, config, at("2026-08-24T17:59:59.999Z"));
+      expect(tooSoon.requests).toHaveLength(0);
+
+      const nextRetry = network(200, groups);
+      await run(store, nextRetry.alerting, config, at("2026-08-24T18:00:00.000Z"));
+      expect(nextRetry.requests).toHaveLength(3);
+    });
+
+    /**
+     * One push per refused retry: what came back this time, and when the next
+     * attempt is. The source is already failing, so that alert stays quiet.
+     */
+    it("says the retry was refused, and when the next one is", async () => {
+      await run(store, network(503).alerting, config, trippedAt);
+
+      const retry = network(404, groups);
+      await run(store, retry.alerting, config, now);
+
+      expect(retry.pushes.map((p) => p.title)).toEqual([
+        "Gloaming: celestrak breaker tripped again",
+      ]);
+      expect(retry.pushes[0]!.body).toContain("HTTP 404");
+      expect(retry.pushes[0]!.body).toContain("2026-08-24T18:00:00.000Z");
+    });
+  });
+
+  it("says in the trip alert when the breaker will clear itself", async () => {
+    const net = network(503);
+
+    await run(store, net.alerting, config, now);
+
+    expect(net.pushes[0]!.body).toContain("2026-08-24T18:00:00.000Z");
+  });
+
   it("says so when a failing source starts publishing again", async () => {
     await run(store, network(500).alerting, config, now);
     store.objects.delete(breakerKey(CELESTRAK_SOURCE)); // the manual reset

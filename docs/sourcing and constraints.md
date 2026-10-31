@@ -407,8 +407,10 @@ get the IP firewalled.
   and timestamp.
 - Every subsequent invocation checks the flag first and does not query CelesTrak while it
   is set.
-- **Reset is manual.** A human investigates and clears it. Automatic recovery defeats the
-  purpose.
+- **A human gets two days to reset it.** A human investigates and clears it; a trip nobody
+  gets to clears itself two days on, by letting one request through. A 200 clears the flag
+  and anything else trips it for another two days (ADR-0015). Recovering any sooner would
+  defeat the purpose, and recovering never leaves elements frozen on an unread alert.
 - `sats.json` keeps serving its last good copy with its age surfaced (Sec. 10). Elements stay
   usable for days, so a tripped breaker degrades pass prediction gracefully rather than
   breaking it.

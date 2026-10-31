@@ -11,9 +11,15 @@ import type { ObjectStore } from "./store";
  * documented manual reset is unchanged and the flag is visible from both
  * sides.
  *
- * **Reset is manual.** Automatic recovery defeats the purpose: a human is
- * meant to find out why the response was not a 200 before another request
- * leaves. `sats.json` keeps serving its last good copy meanwhile.
+ * **A human gets two days to reset it by hand.** They are meant to find out
+ * why the response was not a 200 before another request leaves, but a trip
+ * that nobody gets to - a 503 on an evening nobody is watching - should not
+ * leave elements frozen indefinitely. So two days after a trip one request is
+ * let through: a 200 clears the flag, and anything else trips it afresh for
+ * another two days. Never sooner, and never more than one request per two
+ * days, which is still nothing like the retrying the policy warns about.
+ * `sats.json` keeps serving its last good copy meanwhile, and elements stay
+ * usable for days.
  */
 export interface BreakerState {
   source: string;
@@ -27,7 +33,8 @@ export class BreakerTrippedError extends Error {
   constructor(readonly state: BreakerState) {
     super(
       `${state.source} breaker tripped at ${state.tripped_at}: HTTP ${state.status} from ` +
-        `${state.url} (${state.note}). Reset with: wrangler r2 object delete ` +
+        `${state.url} (${state.note}). Tries again at ${clearsAt(state).toISOString()}, ` +
+        `or reset now with: wrangler r2 object delete ` +
         `gloaming-data/${breakerKey(state.source)} --remote`,
     );
     this.name = "BreakerTrippedError";
@@ -35,6 +42,16 @@ export class BreakerTrippedError extends Error {
 }
 
 export const breakerKey = (source: string) => `internal/breaker/${source}.json`;
+
+/** How long a trip holds before one request is let through again. */
+const CLEARS_AFTER_MILLIS = 2 * 24 * 60 * 60 * 1000;
+
+/** When a trip stops holding, if nobody has cleared it by hand first. */
+const clearsAt = (state: BreakerState): Date =>
+  new Date(Date.parse(state.tripped_at) + CLEARS_AFTER_MILLIS);
+
+const holds = (state: BreakerState, now: Date): boolean =>
+  now.getTime() < clearsAt(state).getTime();
 
 /** What each documented code means, so an alert is actionable at 3am. */
 function explain(status: number): string {
@@ -64,9 +81,11 @@ export async function readBreaker(
 /**
  * Trips the breaker and pushes one alert.
  *
- * A trip on an already-tripped breaker keeps the original: the first non-200 is
+ * A trip on a breaker that still holds keeps the original: the first non-200 is
  * the one that explains what happened, and re-alerting would train the
- * maintainer to ignore the channel.
+ * maintainer to ignore the channel. One that has stopped holding is replaced -
+ * that is the retry two days on being refused, and what came back this time is
+ * the news.
  */
 export async function trip(
   store: ObjectStore,
@@ -76,7 +95,7 @@ export async function trip(
   now: Date,
 ): Promise<BreakerState> {
   const existing = await readBreaker(store, source);
-  if (existing !== null) {
+  if (existing !== null && holds(existing, now)) {
     return existing;
   }
 
@@ -92,10 +111,11 @@ export async function trip(
   });
 
   await notifyMaintainer(alerting, {
-    title: `Gloaming: ${source} breaker tripped`,
+    title: `Gloaming: ${source} breaker tripped${existing === null ? "" : " again"}`,
     body:
       `HTTP ${state.status} from ${state.url} - ${state.note}.\n\n` +
-      `No further queries until this is cleared by hand:\n` +
+      `No further queries until ${clearsAt(state).toISOString()}, when one is tried ` +
+      `again, unless this is cleared by hand first:\n` +
       `wrangler r2 object delete gloaming-data/${breakerKey(source)} --remote`,
   });
 
@@ -108,8 +128,9 @@ export interface BreakerQuery {
 }
 
 /**
- * Fetches through the breaker: refuses to query while it is tripped, and trips
- * it on any non-200.
+ * Fetches through the breaker: refuses to query while a trip holds, and trips
+ * it on any non-200. Once a trip has held for two days the request goes out,
+ * and a 200 clears the flag.
  *
  * Redirects are deliberately not followed. A followed 301 would arrive as a 200
  * from wherever it pointed, and 301 is the one code that means "this URL is
@@ -130,7 +151,7 @@ export async function fetchThroughBreaker(
   now: Date,
 ): Promise<Response> {
   const tripped = await readBreaker(store, source);
-  if (tripped !== null) {
+  if (tripped !== null && holds(tripped, now)) {
     throw new BreakerTrippedError(tripped);
   }
 
@@ -143,6 +164,9 @@ export async function fetchThroughBreaker(
     throw new BreakerTrippedError(
       await trip(store, alerting, source, { status: response.status, url: query.url }, now),
     );
+  }
+  if (tripped !== null) {
+    await store.delete(breakerKey(source));
   }
   return response;
 }

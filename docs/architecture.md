@@ -125,10 +125,13 @@ all-on-device, polling-only, no-push posture is ADR-0003.
 - **Circuit breaker (CelesTrak, now in the fetcher).** Any non-200 from CelesTrak
   writes a tripped flag plus the response code and timestamp to R2 at
   `internal/breaker/celestrak.json`; every invocation checks the flag first and
-  does not query while it is set; **reset is manual**, by deleting that object.
+  does not query while it is set. **A human gets two days to reset it** by
+  deleting that object; after that one request is let through, a 200 deletes
+  the flag, and anything else trips it afresh for another two days (ADR-0015).
   `sats.json` keeps serving its last-good copy meanwhile. Tripping POSTs the
-  maintainer ntfy topic. This is the single most important CelesTrak requirement
-  (Sec. 3): stop on any non-200, do not back off, do not retry.
+  maintainer ntfy topic, saying when the next attempt will be. This is the
+  single most important CelesTrak requirement (Sec. 3): stop on any non-200, do
+  not back off, do not retry.
 
   Two details settled in the building, both worth keeping:
 
@@ -1121,3 +1124,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0012 - constellations as the one exception to the star exclusion.
 - ADR-0013 - R8 on for release, with the app's own classes kept.
 - ADR-0014 - no CI: a hook and a release command.
+- ADR-0015 - the CelesTrak breaker clears itself after two days.

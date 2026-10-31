@@ -246,8 +246,8 @@ describe("runComets", () => {
   /**
    * No breaker, deliberately. CelesTrak's exists because its usage policy
    * demands stopping on any non-200; neither the MPC nor COBS asks for
-   * anything of the kind, and a manual-reset breaker on them would mean one
-   * transient 500 halts comet updates until a human notices.
+   * anything of the kind, and a breaker on them would mean one transient 500
+   * halts comet updates for two days unless a human notices.
    */
   it("does not trip a breaker on a bad response", async () => {
     const store = new MemoryStore();

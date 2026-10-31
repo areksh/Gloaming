@@ -146,8 +146,8 @@ pasting the whole URL builds a nonsense hostname; the fetcher checks the format
 and says so rather than letting you find out from a DNS error.
 
 The token needs object read and write, not admin: this reads the breaker flag
-and the health record and writes those plus `sats.json`. It cannot create or
-delete buckets.
+and the health record, writes those plus `sats.json`, and deletes the breaker
+flag when it clears itself. It cannot create or delete buckets.
 
 ## 6. Configuration
 
@@ -275,8 +275,10 @@ by design - and the first run will report `did not publish: celestrak breaker
 tripped at ...`.
 
 Do this only once step 0 has succeeded on the host, since that is the
-investigation the manual reset is supposed to follow. From a machine with
-`wrangler` authenticated:
+investigation the manual reset is supposed to follow. (A flag more than two days
+old no longer holds, so the first run would try CelesTrak anyway; clearing it
+makes that the deliberate act it should be.) From a machine with `wrangler`
+authenticated:
 
 ```sh
 npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --remote
@@ -304,7 +306,8 @@ A bad run logs `did not publish sats.json: ...` and exits 1, which `systemctl
 status` shows in red. The message says which of three things went wrong:
 
 - **A non-200 from CelesTrak** - `celestrak breaker tripped at ...: HTTP 503
-  from ...`. The breaker has tripped and needs a human; see Operations below.
+  from ...`. The breaker has tripped, and says when it will try again on its
+  own; see Operations below.
 - **Nothing answered at all** - `could not reach <url>: <reason>`, where the
   reason is what the network actually reported: `connect ECONNREFUSED ...`, a
   connect timeout, `getaddrinfo ENOTFOUND ...`. No response arrived, so this is
@@ -358,23 +361,28 @@ it, so an ad-hoc run pushes the next scheduled one out rather than doubling up
 against it. Confirm with `systemctl list-timers gloaming-elements.timer`.
 
 **The breaker has tripped.** Any non-200 from CelesTrak stops all further
-querying until a human clears it. That is their policy's single most important
-requirement, and it is deliberate rather than an inconvenience. Find out what
-happened first - the alert and the health record both carry the code and the
-URL - and only then, from a machine with `wrangler` authenticated:
+querying until a human clears it, or for two days, whichever comes first. That
+is their policy's single most important requirement, and it is deliberate
+rather than an inconvenience. Find out what happened first - the alert and the
+health record both carry the code and the URL - and only then, from a machine
+with `wrangler` authenticated:
 
 ```sh
 npx wrangler r2 object delete gloaming-data/internal/breaker/celestrak.json --remote
 ```
 
-The next timer run will query again. `sats.json` keeps serving its last good
-copy throughout, and elements stay usable for days, so a tripped breaker
-degrades pass prediction rather than breaking it.
+The next timer run will query again. Left alone, the first run two days after
+the trip lets one request through: a 200 deletes the flag and the run publishes
+as normal, and anything else trips it for another two days and pushes `breaker
+tripped again` (ADR-0015). `sats.json` keeps serving its last good copy
+throughout, and elements stay usable for days, so a tripped breaker degrades
+pass prediction rather than breaking it.
 
 A site coming back from an outage will often answer 5xx for a while before it is
-really back, which trips the breaker as designed. Check the URL by hand and
-clear the flag once it answers 200, rather than clearing it the moment the site
-starts responding at all.
+really back, which trips the breaker as designed - and a retry two days on that
+lands in that window costs another two days. Check the URL by hand and clear the
+flag once it answers 200, rather than clearing it the moment the site starts
+responding at all.
 
 **Comets.** From Phase 5 the same run also publishes `comets.json`, from the
 Minor Planet Center and COBS. It needs no configuration: both URLs have
