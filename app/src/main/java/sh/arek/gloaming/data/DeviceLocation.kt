@@ -17,9 +17,16 @@ data class DeviceFix(
  * An interface so the Android glue is the only thing that needs a device, and
  * so the screens can be driven from a fixed answer in a test.
  */
-fun interface LocationSource {
+interface LocationSource {
     /** The best fix available now, or null if there is not a usable one. */
     suspend fun current(): DeviceFix?
+
+    /**
+     * Asks the system for a new approximate fix, waiting at most
+     * [timeoutMillis], and returns the best of that and what [current] has.
+     * Null when neither is usable, including when the ask timed out.
+     */
+    suspend fun fresh(timeoutMillis: Long): DeviceFix?
 }
 
 /**
@@ -52,12 +59,20 @@ object LocationChoice {
      */
     const val TOO_VAGUE_METRES: Float = 50_000f
 
+    /**
+     * How long a background ask for a fresh fix is given before it is dropped.
+     *
+     * Twenty seconds: a network fix that has not come by then is not coming,
+     * and the poll that asked has a budget of sixty seconds to share.
+     */
+    const val FRESH_TIMEOUT_MILLIS: Long = 20_000L
+
     /** Used to rank a provider that declined to say how good its fix is. */
     private const val UNKNOWN_ACCURACY_METRES: Float = TOO_VAGUE_METRES
 
     fun best(fixes: List<DeviceFix>, nowMillis: Long): DeviceFix? = fixes
         .filter { it.isPlausible() && it.isFreshAt(nowMillis) && it.accuracyMetres < TOO_VAGUE_METRES }
-        .minByOrNull { it.rank() }
+        .minWithOrNull(compareBy({ it.rank() }, { -it.atMillis }))
 
     /**
      * A fix dated ahead of now is a clock correction rather than a better

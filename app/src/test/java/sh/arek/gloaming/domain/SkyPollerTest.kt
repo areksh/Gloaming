@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.aurora.OvalGrid
@@ -102,12 +103,22 @@ class SkyPollerTest {
         /** The bar each alert was judged against, which the verdict record needs. */
         val thresholds = mutableListOf<Int?>()
 
+        /** When the clear spell each alert was told about ends, if it was told of one. */
+        val clearUntils = mutableListOf<Long?>()
+
+        /** Which way each alert said to look. */
+        val towards = mutableListOf<Compass>()
+
         override fun notifyAurora(
             likelihood: Likelihood,
             status: SkyStatus,
             cloud: CloudCover?,
             threshold: Int?,
+            clearUntil: Long?,
+            towards: Compass,
         ) {
+            this.towards += towards
+            clearUntils += clearUntil
             notified += likelihood.probability
             sources += likelihood.source
             clouds += cloud
@@ -120,6 +131,7 @@ class SkyPollerTest {
         private val cover: CloudCover? = CloudCover(0, 0, 0, 0),
         private val fails: Boolean = false,
         private val known: CloudCover? = null,
+        private val hours: List<HourlyCover> = emptyList(),
     ) : WeatherSource {
         val requested = mutableListOf<Triple<String, Double, Double>>()
 
@@ -135,7 +147,7 @@ class SkyPollerTest {
 
         override fun lastKnown(latitude: Double, longitude: Double): CloudCover? = known
 
-        override fun forecast(latitude: Double, longitude: Double) = emptyList<HourlyCover>()
+        override fun forecast(latitude: Double, longitude: Double) = hours
     }
 
     private class Manifests(var stored: CachedManifest?) : ManifestStore {
@@ -208,6 +220,84 @@ class SkyPollerTest {
 
         assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(listOf(70), notifier.notified)
+    }
+
+    @Test
+    fun `tells the aurora alert which way to look, by hemisphere`() = runTest {
+        val northern = Notifier()
+        val southern = Notifier()
+
+        poller(70, settingsAt(), State(), northern).poll()
+        poller(
+            70,
+            Settings(UserSettings(latitude = -45.87, longitude = 170.5, threshold = 30)),
+            State(),
+            southern,
+            gridCell = -46 to 171,
+        ).poll()
+
+        assertEquals(listOf(Compass.North), northern.towards)
+        assertEquals(listOf(Compass.South), southern.towards)
+    }
+
+    @Test
+    fun `hands the clear spell's end to the aurora alert`() = runTest {
+        val notifier = Notifier()
+        val hour = 3_600_000L
+        // Clear from two hours before now to three hours after, cloudy beyond
+        // that: the spell is underway, and it ends where the cloud returns.
+        val hours = listOf(-2L, -1L, 0L, 1L, 2L, 3L).map { HourlyCover(nowMillis + it * hour, 0) } +
+            HourlyCover(nowMillis + 4 * hour, 100)
+
+        poller(
+            70, settingsAt(), State(), notifier,
+            weather = Weather(hours = hours),
+            darkness = Darkness.Now(endsAt = nowMillis + 8 * hour),
+        ).poll()
+
+        assertEquals(listOf<Long?>(nowMillis + 4 * hour), notifier.clearUntils)
+    }
+
+    @Test
+    fun `tells the aurora alert of no end for a spell that has not begun`() = runTest {
+        val notifier = Notifier()
+        val hour = 3_600_000L
+        // Cloudy now, clear from two hours on.
+        val hours = listOf(0L, 1L).map { HourlyCover(nowMillis + it * hour, 100) } +
+            listOf(2L, 3L).map { HourlyCover(nowMillis + it * hour, 0) }
+
+        poller(
+            70, settingsAt(), State(), notifier,
+            weather = Weather(hours = hours),
+            darkness = Darkness.Now(endsAt = nowMillis + 8 * hour),
+        ).poll()
+
+        assertEquals(listOf<Long?>(null), notifier.clearUntils)
+    }
+
+    @Test
+    fun `looks twelve hours ahead for a spell's end when the dark has none`() = runTest {
+        val notifier = Notifier()
+        val hour = 3_600_000L
+        // Clear for twenty hours: only the twelve-hour fallback can cut it.
+        val hours = (0L until 20L).map { HourlyCover(nowMillis + it * hour, 0) }
+
+        poller(
+            70, settingsAt(), State(), notifier,
+            weather = Weather(hours = hours),
+            darkness = Darkness.Now(endsAt = null),
+        ).poll()
+
+        assertEquals(listOf<Long?>(nowMillis + 12 * hour), notifier.clearUntils)
+    }
+
+    @Test
+    fun `tells the aurora alert of no spell when the forecast holds none`() = runTest {
+        val notifier = Notifier()
+
+        poller(70, settingsAt(), State(), notifier).poll()
+
+        assertEquals(listOf<Long?>(null), notifier.clearUntils)
     }
 
     @Test

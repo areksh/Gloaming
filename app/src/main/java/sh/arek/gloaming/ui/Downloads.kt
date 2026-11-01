@@ -93,3 +93,25 @@ private const val COMETS_STALE_AFTER_MILLIS: Long = 30L * 24 * 60 * 60 * 1000
 
 /** No age reaches this, which is how a row opts out of being marked. */
 private const val NEVER: Long = Long.MAX_VALUE
+
+/**
+ * What the status line says when something is wrong, or null when nothing is.
+ *
+ * The report itself sits in the checks sheet, behind a tap, so this is the
+ * part of it that still speaks unasked: a fortnight of stale elements has to
+ * show on the screen somebody opens, not only on the one they might open
+ * next. The documents to blame are named; a failed check with none to blame
+ * is still worth a word.
+ */
+fun describeTrouble(rows: List<DownloadRow>, lastError: String?): String? {
+    val wrong = rows.filter { it.alarming }.map { "the " + it.label.replaceFirstChar { c -> c.lowercase() } }
+    return when {
+        wrong.isNotEmpty() -> "Something is wrong with ${joinNames(wrong)}."
+        lastError != null -> "The last check failed."
+        else -> null
+    }
+}
+
+/** "a", "a and b", "a, b and c". */
+private fun joinNames(names: List<String>): String =
+    if (names.size == 1) names.single() else names.dropLast(1).joinToString(", ") + " and " + names.last()

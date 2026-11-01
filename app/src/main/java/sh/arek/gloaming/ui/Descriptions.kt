@@ -1,18 +1,25 @@
 package sh.arek.gloaming.ui
 
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.data.CloudCover
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.MoonTonight
+import sh.arek.gloaming.domain.StormMode
 import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
 import sh.arek.gloaming.net.Transfer
 import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.satellites.IssCoverage
+import sh.arek.gloaming.satellites.SatellitePass
 
 /**
  * The sentences the screens are made of, apart from the screens themselves.
@@ -71,6 +78,49 @@ fun describeAge(lastPollAt: Long?, now: Long): String {
         }
     }
 }
+
+/**
+ * The one line at the head of Tonight: how long ago the app looked, and why it
+ * may not have looked since.
+ *
+ * One line rather than two because they are read together - a long gap is
+ * only alarming until the second half explains it. Without a location there
+ * is no darkness to describe, and the line stops at the age.
+ */
+fun describeStatus(
+    lastPollAt: Long?,
+    now: Long,
+    darkness: Darkness?,
+    localMinuteOfDay: (Long) -> Int = ::deviceLocalMinuteOfDay,
+): String {
+    val age = describeAge(lastPollAt, now) + "."
+    return if (darkness == null) age else "$age ${describeSchedule(darkness, localMinuteOfDay)}"
+}
+
+/** What the watch button promises before it is pressed: how often, and for how long. */
+fun describeWatchPlan(duration: WatchDuration): String {
+    val span = if (duration == WatchDuration.UntilLight) "until it gets light" else "for ${duration.label}"
+    return "Checks every ${StormMode.POLL_MINUTES} minutes $span"
+}
+
+/**
+ * What the watch button says while a watch runs: when it will stop on its own,
+ * which is what tapping it would bring forward. Null is a watch whose end the
+ * service has not given, which still says it is running.
+ */
+fun describeWatching(untilMillis: Long?): String =
+    untilMillis?.let { "Watching until ${clock(it)}" } ?: "Watching"
+
+/**
+ * Whether a watch is running as far as the screen can tell.
+ *
+ * Past its own end it has stopped, whatever the screen last heard: the
+ * service ends it at the cap and nothing tells a screen left open, which
+ * would otherwise go on saying "Watching until" a time already gone. One
+ * with no known end is taken at its word.
+ */
+fun watchRunning(watching: Boolean, untilMillis: Long?, nowMillis: Long): Boolean =
+    watching && (untilMillis == null || nowMillis < untilMillis)
 
 internal fun plural(value: Long) = if (value == 1L) "" else "s"
 
@@ -363,6 +413,12 @@ internal fun describeConstellation(seen: ConstellationTonight): String {
     return listOfNotNull(best, where, always, seen.constellation.starHop).joinToString(" ")
 }
 
+/** One pass in one line: when, which way, and how high. */
+internal fun describePassLine(pass: SatellitePass): String =
+    "${clock(pass.risesAt)}  ${pass.name} - rises ${Compass.of(pass.riseAzimuth).label}, " +
+        "highest ${pass.peakElevation.roundToInt()} degrees ${Compass.of(pass.peakAzimuth).label} " +
+        "at ${clock(pass.peaksAt)}"
+
 /**
  * One planet in one line: how high, which way, when, and how bright.
  *
@@ -462,7 +518,7 @@ fun isStale(ageMillis: Long?, afterMillis: Long = STALE_AFTER_MILLIS): Boolean =
 
 const val STALE_AFTER_MILLIS: Long = 3L * 24 * 60 * 60 * 1000
 
-/** What the satellites card says when it has no elements, and how loudly. */
+/** What Tonight says for the satellites when it has no elements, and how loudly. */
 data class SatellitesNote(val text: String, val alarming: Boolean)
 
 /**
@@ -504,4 +560,50 @@ fun describeMissingElements(everChecked: Boolean, failure: String?): SatellitesN
             "what is crossing tonight. Press Check now to try again.",
         alarming = true,
     )
+}
+
+/** How often the phone's position is refreshed, as the location card offers it. */
+fun describeCadence(cadence: LocationCadence): String = when (cadence) {
+    LocationCadence.OnOpen -> "Off - when I open Gloaming"
+    is LocationCadence.Every -> when (cadence.hours) {
+        1 -> "Every hour"
+        24 -> "Once a day"
+        else -> "Every ${cadence.hours} hours"
+    }
+}
+
+/**
+ * Background updates as the Settings index summary says them, after "Approximate,
+ * from the phone." - where the card's own "Off - when I open Gloaming" would
+ * read as though the location were off.
+ */
+fun describeCadenceSummary(cadence: LocationCadence): String = when (cadence) {
+    LocationCadence.OnOpen -> "Background updates off"
+    is LocationCadence.Every -> when (cadence.hours) {
+        1 -> "Background updates every hour"
+        24 -> "Background updates once a day"
+        else -> "Background updates every ${cadence.hours} hours"
+    }
+}
+
+/**
+ * When the detected position was last refreshed.
+ *
+ * The time alone for today, and the date as well otherwise, judged in the
+ * phone's own zone: a refresh from the background is the one thing on the card
+ * that changes while nobody is looking, so it says when.
+ */
+fun describeLocationUpdated(updatedAt: Long?, now: Long): String {
+    if (updatedAt == null) return "Not updated yet"
+    val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(updatedAt))
+    if (sameLocalDay(updatedAt, now)) return "Last updated at $time"
+    val date = SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(updatedAt))
+    return "Last updated $date at $time"
+}
+
+private fun sameLocalDay(a: Long, b: Long): Boolean {
+    val first = Calendar.getInstance().apply { timeInMillis = a }
+    val second = Calendar.getInstance().apply { timeInMillis = b }
+    return first.get(Calendar.YEAR) == second.get(Calendar.YEAR) &&
+        first.get(Calendar.DAY_OF_YEAR) == second.get(Calendar.DAY_OF_YEAR)
 }

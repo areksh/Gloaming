@@ -1,5 +1,6 @@
 package sh.arek.gloaming.domain
 
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.data.HourlyCover
 
 /**
@@ -14,6 +15,7 @@ import sh.arek.gloaming.data.HourlyCover
  * Everything here is arithmetic over a list. No clock, no network, no Android:
  * the hours arrive from the forecast that was fetched anyway.
  */
+@Serializable
 data class ClearSpell(
     /** When it starts, never earlier than now or the start of the darkness. */
     val from: Long,
@@ -37,7 +39,8 @@ data class ClearSpell(
          * a longer one at four in the morning is a different question and
          * usually a rhetorical one.
          *
-         * @param hourly total cover per hour, in any order, gaps allowed.
+         * @param hourly cover per hour, judged on [HourlyCover.effective], in any
+         *   order, gaps allowed.
          * @param tolerance the user's own cloud tolerance, as a percentage.
          * @param darkFrom start of tonight's darkness.
          * @param darkUntil end of it.
@@ -64,7 +67,7 @@ data class ClearSpell(
 
             for (entry in ordered) {
                 val entryUntil = entry.atMillis + HOUR_MILLIS
-                val clear = entry.total <= tolerance &&
+                val clear = entry.effective <= tolerance &&
                     entry.atMillis < darkUntil &&
                     entryUntil > windowFrom
 

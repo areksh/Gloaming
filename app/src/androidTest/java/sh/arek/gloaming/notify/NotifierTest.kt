@@ -1,19 +1,34 @@
 package sh.arek.gloaming.notify
 
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.os.Build
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import sh.arek.gloaming.MainActivity
+import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.aurora.Likelihood
+import sh.arek.gloaming.data.Answer
+import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.encode
+import sh.arek.gloaming.satellites.PassChannel
+import sh.arek.gloaming.satellites.PassDescription
+import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
+import sh.arek.gloaming.ui.OutlookWords
 
 /**
  * That the notification path works on a real device.
@@ -41,6 +56,8 @@ class NotifierTest {
 
     private fun uk(probability: Int) =
         Likelihood(probability, Likelihood.Source.AURORAWATCH)
+
+    private val auroraNotificationId = 1
 
     private val manager = context.getSystemService(NotificationManager::class.java)
 
@@ -85,7 +102,7 @@ class NotifierTest {
      */
     @Test
     fun tappingTheAlertOpensTheApp() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -107,7 +124,8 @@ class NotifierTest {
      */
     @Test
     fun theAlertAsksWhetherItWasWorthIt() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+        AndroidAuroraNotifier(context)
+            .notifyAurora(ovation(72), status, clear, threshold = 30, towards = Compass.North)
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -118,28 +136,219 @@ class NotifierTest {
     }
 
     /**
-     * Two, not three. Sec. 9.5 argues attention is the scarcest thing the app
-     * spends, and a notification with three buttons is one that gets dismissed
-     * unread. "Did not look" lives on the Tonight card, where somebody is
-     * already looking at a screen.
+     * Two verdict buttons, not three. Sec. 9.5 argues attention is the scarcest
+     * thing the app spends, and "Did not look" lives on the Tonight card, where
+     * somebody is already looking at a screen. "Find it" is a different kind of
+     * button - it opens the app - and sits alongside them.
      */
     @Test
-    fun theAlertDoesNotCarryAThirdButton() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+    fun theAlertDoesNotCarryAThirdVerdictButton() {
+        AndroidAuroraNotifier(context)
+            .notifyAurora(ovation(72), status, clear, threshold = 30, towards = Compass.North)
+
+        val labels = postedAlert()!!.notification.actions.orEmpty().map { it.title.toString() }
+        assertEquals(
+            labels.toString(),
+            listOf("Find it", Answer.Worth.label, Answer.NotWorth.label),
+            labels,
+        )
+    }
+
+    private fun labels(posted: android.service.notification.StatusBarNotification) =
+        posted.notification.actions.orEmpty().map { it.title.toString() }
+
+    /** Whether a notification posted for [target] under [id] carries its own Find it. */
+    private fun carriesFindIt(id: Int, target: FindTarget): Boolean =
+        PendingIntent.getActivity(
+            context,
+            id,
+            FindIt.intent(context, target),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        ) != null
+
+    private fun forgetFindIt(id: Int, target: FindTarget) {
+        PendingIntent.getActivity(
+            context,
+            id,
+            FindIt.intent(context, target),
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        )?.cancel()
+    }
+
+    private fun pass(catalogue: Int, risesAt: Long) = SatellitePass(
+        catalogue = catalogue,
+        name = "Object $catalogue",
+        channel = PassChannel.Bright,
+        risesAt = risesAt,
+        riseAzimuth = 225.0,
+        peaksAt = risesAt + 240_000L,
+        peakElevation = 68.0,
+        peakAzimuth = 180.0,
+        setsAt = risesAt + 480_000L,
+        setAzimuth = 135.0,
+        rangeAtPeakKm = 420.0,
+        sunlitAtPeak = true,
+        entersShadowAt = null,
+        leavesShadowAt = null,
+    )
+
+    private fun describe(pass: SatellitePass) = PassDescription.of(pass, observerIsDark = true)
+
+    /** The extra holds exactly what the target encodes to, and nothing else. */
+    @Test
+    fun theFindItIntentCarriesOnlyTheEncodedTarget() {
+        val target = FindTarget.Pass(25544, 1_800_000_000_000L)
+
+        val intent = FindIt.intent(context, target)
+
+        assertEquals(target.encode(), intent.getStringExtra(FindIt.EXTRA_FIND_TARGET))
+        assertEquals(MainActivity::class.java.name, intent.component?.className)
+        assertEquals(listOf(FindIt.EXTRA_FIND_TARGET), intent.extras!!.keySet().toList())
+    }
+
+    @Test
+    fun aPassAlertCarriesFindItAfterFollowItAndAimedAtThatPass() {
+        val risesAt = System.currentTimeMillis() + 3_600_000L
+        val pass = pass(25544, risesAt)
+        val target = FindTarget.Pass(25544, risesAt)
+        try {
+            AndroidPassNotifier(context).notifyPass(pass, describe(pass))
+
+            val posted = postedAlert()
+            assertNotNull("the alert was never posted", posted)
+            assertEquals(listOf("Follow it", "Find it"), labels(posted!!).take(2))
+            assertTrue("no Find it for the pass", carriesFindIt(25544, target))
+        } finally {
+            forgetFindIt(25544, target)
+        }
+    }
+
+    /**
+     * Two alerts up together must each open Find on their own object: a shared
+     * pending intent would hand the second one's target to the first.
+     */
+    @Test
+    fun twoPassAlertsCarryTwoDifferentTargets() {
+        val risesAt = System.currentTimeMillis() + 3_600_000L
+        val first = pass(25544, risesAt)
+        val second = pass(48274, risesAt + 600_000L)
+        val firstTarget = FindTarget.Pass(25544, risesAt)
+        val secondTarget = FindTarget.Pass(48274, risesAt + 600_000L)
+        try {
+            val notifier = AndroidPassNotifier(context)
+            notifier.notifyPass(first, describe(first))
+            notifier.notifyPass(second, describe(second))
+
+            assertTrue(carriesFindIt(25544, firstTarget))
+            assertTrue(carriesFindIt(48274, secondTarget))
+            assertFalse("the first alert would open the second's target", carriesFindIt(25544, secondTarget))
+            assertFalse("the second alert would open the first's target", carriesFindIt(48274, firstTarget))
+        } finally {
+            forgetFindIt(25544, firstTarget)
+            forgetFindIt(48274, secondTarget)
+        }
+    }
+
+    @Test
+    fun anAuroraAlertCarriesFindItAimedAtTheAurora() {
+        try {
+            AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
+
+            val posted = postedAlert()
+            assertNotNull("the alert was never posted", posted)
+            assertEquals("Find it", labels(posted!!).first())
+            assertTrue(carriesFindIt(auroraNotificationId, FindTarget.Aurora))
+        } finally {
+            forgetFindIt(auroraNotificationId, FindTarget.Aurora)
+        }
+    }
+
+    private fun event(kind: EventKind, at: Long) = SkyEvent(
+        kind = kind,
+        at = at,
+        from = at - 3_600_000L,
+        until = at + 3_600_000L,
+        title = "Something to see",
+        detail = "A detail.",
+        visibility = Visibility.Good,
+    )
+
+    @Test
+    fun aLunarEclipseAlertCarriesFindItAimedAtTheMoon() {
+        val event = event(EventKind.LunarEclipse, System.currentTimeMillis() + 7_200_000L)
+        val id = EventPlanner.key(event, EventPlanner.Phase.Tonight).hashCode()
+        try {
+            AndroidEventNotifier(context).notifyEvent(event, EventPlanner.Phase.Tonight)
+
+            val posted = postedAlert()
+            assertNotNull("the alert was never posted", posted)
+            assertTrue(labels(posted!!).toString(), "Find it" in labels(posted))
+            assertTrue(carriesFindIt(id, FindTarget.Moon))
+        } finally {
+            forgetFindIt(id, FindTarget.Moon)
+        }
+    }
+
+    @Test
+    fun anAlertForAnEventWithNothingToFindHasNoFindIt() {
+        val event = event(EventKind.MeteorShower, System.currentTimeMillis() + 7_200_000L)
+
+        AndroidEventNotifier(context).notifyEvent(event, EventPlanner.Phase.Tonight)
 
         val posted = postedAlert()
-        assertEquals(2, posted!!.notification.actions.orEmpty().size)
+        assertNotNull("the alert was never posted", posted)
+        assertFalse(labels(posted!!).toString(), "Find it" in labels(posted))
     }
 
     @Test
     fun postingCreatesTheAuroraChannel() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = manager.getNotificationChannel(AndroidAuroraNotifier.CHANNEL_AURORA)
             assertNotNull("aurora channel was not created", channel)
             assertEquals(NotificationManager.IMPORTANCE_HIGH, channel.importance)
         }
+    }
+
+    /**
+     * The collapsed text is what someone sees at two in the morning, so it
+     * opens with the outlook's own words; the figures that used to be the whole
+     * of it move behind the expand.
+     */
+    @Test
+    fun theAlertOpensWithTheOutlookAndKeepsTheFiguresInTheExpandedText() {
+        val until = 1_800_000_000_000L
+        AndroidAuroraNotifier(context)
+            .notifyAurora(
+                ovation(72), status, clear, threshold = 30, clearUntil = until, towards = Compass.North,
+            )
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+        val extras = posted!!.notification.extras
+        val collapsed = extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
+        val expanded = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString()
+
+        // The spell's end reaches the words, in the exact form the screen uses.
+        val outlook = OutlookWords.auroraAlert(72, until, Compass.North)
+        assertTrue(outlook, outlook.contains("while it stays clear until"))
+        assertEquals(outlook, collapsed)
+        assertTrue(expanded, expanded.startsWith("$outlook\n"))
+        assertTrue(expanded, expanded.contains("Local probability 72%, clear"))
+    }
+
+    /** Below the equator the alert sends the observer south. */
+    @Test
+    fun theAlertSaysWhichWayToLookByHemisphere() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.South)
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+        val collapsed = posted!!.notification.extras
+            .getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
+        assertEquals(OutlookWords.auroraAlert(72, null, Compass.South), collapsed)
+        assertTrue(collapsed, collapsed.contains("Look south"))
     }
 
     /**
@@ -153,13 +362,14 @@ class NotifierTest {
     fun postingNeverThrows() {
         val notifier = AndroidAuroraNotifier(context)
 
-        notifier.notifyAurora(ovation(0), status, clear)
-        notifier.notifyAurora(ovation(100), status, CloudCover(100, 100, 100, 100))
-        notifier.notifyAurora(uk(60), status, null)
+        notifier.notifyAurora(ovation(0), status, clear, towards = Compass.North)
+        notifier.notifyAurora(ovation(100), status, CloudCover(100, 100, 100, 100), towards = Compass.North)
+        notifier.notifyAurora(uk(60), status, null, towards = Compass.North)
         notifier.notifyAurora(
             ovation(55),
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
+            towards = Compass.North,
         )
         // No Kp, no Bz, no cloud and no threshold: every field the verdict
         // record wants is absent, which is the state a first poll after a
@@ -169,6 +379,7 @@ class NotifierTest {
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
             threshold = null,
+            towards = Compass.North,
         )
     }
 }

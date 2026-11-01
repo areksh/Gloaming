@@ -236,12 +236,14 @@ freeze one in place.
 
 Recreated as a Compose project matching Sec. 7: `minSdk 24`,
 `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.x, Compose BOM 2026.06.x, AGP 9.
-No Play Services anywhere; `LocationManager` only (never the fused provider),
-with manual location entry as a first-class input and the app fully functional
-with location permission permanently denied (Sec. 7, Sec. 11). Detecting the
-position is offered as of 2026-08-25 and is coarse, foreground-only and
-last-known-fix-only - see Sec. 7 of the sourcing document for the three limits
-and why each one holds.
+No Play Services anywhere; `LocationManager` only (the platform's own fused
+provider where it exists, never Play Services), with manual location entry as a
+first-class input and the app fully functional with location permission
+permanently denied (Sec. 7, Sec. 11). Detecting the position is offered as of
+2026-08-25 and is coarse - see Sec. 7 of the sourcing document for its limits
+and why each one holds. As of 2026-10-31 the user may also choose to have it
+refreshed in the background on a cadence of their own (ADR-0016); otherwise it
+is read when the app is opened or when asked.
 
 Note on the build: AGP 9 has built-in Kotlin support, so the
 `org.jetbrains.kotlin.android` plugin is not applied (AGP rejects it). Only
@@ -298,9 +300,11 @@ is a file replacement.
   The two added to `SkyCache` and `WeatherSource` are defaulted to null, so a
   fake in a poller test need not answer something no poller reads.
 
-  Shown as text under the Tonight tab's "check now" button rather than as a
-  card, and absent unless it has something to say: while a check runs, after
-  one has been run, or - asked or not - when something is wrong. That last
+  Shown as text under Check now in Tonight's checks sheet rather than as a
+  card, and absent there unless it has something to say: while a check runs or
+  after one has been run. When something is wrong it speaks asked or not:
+  `ui.describeTrouble` names the documents to blame on the status line at the
+  head of Tonight, which is on the screen without opening anything. That
   clause is the point rather than a hedge; a report that only speaks when
   pressed would have sat silent through the whole fortnight. Only the elements
   (three days) and the comets (a month) are ever marked stale, because those
@@ -317,6 +321,17 @@ is a file replacement.
   credential-encrypted store or the device-encrypted mirror a locked wake can
   reach - is the whole point of the split. `sh.arek.gloaming.data.BootAware`
   records that split and what may be written to which; it is not repeated here.
+
+  Two small additions sit in it. `OutlookStore` holds Tonight's opening
+  sentence for the widget, which redraws where the whole of tonight cannot be
+  worked out. It is keyed by the grid cell, never the precise position, so
+  `BootAware.outlookStore` chooses its store by the same rule as the settings
+  mirror. It is stamped with the check it was decided against:
+  `WidgetContent.update` decides what the screen leaves there, never a live
+  aurora reading, and `WidgetContent.of` quotes it only until a newer check
+  lands. The aurora alert does not read it; its sentence comes from the poll's
+  own reading. `LocationCadence` is the stored choice of how often a detected
+  position is refreshed: `OnOpen`, the default, or `Every(hours)` (ADR-0016).
 - **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
   horizon-crossing search over the vendored propagator, which offers no search
   of its own), and `PassDescription` (qualitative buckets - never a magnitude).
@@ -326,8 +341,11 @@ is a file replacement.
   cell, or AuroraWatch inside the UK bounding box) so the UI never branches on
   which source is in play; the decision engine (hysteresis `T_on`/`T_off`,
   minimum re-alert interval, quiet hours, per-user threshold, the non-optional
-  darkness gate and the cloud gate); the astronomy calculators; and the
-  adaptive-polling scheduler policy.
+  darkness gate and the cloud gate); the astronomy calculators, among them
+  `astronomy.SkyPositions`, which places a body or a fixed point at an instant
+  for Find; `Outlook`, which decides Tonight's opening sentence from the same
+  documents by putting every candidate through the gates in order and keeping
+  the picks and the exclusions; and the adaptive-polling scheduler policy.
 - **scheduling:** `AlarmManager.setWindow()` or chained `OneTimeWorkRequest`s
   (WorkManager's 15-minute floor is too coarse in both directions, Sec. 9.3);
   every scheduled wake is jittered - spread either side of the requested time
@@ -335,6 +353,56 @@ is a file replacement.
   (Sec. 2); the battery-optimisation-exemption
   request flow; and storm-mode as a `specialUse` foreground service that runs
   only for the duration of an event.
+
+  **The background location refresh has an alarm of its own** (ADR-0016).
+  `work.LocationAlarm` arms an inexact `setAndAllowWhileIdle` at
+  `domain.LocationRefresh.nextAt` - one interval after the last refresh, never
+  sooner than a quarter of an hour, and that quarter of an hour when there has
+  never been one - and cancels it for any cadence the background does not
+  answer. It is armed when a save from the screen changes the location mode or
+  the cadence, and by `BootReceiver` once the phone is unlocked after a boot or
+  an update. Detecting the position on the screen stamps `locationUpdatedAt`
+  too. `work.LocationReceiver` is deliberately not Direct Boot aware: it
+  returns at once while locked, because its settings are credential-encrypted
+  and the reboot that locked the phone cleared the alarm anyway. Unlocked, it
+  asks `LocationRefresh.skip` whether to run, takes one fresh coarse fix inside
+  a thirty-second budget, saves it with `locationUpdatedAt`, and re-arms. A
+  withdrawn background grant puts the cadence back to opening the app and sets
+  `backgroundLocationRevoked` for the screen to explain. The journal says
+  whether a refresh happened, never where. `MainActivity` applies the same
+  reconciliation on every return and at first composition
+  (`domain.LocationGrants`): the grants are often withdrawn while the app is
+  closed, and an interval without the background grant goes back to opening
+  the app, while automatic without the location grant goes back to typed in
+  with a note.
+
+  The location card is a "Use this phone's location" switch with the position,
+  when it was updated and Update now under it, and a "Background updates"
+  choice below that: off, every hour, or a typed number of hours from 2 to 48
+  (`parseCustomHours`). The card reports the choice and leaves the asking to
+  `MainActivity`; an interval picked while the background grant is missing is
+  first held behind a dialog (`CadenceExplainer`) saying what Android will ask,
+  since Android's own page replaces the app on screen and a line on the card
+  could not be read there, and first-run setup offers hourly updates the moment
+  the switch comes on. An interval without the background grant asks Android
+  for it next - one request for both grants on API 29, coarse and then
+  background on its own from API 30 (which Android answers with its settings
+  page), nothing below 29 - as `AndroidLocationSource.backgroundRequest` works
+  out. `domain.CadenceRequest` decides each step: a pick made while a request
+  is still with Android is dropped, since Android answers a second one at once
+  with nothing granted; a refused background grant stores off and says so, and
+  a refused coarse grant goes back to typing it in, as the switch does.
+  The interval being asked for survives the activity being rebuilt meanwhile.
+  The custom number of hours is sent on Done or when the field loses focus,
+  never per keystroke. Picking any cadence clears `backgroundLocationRevoked`.
+  Opening the app detects the position when the cadence says it is due, read
+  from the store rather than the screen's copy, and leaves the screen's note
+  alone, so the answer from Android's settings page is not wiped on return.
+  The start of an activity rebuilt for a configuration change - a rotation -
+  is not an open and asks nothing.
+  Every save from the screen goes through `LocationRefresh.keepNewerFix`, so a
+  screen brought forward before a background refresh landed cannot write the
+  older position back over the newer one.
 - **notification:** one channel per category - `aurora`, `iss-passes`,
   `bright-satellites`, `comets`, `eclipses`, `meteor-showers`, `conjunctions` -
   created behind the `SDK_INT >= 26` branch.
@@ -349,17 +417,197 @@ is a file replacement.
 - **ui:** Compose screens; a prominent staleness display that distinguishes
   "quiet/dormant" from "not looked recently" (Sec. 10); red night-vision mode
   and a home-screen widget (Phase 2). Also the guide - `Guide.kt` is pure data
-  like `Credits.kt`, read both by its own tab and by the Explain button on each
-  Tonight card, so a term is worded once and shown in two places.
+  like `Credits.kt`, read both by its own page under Settings and by the sheet
+  each row on Tonight's timeline opens (`helpTopic` picks the entries), so a
+  term is worded once and shown in two places.
 
-  **Each tab scrolls itself, and the calendar's is lazy.** Tonight, Guide and
-  Settings are a scrolling column through `ScrollingTab`, which holds the
-  padding and spacing all four used to share. The calendar is a `LazyColumn`
-  owning its own scrolling, because a year ahead is around a hundred entries
-  and composing them all cost a frame of 1300ms on opening and every frame of a
-  scroll afterwards - and because a lazy list measured inside a scrolling column
-  is given unbounded height, which defeats the laziness and throws. The scroll
-  positions are remembered per tab rather than shared.
+  **First run is a setup flow, not a screen of its own.** `GloamingRoot`
+  (`Setup.kt`) shows `SetupFlow` until `UserSettings.setupDone`, and
+  `GloamingNav` after. The flow is three steps (`SetupStep`: location,
+  notifications - left out below Android 13 - and background checks), each
+  the Settings page for the same question rather than a copy of it, each
+  skippable; the step is `rememberSaveable` and system Back on a later step
+  goes to the one before. `setupDone` is stored with the other settings, and a
+  store with no record of it reads as "has a location", so an install from
+  before setup existed is not asked again. The device-encrypted mirror carries
+  it along and nothing reads it there.
+
+  **Colour, type and callbacks are each in one place.** `ui.theme.Palette`
+  holds every colour by role (the sky ramp, the cloud hatch, the dimmed row),
+  read from `LocalPalette` with the Material scheme derived from the same
+  values; there is a dark, a light and a night-vision palette, and no
+  wallpaper-derived colour. `UiActions` bundles every callback the screens can
+  raise, each defaulting to a no-op, and `MainActivity` is the one place that
+  builds the real one. `TimeOfDay.kt` parses and prints the typed `HH:MM` and
+  the device-zone clock and date strings the screens share.
+
+  **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
+  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Find,
+  Ahead, Settings); the guide is not one, and is a Settings page.
+  Settings is an index (`SettingsIndex.kt`): `SettingsGroup`s, seven questions
+  in order, each listing its `SettingsPage`s as rows that show the page's
+  current value (`summary`, with `summaryAlarming` marking the ones that report
+  something broken, drawn in the alarm colour and in bold so night vision still
+  shows them). A page's body is `SettingsPageContent` in `SettingsScreen.kt`.
+  The page back stack is one nullable page held in `GloamingNav`: system Back
+  returns to the index, and choosing a section on the bar, Settings included,
+  lands on its index. Both are scrolling columns through `ScrollingSection`,
+  which holds the padding and spacing the sections share. Tonight brings its
+  own column, `TonightScreen`, with the same figures: a `PullToRefreshBox`
+  whose pull runs a check, over the scroll, and the Watch tonight button pinned
+  beneath it rather than scrolled (it opens `WatchSheet`, the choice of how
+  long). Its head is `TonightHeader` - a banner while
+  background checks or notifications are not allowed, then the status line,
+  which stays under it and opens the checks sheet (`ChecksSheet`: Check now,
+  the last error, the downloads report, battery saver); then the date and the
+  outlook. While tonight is being worked out a progress bar and "Updating..."
+  sit under the status line, and with no night yet the body says "Working out
+  tonight..." rather than nothing. The outlook is decided in the same
+  off-main-thread pass as the tonight list, from the same held documents and
+  the held hourly forecast, so the sentence and the night beneath it cannot
+  disagree. The
+  elements' age it is given is how long ago `sats.json` says they were
+  published, not how long the phone has held them, since a 304 keeps the
+  latter young for ever. The same pass lays the night out as a `Timeline`
+  (`NightTimeline.of`: rows, cloud spans, lanes and the sun's altitude every
+  quarter hour, matching rows to the outlook's picks and exclusions so a row's
+  weight is the outlook's verdict). Under the header, `NightTimelineView` draws
+  it at 56 dp an hour: one `Canvas` for the sky column, hatching, lanes and
+  the now line, heard by a screen reader as `NightTimeline.summary`, with the
+  rows as real tappable nodes over it placed by `NightTimeline.layout`, so
+  TalkBack reads them in time order. With no sunset or sunrise to bound it -
+  the polar night, the midnight sun - there is no timeline, and the darkness
+  thresholds are said in words in its place. A row opens `RowSheet` - the detail the
+  old cards carried, the caveat, the guide's notes, Share and Export for a
+  dated event. `TonightLists` works out the two lists beneath: "Also up
+  tonight" (whatever is up with no row and was not set aside) and "Not worth
+  it tonight" (the outlook's exclusions in `OutlookWords.excluded`, then the
+  satellites when there are none to list, saying whether the sky is empty or
+  the elements are missing). Ahead (`AheadScreen`) is a `LazyColumn` owning its own
+  scrolling, because a year ahead is around a hundred entries and composing
+  them all cost a frame of 1300ms on opening and every frame of a scroll
+  afterwards - and because a lazy list measured inside a scrolling column is
+  given unbounded height, which defeats the laziness and throws. The scroll
+  positions are remembered per section rather than shared. Each month on
+  Ahead opens with a `MonthStrip`: one `NightCell` per night, shaded by
+  `Twilight.moonInterference`, a dot on the days that have an event, and the
+  longest run below `MonthStrips.DARK_BELOW` named in words and read out whole
+  by TalkBack, so the shading never carries the meaning alone. The strips are
+  worked out from the calendar's events, after them, and held in
+  `ScreenResults.months`. An event row opens the shared `RowSheet` (Share and
+  Export live there); the kinds sit behind one "Showing N of 14 kinds" button.
+
+  **Tonight and the year ahead outlive the activity.** On a Pixel 8a the
+  calendar's events take about ten seconds, the month strips as long again, and
+  a night about nine (seven of them the pass sweep). Held as `remember` state
+  they went with every rotation and were started again from nothing, and the
+  night was worked out twice on every open, first against an empty calendar.
+  `ui.ScreenResults` holds them for the process instead, one instance from
+  `Graph.screenResults`, as Compose state the screen reads. No ViewModel: it is
+  a plain class, like the rest of the wiring. `MainActivity` hands it a
+  `CalendarKey` and a `TonightKey` - made from the settings by their `of`, each
+  holding every setting its work reads and the position to
+  `KEY_PRECISION_DEGREES`, about a kilometre, so an approximate fix wandering
+  does not start it all again; the work itself uses the exact position - and
+  work starts only for a key that is neither shown nor in flight, in the
+  holder's own scope on the default dispatcher. So a rotation, mid-run or not,
+  finds the result or the run where it left it, and reopening with nothing
+  changed works nothing out. A new key cancels the run in flight; the sweep
+  cannot be cancelled and runs on regardless, so a result is published only if
+  its run is still the newest. Tonight does not wait for the calendar: it works
+  its own events out (`astronomy.TonightEvents`) over 22 days rather than the
+  year, because `Tonight.of` lists only the events whose window overlaps tonight
+  and the longest window, an opposition's, opens three weeks before its date, so
+  the year scan's ten seconds bought nothing a 22-day scan does not. For that
+  reason the `TonightKey` holds the comet settings itself, and
+  `TonightEventsTest` holds the two scans equal over the scenario catalogue and
+  sampled nights through a year at three latitudes. A key for another grid cell
+  takes the old place's night down at once. Work that throws ends its run, so
+  nothing is left updating for ever, and the scope's handler logs it rather than
+  letting it crash the app. A cold process would otherwise show nothing for the
+  twenty seconds the first night takes, so each finished run also writes
+  `tonight-snapshot.json` (`data.TonightSnapshots`: the list, outlook, hourly
+  cover and timeline, keyed by grid cell and by the end of the night, written by
+  temporary file and rename) and the holder reads it in its own scope as it is
+  made (about 110 KB, a third of a second cold on a Pixel 8a, off the main
+  thread and outside the lock), then seeds from it when it is for the cell asked
+  for and the night is not over, marked as updating. It is never shown over a
+  night already worked out in the process, however late it is read, and writes
+  happen outside the lock, stamped so none lands out of order. The file lives in
+  `Context.filesDir`, which is credential-encrypted, and never in
+  device-encrypted storage: it is derived from the precise position, which
+  `BootAware` keeps out of anything readable before first unlock. A version or
+  decode mismatch drops it, and so does a run with no position. The satellite
+  elements are not kept, so until the run lands Find says "Working out
+  tonight..." for a target it cannot place rather than that it has gone. Both
+  keys carry `recalculation`, which Check now bumps once its check has landed,
+  so it - and the pull to refresh that runs it - works both out again from
+  scratch. The cloud forecast bumps the tonight key only when a fetch changed
+  what is held, since a reading under an hour old is served from the cache on
+  every open and every rotation.
+
+  **Find points the phone at a target, from pure parts behind one sensor seam.**
+  `FindScreen` offers `domain.FindTargets.available` as chips - only what can be
+  seen now or very soon, judged by the sun's height and a `Sky` (and whether a
+  current aurora reading meets the threshold), by altitude alone for a planet,
+  the moon or a pattern (no rise search), and for a pass by whether it is under
+  way or rises within `FindTargets.PASS_LEAD_MILLIS` (30 minutes), worked out at
+  most once a minute, with `nextUp` naming the soonest to come when nothing is
+  up - places the chosen one with `FindTargets.fix` once a second (the rise
+  search behind it is memoised), and turns each compass reading into a direction
+  with `Pointing.direction` - the phone's top edge, corrected by
+  `data.magneticDeclination` (the platform's `GeomagneticField`, so nothing is
+  fetched) and the user's stored `compassOffsetDegrees` - and into guidance with
+  `Guide.of` and `GuideWords`. The view is one `Canvas` sixty degrees across,
+  heard by TalkBack as the instruction and where; the instruction line is a
+  polite live region. The words are pure functions in `FindWords.kt`
+  (`whereLine`, `findInstruction`, `chipLabel`, `lineUpRefusal`, and
+  `findTarget`, which maps a timeline row to what Find can point at), so they
+  are tested on the JVM. Readings come through `data.CompassSource`
+  (`CompassSensor.kt`): `AndroidCompassSource` registers the rotation vector for
+  attitude and the magnetometer for its calibration status when its flow is
+  collected and unregisters in `awaitClose`, and the screen collects it with
+  `collectAsStateWithLifecycle` at `RESUMED`, so the sensors are held only while
+  Find (or the Compass settings page) is composed and the app is in front.
+  `GloamingNav` takes the source as a parameter, defaulting to `NoCompass`,
+  which is what lets every UI test run without a real sensor; a phone with no
+  rotation vector is told so instead of shown a pointer. Find keeps the screen
+  on through the view's `keepScreenOn` (restoring the previous value), and
+  buzzes on coming within `Guide.ALIGNED_DEGREES`, re-arming only past
+  `AlignBuzz.REARM_DEGREES` so a wavering hand does not buzz on every crossing.
+  With `nightVisionWhenFinding` on it wraps itself alone in the night-vision
+  theme and dims the window through `DimScreen` (`DimScreen.kt`, shared with the
+  app-wide night vision in `MainActivity`), which restores the brightness it
+  found when Find is left. `CompassCheck.shouldOffer` opens `CompassSheet` on a
+  low or unreliable reading at most once a week, stamping `compassOfferedAt`;
+  the sheet shows the accuracy live, Done stamps `compassCheckedAt`, and Line
+  up, offered while the moon is up, stores `CompassCheck.offsetFromMoon` or says
+  why it refused. Find it on a row's sheet switches to Find aimed at that row;
+  `GloamingNav` holds the target as its encoded string. Find it on a
+  notification (`notify/FindIt.kt`) sends the same string as an extra to
+  `MainActivity`, which is `singleTop` so a second tap while the app is open
+  reaches `onNewIntent`; it hands the string to `GloamingNav` and clears it once
+  shown, ignores one it cannot decode, and drops it while setup is unfinished or
+  when the launch came from Recents, which on Android 11 and below hands back
+  the intent that created the task. Passes and the aurora always carry the
+  action; an event does where `findTarget` (shared with the row mapping) gives
+  it a target. `findTargetFrom`, called from `MainActivity`, is the one place a
+  handed-in target is read. The satellite elements Tonight was worked out from
+  ride along in `MainUiState.elements`, so a pass is followed from the same copy
+  without reading the cache on the main thread. A pass is found in tonight's
+  list where it is there, and otherwise in its own satellite's elements over
+  `FindTargets.PASS_MATCH_MILLIS` either side of its rise, memoised: Tonight's
+  list is rebuilt from now onwards and `PassFinder` leaves out a pass already
+  under way, so once a pass has risen only the elements still hold it. Two
+  passes of one satellite rising within that tolerance are the same target
+  (`FindTargets.same`), which is how a notification's rise, from the poller's
+  own search grid, selects tonight's chip rather than adding a second. Find
+  offers only Tonight's best passes that are under way or rise within
+  `PASS_LEAD_MILLIS` (30 minutes), soonest first and at most
+  `FindTargets.MAX_PASSES`, since every pass made the picker too long to use; a
+  pass handed in by a notification is always offered, beyond the limit if need
+  be. Until tonight has been worked out, a pass that cannot be placed reads
+  "Working out tonight..." rather than gone.
 
 ### Manifest verification
 
@@ -399,6 +647,18 @@ Greenfield, held to the full TDD bar (ADR-0001).
   null-safe polar-darkness path (Sec. 5). Phase 3 runs Vallado's SGP4
   verification vectors in CI against the vendored propagator (Sec. 7) - a
   checklist gate before Phase 3 ships, not an aspiration.
+- **The redesigned screens are tested at the pure seam first.** The words and
+  the decisions are functions with JVM tests: `OutlookTest` (the picks and
+  exclusions), `OutlookWordsTest`, `NightTimelineTest` (rows, lanes and
+  layout), `TonightListsTest`, `AheadRowsTest`, `MonthStripTest`,
+  `SettingsSummaryTest`, `SetupStepsTest`, `RowTopicTest`, `PaletteTest`,
+  `OutlookStoreTest`, `SkyPositionsTest`, and for Find `FindTargetsTest`,
+  `PointingTest`, `CompassCheckTest` and `FindWordsTest`. The background
+  position refresh has `LocationCadenceTest`, `LocationRefreshTest`,
+  `CadenceRequestTest`, `CadenceWordingTest` and `BackgroundRequestTest`. What
+  has no JVM seam is on the phone: `GloamingNavTest`, `AheadScreenTest`,
+  `FindScreenTest` (against `FakeCompassSource`, so no real sensor is needed),
+  `SettingsPagesTest`, `SetupTest` and `CompassSensorTest`.
 - **Worker:** Vitest against workerd for the fetchers, `composeStatus()`, the
   packer and the circuit breaker.
 - **A catalogue of nights, shared by both suites.** `app/src/scenarios/` is a
@@ -417,7 +677,7 @@ Greenfield, held to the full TDD bar (ADR-0001).
   for release, which by itself would leave the APK that goes out unlike every
   build the suite has ever run - the worst possible place for the one difference
   to be. A third build type closes it: `minified` is the release build under the
-  debug key, and `./go device-test --minified` runs all 609 instrumented tests
+  debug key, and `./go device-test --minified` runs the whole instrumented suite
   against R8's output. It is a third build type rather than `release` itself
   because Compose's test rule needs an activity only its own manifest declares,
   and no released build may carry that. R8 keeps `sh.arek.gloaming.**` and
@@ -1128,3 +1388,4 @@ product decisions, not architectural blockers, and are carried forward unchanged
 - ADR-0013 - R8 on for release, with the app's own classes kept.
 - ADR-0014 - no CI: a hook and a release command.
 - ADR-0015 - the CelesTrak breaker clears itself after two days.
+- ADR-0016 - background location on a cadence the user chooses.

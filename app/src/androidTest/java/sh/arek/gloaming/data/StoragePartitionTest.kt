@@ -130,6 +130,58 @@ class StoragePartitionTest {
         )
     }
 
+    private fun held() = HeldOutlook("Dark from 18:45, with nothing special on.", 1L, 2L, "56,357", 1L)
+
+    /**
+     * The held outlook names the observer's grid cell, so it may sit in
+     * device-encrypted storage only while before-unlock alerting is on, like
+     * the mirror that carries the same cell.
+     */
+    @Test
+    fun theHeldOutlookFollowsTheOption() {
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = false),
+        )
+        BootAware.outlookStore(context).write(held())
+
+        assertNull(
+            "the grid cell was left where a locked phone can read it",
+            PreferencesOutlookStore(devicePreferences(context)).read(),
+        )
+        assertEquals(held(), PreferencesOutlookStore(credentialPreferences(context)).read())
+
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = true),
+        )
+        BootAware.outlookStore(context).write(held())
+
+        assertEquals(held(), PreferencesOutlookStore(devicePreferences(context)).read())
+        assertEquals(held(), BootAware.outlookStore(context).read())
+    }
+
+    /** Opting out takes the device-encrypted copy away with the mirror. */
+    @Test
+    fun turningTheOptionOffTakesTheHeldOutlookWithIt() {
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = true),
+        )
+        BootAware.outlookStore(context).write(held())
+        assertNotNull(PreferencesOutlookStore(devicePreferences(context)).read())
+
+        BootAware.saveSettings(
+            context,
+            UserSettings(latitude = 55.95, longitude = -3.19, alertsBeforeUnlock = false),
+        )
+
+        assertNull(
+            "the grid cell outlived the opt-out",
+            PreferencesOutlookStore(devicePreferences(context)).read(),
+        )
+    }
+
     /** A reading at the precise position, as a precise poll would have cached. */
     private fun reading() = CachedCloud(
         cover = CloudCover(total = 10, low = 0, mid = 0, high = 10),

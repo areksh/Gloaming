@@ -9,6 +9,144 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tonight opens with one sentence about the night.** Under the date, a single
+  line says whether tonight is worth going out for and when - "Cloudy until
+  23:40, then three clear hours. Go out at midnight for Saturn and Tiangong." -
+  with a second line under it, and it only names what will actually be seen.
+  Above it, one quiet line says when Gloaming last checked and when it next
+  will, and names anything that has gone wrong; tapping it opens a checks sheet
+  holding Check now, the downloads report, the last error, battery saver and the
+  privacy note, which no longer sit among the sky. Pull Tonight down to check
+  now. When background checks or notifications are not allowed, a banner above
+  that line says so and offers the way to allow them. "Watch tonight" is a
+  button pinned at the foot of the screen: it offers the choice of how long in a
+  sheet, and while a watch runs it says until when and stops on a tap.
+
+- **Tonight is the night itself, drawn from sunset to sunrise.** The stack of
+  cards is gone. Under the opening sentence the night runs down the screen,
+  every hour the same height: a column shaded from dusk to full dark and back,
+  forecast cloud hatched over it, the moon and up to two bright planets as
+  solid, dashed and dotted lines beside it, and a line at now. Twilight,
+  satellite passes (with a small compass of the way each crosses), moonrise and
+  moonset, the planets, dated events and the clear spell sit at their times; the
+  ones behind cloud are dimmed and the ones worth going out for are bold, so it
+  reads in night vision too. Tapping a row opens a sheet with the detail, any
+  caveat, and the explanation of its words that used to sit behind each card's
+  Explain button, with Share and Export for a dated event. Under the night,
+  "Also up tonight" lists the constellations, comets and anything else up
+  without a row, and "Not worth it tonight" lists what was left out and why -
+  including when Gloaming has no satellite data to say what is crossing. The
+  Open-Meteo credit sits under the cloud it covers and the AuroraWatch credit
+  under the line that reads their figure. Where the sun neither sets nor rises,
+  as in a polar winter, how dark it gets is said in words instead. TalkBack
+  reads the night as a list, in time order.
+
+- **Ahead shows each month as a strip of nights shaded by the moon.** The
+  calendar used to open on fourteen filter chips and a long list. Now each month
+  opens with a strip of its nights, brighter where the moon spoils the sky and
+  darker where it does not, with a dot on any day that has an event and the
+  darkest run written out ("Darkest: 5-13 December"), so nothing depends on
+  telling shades apart - which matters most in night vision. Nights already gone
+  are short stubs, left out of the darkest run, and tonight is outlined. The
+  events follow beneath with the weekday, day, title, "Good from here" or the
+  reason it is not, and a star; tapping one opens the same sheet as Tonight,
+  with Share and Export. The kinds sit behind one "Showing 9 of 14 kinds"
+  button, and a "Starred only" chip narrows the list to what you have starred.
+
+- **A first-run setup asks for location, notifications and background checks.**
+  Opening Gloaming for the first time now walks through three short steps -
+  where you are (typed in or asked of the phone), whether it may send
+  notifications, and whether it may check the sky while the phone sleeps - each
+  with a Skip. Before, you landed on an empty Tonight and had to find those
+  controls in Settings. Anything skipped is still reported by the banners on
+  Tonight, and the same controls remain in Settings. Phones that already hold a
+  position are not asked again.
+
+- **A bottom bar.** Tonight, Find, Ahead and Settings now sit on a bar at the
+  foot of the screen, within thumb's reach. The calendar is now called Ahead,
+  and the guide is no longer a tab of its own: it moves under Settings, on the
+  "Screen and reference" page.
+
+- **A Find tab points the way to what is up, with a compass check.** Once
+  outside, pick from what can be seen now or very soon, hold the phone up with
+  its top edge towards the sky, and Find says which way to turn and tilt - "Turn
+  right a little, then tilt up." - until it says "There." and buzzes once. A
+  view sixty degrees across shows the horizon, the target and a reticle, with an
+  arrow at the edge when the target is off the view or not yet risen, and then
+  Find gives its rise time. Beneath, where it is in words, which way the phone
+  is facing, and how to recognise it. The screen stays on while Find is open,
+  and Find alone turns red on black and dims the screen (Night vision when
+  finding, on by default), putting the brightness back when you leave it. Find
+  it on a row of Tonight's night opens Find aimed at that row, and so does Find
+  it on an alert about a pass, the aurora, or an eclipse or other event of the
+  moon. When the phone says its compass is unsure, Find offers a check, at most
+  once a week: the figure of eight that lets the phone relearn north, with its
+  accuracy climbing as you go, then, with the moon up, Line up, which corrects
+  the compass on the moon because Gloaming knows exactly where it is. Both live
+  under Settings, Finding things, where the check can be run and the correction
+  removed at any time. True north comes from the phone's own model of the
+  Earth's field; nothing is fetched. A phone with no compass is told so.
+
+  Find offers only what can be seen: the moon whenever it is up, since it is
+  seen by day and is what the compass check aims at; a planet once it is ten
+  degrees up and the sun is well down; the Plough and other constellations once
+  the sky is properly dark; one of Tonight's best satellite passes once it is
+  under way or due within half an hour (the soonest six); and the aurora when
+  it is dark and the latest reading is current and at or above your threshold.
+  Nothing is offered for rising later. When nothing is up it says so and names
+  the next thing that will be: "Nothing to point at right now. Next up:
+  Jupiter, from 18:40." A target you picked stays picked after it sets, and
+  says when it is back.
+
+- **A new look, in light and dark.** Gloaming has its own palette now: a dark
+  slate ground with the pink of the Belt of Venus as its accent by night, and a
+  light theme that follows the phone's setting for use in daylight. Everything
+  is set in Atkinson Hyperlegible Next, a typeface designed for legibility, with
+  figures that line up in columns of times; it is bundled with the app under the
+  SIL Open Font Licence, credited in full under Credits and licences. Night
+  vision is unchanged: pure red on black. Wallpaper-derived colour (Android 12
+  and later) has been removed to make this possible, since the palette is now
+  the app's own.
+
+- **You choose whether the phone keeps its approximate position up to date in
+  the background.** A detected position used to be read only when asked, so a
+  phone carried to a dark site went on being judged at home - darkness, cloud
+  and every pass - until somebody pressed the button. The location card now has
+  a "Use this phone's location" switch, with the position, when it was last
+  updated and Update now under it, and a "Background updates" choice below:
+  off (the position is read when Gloaming opens, the default), every hour, or
+  every so many hours from 2 to 48, typed into the row. The intervals refresh
+  it on an alarm of their own: one coarse fix per wake, from the platform's
+  fused provider where there is one (Android 12 and later), then the network
+  provider, then GPS, never logged and never sent. They need Android's "Allow
+  all the time" location grant. Picking an interval first shows a dialog saying
+  what Android will ask and to leave "Use precise location" off, because
+  Android's own page replaces the app on screen and a warning drawn on the card
+  could not be read; and setup offers hourly updates as soon as the location is
+  allowed. If the grant is refused, or later taken away, the app goes back to
+  refreshing when it is opened and the card says why. A refresh due while the
+  phone is locked after a reboot waits for the unlock. An "Only on Update now"
+  choice no longer exists: the button always works, and a phone that had it
+  chosen now refreshes when Gloaming opens. ADR-0016 records why the app now
+  declares a permission it once promised never to.
+
+- **The widget and the aurora alert now open with tonight's outlook.** The
+  widget's second line used to say how long ago the reading was taken; while it
+  is still tonight it now carries the same sentence Tonight opens with, for at
+  most three hours after Tonight last worked it out and only until the next
+  check, because the sentence rests on one reading and the figure above it moves
+  on with each. It never carries a live aurora reading, which the figure already
+  is. Otherwise, and once the night is over, it says how old the reading is. The
+  aurora alert's text now reads "Aurora likely now: 70% here. Look north, low
+  down, while it stays clear until 02:00." with the probability source, cloud,
+  Kp and Bz moved behind the expand. Below even odds it says "possible" rather
+  than "likely", and below the equator it, Tonight and Find send you south
+  instead. The sentence is kept with the whole-degree
+  grid cell it describes - in storage the phone can read before it is unlocked
+  only while Alert before unlock is on, so the widget can show it then, and
+  otherwise beside the location you typed; turning that option off deletes the
+  before-unlock copy. It is refreshed whenever Tonight is opened.
+
 - **The journal says when a poll was killed, and when a wake arrived late.**
   Two things it could previously only imply. A `goAsync` broadcast is killed at
   sixty seconds without running its `finally`, so a killed poll wrote whichever
@@ -34,6 +172,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reboot or an app open.
 
 ### Changed
+
+- **Check now also works tonight and the calendar out again.** Pressing Check
+  now, or pulling Tonight down, used to fetch fresh data and recalculate only
+  what that data changed. It now works tonight and the year ahead out again
+  from scratch as well, even when nothing they depend on has changed, showing
+  "Updating..." meanwhile - so there is one button for "look again", rather
+  than a second one for recalculating.
+
+- **Update now asks the phone for a fresh position when its last one is old.**
+  It used to read only the last position the phone had recorded, and when there
+  was none it told you to open a map app. Now a recorded position under ten
+  minutes old is used as it is, and an older one, or none, makes Gloaming ask
+  for a new approximate fix, waiting up to twenty seconds. The phone may switch
+  its GPS on to answer. Location is still approximate only, a few kilometres
+  at best, and never logged. If nothing arrives the note suggests trying again
+  or typing the position in.
+
+- **Settings is grouped by question, and every row shows its current value.**
+  The one long column of cards is now an index: "Where you are", "What is worth
+  waking for", "When to leave you alone", "Is it working", "Finding things",
+  "Learning from your answers" and "Screen and reference", each row saying what
+  it is set to - "40% chance or more", "Every 6 hours" - and opening a page of
+  its own for the controls. Background checks, Notifications and Downloads are
+  pages now, so whether the app can alert you is answered where you look for it;
+  a row that is not working says so in bold as well as in colour, so it still
+  shows in night vision. The guide is a page here too, and Back returns to the
+  index.
+
+- **The log can be kept for any number of days up to a year.** The retention
+  control offered 1, 3, 7 and 14 days, which suits nobody chasing a fault that
+  only shows up once a month. A Custom choice takes any whole number of days
+  from 1 to 365 and says so plainly when the number is outside that; a stored
+  value beyond a year is held to a year on read.
 
 - **The CelesTrak breaker clears itself after two days.** It used to reset only
   by hand, so an unread alert left elements frozen for as long as nobody looked:
@@ -62,7 +233,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alert now reads "passing overhead" and gives no bearing for the peak. The rise
   and set bearings say where to stand and are unchanged.
 
+- **The guide and the noctilucent alert no longer assume you are in Britain.**
+  Several entries gave directions and seasons for one place - "low in the
+  north", "late May to early August in Britain", "northern England" for how far
+  a Kp reaches, and the Plough and Polaris as the only way to find north. They
+  now say "low towards the pole" or give both hemispheres, give seasons for the
+  north and the south, describe how far a Kp reaches in magnetic latitude, and
+  point you to Find or any compass first, with the Southern Cross as the
+  southern signpost. The noctilucent channel's description says to look towards
+  the pole rather than north. The way each constellation is described no longer
+  says what is above, below, left or right of what, or where in the sky or the
+  year it stands, since the sky turns over between hemispheres: Orion is
+  "Betelgeuse on one side of the belt and Rigel on the other", and Sirius is
+  found by following the belt away from Aldebaran. Find offers the Southern
+  Cross the way it offers the Plough, whenever it is up and before tonight is
+  worked out, and a quiet night south of the equator suggests learning it.
+  The equinoxes and solstices in the calendar are worded for your hemisphere,
+  so the June solstice is the longest night in the south, not the shortest, and
+  the note on where midsummer loses full darkness says about 49 degrees from
+  the equator rather than 60, and the watch sheet no longer speaks of midsummer
+  "up here". Names of data sources such as AuroraWatch UK are unchanged.
+
 ### Fixed
+
+- **Tonight no longer goes blank when you turn the phone, says when it is
+  updating, and is worked out once when you open the app.** Opening Gloaming
+  showed an empty Tonight, with nothing to say anything was happening, for up to
+  a minute: the night was worked out twice, first without the calendar and then
+  again with it, and the first pass could briefly open with a sentence that knew
+  nothing of the night's events. Turning the phone threw it all away and started
+  again. Now the night is worked out once, and kept while the app is running, so
+  turning the phone or coming back to the app shows it at once - also when
+  Gloaming follows the phone's location, where turning the phone used to ask for
+  a fresh position and start again whenever it had moved a little. While it is
+  being worked out a progress bar and "Updating..." sit under the status line,
+  and before the first one is ready Tonight says "Working out tonight..."
+  instead of showing nothing. And when the app is opened afresh, Tonight opens
+  straight onto the last night it worked out - for the same place, while that
+  night is still on - marked "Updating..." until the new one arrives, instead of
+  an empty screen for about twenty seconds. That copy stays on the phone,
+  unreadable until it is first unlocked, because it is worked out from your
+  exact position, and is never shown for another place or once that night is
+  over. The night also no longer waits for the year ahead to be worked out: it
+  works out the next three weeks of events for itself, so a fresh Tonight lands
+  in about half the time.
+
+- **Tonight follows the cloud and constellation settings straight away.**
+  Turning "Check cloud cover" or "Every constellation" on or off left
+  Tonight's opening sentence, its night and the widget as they were until the
+  next quarter of an hour or the next check. They are now worked out again as
+  soon as either changes.
+
+- **Taking location away in Android's settings is now noticed when you come
+  back.** Turning location off for Gloaming, or allowing it only while the app
+  is in use, left the settings claiming what no longer worked: "Use this phone's
+  location" stayed on, and an interval stayed chosen with no warning. Coming
+  back now puts background updates back to off with the red line saying why, or
+  turns the switch off and keeps the position it had, with a note saying so
+  (ADR-0016).
+
+- **The note on the Location page no longer disappears.** "Location permission
+  was declined" was written to a part of the page that is hidden once the
+  location switch is off, which is exactly what a refusal does, and a note was
+  lost when Android rebuilt the app while you were on its settings page. Both
+  now stay until you do something else.
+
+- **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
+  was judged on total cloud, so 70% cirrus over an otherwise clear sky counted
+  as closed to a planet or a pass that shines straight through it. The hourly
+  forecast now carries the low, mid and high layers on the same single
+  Open-Meteo request, and a spell is judged on the worse of low and mid cloud or
+  half the high cloud. An older cached forecast without layers is judged on its
+  total, as before.
 
 - **`./go status` no longer reports a release build as a phone that has never
   polled.** It reads most of its evidence out of the app's own storage through

@@ -34,8 +34,14 @@ class FileWeatherCache(directory: File) : WeatherCache {
                 latitude = stored.latitude,
                 longitude = stored.longitude,
                 fetchedAt = stored.fetchedAt,
-                hourly = stored.hourAt.zip(stored.hourTotal) { at, total ->
-                    HourlyCover(at, total)
+                hourly = stored.hourAt.zip(stored.hourTotal).mapIndexed { index, (at, total) ->
+                    HourlyCover(
+                        at,
+                        total,
+                        stored.hourLow.getOrNull(index),
+                        stored.hourMid.getOrNull(index),
+                        stored.hourHigh.getOrNull(index),
+                    )
                 },
             )
         }.getOrNull()
@@ -61,6 +67,9 @@ class FileWeatherCache(directory: File) : WeatherCache {
                         fetchedAt = cached.fetchedAt,
                         hourAt = cached.hourly.map { it.atMillis },
                         hourTotal = cached.hourly.map { it.total },
+                        hourLow = cached.hourly.map { it.low },
+                        hourMid = cached.hourly.map { it.mid },
+                        hourHigh = cached.hourly.map { it.high },
                     ),
                 ),
             )
@@ -83,10 +92,15 @@ class FileWeatherCache(directory: File) : WeatherCache {
          * them in. Both default to empty, which is what makes a `weather.json`
          * written before the forecast was asked for parse rather than being
          * thrown away - and a discarded cache file is an extra request against
-         * a per-hour limit.
+         * a per-hour limit. The layers are parallel to them and nullable, and
+         * default to empty for the same reason: a file from before they were
+         * asked for reads as hours with no layers.
          */
         val hourAt: List<Long> = emptyList(),
         val hourTotal: List<Int> = emptyList(),
+        val hourLow: List<Int?> = emptyList(),
+        val hourMid: List<Int?> = emptyList(),
+        val hourHigh: List<Int?> = emptyList(),
     )
 
     companion object {

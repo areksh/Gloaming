@@ -71,6 +71,40 @@ class FileWeatherCacheTest {
         assertEquals(10, read.hourly[1].total)
     }
 
+    @Test
+    fun `round-trips the cloud layers, absent ones included`() {
+        cache().write(
+            CachedCloud(
+                reading.cover, reading.latitude, reading.longitude, reading.fetchedAt,
+                hourly = listOf(
+                    HourlyCover(1_700_000_000_000L, 70, 0, 10, 70),
+                    HourlyCover(1_700_003_600_000L, 60, null, null, null),
+                ),
+            ),
+        )
+
+        val read = cache().read()!!
+        assertEquals(HourlyCover(1_700_000_000_000L, 70, 0, 10, 70), read.hourly[0])
+        assertEquals(HourlyCover(1_700_003_600_000L, 60, null, null, null), read.hourly[1])
+    }
+
+    @Test
+    fun `reads a cache written before the layers were asked for`() {
+        File(temporaryFolder.root, FileWeatherCache.FILE_NAME).writeText(
+            """{"total":55,"low":20,"mid":5,"high":40,"latitude":55.95,"longitude":-3.19,
+               "fetchedAt":1700000000000,"hourAt":[1700000000000,1700003600000],
+               "hourTotal":[90,10]}""",
+        )
+
+        val read = cache().read()!!
+
+        assertEquals(2, read.hourly.size)
+        assertNull(read.hourly[0].low)
+        assertNull(read.hourly[0].mid)
+        assertNull(read.hourly[0].high)
+        assertEquals(90, read.hourly[0].effective)
+    }
+
     /**
      * A file written before the forecast was ever asked for.
      *

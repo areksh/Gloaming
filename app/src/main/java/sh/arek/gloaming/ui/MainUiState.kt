@@ -4,17 +4,13 @@ import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.Verdict
+import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
-
-/**
- * The watch switch, which is an action rather than a setting and so is the one
- * control worth reaching by tag: every other switch is identifiable by the
- * setting it sits beside.
- */
-const val WATCH_SWITCH_TAG = "watch-switch"
+import sh.arek.gloaming.satellites.SatellitesDocument
 
 /**
  * The live-following switch, reached by tag for the same reason: it sits beside
@@ -62,8 +58,8 @@ data class MainUiState(
     /**
      * Why the last attempt at the satellite elements failed, where that is known.
      *
-     * Resolved here so the satellites card can tell a fresh install apart from a
-     * broken download. In memory for one process, so a background poll that
+     * Resolved here so Tonight can tell a fresh install apart from a broken
+     * download. In memory for one process, so a background poll that
      * failed overnight leaves nothing to quote - which is a third case again,
      * and one [describeMissingElements] has words for.
      */
@@ -77,18 +73,49 @@ data class MainUiState(
     val powerSaveMode: Boolean = false,
     /** Whether the foreground watch is running. */
     val watching: Boolean = false,
+    /** When the running watch stops on its own, where that is known. */
+    val watchingUntil: Long? = null,
     /** How much of the app's own log is on disk, for the log card. */
     val logSizeBytes: Long = 0L,
     /**
      * The year ahead, already computed. Held rather than derived on the fly
-     * because a year takes a quarter of a second to work out, which is far too
-     * long to spend in a composition.
+     * because a year takes several seconds to work out on a phone, which is
+     * far too long to spend in a composition.
      */
     val calendar: List<SkyEvent> = emptyList(),
+    /**
+     * A strip of shaded nights for each month of that year, worked out from
+     * the same events so the two never disagree about which days have one,
+     * and landing after them.
+     */
+    val months: List<MonthStrip> = emptyList(),
     /** True while that computation is in flight, so the tab can say so. */
     val calendarLoading: Boolean = false,
     /** What there is to see between now and dawn, once it has been worked out. */
     val tonight: TonightList? = null,
+    /**
+     * True while tonight is being worked out, which takes several seconds on
+     * a phone, so Tonight can say so rather than sit empty or stale.
+     */
+    val tonightUpdating: Boolean = false,
+    /**
+     * The satellite elements [tonight] was worked out from, so Find can follow
+     * a pass across the sky from the same copy rather than reading the cache
+     * again on the main thread.
+     */
+    val elements: SatellitesDocument? = null,
+    /**
+     * Tonight in one sentence, decided from [tonight] and the same held
+     * documents, or null until it has been worked out.
+     */
+    val outlook: OutlookReport? = null,
+    /** The held hourly cloud forecast [outlook] was decided against. */
+    val hourly: List<HourlyCover> = emptyList(),
+    /**
+     * Tonight from sunset to sunrise, laid out from [tonight] and [outlook],
+     * or null until both are worked out or where the sun does not set.
+     */
+    val timeline: Timeline? = null,
     /** True while a position is being read from the device. */
     val detectingLocation: Boolean = false,
     /**
@@ -96,6 +123,12 @@ data class MainUiState(
      * saying: a refused permission, or no fix the phone was willing to give.
      */
     val locationNote: String? = null,
+    /**
+     * Whether Android already lets the position be read in the background, so
+     * the card can warn about the "all the time" prompt only while there is
+     * still one to come.
+     */
+    val backgroundLocationAllowed: Boolean = false,
     /**
      * The calendar starred events are being written into, by name.
      *

@@ -105,6 +105,26 @@ class CreditsTest {
         assertTrue(licence.contains("shall be included in all"))
     }
 
+    /**
+     * The OFL requires its text and copyright line to travel with the font, and
+     * the font is in the APK. Compared against the copy shipped beside it so an
+     * upgrade of one cannot leave the other describing a different release.
+     */
+    @Test
+    fun `credits the typeface with the whole OFL`() {
+        val credit = named("Atkinson Hyperlegible Next")!!
+
+        val licence = credit.licence!!
+        assertTrue(licence.contains("Copyright 2020-2024 The Atkinson Hyperlegible Next Project Authors"))
+        assertTrue(licence.contains("SIL OPEN FONT LICENSE Version 1.1"))
+        assertTrue(licence.contains("DEALINGS IN THE FONT SOFTWARE."))
+        val shipped = listOf(
+            "src/main/fonts/OFL.txt",
+            "app/src/main/fonts/OFL.txt",
+        ).map(::File).first { it.isFile }
+        assertEquals(shipped.readText().trim(), licence.trim())
+    }
+
     /** Their usage policy asks for credit, and the elements are now in use. */
     @Test
     fun `credits CelesTrak for the orbital elements`() {

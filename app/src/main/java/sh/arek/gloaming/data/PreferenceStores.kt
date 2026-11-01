@@ -48,6 +48,11 @@ private const val KEY_MINIMUM_ELEVATION = "minimum_pass_elevation_degrees"
 private const val KEY_LIVE_LEAD = "live_follow_lead_minutes"
 private const val KEY_LIVE_MAX = "live_follow_max_minutes"
 private const val KEY_LOG_RETENTION = "log_retention_days"
+private const val KEY_SETUP_DONE = "setup_done"
+private const val KEY_COMPASS_OFFERED_AT = "compass_offered_at"
+private const val KEY_COMPASS_CHECKED_AT = "compass_checked_at"
+private const val KEY_COMPASS_OFFSET = "compass_offset_degrees"
+private const val KEY_NIGHT_VISION_FINDING = "night_vision_when_finding"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -62,6 +67,10 @@ private const val KEY_LAST_BRIGHT_ALERT_AT = "last_bright_alert_at"
 private const val KEY_LAST_TRAIN_ALERT_AT = "last_train_alert_at"
 private const val KEY_NEXT_PASS_CHECK_AT = "next_pass_check_at"
 private const val KEY_LOCATION_AUTOMATIC = "location_automatic"
+private const val KEY_LOCATION_CADENCE = "location_cadence"
+private const val KEY_LOCATION_CADENCE_HOURS = "location_cadence_hours"
+private const val KEY_LOCATION_UPDATED_AT = "location_updated_at"
+private const val KEY_BACKGROUND_REVOKED = "background_location_revoked"
 private const val KEY_EVENT_ALERTS = "event_alerts_enabled"
 private const val KEY_EVERY_EVENT = "notify_about_every_event"
 private const val KEY_EVERY_CONSTELLATION = "show_every_constellation"
@@ -163,6 +172,9 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
         val longitude = prefs.getLong(KEY_LONGITUDE, UNSET)
         val quietStart = prefs.getInt(KEY_QUIET_START, NO_MINUTE)
         val quietEnd = prefs.getInt(KEY_QUIET_END, NO_MINUTE)
+        val compassOfferedAt = prefs.getLong(KEY_COMPASS_OFFERED_AT, UNSET)
+        val compassCheckedAt = prefs.getLong(KEY_COMPASS_CHECKED_AT, UNSET)
+        val compassOffset = prefs.getLong(KEY_COMPASS_OFFSET, UNSET)
         return UserSettings(
             latitude = if (latitude == UNSET) null else Double.fromBits(latitude),
             longitude = if (longitude == UNSET) null else Double.fromBits(longitude),
@@ -223,6 +235,17 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             } else {
                 LocationMode.Manual
             },
+            locationCadence = when (prefs.getString(KEY_LOCATION_CADENCE, null)) {
+                // A stored "manual", from before Update now stopped being a
+                // cadence, reads as the default like any other value unknown here.
+                "every" -> LocationCadence.Every(
+                    prefs.getInt(KEY_LOCATION_CADENCE_HOURS, LocationCadence.MIN_HOURS)
+                        .coerceIn(LocationCadence.MIN_HOURS, LocationCadence.MAX_HOURS),
+                )
+                else -> LocationCadence.OnOpen
+            },
+            locationUpdatedAt = prefs.getLong(KEY_LOCATION_UPDATED_AT, UNSET).takeIf { it != UNSET },
+            backgroundLocationRevoked = prefs.getBoolean(KEY_BACKGROUND_REVOKED, false),
             eventAlertsEnabled = prefs.getBoolean(KEY_EVENT_ALERTS, true),
             notifyAboutEveryEvent = prefs.getBoolean(KEY_EVERY_EVENT, true),
             showEveryConstellation = prefs.getBoolean(KEY_EVERY_CONSTELLATION, false),
@@ -256,7 +279,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             logRetentionDays = prefs.getInt(
                 KEY_LOG_RETENTION,
                 UserSettings.DEFAULT_LOG_RETENTION_DAYS,
-            ),
+            ).coerceIn(0, UserSettings.MAX_LOG_RETENTION_DAYS),
             cometMagnitudeThreshold = prefs.getInt(
                 KEY_COMET_MAGNITUDE,
                 UserSettings.DEFAULT_COMET_MAGNITUDE,
@@ -273,6 +296,17 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_COMET_MOON,
                 UserSettings.DEFAULT_COMET_MOON_TOLERANCE,
             ),
+            // Absent means an install from before setup existed, which has
+            // been used only if it was given a position.
+            setupDone = if (prefs.contains(KEY_SETUP_DONE)) {
+                prefs.getBoolean(KEY_SETUP_DONE, false)
+            } else {
+                latitude != UNSET && longitude != UNSET
+            },
+            compassOfferedAt = if (compassOfferedAt == UNSET) null else compassOfferedAt,
+            compassCheckedAt = if (compassCheckedAt == UNSET) null else compassCheckedAt,
+            compassOffsetDegrees = if (compassOffset == UNSET) 0.0 else Double.fromBits(compassOffset),
+            nightVisionWhenFinding = prefs.getBoolean(KEY_NIGHT_VISION_FINDING, true),
         )
     }
 
@@ -318,6 +352,23 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_LIVE_MAX, settings.liveFollowMaxMinutes)
             putInt(KEY_LOG_RETENTION, settings.logRetentionDays)
             putBoolean(KEY_LOCATION_AUTOMATIC, settings.locationMode == LocationMode.Automatic)
+            when (val cadence = settings.locationCadence) {
+                LocationCadence.OnOpen -> {
+                    putString(KEY_LOCATION_CADENCE, "open")
+                    remove(KEY_LOCATION_CADENCE_HOURS)
+                }
+                is LocationCadence.Every -> {
+                    putString(KEY_LOCATION_CADENCE, "every")
+                    putInt(KEY_LOCATION_CADENCE_HOURS, cadence.hours)
+                }
+            }
+            val updatedAt = settings.locationUpdatedAt
+            if (updatedAt == null) {
+                remove(KEY_LOCATION_UPDATED_AT)
+            } else {
+                putLong(KEY_LOCATION_UPDATED_AT, updatedAt)
+            }
+            putBoolean(KEY_BACKGROUND_REVOKED, settings.backgroundLocationRevoked)
             putBoolean(KEY_EVENT_ALERTS, settings.eventAlertsEnabled)
             putBoolean(KEY_EVERY_EVENT, settings.notifyAboutEveryEvent)
             putBoolean(KEY_EVERY_CONSTELLATION, settings.showEveryConstellation)
@@ -334,6 +385,19 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_COMET_ALTITUDE, settings.minimumCometAltitudeDegrees)
             putInt(KEY_COMET_STALE, settings.cometObservationStaleDays)
             putInt(KEY_COMET_MOON, settings.cometMoonTolerance)
+            putBoolean(KEY_SETUP_DONE, settings.setupDone)
+            if (settings.compassOfferedAt == null) {
+                remove(KEY_COMPASS_OFFERED_AT)
+            } else {
+                putLong(KEY_COMPASS_OFFERED_AT, settings.compassOfferedAt)
+            }
+            if (settings.compassCheckedAt == null) {
+                remove(KEY_COMPASS_CHECKED_AT)
+            } else {
+                putLong(KEY_COMPASS_CHECKED_AT, settings.compassCheckedAt)
+            }
+            putLong(KEY_COMPASS_OFFSET, settings.compassOffsetDegrees.toRawBits())
+            putBoolean(KEY_NIGHT_VISION_FINDING, settings.nightVisionWhenFinding)
         }.apply()
     }
 
@@ -367,11 +431,15 @@ internal val SETTINGS_KEYS = listOf(
     KEY_ALERTS_ENABLED,
     KEY_AURORA_INTERVAL,
     KEY_AUTOMATIC_SETTINGS,
+    KEY_BACKGROUND_REVOKED,
     KEY_BEFORE_UNLOCK,
     KEY_BRIGHT_INTERVAL,
     KEY_CALENDAR_SYNC,
     KEY_CLOUD_GATE,
     KEY_CLOUD_TOLERANCE,
+    KEY_COMPASS_CHECKED_AT,
+    KEY_COMPASS_OFFERED_AT,
+    KEY_COMPASS_OFFSET,
     KEY_COMET_ALTITUDE,
     KEY_COMET_MAGNITUDE,
     KEY_COMET_MOON,
@@ -389,10 +457,14 @@ internal val SETTINGS_KEYS = listOf(
     KEY_LIVE_LEAD,
     KEY_LIVE_MAX,
     KEY_LOCATION_AUTOMATIC,
+    KEY_LOCATION_CADENCE,
+    KEY_LOCATION_CADENCE_HOURS,
+    KEY_LOCATION_UPDATED_AT,
     KEY_LOG_RETENTION,
     KEY_LONGITUDE,
     KEY_MINIMUM_ELEVATION,
     KEY_NIGHT_VISION,
+    KEY_NIGHT_VISION_FINDING,
     KEY_PASS_ALERTS,
     KEY_PASS_LEAD,
     KEY_POLL_MINUTES,
@@ -400,6 +472,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_QUIET_END,
     KEY_QUIET_OVERRIDE,
     KEY_QUIET_START,
+    KEY_SETUP_DONE,
     KEY_STARRED_EVENTS,
     KEY_THRESHOLD,
     KEY_TRAIN_INTERVAL,

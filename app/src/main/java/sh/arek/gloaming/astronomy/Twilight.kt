@@ -31,6 +31,13 @@ data class Moon(
 data class MoonTimes(val risesAt: Long?, val setsAt: Long?)
 
 /**
+ * When the sun sets and rises around a night, where it does.
+ *
+ * Both null at high latitude in midsummer, when it neither sets nor rises.
+ */
+data class SunTimes(val setsAt: Long?, val risesAt: Long?)
+
+/**
  * Whether it is dark enough to see anything, and when that changes.
  *
  * A sealed type rather than a nullable time, because "no darkness" and "no
@@ -309,6 +316,34 @@ object Twilight {
 
         return MoonTimes(risesAt = crossing(Direction.Rise), setsAt = crossing(Direction.Set))
     }
+
+    /**
+     * The sunset that precedes [night] and the sunrise that follows it.
+     *
+     * A night here is a window of civil darkness, so its own sunset is behind
+     * its start and its sunrise past its end: the sunset is searched from half
+     * a day earlier, the sunrise from the start of the darkness, each with the
+     * engine's own rise-and-set search for the same reason as [moonTimes].
+     * Anything the search finds beyond the night's neighbourhood belongs to
+     * another day and is dropped, which is also how the midnight sun answers.
+     */
+    fun sunTimes(latitude: Double, longitude: Double, night: LongRange): SunTimes {
+        val observer = observer(latitude, longitude)
+
+        val setsAt = searchRiseSet(
+            Body.Sun, observer, Direction.Set,
+            Time.fromMillisecondsSince1970(night.first - HALF_DAY_MILLIS), 1.0,
+        )?.toMillisecondsSince1970()?.takeIf { it <= night.last }
+
+        val risesAt = searchRiseSet(
+            Body.Sun, observer, Direction.Rise,
+            Time.fromMillisecondsSince1970(night.first), SEARCH_DAYS,
+        )?.toMillisecondsSince1970()?.takeIf { it <= night.last + HALF_DAY_MILLIS }
+
+        return SunTimes(setsAt = setsAt, risesAt = risesAt)
+    }
+
+    private const val HALF_DAY_MILLIS: Long = 12L * 60 * 60 * 1000
 
     /** `searchRiseSet` rejects a non-positive span, and a zero-length night is one. */
     private const val MINIMUM_DAYS: Double = 1e-6

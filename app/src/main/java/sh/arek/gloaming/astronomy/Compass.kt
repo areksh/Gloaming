@@ -20,5 +20,11 @@ enum class Compass(val label: String) {
             val normalised = ((azimuth % 360.0) + 360.0) % 360.0
             return entries[(normalised / 45.0).roundToInt() % entries.size]
         }
+
+        /**
+         * Towards the nearer pole: north on or above the equator, south below
+         * it. Where the aurora and noctilucent clouds are looked for.
+         */
+        fun polewardOf(latitude: Double): Compass = if (latitude >= 0.0) North else South
     }
 }

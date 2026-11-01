@@ -1,27 +1,41 @@
 package sh.arek.gloaming
 
 import android.content.Context
+import android.util.Log
+import androidx.annotation.VisibleForTesting
 import java.io.File
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
+import sh.arek.gloaming.data.AndroidCompassSource
+import sh.arek.gloaming.data.AndroidLocationGrants
+import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CometRepository
+import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.FileCometCache
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
+import sh.arek.gloaming.data.FileTonightSnapshots
 import sh.arek.gloaming.data.FileVerdictLog
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
 import sh.arek.gloaming.data.Journal
+import sh.arek.gloaming.data.LocationSource
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
+import sh.arek.gloaming.data.OutlookStore
 import sh.arek.gloaming.data.PreferencesAlertStateStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.VerdictLog
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
@@ -29,6 +43,7 @@ import sh.arek.gloaming.data.devicePreferences
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.CalendarWriter
 import sh.arek.gloaming.domain.EventPoller
+import sh.arek.gloaming.domain.LocationGrantSource
 import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.HttpFetcher
@@ -37,6 +52,7 @@ import sh.arek.gloaming.net.ReportingFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
 import sh.arek.gloaming.notify.AndroidEventNotifier
 import sh.arek.gloaming.notify.AndroidPassNotifier
+import sh.arek.gloaming.ui.ScreenResults
 import sh.arek.gloaming.work.AndroidPassFollower
 import sh.arek.gloaming.work.StormService
 
@@ -94,6 +110,14 @@ object Graph {
     fun journal(context: Context): Journal =
         Journal(File(cacheDirectory(context.applicationContext), Journal.FILE_NAME))
 
+    /** Replaced by instrumented tests only; null means Android's own answer. */
+    @Volatile
+    var locationGrantsOverride: LocationGrantSource? = null
+
+    /** Which location grants are held, for the screen to reconcile its settings with. */
+    fun locationGrants(context: Context): LocationGrantSource =
+        locationGrantsOverride ?: AndroidLocationGrants(context)
+
     /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =
         PreferencesSettingsStore(credentialPreferences(context))
@@ -138,6 +162,9 @@ object Graph {
      */
     fun alertState(context: Context): AlertStateStore =
         PreferencesAlertStateStore(devicePreferences(context))
+
+    /** Tonight's outlook, in whichever store [BootAware.outlookPartition] chooses. */
+    fun outlookStore(context: Context): OutlookStore = BootAware.outlookStore(context)
 
     /**
      * The cloud source, for anything that only wants what is already held.
@@ -311,4 +338,65 @@ object Graph {
 
     fun calendarWriter(context: Context): CalendarWriter =
         AndroidCalendarWriter(context.applicationContext)
+
+    /**
+     * The phone's compass, for Find. Nothing is registered until a screen
+     * collects its readings, and nothing stays registered once it stops.
+     */
+    fun compass(context: Context): CompassSource = AndroidCompassSource(context.applicationContext)
+
+    /** Replaced by instrumented tests only; null means the phone's own position. */
+    @Volatile
+    var locationSourceOverride: LocationSource? = null
+
+    /** The phone's own position, for the screen and the background refresh. See [AndroidLocationSource]. */
+    fun locationSource(context: Context): LocationSource =
+        locationSourceOverride ?: AndroidLocationSource(context.applicationContext)
+
+    /**
+     * Tonight and the year ahead as the screen shows them, one for the life of
+     * the process so a rotation or another open finds them rather than
+     * starting again. Their own scope, on the default dispatcher: a run is
+     * several seconds of arithmetic, and nothing about a screen going away
+     * should stop it.
+     */
+    @Volatile
+    private var screenResults: ScreenResults? = null
+
+    private fun newScreenResults(context: Context): ScreenResults {
+        // Logged rather than left to crash the app: the holder has already
+        // ended the run that threw (see ScreenResults).
+        val logged = CoroutineExceptionHandler { _, e ->
+            Log.w("Gloaming", "could not work out what the screen shows", e)
+        }
+        return ScreenResults(
+            CoroutineScope(SupervisorJob() + Dispatchers.Default + logged),
+            snapshots = tonightSnapshots(context),
+        ).also { it.prefetchSnapshot() }
+    }
+
+    /** One instance per process, made on first use. */
+    @Synchronized
+    fun screenResults(context: Context): ScreenResults =
+        screenResults ?: newScreenResults(context).also { screenResults = it }
+
+    /**
+     * Drops the holder so the next [screenResults] makes a fresh one, which
+     * seeds itself from the snapshot again, as a cold start does. Instrumented
+     * tests only; the old holder's run, if any, is left to finish unseen.
+     */
+    @VisibleForTesting
+    @Synchronized
+    fun resetScreenResultsForTest() {
+        screenResults = null
+    }
+
+    /**
+     * Where the last worked-out Tonight is kept: `filesDir`, which is
+     * credential-encrypted, and never device-protected storage. The snapshot
+     * is derived from the precise position, which must not be readable before
+     * first unlock (see [BootAware]).
+     */
+    fun tonightSnapshots(context: Context): TonightSnapshots =
+        FileTonightSnapshots(context.applicationContext.filesDir)
 }

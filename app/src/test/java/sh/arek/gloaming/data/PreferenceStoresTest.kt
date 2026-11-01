@@ -12,6 +12,23 @@ class PreferenceStoresTest {
 
     private fun settingsStore() = PreferencesSettingsStore(FakeSharedPreferences())
 
+    @Test
+    fun `keeps a custom retention`() {
+        val store = settingsStore()
+
+        store.write(UserSettings(logRetentionDays = 30))
+
+        assertEquals(30, store.read().logRetentionDays)
+    }
+
+    @Test
+    fun `clamps a stored retention beyond a year`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putInt("log_retention_days", 9999).commit()
+
+        assertEquals(365, PreferencesSettingsStore(prefs).read().logRetentionDays)
+    }
+
     /**
      * The position must come back exactly as typed.
      *
@@ -96,6 +113,9 @@ class PreferenceStoresTest {
         eventAlertLeadMinutes = 240,
         eclipseFollowMaxMinutes = 240,
         locationMode = LocationMode.Automatic,
+        locationCadence = LocationCadence.Every(12),
+        locationUpdatedAt = 1_800_000_000_000L,
+        backgroundLocationRevoked = true,
         notifyAboutEveryEvent = false,
         starredEvents = setOf("SolarEclipse|1817197223000"),
         calendarSync = CalendarSync.OwnCalendar,
@@ -105,6 +125,11 @@ class PreferenceStoresTest {
         minimumCometAltitudeDegrees = 25,
         cometObservationStaleDays = 30,
         cometMoonTolerance = 25,
+        setupDone = true,
+        compassOfferedAt = 1_800_000_000_000L,
+        compassCheckedAt = 1_800_100_000_000L,
+        compassOffsetDegrees = -7.5,
+        nightVisionWhenFinding = false,
     )
 
     @Test
@@ -199,6 +224,72 @@ class PreferenceStoresTest {
         assertNull(settings.quietHours)
         assertEquals(false, settings.quietHoursOverride)
         assertEquals(false, settings.nightVision)
+    }
+
+    @Test
+    fun `an existing install with a location counts as set up`() {
+        val prefs = FakeSharedPreferences()
+        // What an install from before first-run setup holds: a position, and
+        // no setup key at all.
+        PreferencesSettingsStore(prefs).write(UserSettings(latitude = 55.95, longitude = -3.19))
+        prefs.edit().remove("setup_done").apply()
+
+        assertTrue(PreferencesSettingsStore(prefs).read().setupDone)
+    }
+
+    @Test
+    fun `an install from before the compass check reads its defaults`() {
+        val settings = settingsStore().read()
+
+        assertNull(settings.compassOfferedAt)
+        assertNull(settings.compassCheckedAt)
+        assertEquals(0.0, settings.compassOffsetDegrees, 0.0)
+        assertTrue(settings.nightVisionWhenFinding)
+    }
+
+    @Test
+    fun `a fresh install is not set up`() {
+        assertEquals(false, settingsStore().read().setupDone)
+    }
+
+    @Test
+    fun `an explicit set-up stays set up with no location`() {
+        val store = settingsStore()
+        store.write(UserSettings(setupDone = true))
+
+        assertTrue(store.read().setupDone)
+    }
+
+    @Test
+    fun `an explicit not-yet-set-up survives a location being saved`() {
+        val store = settingsStore()
+        store.write(UserSettings(latitude = 55.95, longitude = -3.19, setupDone = false))
+
+        assertEquals(false, store.read().setupDone)
+    }
+
+    @Test
+    fun `reads an unknown cadence as each time the app opens`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "fortnightly").apply()
+
+        assertEquals(LocationCadence.OnOpen, PreferencesSettingsStore(prefs).read().locationCadence)
+    }
+
+    @Test
+    fun `reads a stored manual cadence as each time the app opens`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "manual").apply()
+
+        assertEquals(LocationCadence.OnOpen, PreferencesSettingsStore(prefs).read().locationCadence)
+    }
+
+    @Test
+    fun `clamps stored interval hours to one through forty-eight`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "every").putInt("location_cadence_hours", 500).apply()
+
+        assertEquals(LocationCadence.Every(48), PreferencesSettingsStore(prefs).read().locationCadence)
     }
 
     @Test
@@ -347,6 +438,31 @@ class PreferenceStoresTest {
         PreferencesSettingsStore(prefs).clear()
 
         assertEquals(emptySet<String>(), prefs.all.keys intersect written)
+    }
+}
+
+/**
+ * Where tonight's outlook is kept. It carries the observer's grid cell, so it
+ * follows the same rule as the settings mirror: the device-encrypted store
+ * only when before-unlock alerting is on.
+ */
+class OutlookPartitionTest {
+
+    @Test
+    fun `keeps the outlook in device-encrypted storage only when before-unlock alerting is on`() {
+        assertEquals(StoragePartition.Device, BootAware.outlookPartition(beforeUnlock = true, unlocked = true))
+        assertEquals(StoragePartition.Device, BootAware.outlookPartition(beforeUnlock = true, unlocked = false))
+    }
+
+    @Test
+    fun `keeps the outlook beside the precise position otherwise`() {
+        assertEquals(StoragePartition.Credential, BootAware.outlookPartition(beforeUnlock = false, unlocked = true))
+    }
+
+    /** Credential-encrypted storage cannot be opened before first unlock, so there is nothing to read. */
+    @Test
+    fun `has nowhere to read the outlook from before first unlock with the option off`() {
+        assertNull(BootAware.outlookPartition(beforeUnlock = false, unlocked = false))
     }
 }
 

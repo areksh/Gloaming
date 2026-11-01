@@ -733,7 +733,7 @@ GrapheneOS and denies location by default; the whole privacy posture is weakened
 for a permission the app does not need; and manual entry enables trip planning ("will
 Shetland be clear on Tuesday?"), which device GPS cannot.
 
-`LocationManager` (never the fused provider - Play Services) is offered as a convenience
+`LocationManager` (the platform's own "fused" provider on API 31+ is asked first, never Play Services' fused provider) is offered as a convenience
 for users who want it. The app must be fully functional with location permission
 permanently denied.
 
@@ -747,11 +747,20 @@ permanently denied.
   the app is open; the detected position is then stored and every scheduled wake uses that,
   exactly as it uses a typed-in one. This is the difference between a convenience and
   tracking, and it also sidesteps the Android 10 background-location grant, which most of
-  this audience would refuse and be right to.
-- **Last-known fixes only; no location updates are requested.** Gloaming never turns the GPS
-  on, so asking costs no battery: it reads positions other apps have already caused the
-  system to record. The cost is that the answer is sometimes nothing, which is reported
-  plainly rather than papered over.
+  this audience would refuse and be right to. **Superseded 2026-10-31 by ADR-0016:** the
+  user may now choose to have the coarse position refreshed in the background on a cadence
+  they pick. It stays off unless chosen, coarse, unlogged and never sent; a position
+  stored at home while the phone sits at a dark site was the failure that outweighed it.
+- **A fresh approximate fix when the last-known one is stale; no location updates are
+  subscribed to.** A last-known fix under ten minutes old is used as it is, which costs
+  nothing. Past that, Gloaming asks for a single approximate fix with a twenty-second
+  timeout - from the platform's fused provider where it exists (API 31+), then the network
+  provider, then GPS, each only if it is on - and the phone may switch the GPS on to
+  answer. It is still the coarse permission, so the fix is blurred to a few kilometres. The
+  owner chose this over telling the user to "open a map app" on 2026-11-01, because that
+  advice sent people out of the app to fix the app. The answer can still be nothing, which
+  is reported plainly rather than papered over. The background refresh asks the same way
+  once per wake.
 
 A fix is refused if it is over half an hour old, vaguer than fifty kilometres, or at
 exactly zero. The staleness rule matters most: somebody drives out of town to a dark site,

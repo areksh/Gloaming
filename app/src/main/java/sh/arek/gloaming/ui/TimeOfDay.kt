@@ -1,5 +1,10 @@
 package sh.arek.gloaming.ui
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
 /**
  * A time of day typed by the user, as minutes since midnight.
  *
@@ -30,3 +35,31 @@ fun formatTimeOfDay(minuteOfDay: Int): String {
 }
 
 private fun pad(value: Int): String = if (value < 10) "0$value" else "$value"
+
+/**
+ * The device's own clock and zone. A time printed in UTC would be wrong by an
+ * hour for half the year here and by more elsewhere.
+ */
+internal fun clock(millis: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(millis))
+
+/**
+ * The date over the outlook, "Saturday 31 October", in the device's own zone.
+ *
+ * No year and no place: the year is never in doubt on a screen about tonight,
+ * and there is no geocoder to name the place with.
+ */
+fun describeDate(millis: Long): String =
+    SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(millis))
+
+/**
+ * Days since the epoch in the device's own zone, so the number turns at the
+ * midnight the person sees. What "today" is keyed on where a screen has to
+ * notice the date changing while it is open.
+ */
+fun localDay(millis: Long): Long {
+    val zone = TimeZone.getDefault()
+    return Math.floorDiv(millis + zone.getOffset(millis), DAY_MILLIS)
+}
+
+private const val DAY_MILLIS = 24 * 60 * 60 * 1000L

@@ -186,7 +186,7 @@ object SkyCalendar {
             checkpoint()
             addAll(constellations(latitude, longitude, searchFrom, until))
             checkpoint()
-            addAll(seasons(searchFrom, until))
+            addAll(seasons(latitude, searchFrom, until))
             checkpoint()
             addAll(moonPhases(start, until))
         }
@@ -960,11 +960,11 @@ object SkyCalendar {
      * Equinoxes and solstices.
      *
      * Not a sight, and they never interrupt. They are here because they are
-     * what the observing year turns on: at these latitudes the June solstice is
-     * when astronomical darkness stops arriving at all, and the September
-     * equinox is when it comes back.
+     * what the observing year turns on, and which way it turns depends on the
+     * hemisphere: the June solstice is the shortest night in the north and the
+     * longest in the south, so each note is chosen for the [latitude].
      */
-    private fun seasons(fromMillis: Long, until: Long): List<SkyEvent> {
+    private fun seasons(latitude: Double, fromMillis: Long, until: Long): List<SkyEvent> {
         val firstYear = yearOf(fromMillis)
         return (firstYear..yearOf(until)).flatMap { year ->
             val turning = io.github.cosinekitty.astronomy.seasons(year)
@@ -980,24 +980,32 @@ object SkyCalendar {
                     from = time.millis(),
                     until = time.millis(),
                     title = name,
-                    detail = seasonNote(name),
+                    detail = seasonNote(name, southern = latitude < 0.0),
                     visibility = Visibility.Good,
                 )
             }
         }
     }
 
-    private fun seasonNote(name: String) = when (name) {
-        "March equinox" -> "Day and night equal. Nights shortening from here, and the best of " +
-            "the dark-sky season behind you until autumn."
-        "June solstice" -> "The shortest night of the year. Above about 60 degrees there is no " +
-            "astronomical darkness at all around now."
-        "September equinox" -> "Day and night equal. Proper darkness returns from here, and " +
-            "with it the observing season."
+    private fun seasonNote(name: String, southern: Boolean): String {
+        val nightsShortening = "Day and night equal. Nights shortening from here, and the best " +
+            "of the dark-sky season behind you until autumn."
+        val nightsLengthening = "Day and night equal. Nights lengthening from here, and with " +
+            "them the observing season."
+        // About 48.6 degrees: past it the sun stays less than 18 degrees down
+        // all night at the solstice.
+        val shortest = "The shortest night of the year. More than about 49 degrees from the " +
+            "equator there is no astronomical darkness at all around now."
         // Not a claim that anything is on. It is the opposite: more hours of
         // darkness than any other night of the year, whatever you point at.
-        else -> "The longest night of the year - more hours of darkness than any other, " +
+        val longest = "The longest night of the year - more hours of darkness than any other, " +
             "whether or not there is anything particular to see."
+        return when (name) {
+            "March equinox" -> if (southern) nightsLengthening else nightsShortening
+            "June solstice" -> if (southern) longest else shortest
+            "September equinox" -> if (southern) nightsShortening else nightsLengthening
+            else -> if (southern) shortest else longest
+        }
     }
 
     private fun yearOf(millis: Long): Int {

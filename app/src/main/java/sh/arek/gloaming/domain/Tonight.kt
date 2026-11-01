@@ -1,5 +1,6 @@
 package sh.arek.gloaming.domain
 
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
@@ -30,6 +31,7 @@ import sh.arek.gloaming.satellites.TrainFinder
  * the cloud: a full moon up all night is the difference between a good night
  * and a wasted drive, and unlike the cloud it is known months ahead.
  */
+@Serializable
 data class MoonTonight(
     /** 0 at new, 90 at first quarter, 180 at full, 270 at last quarter. */
     val phaseDegrees: Double,
@@ -52,6 +54,7 @@ data class MoonTonight(
 )
 
 /** What there is to see between now and the end of tonight. */
+@Serializable
 data class TonightList(
     /** When the sky is dark enough to be worth going out, if it will be. */
     val darkFrom: Long?,
@@ -117,6 +120,14 @@ data class TonightList(
      * the card is that somebody believes it when it says the sky is empty.
      */
     val elementsHeld: Boolean = true,
+    /**
+     * The first clear spell of the night after tonight.
+     *
+     * Looked for only when tonight has none, and only where the forecast
+     * reaches that night; otherwise null, which is "not known" rather than
+     * "cloudy".
+     */
+    val nextClearSpell: ClearSpell? = null,
 ) {
     /**
      * Whether there is nothing happening tonight.
@@ -149,6 +160,8 @@ data class TonightList(
  * Everything is computed from what the device already holds. No network.
  */
 object Tonight {
+
+    private const val HOUR_MILLIS: Long = 60 * 60 * 1000L
 
     /**
      * How far ahead to look when it is the middle of the day.
@@ -223,6 +236,21 @@ object Tonight {
             ?.let { Constellations.tonight(latitude, longitude, it) }
             .orEmpty()
 
+        val clearSpell = night?.let {
+            ClearSpell.first(
+                hourly = hourly,
+                tolerance = settings.cloudTolerance,
+                darkFrom = it.first,
+                darkUntil = it.last,
+                nowMillis = nowMillis,
+            )
+        }
+        val nextClearSpell = if (clearSpell == null && night != null) {
+            nextNightSpell(latitude, longitude, night, hourly, settings.cloudTolerance)
+        } else {
+            null
+        }
+
         return TonightList(
             darkFrom = night?.first,
             darkUntil = night?.last,
@@ -261,15 +289,26 @@ object Tonight {
                 everyConstellation.filter { it.isCircumpolar }.map { it.constellation.name }
             },
             elementsHeld = satellites != null,
-            clearSpell = night?.let {
-                ClearSpell.first(
-                    hourly = hourly,
-                    tolerance = settings.cloudTolerance,
-                    darkFrom = it.first,
-                    darkUntil = it.last,
-                    nowMillis = nowMillis,
-                )
-            },
+            clearSpell = clearSpell,
+            nextClearSpell = nextClearSpell,
+        )
+    }
+
+    /** The first clear spell of the night after [night], if the forecast reaches it. */
+    private fun nextNightSpell(
+        latitude: Double,
+        longitude: Double,
+        night: LongRange,
+        hourly: List<HourlyCover>,
+        tolerance: Int,
+    ): ClearSpell? {
+        val next = Twilight.nightAhead(latitude, longitude, night.last + HOUR_MILLIS) ?: return null
+        return ClearSpell.first(
+            hourly = hourly,
+            tolerance = tolerance,
+            darkFrom = next.first,
+            darkUntil = next.last,
+            nowMillis = next.first,
         )
     }
 

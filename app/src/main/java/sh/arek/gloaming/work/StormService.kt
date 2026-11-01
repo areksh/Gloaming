@@ -94,6 +94,7 @@ class StormService : Service() {
         if (watching == null) {
             running = true
             val cap = capMillis()
+            endsAt = System.currentTimeMillis() + cap
             wakeLock = acquireWakeLock(cap)
             watching = scope.launch { watch(cap) }
         }
@@ -107,6 +108,7 @@ class StormService : Service() {
 
     override fun onDestroy() {
         running = false
+        endsAt = null
         manual = false
         runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         scope.cancel()
@@ -288,6 +290,15 @@ class StormService : Service() {
          */
         @Volatile
         var running: Boolean = false
+            private set
+
+        /**
+         * When the running watch stops on its own at the latest, for the
+         * screen's "Watching until"; null while nothing is running. Fixed at
+         * the start, like the cap it comes from.
+         */
+        @Volatile
+        var endsAt: Long? = null
             private set
 
         /**

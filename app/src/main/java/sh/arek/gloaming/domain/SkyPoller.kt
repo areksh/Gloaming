@@ -1,6 +1,7 @@
 package sh.arek.gloaming.domain
 
 import java.util.Calendar
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.aurora.Likelihood
@@ -33,12 +34,17 @@ interface AuroraNotifier {
      *   the "was it worth it?" record says what the alert was judged against -
      *   the setting can be changed the next morning, and the record has to mean
      *   what it meant on the night.
+     * @param clearUntil where the clear spell now under way ends, or null when
+     *   the forecast holds none - the alert then says nothing about cloud.
+     * @param towards which way to look: the observer's nearer pole.
      */
     fun notifyAurora(
         likelihood: Likelihood,
         status: SkyStatus,
         cloud: CloudCover?,
         threshold: Int? = null,
+        clearUntil: Long? = null,
+        towards: Compass,
     )
 }
 
@@ -182,7 +188,10 @@ class SkyPoller(
             )
         }
 
-        notifier.notifyAurora(likelihood, status, cloud, user.threshold)
+        notifier.notifyAurora(
+            likelihood, status, cloud, user.threshold, clearUntil(user, latitude, longitude, at),
+            towards = Compass.polewardOf(latitude),
+        )
         return Attempt(
             PollOutcome.Notified(probability),
             status,
@@ -206,6 +215,25 @@ class SkyPoller(
                 subject = "Aurora",
             ),
         )
+    }
+
+    /**
+     * Where the clear spell the observer is in ends, from the held forecast.
+     *
+     * Only a spell already under way counts: the alert speaks of now, and a
+     * clear patch that begins at three would make "while it stays clear until"
+     * claim a clear sky that is not there yet. Read from the cache rather than
+     * fetched, like the schedule's own look at the sky.
+     */
+    private fun clearUntil(user: UserSettings, latitude: Double, longitude: Double, at: Long): Long? {
+        val dark = darkness.at(latitude, longitude, at) as? Darkness.Now ?: return null
+        return ClearSpell.first(
+            hourly = weather.forecast(latitude, longitude),
+            tolerance = user.cloudTolerance,
+            darkFrom = at,
+            darkUntil = dark.endsAt ?: (at + PassPlanner.HORIZON_MILLIS),
+            nowMillis = at,
+        )?.takeIf { it.underway }?.until
     }
 
     /**

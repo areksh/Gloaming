@@ -136,4 +136,26 @@ class ElementsTest {
         assertTrue(!data.isDeepSpace)
         assertEquals(92.99, data.orbitalPeriod, 0.01)
     }
+
+    /**
+     * When the elements were published, which is how old a device knows them
+     * to be - the cache's own age says only when this phone last fetched them.
+     */
+    @Test
+    fun `reads when the elements were published`() {
+        assertEquals(1_787_400_000_000L, Elements.parse(document).updatedMillis())
+    }
+
+    @Test
+    fun `reads a publish time written without milliseconds`() {
+        val document = SatellitesDocument(schema = 1, updated = "2026-08-22T12:00:00Z")
+
+        assertEquals(1_787_400_000_000L, document.updatedMillis())
+    }
+
+    /** Unreadable is unknown, never the epoch - which would read as decades stale. */
+    @Test
+    fun `treats an unreadable publish time as unknown`() {
+        assertNull(SatellitesDocument(schema = 1, updated = "last Tuesday").updatedMillis())
+    }
 }

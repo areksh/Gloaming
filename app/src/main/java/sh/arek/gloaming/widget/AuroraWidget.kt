@@ -14,7 +14,8 @@ import sh.arek.gloaming.R
 import sh.arek.gloaming.data.BootAware
 
 /**
- * The home-screen widget: the local probability and how fresh it is.
+ * The home-screen widget: the local probability and tonight's outlook, or how fresh the reading is
+ * when there is no outlook for tonight.
  *
  * The highest value per line of code in the project, because it answers "is it
  * worth checking?" without interrupting anybody. A notification has to justify
@@ -74,7 +75,12 @@ class AuroraWidget : AppWidgetProvider() {
             // never disagree about where the user is or what was last seen.
             val settings = BootAware.pollSettings(context).read()
             val state = Graph.alertState(context).read()
-            val content = WidgetContent.of(settings, state, System.currentTimeMillis())
+            val content = WidgetContent.of(
+                settings,
+                state,
+                Graph.outlookStore(context).read(),
+                System.currentTimeMillis(),
+            )
 
             return RemoteViews(context.packageName, R.layout.widget_aurora).apply {
                 setTextViewText(R.id.widget_headline, content.headline)

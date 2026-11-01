@@ -1,6 +1,7 @@
 package sh.arek.gloaming.data
 
 import kotlin.math.roundToInt
+import kotlinx.serialization.Serializable
 
 /**
  * An observer position reduced to the aurora grid's own resolution.
@@ -10,6 +11,7 @@ import kotlin.math.roundToInt
  * goes into device-protected storage for before-first-unlock alerting, and a
  * whole degree is roughly 111 km of latitude - a region, not an address.
  */
+@Serializable
 data class GridCell(val latitude: Int, val longitude: Int) {
 
     companion object {

@@ -1,5 +1,7 @@
 package sh.arek.gloaming.data
 
+import kotlinx.serialization.Serializable
+
 /**
  * How much of the sky is covered, as percentages.
  *
@@ -7,6 +9,7 @@ package sh.arek.gloaming.data
  * observer: high cirrus at 60% still shows a strong aurora, while 60% low
  * stratus does not.
  */
+@Serializable
 data class CloudCover(
     val total: Int,
     val low: Int,
@@ -15,16 +18,39 @@ data class CloudCover(
 )
 
 /**
- * Total cloud cover at one hour of the forecast.
+ * Cloud cover at one hour of the forecast.
  *
- * Only the total, unlike [CloudCover]. The layer split earns its keep on a
- * reading being used as a gate, where high cirrus and low stratus at the same
- * percentage mean opposite things; across a night it would be forty-eight
- * numbers to answer one question - when is the gap.
+ * The layers ride along with the total because a clear spell for a planet or a
+ * pass is not judged on the total: high thin cloud dims a bright target far
+ * less than low cloud does, so 70% cirrus over an otherwise clear sky is still
+ * a night worth going out for and 70% stratus is not. [effective] is that
+ * judgement, and what a spell is measured against.
+ *
+ * The layers are null where the forecast did not give them, and for a cache
+ * file written before they were asked for. [total] is then all there is, and
+ * [effective] falls back to it rather than reading an absent layer as clear.
  *
  * [atMillis] is the start of the hour, in UTC.
  */
-data class HourlyCover(val atMillis: Long, val total: Int)
+@Serializable
+data class HourlyCover(
+    val atMillis: Long,
+    val total: Int,
+    val low: Int? = null,
+    val mid: Int? = null,
+    val high: Int? = null,
+) {
+    /**
+     * Cover as it matters to a bright target: the worse of low and mid cloud,
+     * or half the high cloud, which is thin enough to see through.
+     */
+    val effective: Int
+        get() = if (low != null && mid != null && high != null) {
+            maxOf(low, mid, high / 2)
+        } else {
+            total
+        }
+}
 
 /** A reading, with where and when it was taken. */
 class CachedCloud(

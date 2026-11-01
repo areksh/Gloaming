@@ -1,32 +1,46 @@
 package sh.arek.gloaming.scenarios
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
+import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.PassChannel
+import sh.arek.gloaming.ui.ALSO_UP_TAG
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.NOT_WORTH_TAG
+import sh.arek.gloaming.ui.ROW_SHEET_TAG
+import sh.arek.gloaming.ui.RowSubject
+import sh.arek.gloaming.ui.TIMELINE_TAG
+import sh.arek.gloaming.ui.Timeline
+import sh.arek.gloaming.ui.TimelineRow
 import sh.arek.gloaming.ui.describeMissingElements
-import sh.arek.gloaming.ui.TonightContent
+import sh.arek.gloaming.ui.OUTLOOK_HEADLINE_TAG
+import sh.arek.gloaming.ui.OutlookWords
+import sh.arek.gloaming.ui.TonightScreen
+import sh.arek.gloaming.ui.WATCH_BUTTON_TAG
+import sh.arek.gloaming.ui.timelineRowTag
 
 /**
  * Every night in the catalogue, drawn on a real device.
  *
  * The JVM suite proves the app has something to say about each of these nights.
- * This proves it can say it: that the cards it puts on the screen render, carry
- * the title that names what they are about, and print the event they were given
- * rather than an empty box with a heading over it.
+ * This proves it can say it: that the timeline and the lists under it render,
+ * and carry the things the night was given rather than an empty sky.
  *
  * One test per night, through JUnit's parameterised runner, so a failure names
  * the night rather than "the scenarios test". The catalogue is the parameter
@@ -60,31 +74,16 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
     private val tonight: TonightList = requireNotNull(state.tonight)
 
+    /** The whole of Tonight as the app draws it, pinned watch button included. */
     private fun render() {
-        compose.setContent {
-            Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                TonightContent(
-                    state = state,
-                    onWatchingChange = {},
-                    onWatchDurationChange = {},
-                    onPollNow = {},
-                    onRequestBatteryExemption = {},
-                    onRequestNotifications = {},
-                )
-            }
-        }
+        compose.setContent { TonightScreen(state = state) }
     }
 
     /**
      * Matched whole rather than as a substring, which is not fussiness: the
-     * moon's card is titled "The moon" and one of the events in the catalogue
-     * is called "The moon passes Mars", so a substring match finds two nodes
-     * and fails on a screen that is perfectly correct.
+     * moon is listed as "The moon" and one of the events in the catalogue is
+     * called "The moon passes Mars", so a substring match finds two nodes and
+     * fails on a screen that is perfectly correct.
      */
     private fun shown(text: String) {
         compose.onNodeWithText(text).performScrollTo().assertIsDisplayed()
@@ -95,18 +94,27 @@ class ScenarioScreensTest(private val scenario: Scenario) {
     }
 
     /**
-     * What the satellites card says on a night with no passes to list, which is
-     * two quite different sentences.
+     * Somewhere on the screen, as part of whatever says it: a pass's name
+     * inside its row's title, an event's title with the time it was left out
+     * at. The first of them is enough.
+     */
+    private fun somewhere(text: String) {
+        compose.onAllNodesWithText(text, substring = true).onFirst().performScrollTo().assertIsDisplayed()
+    }
+
+    /**
+     * What is said for the satellites on a night with no passes to list, which
+     * is two quite different sentences.
      *
      * Most nights in the catalogue hold no orbital elements at all, and that is
      * the fixtures being honest rather than thin: SGP4 is a near-epoch model, so
      * an eclipse dated 2029 cannot carry a real element set and is given none.
-     * The card is then right to say it does not know, rather than that the sky
-     * is empty - which is the distinction the card was taught, and exactly what
-     * this suite should hold it to.
+     * The screen is then right to say it does not know, rather than that the sky
+     * is empty - which is the distinction it was taught, and exactly what this
+     * suite should hold it to.
      *
-     * Derived from the card's own wording rather than written out again here, so
-     * that the assertion cannot drift from the screen while still passing.
+     * Derived from the screen's own wording rather than written out again here,
+     * so that the assertion cannot drift from the screen while still passing.
      */
     private fun emptySatellitesSentence(): String =
         if (tonight.elementsHeld) {
@@ -119,76 +127,90 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         }
 
     /**
-     * The cards the night should have, with the content that makes each of them
-     * worth having.
+     * Something of the night's own on the screen for everything it declares
+     * it shows, wherever the new screen puts it: a row on the timeline, an
+     * entry under "Also up tonight", or an entry under "Not worth it tonight"
+     * with the reason it was left out.
      *
-     * A title alone would not be worth asserting: the failure this is here to
-     * catch is a card that draws its heading and then nothing, which is what a
-     * layout mistake in a card body looks like from the outside.
+     * Asserted from the scenario's own declaration rather than from what the
+     * screen happens to hold, so a night that claims a comet cannot pass on a
+     * screen that has quietly lost it. The calendar-only declarations - an
+     * eclipse in daylight, a shower's peak, an event not visible here - are
+     * the Ahead screen's and are not looked for here.
      */
     @Test
-    fun showsTheCardsThisNightCallsFor() {
+    fun showsWhatThisNightCallsFor() {
         render()
 
         if (scenario.settings.latitude == null) {
-            absent("Darkness")
-            absent("Satellites")
-            absent("Events tonight")
+            compose.onNodeWithTag(TIMELINE_TAG).assertDoesNotExist()
+            compose.onNodeWithTag(ALSO_UP_TAG).assertDoesNotExist()
+            compose.onNodeWithTag(NOT_WORTH_TAG).assertDoesNotExist()
             return
         }
 
-        // Two cards are on every located night whatever the sky is doing, and
-        // deliberately so: an empty sky is an answer, and a missing card is
-        // not - it reads as something having gone wrong.
-        shown("Darkness")
-        shown("Satellites")
-
-        if (tonight.passes.isEmpty()) {
-            shown(emptySatellitesSentence())
+        val timeline = state.timeline
+        if (timeline != null) {
+            compose.onNodeWithTag(TIMELINE_TAG).performScrollTo().assertIsDisplayed()
+            for (row in timeline.rows) compose.onNodeWithTag(timelineRowTag(row)).assertExists()
         }
 
-        // The rest are absent rather than empty when they have nothing to say.
-        if (tonight.moon != null) shown("The moon") else absent("The moon")
-
-        if (tonight.cloud != null || tonight.clearSpell != null) {
-            shown("Sky now")
-        } else {
-            absent("Sky now")
+        for (shows in scenario.shows) {
+            when (shows) {
+                Shows.Events -> somewhere(tonight.events.first().title)
+                Shows.Comets -> somewhere(tonight.comets.first().title)
+                Shows.Passes -> somewhere(tonight.bestPasses.first().name)
+                Shows.Train -> somewhere(tonight.bestPasses.first { it.channel == PassChannel.Trains }.name)
+                Shows.Planets -> somewhere(tonight.planets.first().body.label)
+                Shows.Moon -> showsTheMoon(timeline)
+                Shows.Constellations -> somewhere(tonight.constellations.first().constellation.name)
+                Shows.ConstellationAtItsBest -> somewhere("At its best tonight")
+                Shows.ConstellationsAlwaysUp -> somewhere("Also up, as they are")
+                Shows.Noctilucent -> somewhere(requireNotNull(tonight.noctilucent).title)
+                Shows.ClearSpell, Shows.ClearSpellUnderway -> row(timeline) { it.subject == RowSubject.Clear }
+                Shows.Cloud -> if (timeline?.cloud.orEmpty().isNotEmpty()) {
+                    somewhere("Weather data by Open-Meteo.com")
+                }
+                // With no sunset to draw from - the polar night - the
+                // darkness is said in words where the timeline would be.
+                Shows.AstronomicalNight -> if (timeline != null) {
+                    row(timeline) { it.title == "Fully dark" }
+                } else {
+                    somewhere("Fully dark from")
+                }
+                Shows.NoAstronomicalNight -> absent("Fully dark")
+                Shows.Aurora -> somewhere("${requireNotNull(scenario.alertState.lastProbability)}%")
+                Shows.PendingVerdict -> somewhere("Was it worth it?")
+                else -> Unit
+            }
         }
+    }
 
-        if (tonight.events.isNotEmpty() || tonight.noctilucent != null) {
-            shown("Events tonight")
-            tonight.events.firstOrNull()?.let { shown(it.title) }
-            tonight.noctilucent?.let { shown(it.title) }
-        } else {
-            absent("Events tonight")
-        }
+    /** At least one row on the timeline that [matches], on the screen. */
+    private fun row(timeline: Timeline?, matches: (TimelineRow) -> Boolean) {
+        val row = requireNotNull(timeline?.rows?.firstOrNull(matches)) { "no such row on ${timeline?.rows}" }
+        compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
+    }
 
-        if (tonight.comets.isNotEmpty()) {
-            shown("Comets tonight")
-            shown(tonight.comets.first().title)
+    /**
+     * The moon has rows where it rises or sets tonight, and is listed where
+     * it is up all night with no row to say so.
+     */
+    private fun showsTheMoon(timeline: Timeline?) {
+        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Moon }
+        if (row != null) {
+            compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
         } else {
-            absent("Comets tonight")
-        }
-
-        if (tonight.planets.isNotEmpty()) {
-            shown("Planets tonight")
-            shown(tonight.planets.first().body.label.replaceFirstChar { it.uppercase() })
-        } else {
-            absent("Planets tonight")
-        }
-
-        if (tonight.constellations.isNotEmpty()) {
-            shown("Constellations tonight")
-            shown(tonight.constellations.first().constellation.name)
-        } else {
-            absent("Constellations tonight")
+            compose.onNode(hasText("The moon") and hasAnyAncestor(hasTestTag(ALSO_UP_TAG)))
+                .performScrollTo()
+                .assertIsDisplayed()
         }
     }
 
     /**
      * Where an event can only half be seen, the reason is on the home screen and
-     * not only on the calendar entry.
+     * not only on the calendar entry: in the sheet its row opens, or beside it
+     * in the lists.
      *
      * This is the assertion the catalogue was worth building for. The caveat was
      * missing from the tonight list for months and nobody could see it, because
@@ -197,13 +219,19 @@ class ScenarioScreensTest(private val scenario: Scenario) {
      */
     @Test
     fun printsTheReasonAnEventIsWorthLessThanItSounds() {
-        val marginal = tonight.events
-            .mapNotNull { (it.visibility as? sh.arek.gloaming.astronomy.Visibility.Marginal)?.reason }
-            .firstOrNull()
-            ?: return
+        val event = tonight.events.firstOrNull { it.visibility is Visibility.Marginal } ?: return
+        val reason = (event.visibility as Visibility.Marginal).reason
 
         render()
-        shown(marginal)
+        val row = state.timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(event) }
+        if (row != null) {
+            compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().performClick()
+            compose.onNode(hasText(reason) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG)))
+                .performScrollTo()
+                .assertIsDisplayed()
+        } else {
+            somewhere(reason)
+        }
     }
 
     /**
@@ -221,7 +249,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         render()
 
         if (tonight.events.any { it.isUnderWay(scenario.nowMillis) }) {
-            shown("Happening now")
+            somewhere("Happening now")
         } else {
             absent("Happening now")
         }
@@ -230,7 +258,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
     /**
      * A night with nothing on it still says so rather than drawing an empty
      * screen. The commonest night of the year, and the one most easily broken
-     * by a change to any of the cards above.
+     * by a change to anything above it.
      */
     @Test
     fun saysSomethingOnAnEmptyNight() {
@@ -238,6 +266,31 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
         render()
         shown(emptySatellitesSentence())
-        shown("Watch now")
+        // Pinned under the scroll, so there on an empty night without scrolling.
+        compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed().assertTextContains("Watch tonight")
+    }
+
+    /**
+     * The night opens with the sentence the outlook decided, word for word -
+     * and with none where there is no outlook to give, rather than a blank
+     * heading.
+     */
+    @Test
+    fun opensWithTheOutlookItDecided() {
+        render()
+
+        val headline = state.outlook?.let { OutlookWords.headline(it) }
+        if (headline == null) {
+            if (scenario.settings.latitude == null) {
+                shown("Set your location to begin")
+            } else {
+                compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertDoesNotExist()
+            }
+            return
+        }
+        compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG)
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertTextEquals(headline)
     }
 }

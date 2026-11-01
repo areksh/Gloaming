@@ -101,7 +101,11 @@ enum class LocationMode {
     /** Typed in. The default, and the one that always works. */
     Manual,
 
-    /** Read from the device when the app is open. Never in the background. */
+    /**
+     * Read from the device: when the app is opened, when asked, or in the
+     * background on an interval the user chose - see [LocationCadence] and
+     * ADR-0016. Coarse in every case.
+     */
     Automatic,
 }
 
@@ -297,6 +301,20 @@ data class UserSettings(
      */
     val locationMode: LocationMode = LocationMode.Manual,
 
+    /** How often a detected position is refreshed. See [LocationCadence]. */
+    val locationCadence: LocationCadence = LocationCadence.OnOpen,
+
+    /** When the position was last refreshed, or null if it never has been. */
+    val locationUpdatedAt: Long? = null,
+
+    /**
+     * Set when a background refresh found the permission it needs had been
+     * taken away, and so put the cadence back to [LocationCadence.OnOpen].
+     * Kept so the screen can say why the choice changed under the user;
+     * cleared when they choose a cadence again.
+     */
+    val backgroundLocationRevoked: Boolean = false,
+
     /**
      * Kinds of event the user does not want to see or hear about.
      *
@@ -451,6 +469,38 @@ data class UserSettings(
      * recommending it.
      */
     val cometMoonTolerance: Int = DEFAULT_COMET_MOON_TOLERANCE,
+
+    /**
+     * Whether first-run setup has been walked through or skipped.
+     *
+     * Holds no position, so it lives wherever the rest of the settings do and
+     * the device-encrypted mirror carries it along unread: nothing that runs
+     * before first unlock consults it. A store with no record of it reads as
+     * [hasLocation], so an install from before setup existed, which had to be
+     * given a position to be of any use, is not walked through it again.
+     */
+    val setupDone: Boolean = false,
+
+    /**
+     * When the compass check was last offered, or null if never.
+     *
+     * Paces the offer to once a week (`CompassCheck.OFFER_EVERY_MILLIS`) so a
+     * phone whose compass stays poor is not nagged. Holds no position.
+     */
+    val compassOfferedAt: Long? = null,
+
+    /** When the compass was last checked against the moon, or null if never. */
+    val compassCheckedAt: Long? = null,
+
+    /**
+     * How far, in degrees, the phone's compass is taken to read from true,
+     * as found by the moon check; added to every heading. Zero is no
+     * correction, and the default.
+     */
+    val compassOffsetDegrees: Double = 0.0,
+
+    /** Whether the red night-vision palette is used while finding something. */
+    val nightVisionWhenFinding: Boolean = true,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 
@@ -557,6 +607,13 @@ data class UserSettings(
 
         /** What the retention control offers, in days. Zero means keep none. */
         val LOG_RETENTION_CHOICES = listOf(0, 1, 3, 7, 14)
+
+        /** The longest the log may be kept, which the custom entry and a stored value are held to. */
+        const val MAX_LOG_RETENTION_DAYS = 365
+
+        /** Whole days from one to [MAX_LOG_RETENTION_DAYS], or null for anything else. */
+        fun parseLogRetention(input: String): Int? =
+            input.trim().toIntOrNull()?.takeIf { it in 1..MAX_LOG_RETENTION_DAYS }
 
         /** Two days: long enough to change plans, short enough to still be the same week. */
         const val DEFAULT_EVENT_HEADS_UP_DAYS = 2
@@ -765,7 +822,7 @@ data class AlertState(
      * The most recent alert nobody has said anything about, as encoded
      * [Conditions].
      *
-     * The Tonight tab's half of the "was it worth it?" question. The
+     * Tonight's half of the "was it worth it?" question. The
      * notification carries the same conditions in its actions, but a
      * notification that has been swiped away carries them nowhere - and the
      * nights somebody swipes an alert away at two in the morning and forms an

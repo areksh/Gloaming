@@ -376,6 +376,52 @@ class TonightTest {
         assertEquals(null, tonight("2026-12-14T18:00:00Z").clearSpell)
     }
 
+    /**
+     * The sentence for an overcast evening is "the next clear night", so the
+     * list looks one night on when tonight has nothing, and no further.
+     */
+    @Test
+    fun `names tomorrow's clear spell when tonight has none`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            hourly = hours("2026-12-14T17:00:00Z", *IntArray(27) { 100 }) +
+                hours("2026-12-15T20:00:00Z", 10, 10, 10, 10),
+        )
+
+        assertEquals(null, list.clearSpell)
+        assertEquals(at("2026-12-15T20:00:00Z"), list.nextClearSpell!!.from)
+    }
+
+    @Test
+    fun `looks no further when tonight already clears`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            // Clear at 19:00 tonight; the second block is clear tomorrow evening
+            // and must be ignored, the gap being the forecast hours between.
+            hourly = hours("2026-12-14T17:00:00Z", 100, 100, 10, 10) +
+                hours("2026-12-15T20:00:00Z", 10, 10),
+        )
+
+        assertNotNull(list.clearSpell)
+        assertEquals(null, list.nextClearSpell)
+    }
+
+    @Test
+    fun `says nothing of tomorrow beyond the forecast`() {
+        val list = tonight(
+            "2026-12-14T18:00:00Z",
+            // The forecast reaches into tomorrow's night, but its only clear
+            // hours (11:00 to 15:00) are daylight, before that night begins.
+            hourly = hours(
+                "2026-12-14T17:00:00Z",
+                *IntArray(25) { if (it in 18..21) 10 else 100 },
+            ),
+        )
+
+        assertEquals(null, list.clearSpell)
+        assertEquals(null, list.nextClearSpell)
+    }
+
     // --- which few to lead with ---
 
     // --- the constellations ---

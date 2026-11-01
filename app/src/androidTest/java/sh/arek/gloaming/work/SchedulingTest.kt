@@ -5,7 +5,10 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.LocationCadence
+import sh.arek.gloaming.data.LocationMode
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -151,12 +154,55 @@ class SchedulingTest {
         )
     }
 
-    /** Whether the alarm manager currently holds a pending alarm for this app. */
-    private fun hasRegisteredAlarm(): Boolean =
-        pendingAlarms().contains(ourAlarmTag)
+    /**
+     * The background location refresh follows the settings it is armed from.
+     *
+     * Saved the way the settings screen saves - the store, then the alarm - and
+     * through the real stores, so the phone's own settings are read first and
+     * written back afterwards rather than cleared. The alarm is put back by
+     * [RealSchedule] in the teardown, from those restored settings.
+     */
+    @Test
+    fun armsTheLocationAlarmForAnIntervalAndCancelsItWhenTypedIn() {
+        val saved = Graph.settings(context).read()
+        try {
+            val every6 = saved.copy(
+                locationMode = LocationMode.Automatic,
+                locationCadence = LocationCadence.Every(6),
+            )
+            BootAware.saveSettings(context, every6)
+            LocationAlarm.arm(context, every6)
 
-    private val ourAlarmTag: String
-        get() = "*walarm*:${context.packageName}/.work.PollReceiver"
+            assertTrue(
+                "no location alarm for every six hours",
+                hasRegisteredAlarm(LOCATION_RECEIVER),
+            )
+
+            val typed = every6.copy(locationMode = LocationMode.Manual)
+            BootAware.saveSettings(context, typed)
+            LocationAlarm.arm(context, typed)
+
+            assertFalse(
+                "a location alarm outlived typing the position in",
+                hasRegisteredAlarm(LOCATION_RECEIVER),
+            )
+        } finally {
+            BootAware.saveSettings(context, saved)
+        }
+    }
+
+    @Test
+    fun theLocationAlarmTargetsAnInstalledReceiver() {
+        val intent = Intent(context, LocationReceiver::class.java)
+
+        val resolved = context.packageManager.queryBroadcastReceivers(intent, 0)
+
+        assertTrue("LocationReceiver is not registered", resolved.isNotEmpty())
+    }
+
+    /** Whether the alarm manager currently holds a pending alarm for [receiver]. */
+    private fun hasRegisteredAlarm(receiver: String = POLL_RECEIVER): Boolean =
+        pendingAlarms().contains("*walarm*:${context.packageName}/$receiver")
 
     /**
      * The part of the alarm dump that lists alarms actually scheduled.
@@ -182,5 +228,10 @@ class SchedulingTest {
         return ParcelFileDescriptor.AutoCloseInputStream(descriptor)
             .bufferedReader()
             .use { it.readText() }
+    }
+
+    private companion object {
+        const val POLL_RECEIVER = ".work.PollReceiver"
+        const val LOCATION_RECEIVER = ".work.LocationReceiver"
     }
 }

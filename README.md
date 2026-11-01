@@ -10,10 +10,14 @@ out on its own schedule and nothing reaches in.
 
 You can type your position in or let the phone tell it, whichever you prefer,
 and switch between the two whenever you like. Letting the phone tell it asks for
-**coarse** location and nothing more, only while the app is open, and never in
-the background - Gloaming does not even turn the GPS on, it reads the last
-position the phone already had. Typing it in works with location denied forever,
-and is also how you ask about somewhere you are not.
+**coarse** location and nothing more. When the last position the phone recorded
+is stale, Gloaming asks it for a fresh approximate one, and the phone may switch
+its GPS on to answer. By default it reads the position when you open the app; if
+you choose, it can also refresh it in the background every few hours, which
+needs Android's "Allow all the time" grant and is off unless you pick it
+(ADR-0016). Either way the position is never logged, and is used exactly as a
+typed one would be. Typing it in works with location denied forever, and is also
+how you ask about somewhere you are not.
 
 Satellite passes follow the same rule: the orbital elements are published once,
 for everybody, and every prediction happens on your phone. CelesTrak never sees
@@ -39,7 +43,7 @@ remains before release
 is the part no test suite can do for you: a season of real nights, to calibrate
 the thresholds and confirm the app is worth keeping installed.
 
-On top of that sits a sky calendar, on a tab of its own: eclipses, meteor
+On top of that sits a sky calendar, under Ahead on the bottom bar: eclipses, meteor
 showers, close pairings of planets, Mars, Jupiter and Saturn at opposition,
 Venus at its brightest, new and full moon, the night each constellation stands
 highest at midnight, and the equinoxes and solstices - all
@@ -48,8 +52,10 @@ standing rather than listed as though everything is visible from everywhere. An
 eclipse that reaches maximum after the sun has set where you are says so.
 Anything under way as you read the list is marked as happening now, and stays
 on the list until it is genuinely over rather than dropping off at the moment it
-starts. You can filter out the kinds you do not care about, and star the ones
-you do.
+starts. Each month opens with a strip of its nights shaded by how much the moon
+spoils them, a dot on the days with an event and the darkest run named in words.
+You can filter out the kinds you do not care about from behind one button, narrow
+the list to Starred only, and star the ones you do.
 Eclipses carry a countdown you can follow contact by contact, and summer nights
 carry a prompt for noctilucent clouds - which is a prompt and not a forecast,
 because nothing has been able to forecast those since 2023.
@@ -80,7 +86,7 @@ Nothing in it needs a telescope. If it cannot be seen with your eyes or a pair
 of binoculars, it is out of scope, which is why there are no Uranus oppositions
 and no transits of Mercury.
 
-A third tab answers the questions the calendar structurally cannot. A year of
+Tonight answers the questions the calendar structurally cannot. A year of
 eclipses fits in a list, but a clear night here has hundreds of satellite
 passes, so the split is by shape - dated and sparse in the calendar, nightly and
 dense on Tonight, which leads with the best few rather than the earliest and
@@ -92,25 +98,34 @@ proper astronomical darkness, which at this latitude does not arrive at all
 between May and August. The planets are there too, with how high each gets,
 which way to look, and which constellation each is sitting in.
 
-The constellations have a card of their own, because which patterns are up is a
-season rather than an occasion and a calendar of them would be an almanac. It
-leads with a handful worth going out for, with where to look and one sentence on
+The constellations are listed under the night, under "Also up tonight",
+because which patterns are up is a season rather than an occasion and a calendar
+of them would be an almanac. The list leads with a handful worth going out for, with where to look and one sentence on
 how to pick each one out - three stars in a line make Orion's belt, the end of
 the Plough's bowl points at Polaris. The ones that never set from where you are
 get named in a line at the end rather than a row each: they are the same every
-night of the year, and ranked by height they would fill the card and crowd out
+night of the year, and ranked by height they would fill the list and crowd out
 whatever has changed since last month. Whichever pattern is at its best tonight
 comes first however low it is. If you would rather see every one above the
 horizon, that is a setting. Individual stars and deep-sky objects are
 deliberately not here: that is a catalogue, and Stellarium does it better.
 
+Find, beside Tonight on the bottom bar, turns the phone into a pointer. Pick a
+planet, the moon, a constellation, a satellite pass or the aurora, hold the
+phone up, and it says which way to turn and tilt until you are on it. True north
+comes from the phone's own model of the Earth's field, nothing is fetched, and
+when the compass is unsure Find offers a check that lets the phone relearn
+north. It is red on black and dimmed by default, so it does not cost you your
+night vision.
+
 None of which helps if you do not know the words. "On the far side of Polaris
 from the Plough" is a perfectly good direction and useless to somebody who knows
-neither, so there is a Guide tab: the landmarks every direction in the app is
-measured from, the vocabulary the other tabs use - magnitude, opposition,
-occultation, radiant, umbra - and the part nobody tells you, which is that your
-eyes take twenty minutes to adapt to the dark and an aurora rarely looks like
-the photographs. Each card on Tonight will also explain its own words in place,
+neither, so there is a guide, a page under "Screen and reference" in Settings:
+the landmarks every direction in the app is measured from, the vocabulary the
+rest of the app uses - magnitude, opposition, occultation, radiant, umbra - and
+the part nobody tells you, which is that your eyes take twenty minutes to adapt
+to the dark and an aurora rarely looks like the photographs. Each row on
+Tonight's timeline also explains its own words in place, in the sheet it opens,
 underneath its answer rather than in front of it, because the question gets
 asked while looking at the sentence that raised it. None of it needs a location,
 a forecast or a network, so it is the one screen that works before anything is
@@ -121,10 +136,13 @@ handful of small files fetched from a CDN, and the failure mode that matters is
 not a loud one: an upstream can stop republishing while every request from the
 phone goes on politely answering "not modified", and the app will predict
 satellite passes from a fortnight-old catalogue without a word. So a downloads
-card carries both halves - how old the copy on this phone actually is, marked
-when the satellite elements have gone off, and what happened the last time
-anything was fetched, with the reason when it failed. Pressing "check now" shows
-what is being downloaded while it happens.
+report in the checks sheet, behind the status line at the top of Tonight,
+carries both halves - how old the copy on this phone actually is, marked when
+the satellite elements have gone off, and what happened the last time anything
+was fetched, with the reason when it failed - and the status line itself names
+whatever has gone wrong without being opened. Pressing "Check now" there shows
+what is being downloaded while it happens; pulling Tonight down runs the same
+check.
 
 Any dated event can be shared as a message or exported as an `.ics` for whatever
 calendar you keep. Neither needs a permission. If you would rather the starred
@@ -309,10 +327,11 @@ Edinburgh, not because a fixture says so. What is genuinely invented is the
 small part the sky does not decide: the cloud forecast, the satellite elements
 and the aurora reading.
 
-Each night declares what it is supposed to show, and `ScenariosTest` proves it -
+Each night declares what it is supposed to show, and where it is about the
+opening sentence the outlook it should give, and `ScenariosTest` proves both -
 without that, a screen test against a scenario that had quietly gone empty would
 pass exactly as happily as one against a full one. `ScenarioScreensTest` then
-renders every one of them through the real Tonight tab on the device, and
+renders every one of them through the real Tonight screen on the device, and
 `ScenarioNotificationsTest` posts the notification each would produce.
 
 Two dates in the catalogue are not free choices. The satellite nights sit within
@@ -502,7 +521,7 @@ exemption granted and a 5-minute interval configured:
 So on this hardware the exemption does its job and battery saver costs nothing
 measurable. That is one AOSP-derived device; the exemption is not honoured on
 every OEM build, which is what dontkillmyapp.com exists to catalogue. The
-**watch now** switch is the escape hatch when it is not: a foreground service
+**Watch tonight** button is the escape hatch when it is not: a foreground service
 runs its own clock, so no alarm policy or batching window reaches it.
 
 Beware of measuring this through `logcat` alone - the ring buffer here holds

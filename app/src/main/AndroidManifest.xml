@@ -4,19 +4,22 @@
 
     <!--
       All traffic is outbound and device-initiated: the app polls public
-      endpoints on its own schedule and nothing can reach in. No location
-      permission is declared; location is entered manually unless the user opts
-      into LocationManager later.
+      endpoints on its own schedule and nothing can reach in. Location is typed
+      in unless the user opts into reading it from LocationManager.
     -->
     <!--
-      Coarse only, and only while the app is open. The aurora grid is
-      one-degree cells and Open-Meteo is given a position rounded to about a
-      kilometre, so fine location would buy nothing the app uses. There is no
-      ACCESS_BACKGROUND_LOCATION: "detect it for me" means when you open the
-      app, never while it is asleep, and a typed-in position works with this
-      denied forever.
+      Coarse only. The aurora grid is one-degree cells and Open-Meteo is given a
+      position rounded to about a kilometre, so fine location would buy nothing
+      the app uses, and a typed-in position works with this denied forever.
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+      Only for refreshing that same coarse position on a cadence the user chose
+      - every few hours, say - with no screen open (ADR-0016). Requested when
+      somebody picks such a cadence and never otherwise. It extends the coarse
+      grant in time, not in precision; there is still no fine location.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Runtime-requested from Android 13; ignored below it. -->
@@ -84,6 +87,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.Gloaming">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -120,6 +124,17 @@
         -->
         <receiver
             android:name=".work.PassReceiver"
+            android:exported="false" />
+
+        <!--
+          The background location refresh. Not directBootAware: the cadence and
+          the position it replaces live in credential-encrypted storage, and a
+          wake before first unlock could read neither. The reboot that locks the
+          phone also clears the alarm, and BootReceiver arms it again once the
+          phone is unlocked.
+        -->
+        <receiver
+            android:name=".work.LocationReceiver"
             android:exported="false" />
 
         <!--

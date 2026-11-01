@@ -10,12 +10,15 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.ui.OutlookWords
 import sh.arek.gloaming.ui.describeCloud
 
 /**
@@ -64,10 +67,12 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
         status: SkyStatus,
         cloud: CloudCover?,
         threshold: Int?,
+        clearUntil: Long?,
+        towards: Compass,
     ) {
         ensureChannel()
 
-        val detail = buildString {
+        val figures = buildString {
             append("Local probability ${likelihood.probability}%")
             // Attributed, both because AuroraWatch's terms require it and
             // because a real UK magnetometer reading carries more weight than a
@@ -81,15 +86,20 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             status.aurorawatch?.let { append(", AuroraWatch ${it.status}") }
         }
 
+        // The same words the Tonight screen opens with, so the alert and the
+        // screen it opens never tell two stories.
+        val outlook = OutlookWords.auroraAlert(likelihood.probability, clearUntil, towards)
+
         val notification = NotificationCompat.Builder(context, CHANNEL_AURORA)
             .setSmallIcon(R.drawable.ic_notification_aurora)
             .setContentTitle("Aurora possible now")
-            .setContentText(detail)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(detail))
+            .setContentText(outlook)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$outlook\n$figures"))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .setAutoCancel(true)
+            .addFindIt(context, FindTarget.Aurora, NOTIFICATION_ID)
             // The highest-leverage two buttons in the app: they turn every real
             // night into the calibration data the default thresholds have been
             // waiting on since the first version.

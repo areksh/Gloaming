@@ -13,6 +13,7 @@ import java.util.Date
 import java.util.Locale
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
+import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.PassNotifier
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
@@ -79,6 +80,7 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .addAction(0, "Follow it", followPass(pass))
+            .addFindIt(context, FindTarget.Pass(pass.catalogue, pass.risesAt), pass.catalogue)
             // Alongside "Follow it" rather than instead of it. A pass verdict
             // calibrates a different number from an aurora one - the elevation
             // bar rather than the probability threshold - and there is no way

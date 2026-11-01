@@ -25,6 +25,11 @@ import sh.arek.gloaming.satellites.LivePass
  * the background, so without it the app would go quiet after every update and
  * give no sign of it: the exemption is still granted, the app is not stopped,
  * and there is simply no alarm.
+ *
+ * The background location alarm is armed here too, but only once the phone is
+ * unlocked - on `BOOT_COMPLETED`, or an update that lands while unlocked. Its
+ * settings live in credential-encrypted storage, and [LocationReceiver] could
+ * not run before unlock anyway.
  */
 class BootReceiver : BroadcastReceiver() {
 
@@ -62,6 +67,24 @@ class BootReceiver : BroadcastReceiver() {
         }.onFailure { Notes.e(application, TAG, "failed to reschedule after $action", it) }
 
         requeueFollow(application)
+        rearmLocation(application, action)
+    }
+
+    /**
+     * Puts back the background location refresh, if one was chosen.
+     *
+     * Outside the `alertsEnabled` gate: keeping the position current is a
+     * choice of its own, and somebody with alerts off still sees tonight on
+     * the screen. `LOCKED_BOOT_COMPLETED` skips this, and `BOOT_COMPLETED`
+     * follows it once the phone is unlocked - which is also the first moment
+     * the settings it reads can be opened.
+     */
+    private fun rearmLocation(context: Context, action: String?) {
+        if (!BootAware.isUnlocked(context)) return
+        runCatching { LocationAlarm.arm(context, Graph.settings(context).read()) }
+            .onFailure {
+                Notes.e(context, TAG, "failed to arm the location refresh after $action", it)
+            }
     }
 
     /**

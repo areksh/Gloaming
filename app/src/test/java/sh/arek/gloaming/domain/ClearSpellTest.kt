@@ -61,6 +61,33 @@ class ClearSpellTest {
     }
 
     @Test
+    fun `thin high cloud alone does not close a clear spell`() {
+        val spell = ClearSpell.first(
+            hourly = (0..2).map { HourlyCover(at(it), 70, 0, 0, 70) },
+            tolerance = 50,
+            darkFrom = at(0),
+            darkUntil = at(3),
+            nowMillis = at(0),
+        )
+
+        assertEquals(at(0), spell!!.from)
+        assertEquals(at(3), spell.until)
+    }
+
+    @Test
+    fun `low cloud closes it whatever the layers say`() {
+        val spell = ClearSpell.first(
+            hourly = (0..2).map { HourlyCover(at(it), 60, 60, 0, 0) },
+            tolerance = 50,
+            darkFrom = at(0),
+            darkUntil = at(3),
+            nowMillis = at(0),
+        )
+
+        assertNull(spell)
+    }
+
+    @Test
     fun `reports nothing when every hour is over the tolerance`() {
         val spell = ClearSpell.first(
             hourly = hours(90, 95, 100),

@@ -127,6 +127,37 @@ class PlanetEventsTest {
         )
     }
 
+    /**
+     * The June solstice is the shortest night in the north and the longest in
+     * the south, and the notes say so for wherever the observer is.
+     */
+    @Test
+    fun `turns the season notes round south of the equator`() {
+        fun notes(lat: Double) = SkyCalendar.events(lat, longitude, at("2027-01-01T00:00:00Z"), 365)
+            .filter { it.kind == EventKind.Season }
+            .associate { it.title to it.detail }
+
+        val north = notes(latitude)
+        val south = notes(-33.87)
+
+        assertTrue(north.getValue("June solstice").startsWith("The shortest night of the year."))
+        assertTrue(north.getValue("December solstice").startsWith("The longest night of the year"))
+        assertTrue(north.getValue("March equinox").contains("Nights shortening"))
+        assertTrue(north.getValue("September equinox").contains("Nights lengthening"))
+        assertTrue(south.getValue("June solstice").startsWith("The longest night of the year"))
+        assertTrue(south.getValue("December solstice").startsWith("The shortest night of the year."))
+        assertTrue(south.getValue("March equinox").contains("Nights lengthening"))
+        assertTrue(south.getValue("September equinox").contains("Nights shortening"))
+    }
+
+    /** Where the summer loses astronomical darkness: about 48.6 degrees, not 60. */
+    @Test
+    fun `says how far from the equator midsummer loses full darkness`() {
+        val june = events("2027-01-01T00:00:00Z", 365, EventKind.Season).first { it.title == "June solstice" }
+
+        assertTrue(june.detail, june.detail.contains("More than about 49 degrees from the equator"))
+    }
+
     /** Exactly four in a year, with none doubled by the year boundary. */
     @Test
     fun `marks four turnings in a year and no more`() {

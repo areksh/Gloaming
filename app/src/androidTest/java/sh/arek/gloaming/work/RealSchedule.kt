@@ -1,6 +1,7 @@
 package sh.arek.gloaming.work
 
 import android.content.Context
+import sh.arek.gloaming.Graph
 import sh.arek.gloaming.data.BootAware
 
 /**
@@ -18,7 +19,7 @@ import sh.arek.gloaming.data.BootAware
  * restore, never clear - applied to the one piece of device state that decides
  * whether the app works at all.
  *
- * Deliberately the same two lines [BootReceiver] runs after an update, so a
+ * Deliberately the same lines [BootReceiver] runs after an update, so a
  * phone that has just finished a suite is in the state a phone that has just
  * taken an update is in, rather than in a third state of the harness's own
  * invention.
@@ -31,7 +32,8 @@ object RealSchedule {
 
     /**
      * Arms the alarm at the interval this phone is actually set to, or leaves
-     * it unarmed if alerting is switched off here.
+     * it unarmed if alerting is switched off here. The background location
+     * refresh likewise, from the settings as they stand.
      */
     fun restore(context: Context) {
         val settings = BootAware.pollSettings(context).read()
@@ -40,5 +42,7 @@ object RealSchedule {
         } else {
             PollAlarm.cancel(context)
         }
+        // The suite runs unlocked, which is when BootReceiver arms this too.
+        LocationAlarm.arm(context, Graph.settings(context).read())
     }
 }

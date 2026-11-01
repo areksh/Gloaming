@@ -11,8 +11,10 @@ import io.github.cosinekitty.astronomy.equator
 import io.github.cosinekitty.astronomy.horizon
 import io.github.cosinekitty.astronomy.illumination
 import io.github.cosinekitty.astronomy.searchRiseSet
+import kotlinx.serialization.Serializable
 
 /** One planet's night: how high it gets, which way to look, and when. */
+@Serializable
 data class PlanetTonight(
     val body: SkyBody,
     /** The highest it gets inside tonight's darkness, in degrees. */
@@ -114,6 +116,22 @@ object Planets {
             .sortedByDescending { it.peakAltitude }
     }
 
+    /**
+     * How high [body] is at one moment, in degrees, refracted like the rest.
+     *
+     * For judging a planet at the time somebody would be looking rather than
+     * at its peak: highest at six in the evening says little about half past
+     * midnight, when it may be skimming the rooftops or gone.
+     */
+    fun altitude(body: SkyBody, latitude: Double, longitude: Double, atMillis: Long): Double =
+        position(bodyOf(body), Observer(latitude, longitude, 0.0), atMillis).altitude
+
+    internal fun position(engineBody: Body, observer: Observer, atMillis: Long) =
+        Time.fromMillisecondsSince1970(atMillis).let { time ->
+            val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
+            horizon(time, observer, position.ra, position.dec, Refraction.Normal)
+        }
+
     private fun barFor(body: SkyBody) =
         if (body == SkyBody.Mercury) MERCURY_DEGREES else VISIBLE_DEGREES
 
@@ -131,9 +149,7 @@ object Planets {
         // the transit at all.
         var at = night.first
         while (at <= night.last) {
-            val time = Time.fromMillisecondsSince1970(at)
-            val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
-            val above = horizon(time, observer, position.ra, position.dec, Refraction.Normal)
+            val above = position(engineBody, observer, at)
             if (above.altitude > peakAltitude) {
                 peakAltitude = above.altitude
                 peakAzimuth = above.azimuth
@@ -176,7 +192,7 @@ object Planets {
         )
     }
 
-    private fun bodyOf(body: SkyBody) = when (body) {
+    internal fun bodyOf(body: SkyBody) = when (body) {
         SkyBody.Mercury -> Body.Mercury
         SkyBody.Venus -> Body.Venus
         SkyBody.Mars -> Body.Mars
