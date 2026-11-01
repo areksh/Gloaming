@@ -762,6 +762,9 @@ private fun GloamingApp() {
             return@LaunchedEffect
         }
         calendarLoading = true
+        // Cleared now rather than replaced later: the events below are
+        // published first, and the old strips may be for another place.
+        months = emptyList()
         val now = System.currentTimeMillis()
         // The events are published as soon as they are ready: the screen is
         // usable without the strips, which take longer again, and must
