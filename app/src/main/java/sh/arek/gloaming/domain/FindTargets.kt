@@ -57,7 +57,7 @@ fun FindTarget.Companion.decode(text: String): FindTarget? {
             val parts = rest.split(':')
             val catalogue = parts.getOrNull(0)?.toIntOrNull()
             val risesAt = parts.getOrNull(1)?.toLongOrNull()
-            if (parts.size == 2 && catalogue != null && risesAt != null) {
+            if (parts.size == 2 && catalogue != null && catalogue > 0 && risesAt != null) {
                 FindTarget.Pass(catalogue, risesAt)
             } else {
                 null
@@ -102,6 +102,35 @@ object FindTargets {
 
     /** Where aurora is looked for: due north, low down. */
     private val AURORA_POSITION = AltAz(altitude = 10.0, azimuth = 0.0)
+
+    /** How many rise searches have run; read by tests to show the memo works. */
+    @Volatile
+    internal var scans = 0
+
+    /** How long "nothing rises within a day" is believed. */
+    private const val NO_RISE_MEMO_MILLIS = 10 * 60_000L
+
+    /**
+     * The last rise worked out, so a screen asking every frame searches once.
+     *
+     * One immutable entry, replaced whole: a different target or place simply
+     * displaces it, and a reader never sees half of an update.
+     */
+    private class Remembered(
+        val key: String,
+        val computedAt: Long,
+        val rises: Long?,
+        val riseAzimuth: Double?,
+    )
+
+    @Volatile
+    private var remembered: Remembered? = null
+
+    /** Forgets the remembered rise; for tests. */
+    internal fun forget() {
+        remembered = null
+        scans = 0
+    }
 
     private const val SEARCH_STEP_MILLIS = 5 * 60_000L
     private const val SEARCH_SPAN_MILLIS = 24 * 3_600_000L
@@ -148,12 +177,14 @@ object FindTargets {
             label = target.body.label,
             recognise = planetWording(target.body),
             positionAt = { SkyPositions.body(target.body, latitude, longitude, it) },
+            key = "${target.encode()}@$latitude,$longitude",
             nowMillis = nowMillis,
         )
         FindTarget.Moon -> bodyFix(
             label = "The moon",
             recognise = "The moon. You will not miss it.",
             positionAt = { SkyPositions.body(SkyBody.Moon, latitude, longitude, it) },
+            key = "${target.encode()}@$latitude,$longitude",
             nowMillis = nowMillis,
         )
         is FindTarget.Pattern -> Constellations.WATCHED.firstOrNull { it.name == target.name }
@@ -174,6 +205,7 @@ object FindTargets {
             label = if (c.name == PLOUGH) "The Plough" else c.name,
             recognise = c.starHop,
             positionAt = { SkyPositions.fixed(c.raHours, c.dec, latitude, longitude, it) },
+            key = "pattern:${c.name}@$latitude,$longitude",
             nowMillis = nowMillis,
         )
 
@@ -181,12 +213,21 @@ object FindTargets {
         label: String,
         recognise: String,
         positionAt: (Long) -> AltAz,
+        key: String,
         nowMillis: Long,
     ): TargetFix {
         val here = positionAt(nowMillis)
         if (here.altitude >= 0.0) return TargetFix(label, here, null, null, recognise)
+        val known = remembered?.takeIf {
+            it.key == key && nowMillis >= it.computedAt &&
+                if (it.rises != null) it.rises > nowMillis else nowMillis - it.computedAt < NO_RISE_MEMO_MILLIS
+        }
+        if (known != null) return TargetFix(label, null, known.rises, known.riseAzimuth, recognise)
+
         val rises = nextRise(positionAt, nowMillis)
-        return TargetFix(label, null, rises, rises?.let { positionAt(it).azimuth }, recognise)
+        val azimuth = rises?.let { positionAt(it).azimuth }
+        remembered = Remembered(key, nowMillis, rises, azimuth)
+        return TargetFix(label, null, rises, azimuth, recognise)
     }
 
     /**
@@ -196,6 +237,7 @@ object FindTargets {
      * here, and a coarse step alone would put the rise minutes out.
      */
     private fun nextRise(positionAt: (Long) -> AltAz, from: Long): Long? {
+        scans++
         var low = from
         var high = from + SEARCH_STEP_MILLIS
         while (high <= from + SEARCH_SPAN_MILLIS) {

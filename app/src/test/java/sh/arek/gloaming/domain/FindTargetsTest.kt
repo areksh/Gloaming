@@ -3,8 +3,10 @@ package sh.arek.gloaming.domain
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.PlanetTonight
@@ -24,6 +26,9 @@ import sh.arek.gloaming.satellites.SatellitesDocument
  * "below the horizon" is one that genuinely is.
  */
 class FindTargetsTest {
+
+    @Before
+    fun forgetTheLastRise() = FindTargets.forget()
 
     private val latitude = 55.95
     private val longitude = -3.19
@@ -64,7 +69,7 @@ class FindTargetsTest {
         magnitude = -2.0, risesAt = null, setsAt = null,
     )
 
-    private fun listOf(
+    private fun tonight(
         planets: List<SkyBody> = emptyList(),
         passes: List<SatellitePass> = emptyList(),
         constellations: List<String> = emptyList(),
@@ -91,7 +96,7 @@ class FindTargetsTest {
 
     private fun fix(
         target: FindTarget,
-        list: TonightList = listOf(),
+        list: TonightList = tonight(),
         withElements: SatellitesDocument? = elements,
         at: Long = now,
     ) = FindTargets.fix(target, list, withElements, latitude, longitude, at)
@@ -113,7 +118,7 @@ class FindTargetsTest {
 
     @Test
     fun `decodes nothing from rubbish`() {
-        listOf("planet:Pluto", "planet:Sun", "planet:Moon", "", "  ", "pass:x:y", "pass:25544",
+        listOf("planet:Pluto", "planet:Sun", "planet:Moon", "", "  ", "pass:x:y", "pass:0:5", "pass:-1:5", "pass:25544",
             "pass:1:2:3", "pattern:", "pattern:Atlantis", "comet", ":", "planet:").forEach {
             assertNull("'$it' should not decode", FindTarget.decode(it))
         }
@@ -121,7 +126,7 @@ class FindTargetsTest {
 
     @Test
     fun `offers the Plough first among patterns`() {
-        val list = listOf(constellations = listOf("Orion", "Ursa Major", "Cygnus", "Lyra", "Cassiopeia"))
+        val list = tonight(constellations = listOf("Orion", "Ursa Major", "Cygnus", "Lyra", "Cassiopeia"))
 
         val patterns = FindTargets.available(list, auroraKnown = false, nowMillis = now)
             .filterIsInstance<FindTarget.Pattern>()
@@ -135,7 +140,7 @@ class FindTargetsTest {
 
     @Test
     fun `offers the Plough even when tonight's list does not name it`() {
-        val patterns = FindTargets.available(listOf(), auroraKnown = false, nowMillis = now)
+        val patterns = FindTargets.available(tonight(), auroraKnown = false, nowMillis = now)
             .filterIsInstance<FindTarget.Pattern>()
 
         assertEquals(listOf("Ursa Major"), patterns.map { it.name })
@@ -143,8 +148,8 @@ class FindTargetsTest {
 
     @Test
     fun `offers aurora only when it is known about, and puts it low in the north`() {
-        assertFalse(FindTargets.available(listOf(), false, now).contains(FindTarget.Aurora))
-        assertTrue(FindTargets.available(listOf(), true, now).contains(FindTarget.Aurora))
+        assertFalse(FindTargets.available(tonight(), false, now).contains(FindTarget.Aurora))
+        assertTrue(FindTargets.available(tonight(), true, now).contains(FindTarget.Aurora))
 
         val aurora = fix(FindTarget.Aurora)!!
         val spot = aurora.position!!
@@ -155,8 +160,8 @@ class FindTargetsTest {
 
     @Test
     fun `offers the moon only when it is up some of the night`() {
-        assertTrue(FindTargets.available(listOf(moonUp = true), false, now).contains(FindTarget.Moon))
-        assertFalse(FindTargets.available(listOf(moonUp = false), false, now).contains(FindTarget.Moon))
+        assertTrue(FindTargets.available(tonight(moonUp = true), false, now).contains(FindTarget.Moon))
+        assertFalse(FindTargets.available(tonight(moonUp = false), false, now).contains(FindTarget.Moon))
     }
 
     @Test
@@ -210,7 +215,7 @@ class FindTargetsTest {
     fun `a pass not yet risen gives its rise time and bearing`() {
         val before = pass.risesAt - 5 * 60_000L
 
-        val result = fix(FindTarget.Pass(pass.catalogue, pass.risesAt), listOf(passes = listOf(pass)), at = before)!!
+        val result = fix(FindTarget.Pass(pass.catalogue, pass.risesAt), tonight(passes = listOf(pass)), at = before)!!
 
         assertNull(result.position)
         assertEquals(pass.risesAt, result.risesAt)
@@ -222,7 +227,7 @@ class FindTargetsTest {
     fun `a pass under way is placed by propagating its elements`() {
         val during = pass.peaksAt
 
-        val result = fix(FindTarget.Pass(pass.catalogue, pass.risesAt), listOf(passes = listOf(pass)), at = during)!!
+        val result = fix(FindTarget.Pass(pass.catalogue, pass.risesAt), tonight(passes = listOf(pass)), at = during)!!
 
         val expected = LiveTracker(iss, latitude, longitude).fixAt(during)
         assertEquals(expected.elevation, result.position!!.altitude, 1e-9)
@@ -234,7 +239,7 @@ class FindTargetsTest {
     fun `a pass with no elements has no position and says why`() {
         val result = fix(
             FindTarget.Pass(pass.catalogue, pass.risesAt),
-            listOf(passes = listOf(pass)),
+            tonight(passes = listOf(pass)),
             withElements = null,
             at = pass.peaksAt,
         )!!
@@ -245,7 +250,7 @@ class FindTargetsTest {
 
     @Test
     fun `drops a pass once it has set`() {
-        val list = listOf(passes = listOf(pass))
+        val list = tonight(passes = listOf(pass))
 
         val during = FindTargets.available(list, false, pass.peaksAt)
         val after = FindTargets.available(list, false, pass.setsAt + 1)
@@ -259,10 +264,104 @@ class FindTargetsTest {
     fun `offers the next pass first`() {
         val later = pass.copy(risesAt = pass.risesAt + 90 * 60_000L, peaksAt = pass.peaksAt + 90 * 60_000L,
             setsAt = pass.setsAt + 90 * 60_000L)
-        val list = listOf(passes = listOf(later, pass))
+        val list = tonight(passes = listOf(later, pass))
 
         val passes = FindTargets.available(list, false, pass.risesAt - 1).filterIsInstance<FindTarget.Pass>()
 
         assertEquals(listOf(pass.risesAt, later.risesAt), passes.map { it.risesAt })
+    }
+
+    @Test
+    fun `places the moon where the engine does`() {
+        val result = fix(FindTarget.Moon)!!
+        val expected = SkyPositions.body(SkyBody.Moon, latitude, longitude, now)
+
+        assertEquals("The moon", result.label)
+        if (expected.altitude >= 0.0) {
+            assertEquals(expected, result.position)
+        } else {
+            assertNull(result.position)
+            assertNotNull(result.risesAt)
+        }
+    }
+
+    @Test
+    fun `a pattern below the horizon gives its rise time and bearing`() {
+        val below = Constellations.WATCHED.first {
+            SkyPositions.fixed(it.raHours, it.dec, latitude, longitude, now).altitude < -5.0 &&
+                SkyPositions.fixed(it.raHours, it.dec, latitude, longitude, now + 20 * 3_600_000L).altitude > 0.0
+        }
+
+        val result = fix(FindTarget.Pattern(below.name))!!
+
+        assertNull(result.position)
+        val rises = result.risesAt!!
+        assertEquals(0.0, SkyPositions.fixed(below.raHours, below.dec, latitude, longitude, rises).altitude, 0.5)
+        assertEquals(
+            SkyPositions.fixed(below.raHours, below.dec, latitude, longitude, rises).azimuth,
+            result.riseAzimuth!!,
+            0.5,
+        )
+    }
+
+    @Test
+    fun `the rise is the first one, with the body below the horizon until then`() {
+        val below = planets.first { altitude(it) < -5.0 }
+        val rises = fix(FindTarget.Planet(below))!!.risesAt!!
+
+        for (i in 0..9) {
+            val sample = now + (rises - now) * i / 10
+            assertTrue("below at sample $i", altitude(below, sample) < 0.0)
+        }
+        assertTrue(altitude(below, rises + 60_000L) > -0.1)
+    }
+
+    @Test
+    fun `a pass of another satellite or eleven minutes out is not the one asked for`() {
+        val list = tonight(passes = listOf(pass))
+
+        assertNull(fix(FindTarget.Pass(pass.catalogue + 1, pass.risesAt), list, at = pass.peaksAt))
+        assertNull(fix(FindTarget.Pass(pass.catalogue, pass.risesAt + 11 * 60_000L), list, at = pass.peaksAt))
+        assertNotNull(fix(FindTarget.Pass(pass.catalogue, pass.risesAt + 9 * 60_000L), list, at = pass.peaksAt))
+    }
+
+    @Test
+    fun `asking again for the same target does not search again`() {
+        val below = planets.first { altitude(it) < -5.0 }
+        val first = fix(FindTarget.Planet(below))!!
+        val searched = FindTargets.scans
+
+        val second = fix(FindTarget.Planet(below), at = now + 60_000L)!!
+
+        assertEquals(searched, FindTargets.scans)
+        assertEquals(first.risesAt, second.risesAt)
+        assertEquals(first.riseAzimuth, second.riseAzimuth)
+    }
+
+    @Test
+    fun `a different target or place searches afresh`() {
+        val belows = planets.filter { altitude(it) < -5.0 }
+        fix(FindTarget.Planet(belows[0]))
+        val searched = FindTargets.scans
+
+        fix(FindTarget.Planet(belows[1]))
+        assertEquals(searched + 1, FindTargets.scans)
+
+        FindTargets.fix(FindTarget.Planet(belows[1]), tonight(), elements, latitude + 1.0, longitude, now)
+        assertEquals(searched + 2, FindTargets.scans)
+    }
+
+    @Test
+    fun `remembers that nothing rises, but only for ten minutes`() {
+        val never = Constellations.WATCHED.first { it.dec < -50.0 }
+        val target = FindTarget.Pattern(never.name)
+        assertNull(fix(target)!!.risesAt)
+        val searched = FindTargets.scans
+
+        fix(target, at = now + 9 * 60_000L)
+        assertEquals(searched, FindTargets.scans)
+
+        fix(target, at = now + 11 * 60_000L)
+        assertEquals(searched + 1, FindTargets.scans)
     }
 }
