@@ -517,7 +517,7 @@ is a file replacement.
   year scan's ten seconds bought nothing a 22-day scan does not. For that
   reason the `TonightKey` holds the comet settings itself, and
   `TonightEventsTest` holds the two scans equal over the scenario catalogue
-  and a year of nights at three latitudes. A key for another grid cell takes
+  and sampled nights through a year at three latitudes. A key for another grid cell takes
   the old place's night down at once. Work that throws ends its run, so
   nothing is left updating for ever, and the scope's handler logs it rather than letting
   it crash the app. A cold process would otherwise show nothing for the twenty
