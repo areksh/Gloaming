@@ -444,17 +444,27 @@ class FindTargetsTest {
 
     @Test
     fun `reads a target handed in by a notification`() {
-        assertEquals(FindTarget.Moon, findTargetFrom(FindTarget.Moon.encode(), setupDone = true))
+        assertEquals(FindTarget.Moon, findTargetFrom(FindTarget.Moon.encode(), setupDone = true, launchedFromHistory = false))
     }
 
     @Test
     fun `reads nothing from garbage or from no extra`() {
-        assertNull(findTargetFrom("nonsense:42", setupDone = true))
-        assertNull(findTargetFrom(null, setupDone = true))
+        assertNull(findTargetFrom("nonsense:42", setupDone = true, launchedFromHistory = false))
+        assertNull(findTargetFrom(null, setupDone = true, launchedFromHistory = false))
     }
 
     @Test
     fun `drops a valid target while setup is not done`() {
-        assertNull(findTargetFrom(FindTarget.Aurora.encode(), setupDone = false))
+        assertNull(findTargetFrom(FindTarget.Aurora.encode(), setupDone = false, launchedFromHistory = false))
+    }
+
+    /**
+     * On Android 11 and below, Recents relaunches a task with the intent that
+     * created it. A task begun by Find it would re-aim Find at that old target
+     * on every return from Recents.
+     */
+    @Test
+    fun `drops a valid target handed back by a launch from Recents`() {
+        assertNull(findTargetFrom(FindTarget.Aurora.encode(), setupDone = true, launchedFromHistory = true))
     }
 }

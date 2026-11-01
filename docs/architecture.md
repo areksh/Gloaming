@@ -514,10 +514,12 @@ is a file replacement.
   (`notify/FindIt.kt`) sends the same string as an extra to `MainActivity`,
   which is `singleTop` so a second tap while the app is open reaches
   `onNewIntent`; it hands the string to `GloamingNav` and clears it once shown,
-  ignores one it cannot decode, and drops it while setup is unfinished. Passes
-  and the aurora always carry the action; an event does where `findTarget`
-  (shared with the row mapping) gives it a target. `findTargetFrom` is the one
-  place a handed-in target is read. The satellite elements Tonight was
+  ignores one it cannot decode, and drops it while setup is unfinished or when
+  the launch came from Recents, which on Android 11 and below hands back the
+  intent that created the task. Passes and the aurora always carry the action;
+  an event does where `findTarget` (shared with the row mapping) gives it a
+  target. `findTargetFrom`, called from `MainActivity`, is the one place a
+  handed-in target is read. The satellite elements Tonight was
   worked out from ride along in `MainUiState.elements`, so a pass is followed
   from the same copy without reading the cache on the main thread. A pass is
   found in tonight's list where it is there, and otherwise in its own

@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.domain.FindTarget
-import sh.arek.gloaming.domain.findTargetFrom
 import sh.arek.gloaming.domain.decode
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.ui.theme.LocalPalette
@@ -83,7 +82,8 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  *
  * @param compass what Find and the Compass settings page read; the phone's
  *   sensors in the app, a fake in a test, and none at all by default.
- * @param initialFind a target handed in by Find it on a notification, encoded.
+ * @param initialFind a target handed in by Find it on a notification, encoded,
+ *   already read by `findTargetFrom` in `MainActivity`.
  *   A target this build can read opens Find aimed at it, wherever the app was;
  *   anything else is ignored and the app opens as it would have. Either way
  *   [onInitialFindShown] is called, so the caller can forget it and the same
@@ -119,7 +119,7 @@ fun GloamingNav(
 
     LaunchedEffect(initialFind) {
         if (initialFind != null) {
-            findTargetFrom(initialFind, setupDone = true)?.let {
+            FindTarget.decode(initialFind)?.let {
                 findTarget = it.encode()
                 selected = Section.Find.ordinal
                 openPage = null

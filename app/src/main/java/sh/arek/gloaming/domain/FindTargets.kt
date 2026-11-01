@@ -48,9 +48,13 @@ fun FindTarget.encode(): String = when (this) {
  * The target a notification's "Find it" asked for: null when there was none,
  * when it cannot be read, or when setup is not done - setup comes first and a
  * target handed in meanwhile is dropped rather than kept.
+ *
+ * Null too when [launchedFromHistory]: on Android 11 and below Recents
+ * relaunches a task with the intent that created it, so a task begun by Find
+ * it would hand its old target back on every return from Recents.
  */
-fun findTargetFrom(extra: String?, setupDone: Boolean): FindTarget? =
-    if (extra == null || !setupDone) null else FindTarget.decode(extra)
+fun findTargetFrom(extra: String?, setupDone: Boolean, launchedFromHistory: Boolean): FindTarget? =
+    if (extra == null || !setupDone || launchedFromHistory) null else FindTarget.decode(extra)
 
 /** The target [text] names, or null for anything [encode] could not have written. */
 fun FindTarget.Companion.decode(text: String): FindTarget? {

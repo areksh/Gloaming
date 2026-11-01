@@ -76,6 +76,8 @@ import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.domain.encode
+import sh.arek.gloaming.domain.findTargetFrom
 import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.net.Transfers
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -175,14 +177,18 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Moves the target out of [intent] and into [pendingFind]. Removed from the
-     * intent so a recreation, which hands the same intent back, does not aim
-     * Find a second time.
+     * Moves the target out of [intent] and into [pendingFind], as
+     * [findTargetFrom] reads it. Removed from the intent so a recreation,
+     * which hands the same intent back, does not aim Find a second time.
      */
     private fun takeFindTarget(intent: Intent) {
-        val target = intent.getStringExtra(FindIt.EXTRA_FIND_TARGET) ?: return
+        val extra = intent.getStringExtra(FindIt.EXTRA_FIND_TARGET) ?: return
         intent.removeExtra(FindIt.EXTRA_FIND_TARGET)
-        pendingFind = target
+        pendingFind = findTargetFrom(
+            extra,
+            setupDone = Graph.settings(this).read().setupDone,
+            launchedFromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0,
+        )?.encode()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
