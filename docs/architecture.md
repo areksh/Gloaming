@@ -584,7 +584,7 @@ Greenfield, held to the full TDD bar (ADR-0001).
   for release, which by itself would leave the APK that goes out unlike every
   build the suite has ever run - the worst possible place for the one difference
   to be. A third build type closes it: `minified` is the release build under the
-  debug key, and `./go device-test --minified` runs all 609 instrumented tests
+  debug key, and `./go device-test --minified` runs the whole instrumented suite
   against R8's output. It is a third build type rather than `release` itself
   because Compose's test rule needs an activity only its own manifest declares,
   and no released build may carry that. R8 keeps `sh.arek.gloaming.**` and
