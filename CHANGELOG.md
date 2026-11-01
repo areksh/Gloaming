@@ -246,8 +246,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The equinoxes and solstices in the calendar are worded for your hemisphere,
   so the June solstice is the longest night in the south, not the shortest, and
   the note on where midsummer loses full darkness says about 49 degrees from
-  the equator rather than 60. Names of data sources such as AuroraWatch UK are
-  unchanged.
+  the equator rather than 60, and the watch sheet no longer speaks of midsummer
+  "up here". Names of data sources such as AuroraWatch UK are unchanged.
 
 ### Fixed
 

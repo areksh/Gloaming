@@ -153,8 +153,9 @@ private fun WatchSheet(
             }
             if (state.settings.watchDuration == WatchDuration.UntilLight) {
                 Text(
-                    "Until the sky starts to get light where you are. In midsummer up " +
-                        "here it never fully does, and then this falls back to " +
+                    "Until the sky starts to get light where you are. Where it never " +
+                        "fully does - around midsummer, far from the equator - this " +
+                        "falls back to " +
                         "${WatchDuration.MAXIMUM_MILLIS / (60 * 60_000L)} hours - which " +
                         "is also the longest any watch will run, so a forgotten one " +
                         "cannot flatten the battery.",
