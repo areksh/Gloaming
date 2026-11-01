@@ -291,8 +291,8 @@ class TonightWordingTest {
     fun `says how high a constellation gets and how to pick it out`() {
         assertEquals(
             "Highest 39 degrees south at 23:00. Three bright stars in a short " +
-                "straight line make the belt, with orange Betelgeuse up-left of it " +
-                "and blue-white Rigel down-right.",
+                "straight line make the belt, with orange Betelgeuse on one side of " +
+                "it and blue-white Rigel on the other.",
             describeConstellation(pattern("Orion", altitude = 39.0, peakAt = at(23))),
         )
     }

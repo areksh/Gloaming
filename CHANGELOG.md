@@ -236,8 +236,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   north and the south, describe how far a Kp reaches in magnetic latitude, and
   point you to Find or any compass first, with the Southern Cross as the
   southern signpost. The noctilucent channel's description says to look towards
-  the pole rather than north. Names of data sources such as AuroraWatch UK are
-  unchanged.
+  the pole rather than north. The way each constellation is described no longer
+  says what is above, below, left or right of what, or where in the sky or the
+  year it stands, since the sky turns over between hemispheres: Orion is
+  "Betelgeuse on one side of the belt and Rigel on the other", and Sirius is
+  found by following the belt away from Aldebaran. Names of data sources such
+  as AuroraWatch UK are unchanged.
 
 ### Fixed
 

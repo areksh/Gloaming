@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.notify.NOCTILUCENT_CHANNEL_DESCRIPTION
 
 /**
@@ -33,6 +34,25 @@ class GuideWordsTest {
         }
         for (section in Guide.SECTIONS) {
             assertEquals(section.title, emptyList<String>(), offences(section.title + " " + section.blurb))
+        }
+    }
+
+    /**
+     * The sky turns over between hemispheres: Orion stands on his head from
+     * Australia, and a pattern overhead in one place is low in another. So a
+     * star-hop says what is next to what, never what is above, below, left or
+     * right of it, nor where in the sky or in the year it stands.
+     */
+    @Test
+    fun `no star-hop depends on which way up the sky is`() {
+        val orientationBound = Regex(
+            """\b(up|down)-(left|right)\b|\b(above|below|hanging|backwards|overhead|""" +
+                """low in the|high in the|in the (north|south)|summer(?! Triangle)|winter|spring|autumn)\b""",
+            RegexOption.IGNORE_CASE,
+        )
+        for (pattern in Constellations.WATCHED) {
+            val found = orientationBound.findAll(pattern.starHop).map { it.value }.toList()
+            assertEquals(pattern.name, emptyList<String>(), found)
         }
     }
 

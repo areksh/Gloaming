@@ -104,15 +104,19 @@ object Constellations {
      * whether somebody could pick it out and would use its name, and that is a
      * judgement rather than a threshold.
      *
-     * Southern patterns are here despite the app's northern centre of gravity.
-     * They cost nothing from a latitude that cannot see them - the placement
-     * verdict says so plainly - and the app already claims to work anywhere.
+     * Southern patterns are here because the app works anywhere. They cost
+     * nothing from a latitude that cannot see them - the placement verdict
+     * says so plainly.
+     *
+     * A star-hop says what is next to what, never what is above, left of, or
+     * low in which part of the sky: the sky turns over between hemispheres,
+     * so those words are true in one place and backwards in another.
      */
     val WATCHED = listOf(
         Constellation(
             "Orion", 5.58, 5.0, "Rigel", 0.13, 12.0,
             "Three bright stars in a short straight line make the belt, with " +
-                "orange Betelgeuse up-left of it and blue-white Rigel down-right.",
+                "orange Betelgeuse on one side of it and blue-white Rigel on the other.",
         ),
         Constellation(
             "Ursa Major", 11.0, 50.7, "Alioth", 1.76, 15.0,
@@ -121,22 +125,21 @@ object Constellations {
         ),
         Constellation(
             "Cassiopeia", 1.0, 62.2, "Schedar", 2.24, 10.0,
-            "A flattened W of five stars, on the far side of Polaris from the Plough.",
+            "A W of five stars in the Milky Way, facing the Plough across Polaris.",
         ),
         Constellation(
             "Cygnus", 20.62, 44.5, "Deneb", 1.25, 12.0,
-            "A long cross laid down the Milky Way, with Deneb at the head and " +
-                "the swan flying south.",
+            "A long cross laid along the Milky Way, with Deneb at the head of it.",
         ),
         Constellation(
             "Lyra", 18.85, 36.7, "Vega", 0.03, 6.0,
-            "A small parallelogram hanging below brilliant Vega, one corner of " +
-                "the Summer Triangle.",
+            "A small parallelogram of fainter stars beside brilliant Vega, one " +
+                "corner of the Summer Triangle.",
         ),
         Constellation(
             "Aquila", 19.7, 3.4, "Altair", 0.76, 9.0,
-            "Altair with a fainter star either side of it, the southern corner " +
-                "of the Summer Triangle.",
+            "Altair with a fainter star either side of it, the corner of the " +
+                "Summer Triangle furthest from Vega and Deneb.",
         ),
         Constellation(
             "Scorpius", 17.0, -31.8, "Antares", 1.06, 13.0,
@@ -145,13 +148,13 @@ object Constellations {
         ),
         Constellation(
             "Sagittarius", 19.1, -28.5, "Kaus Australis", 1.85, 11.0,
-            "A teapot on its side, low in the south, with the Milky Way rising " +
+            "A teapot of eight stars, with the Milky Way rising like steam " +
                 "from its spout.",
         ),
         Constellation(
             "Taurus", 4.7, 18.0, "Aldebaran", 0.87, 12.0,
             "A V of stars making the bull's face, with orange Aldebaran as one " +
-                "eye and the Pleiades above.",
+                "eye and the Pleiades close by.",
         ),
         Constellation(
             "Gemini", 7.1, 22.6, "Pollux", 1.14, 10.0,
@@ -160,25 +163,27 @@ object Constellations {
         ),
         Constellation(
             "Canis Major", 6.8, -22.1, "Sirius", -1.46, 9.0,
-            "Follow Orion's belt down-left to Sirius, the brightest star in the sky.",
+            "Follow Orion's belt away from Aldebaran to Sirius, the brightest star " +
+                "in the sky.",
         ),
         Constellation(
             "Canis Minor", 7.65, 6.4, "Procyon", 0.34, 5.0,
-            "Procyon with one fainter companion, up-left of Orion and level with Sirius.",
+            "Procyon with one fainter companion, making a wide triangle with " +
+                "Sirius and Betelgeuse.",
         ),
         Constellation(
             "Auriga", 6.0, 42.0, "Capella", 0.08, 10.0,
-            "A rough pentagon with brilliant Capella at its top, almost " +
-                "overhead on a winter evening.",
+            "A rough pentagon with brilliant Capella at one corner, sharing a " +
+                "star with the tip of one of the bull's horns in Taurus.",
         ),
         Constellation(
             "Leo", 10.7, 13.1, "Regulus", 1.40, 12.0,
-            "A backwards question mark makes the head, with Regulus at its " +
-                "foot, and a triangle behind it is the tail.",
+            "A sickle-shaped hook of stars makes the head, with Regulus at the " +
+                "end of it, and a triangle of stars behind it is the tail.",
         ),
         Constellation(
             "Bootes", 14.7, 31.2, "Arcturus", -0.05, 11.0,
-            "A kite of stars running up from orange Arcturus. Follow the curve " +
+            "A kite of stars running out from orange Arcturus. Follow the curve " +
                 "of the Plough's handle to find it.",
         ),
         Constellation(
@@ -192,7 +197,7 @@ object Constellations {
         ),
         Constellation(
             "Andromeda", 0.8, 37.4, "Alpheratz", 2.06, 11.0,
-            "Two lines of stars running up-left from the corner of the Square " +
+            "Two lines of stars running out from one corner of the Square " +
                 "of Pegasus.",
         ),
         Constellation(
@@ -201,8 +206,8 @@ object Constellations {
         ),
         Constellation(
             "Ursa Minor", 15.0, 77.7, "Polaris", 1.98, 10.0,
-            "A fainter plough shape hanging from Polaris, which the end of the " +
-                "Plough's bowl points to.",
+            "A fainter plough shape with Polaris at the tip of its handle. The " +
+                "two stars at the end of the Plough's bowl point to it.",
         ),
         Constellation(
             "Crux", 12.45, -60.2, "Acrux", 0.77, 4.0,
