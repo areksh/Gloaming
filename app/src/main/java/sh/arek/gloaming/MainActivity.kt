@@ -55,7 +55,6 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.Conditions
-import sh.arek.gloaming.data.HeldOutlook
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
@@ -97,6 +96,8 @@ import sh.arek.gloaming.ui.UiActions
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.widget.AuroraWidget
+import sh.arek.gloaming.widget.HeldUpdate
+import sh.arek.gloaming.widget.WidgetContent
 import sh.arek.gloaming.ui.theme.GloamingTheme
 import sh.arek.gloaming.work.LocationAlarm
 import sh.arek.gloaming.work.PassAlarm
@@ -971,21 +972,29 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         .onFailure { e -> Log.w("Gloaming", "could not lay out the night", e) }
                         .getOrNull()
                 }
-                // Left for the widget, which cannot work it out itself. Only
-                // when there is a sentence and a night to bound it by: with no
-                // outlook (no location) nothing is written, and the widget
+                // Left for the widget, which cannot work it out itself, against
+                // the check whose reading it was decided from (WidgetContent.update).
+                // With no outlook (no location) nothing is written, and the widget
                 // asks for a location before it reads the store anyway.
-                val sentence = report?.let(OutlookWords::headline)
-                val place = HeldOutlook.placeOf(settings)
-                if (sentence != null && night != null && place != null) {
-                    val store = Graph.outlookStore(context)
-                    val before = store.read()
-                    // Redrawn only when the words, the night or the place changed, not on
-                    // every tick of the clock.
-                    if (before?.headline != sentence || before.validUntil != night.endMillis ||
-                        before.place != place
-                    ) {
-                        store.write(HeldOutlook(sentence, now, night.endMillis, place))
+                val store = Graph.outlookStore(context)
+                when (
+                    val update = WidgetContent.update(
+                        before = store.read(),
+                        outlook = report?.outlook,
+                        sentence = report?.let(OutlookWords::headline),
+                        nightEndMillis = night?.endMillis,
+                        settings = settings,
+                        state = alertState,
+                        now = now,
+                    )
+                ) {
+                    HeldUpdate.Keep -> Unit
+                    HeldUpdate.Clear -> {
+                        store.clear()
+                        AuroraWidget.refresh(context)
+                    }
+                    is HeldUpdate.Write -> {
+                        store.write(update.held)
                         AuroraWidget.refresh(context)
                     }
                 }

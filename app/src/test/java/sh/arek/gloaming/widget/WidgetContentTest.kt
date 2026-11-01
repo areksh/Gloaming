@@ -6,6 +6,7 @@ import org.junit.Test
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.HeldOutlook
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.Outlook
 
 class WidgetContentTest {
 
@@ -23,7 +24,21 @@ class WidgetContentTest {
         validUntil: Long = now + 4 * 60 * minute,
         writtenAt: Long = now - minute,
         place: String = "56,357",
-    ) = HeldOutlook("Clear from 22:00. Look for the ISS at 22:14.", writtenAt, validUntil, place)
+        // The check the default state holds, so the sentence is current.
+        pollAt: Long? = now - 10 * minute,
+    ) = HeldOutlook("Clear from 22:00. Look for the ISS at 22:14.", writtenAt, validUntil, place, pollAt)
+
+    private val sentence = "Clear from 22:00. Look for the ISS at 22:14."
+    private val quiet = Outlook.Quiet(darkFrom = now, learn = null, conditional = false)
+
+    private fun update(
+        before: HeldOutlook? = null,
+        outlook: Outlook? = quiet,
+        words: String? = sentence,
+        nightEnd: Long? = now + 4 * 60 * minute,
+        settings: UserSettings = located,
+        state: AlertState = AlertState(lastProbability = 12, lastPollAt = now - 10 * minute),
+    ) = WidgetContent.update(before, outlook, words, nightEnd, settings, state, now)
 
     @Test
     fun `shows tonight's outlook while it is still tonight`() {
@@ -54,6 +69,79 @@ class WidgetContentTest {
 
         assertEquals("Clear from 22:00. Look for the ISS at 22:14.", fresh.detail)
         assertTrue(aged.detail, aged.detail.contains("10 minutes ago"))
+    }
+
+    /**
+     * The sentence was decided from the reading of one check. Once a newer
+     * check lands the figure above it moves on, and a sentence quoting the
+     * old reading - "Aurora likely now: 62%" over "12%" - contradicts it.
+     */
+    @Test
+    fun `stops showing the outlook once a newer check has landed`() {
+        val content = content(
+            state = AlertState(lastProbability = 12, lastPollAt = now - 10 * minute),
+            held = outlook(pollAt = now - 40 * minute),
+        )
+
+        assertEquals("12%", content.headline)
+        assertTrue(content.detail, content.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `does not show an outlook written before any check once one has landed`() {
+        val content = content(held = outlook(pollAt = null))
+
+        assertTrue(content.detail, content.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `shows an outlook written before any check while there still has been none`() {
+        val content = content(state = AlertState(), held = outlook(pollAt = null))
+
+        assertEquals("Clear from 22:00. Look for the ISS at 22:14.", content.detail)
+    }
+
+    // --- what the screen leaves for the widget ---
+
+    @Test
+    fun `leaves tonight's sentence with the check it was worked out against`() {
+        assertEquals(
+            HeldUpdate.Write(HeldOutlook(sentence, now, now + 4 * 60 * minute, "56,357", now - 10 * minute)),
+            update(),
+        )
+    }
+
+    /** A live aurora reading is the figure on the widget; a copy of it can only go stale. */
+    @Test
+    fun `never leaves a live aurora reading for the widget, and takes away what it left before`() {
+        val aurora = Outlook.AuroraNow(62, null, conditional = false)
+
+        assertEquals(HeldUpdate.Clear, update(before = outlook(), outlook = aurora, words = "Aurora now: 62% here."))
+        assertEquals(HeldUpdate.Keep, update(before = null, outlook = aurora, words = "Aurora now: 62% here."))
+    }
+
+    @Test
+    fun `does not rewrite the same sentence against the same check`() {
+        val before = HeldOutlook(sentence, now - 5 * minute, now + 4 * 60 * minute, "56,357", now - 10 * minute)
+
+        assertEquals(HeldUpdate.Keep, update(before = before))
+    }
+
+    @Test
+    fun `rewrites the same sentence once a newer check has landed`() {
+        val before = HeldOutlook(sentence, now - 45 * minute, now + 4 * 60 * minute, "56,357", now - 40 * minute)
+
+        assertEquals(
+            HeldUpdate.Write(HeldOutlook(sentence, now, now + 4 * 60 * minute, "56,357", now - 10 * minute)),
+            update(before = before),
+        )
+    }
+
+    @Test
+    fun `leaves nothing where there is no sentence, night or place`() {
+        assertEquals(HeldUpdate.Keep, update(words = null))
+        assertEquals(HeldUpdate.Keep, update(nightEnd = null))
+        assertEquals(HeldUpdate.Keep, update(settings = UserSettings()))
     }
 
     @Test

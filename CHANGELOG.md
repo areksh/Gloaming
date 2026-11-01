@@ -117,12 +117,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The widget and the aurora alert now open with tonight's outlook.** The
   widget's second line used to say how long ago the reading was taken; while it
-  is still tonight it now carries the same sentence Tonight opens with, and goes
-  back to the age of the reading once the night is over. The aurora alert's text
-  now reads "Aurora likely now: 70% here. Look north, low down, while it stays
-  clear until 02:00." with the probability source, cloud, Kp and Bz moved behind
-  the expand. The sentence is kept in device-encrypted storage, holds no
-  position, and is refreshed whenever Tonight is opened.
+  is still tonight it now carries the same sentence Tonight opens with, for at
+  most three hours after Tonight last worked it out and only until the next
+  check, because the sentence rests on one reading and the figure above it moves
+  on with each. It never carries a live aurora reading, which the figure already
+  is. Otherwise, and once the night is over, it says how old the reading is. The
+  aurora alert's text now reads "Aurora likely now: 70% here. Look north, low
+  down, while it stays clear until 02:00." with the probability source, cloud,
+  Kp and Bz moved behind the expand. The sentence is kept in device-encrypted
+  storage, holds no position, and is refreshed whenever Tonight is opened.
 
 - **The journal says when a poll was killed, and when a wake arrived late.**
   Two things it could previously only imply. A `goAsync` broadcast is killed at
