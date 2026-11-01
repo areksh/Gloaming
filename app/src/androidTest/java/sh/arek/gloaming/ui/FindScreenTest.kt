@@ -205,6 +205,27 @@ class FindScreenTest {
         compose.onNodeWithText("Satellite 25544", substring = true).assertDoesNotExist()
     }
 
+    /** Every pass in a busy night made the picker long enough to lag; only the first few are offered. */
+    @Test
+    fun aBusyNightOffersNoMoreThanTheLimitOfPasses() {
+        val busy = (0 until 9).map {
+            station.copy(
+                catalogue = 40000 + it,
+                risesAt = now + hour * (it + 1),
+                peaksAt = now + hour * (it + 1) + 300_000L,
+                setsAt = now + hour * (it + 1) + 600_000L,
+            )
+        }
+        show(FakeCompassSource(), tonight = night(busy))
+
+        val chips = compose.onAllNodes(SemanticsMatcher("a pass chip") {
+            SemanticsProperties.TestTag in it.config &&
+                it.config[SemanticsProperties.TestTag].startsWith("find-chip:pass:")
+        }).fetchSemanticsNodes()
+
+        assertEquals(sh.arek.gloaming.domain.FindTargets.MAX_PASSES, chips.size)
+    }
+
     /** On a cold start from a pass alert tonight is not worked out yet, and the pass has not gone. */
     @Test
     fun aPassBeforeTonightIsWorkedOutIsNotCalledGone() {

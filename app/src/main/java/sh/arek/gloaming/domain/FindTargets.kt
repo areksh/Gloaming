@@ -178,6 +178,9 @@ object FindTargets {
      */
     const val PASS_MATCH_MILLIS: Long = 10 * 60_000L
 
+    /** The most passes Find offers at once. */
+    const val MAX_PASSES = 6
+
     /**
      * Whether [a] and [b] are the same target: equal, or the same satellite
      * rising within [PASS_MATCH_MILLIS] of each other.
@@ -203,10 +206,18 @@ object FindTargets {
      * Everything worth offering now, in the order the picker shows it.
      *
      * Planets and the moon, then the Plough and up to three more patterns,
-     * then passes that have not finished (the next first), then aurora when
-     * [auroraKnown] says there is a forecast to point at.
+     * then Tonight's best passes that have not finished (the next first, at
+     * most [MAX_PASSES]), then aurora when [auroraKnown] says there is a
+     * forecast to point at. Not every pass: the full list is long enough to
+     * make the picker unusable. A pass [handedIn] by a notification is always
+     * offered, beyond the limit if need be.
      */
-    fun available(list: TonightList, auroraKnown: Boolean, nowMillis: Long): List<FindTarget> {
+    fun available(
+        list: TonightList,
+        auroraKnown: Boolean,
+        nowMillis: Long,
+        handedIn: FindTarget.Pass? = null,
+    ): List<FindTarget> {
         val targets = mutableListOf<FindTarget>()
         list.planets.forEach { targets += FindTarget.Planet(it.body) }
         if ((list.moon?.upFraction ?: 0.0) > 0.0) targets += FindTarget.Moon
@@ -216,10 +227,17 @@ object FindTargets {
             .filter { it != PLOUGH }
             .take(MORE_PATTERNS)
             .forEach { targets += FindTarget.Pattern(it) }
-        list.passes
+        val coming = list.bestPasses
             .filter { it.setsAt > nowMillis }
             .sortedBy { it.risesAt }
-            .forEach { targets += FindTarget.Pass(it.catalogue, it.risesAt) }
+            .map { FindTarget.Pass(it.catalogue, it.risesAt) }
+        val offered = coming.take(MAX_PASSES).toMutableList()
+        if (handedIn != null && offered.none { same(it, handedIn) }) {
+            // Tonight's own entry for it when it has one, so the chip carries
+            // the rise the list uses; else the notification's.
+            offered += coming.firstOrNull { same(it, handedIn) } ?: handedIn
+        }
+        targets += offered.sortedBy { it.risesAt }
         if (auroraKnown) targets += FindTarget.Aurora
         return targets
     }

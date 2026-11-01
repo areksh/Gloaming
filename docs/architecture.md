@@ -589,7 +589,10 @@ is a file replacement.
   elements still hold it. Two passes of one satellite rising within that
   tolerance are the same target (`FindTargets.same`), which is how a
   notification's rise, from the poller's own search grid, selects tonight's
-  chip rather than adding a second. Until tonight has been worked out, a pass
+  chip rather than adding a second. Find offers only Tonight's best passes
+  that have not set, soonest first and at most `FindTargets.MAX_PASSES`, since
+  every pass made the picker too long to use; a pass handed in by a
+  notification is always offered, beyond the limit if need be. Until tonight has been worked out, a pass
   that cannot be placed reads "Working out tonight..." rather than gone.
 
 ### Manifest verification

@@ -193,7 +193,12 @@ private fun FindContent(
         }
 
         val list = state.tonight ?: EMPTY_NIGHT
-        val available = FindTargets.available(list, auroraKnown = state.alertState.lastProbability != null, now)
+        val available = FindTargets.available(
+            list,
+            auroraKnown = state.alertState.lastProbability != null,
+            nowMillis = now,
+            handedIn = initial as? FindTarget.Pass,
+        )
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }

@@ -68,8 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Screen and reference" page.
 
 - **A Find tab points the way to what is up, with a compass check.** Once
-  outside, pick a planet, the moon, the Plough or another constellation, a
-  satellite pass or the aurora, hold the phone up with its top edge towards the
+  outside, pick a planet, the moon, the Plough or another constellation, one
+  of Tonight's best satellite passes (the soonest six, not every pass) or the
+  aurora, hold the phone up with its top edge towards the
   sky, and Find says which way to turn and tilt - "Turn right a little, then
   tilt up." - until it says "There." and buzzes once. A view sixty degrees
   across shows the horizon, the target and a reticle, with an arrow at the edge

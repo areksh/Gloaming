@@ -72,13 +72,14 @@ class FindTargetsTest {
     private fun tonight(
         planets: List<SkyBody> = emptyList(),
         passes: List<SatellitePass> = emptyList(),
+        bestPasses: List<SatellitePass> = passes,
         constellations: List<String> = emptyList(),
         moonUp: Boolean = true,
     ) = TonightList(
         darkFrom = null,
         darkUntil = null,
         passes = passes,
-        bestPasses = passes,
+        bestPasses = bestPasses,
         events = emptyList(),
         comets = emptyList(),
         noctilucent = null,
@@ -346,6 +347,85 @@ class FindTargetsTest {
         val passes = FindTargets.available(list, false, pass.risesAt - 1).filterIsInstance<FindTarget.Pass>()
 
         assertEquals(listOf(pass.risesAt, later.risesAt), passes.map { it.risesAt })
+    }
+
+    private fun passAt(offsetMinutes: Int, catalogue: Int = pass.catalogue) = pass.copy(
+        catalogue = catalogue,
+        risesAt = pass.risesAt + offsetMinutes * 60_000L,
+        peaksAt = pass.peaksAt + offsetMinutes * 60_000L,
+        setsAt = pass.setsAt + offsetMinutes * 60_000L,
+    )
+
+    private fun offeredPasses(list: TonightList, at: Long, handedIn: FindTarget.Pass? = null) =
+        FindTargets.available(list, false, at, handedIn).filterIsInstance<FindTarget.Pass>()
+
+    @Test
+    fun `offers only the best passes and not every pass`() {
+        val everything = (0 until 9).map { passAt(it * 90, catalogue = 1000 + it) }
+        val best = listOf(everything[1], everything[4], everything[7])
+
+        val offered = offeredPasses(tonight(passes = everything, bestPasses = best), pass.risesAt - 1)
+
+        assertEquals(best.map { it.catalogue }, offered.map { it.catalogue })
+    }
+
+    @Test
+    fun `offers the soonest six of the best passes`() {
+        val best = (0 until 8).map { passAt(it * 90, catalogue = 1000 + it) }
+
+        val offered = offeredPasses(tonight(passes = best, bestPasses = best), pass.risesAt - 1)
+
+        assertEquals(FindTargets.MAX_PASSES, offered.size)
+        assertEquals(best.take(6).map { it.risesAt }, offered.map { it.risesAt })
+    }
+
+    @Test
+    fun `counts only best passes still to come toward the six`() {
+        val best = (0 until 8).map { passAt(it * 90, catalogue = 1000 + it) }
+        val afterTwoHaveSet = best[1].setsAt + 1
+
+        val offered = offeredPasses(tonight(passes = best, bestPasses = best), afterTwoHaveSet)
+
+        assertEquals(best.drop(2).take(6).map { it.catalogue }, offered.map { it.catalogue })
+    }
+
+    @Test
+    fun `does not offer a best pass that has set`() {
+        val offered = offeredPasses(tonight(passes = listOf(pass), bestPasses = listOf(pass)), pass.setsAt + 1)
+
+        assertTrue(offered.isEmpty())
+    }
+
+    @Test
+    fun `offers a handed-in pass outside the best ones, in rise order`() {
+        val best = listOf(passAt(0, 1001), passAt(180, 1002))
+        val handed = FindTarget.Pass(2000, best[0].risesAt + 90 * 60_000L)
+
+        val offered = offeredPasses(tonight(passes = best, bestPasses = best), pass.risesAt - 1, handed)
+
+        assertEquals(listOf(1001, 2000, 1002), offered.map { it.catalogue })
+    }
+
+    @Test
+    fun `does not duplicate a handed-in pass that is one of the best`() {
+        val best = listOf(passAt(0, 1001), passAt(180, 1002))
+        val handed = FindTarget.Pass(1001, best[0].risesAt + 2_000L)
+
+        val offered = offeredPasses(tonight(passes = best, bestPasses = best), pass.risesAt - 1, handed)
+
+        assertEquals(listOf(1001, 1002), offered.map { it.catalogue })
+        assertEquals(best[0].risesAt, offered[0].risesAt)
+    }
+
+    @Test
+    fun `a handed-in pass beyond the six is still offered`() {
+        val best = (0 until 8).map { passAt(it * 90, catalogue = 1000 + it) }
+        val handed = FindTarget.Pass(1007, best[7].risesAt)
+
+        val offered = offeredPasses(tonight(passes = best, bestPasses = best), pass.risesAt - 1, handed)
+
+        assertEquals(7, offered.size)
+        assertTrue(offered.any { it.catalogue == 1007 })
     }
 
     @Test
