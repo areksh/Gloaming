@@ -233,7 +233,7 @@ freeze one in place.
 
 Recreated as a Compose project matching Sec. 7: `minSdk 24`,
 `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.x, Compose BOM 2026.06.x, AGP 9.
-No Play Services anywhere; `LocationManager` only (never the fused provider),
+No Play Services anywhere; `LocationManager` only (the platform's own fused provider where it exists, never Play Services),
 with manual location entry as a first-class input and the app fully functional
 with location permission permanently denied (Sec. 7, Sec. 11). Detecting the
 position is offered as of 2026-08-25 and is coarse - see Sec. 7 of the sourcing

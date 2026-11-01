@@ -521,7 +521,8 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     var checking by remember { mutableStateOf(false) }
 
     /**
-     * Reads the phone's last known position and stores it, or says why not.
+     * Asks the phone for its approximate position, a fresh one if the last is stale,
+     * and stores it, or says why not.
      *
      * Off the main thread because it touches the system's location store, and
      * silent about the position itself: the log records that a fix was taken
@@ -546,11 +547,10 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
 
             if (fix == null) {
                 if (fromOpen) return@launch
-                // Deliberately not "turn on your GPS". From the screen the app
-                // only reads positions the phone already had, so the honest advice is to
-                // use something that does ask for one, or to type it in.
-                locationNote = "The phone has no recent position to hand. Open a map app " +
-                    "briefly, or switch this off and type it in."
+                // The source has already asked the phone for a fresh fix, so
+                // there is nothing more to suggest than trying again or typing it in.
+                locationNote = "The phone could not find its position just now. Try " +
+                    "Update now again in a moment, or type it in."
                 return@launch
             }
 

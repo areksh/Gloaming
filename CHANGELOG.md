@@ -105,8 +105,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Gloaming opens (the default), every hour, every 6 hours, once a day, any whole
   number of hours from one to forty-eight, or only on Update now, and says when
   the position was last updated. The intervals refresh it on an alarm of their
-  own: one coarse fix per wake from the network provider, or the platform's
-  fused provider where that is off (Android 12 and later), never GPS, never
+  own: one coarse fix per wake, from the platform's fused provider where there
+  is one (Android 12 and later), then the network provider, then GPS, never
   logged and never sent. They need Android's "Allow all the time" location
   grant, which is asked for only when one is picked, and the card warns that
   Android's page will offer precise location too; if it is refused, or later
@@ -157,6 +157,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reboot or an app open.
 
 ### Changed
+
+- **Update now asks the phone for a fresh position when its last one is old.**
+  It used to read only the last position the phone had recorded, and when there
+  was none it told you to open a map app. Now a recorded position under ten
+  minutes old is used as it is, and an older one, or none, makes Gloaming ask
+  for a new approximate fix, waiting up to twenty seconds. The phone may switch
+  its GPS on to answer. Location is still approximate only, a few kilometres
+  at best, and never logged. If nothing arrives the note suggests trying again
+  or typing the position in.
 
 - **Settings is grouped by question, and every row shows its current value.**
   The one long column of cards is now an index: "Where you are", "What is worth

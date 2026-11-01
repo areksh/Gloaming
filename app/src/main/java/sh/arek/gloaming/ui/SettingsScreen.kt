@@ -210,7 +210,7 @@ private fun LocationCard(
                 // precision (ADR-0016).
                 Text(
                     "Approximate only: to within a few kilometres, which is all the sky " +
-                        "needs. Gloaming never turns the GPS on and never logs where you are.",
+                        "needs. Gloaming never logs where you are.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Text(

@@ -11,7 +11,8 @@ background" wording `LocationMode.Automatic` carried with it.
 ## Context
 
 Detecting the position was built on 2026-08-25 with three limits: coarse only,
-foreground only, and last-known fixes only. The second was stated as the
+foreground only, and last-known fixes only (the third was dropped on
+2026-11-01: see Sec. 7). The second was stated as the
 difference between a convenience and tracking. "Detect it for me" meant when
 the app was open; the position was then stored, and every scheduled wake used
 that stored copy exactly as it would a typed-in one.
@@ -37,9 +38,10 @@ first-class.
   `ManifestPermissionsTest` says so.
 - **One fix per wake.** `LocationAlarm` arms an inexact alarm and
   `LocationReceiver` asks for a single approximate fix with a twenty-second
-  timeout: from the network provider, or from the platform's own fused
-  provider where the network provider is off (API 31 and later). No updates
-  are subscribed to and GPS is never asked.
+  timeout: from the platform's own fused provider where it exists (API 31 and
+  later), then the network provider, then GPS, each only if it is on. The
+  phone may switch the GPS on to answer, and the fix is still blurred to
+  coarse. No updates are subscribed to.
 - **Never logged, never sent.** The journal records that a refresh happened or
   why it did not, and never where the phone was. The position goes where a
   typed one does: credential-encrypted storage, and the whole-degree mirror if

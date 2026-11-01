@@ -18,21 +18,25 @@ import kotlin.coroutines.resume
 /**
  * The device's own idea of where it is, from `LocationManager`.
  *
- * **Never Play Services, and never GPS.** `GPS_PROVIDER` is not used anywhere,
- * and the coarse permission could not reach it. The only fused provider asked
- * for is the platform's own (API 31+), as a fallback when the network
- * provider is off - a constraint from Sec. 7 rather than an oversight.
+ * **Never Play Services, and approximate only.** The coarse permission is the
+ * whole ask; Android hands a coarse-only app a fix blurred to a few
+ * kilometres, whichever provider produced it. The only fused provider used is
+ * the platform's own (API 31+), a constraint from Sec. 7 rather than an
+ * oversight.
  *
- * **[current] reads last-known fixes only.** That is enough for the question
- * the foreground asks, which is "roughly where is this phone" and not "where
- * is it going", and it costs no battery: these are positions other apps have
- * already caused the system to record. The answer can be nothing, when no app
- * has asked recently. That is reported honestly rather than papered over, and
- * the typed-in position remains the answer that always works.
+ * **[current] asks for a fresh fix when the last-known one is stale** (see
+ * [FixPolicy]): inside ten minutes a position another app already caused the
+ * system to record is enough and costs nothing; past that the phone may have
+ * moved, so a single fix is requested with a twenty-second timeout. The phone
+ * may switch the GPS on to answer. It can still come back with nothing, which
+ * is reported honestly, and the typed-in position remains the answer that
+ * always works.
  *
- * **[fresh] is the one place a position is asked for**, a single approximate
- * fix from the network provider with a hard timeout, for the background path
- * to notice that the phone has moved. No updates are subscribed to.
+ * **[fresh] is the same ask with the caller's timeout**, used by the
+ * background path to notice that the phone has moved. Providers are tried in
+ * [FixPolicy.providers] order and the first to answer wins; they share one
+ * timeout. A provider that refuses a coarse-only app (older Android does so
+ * for GPS) is skipped. No updates are subscribed to.
  */
 class AndroidLocationSource(private val context: Context) : LocationSource {
 
@@ -41,20 +45,20 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
 
         val manager = context.getSystemService(LocationManager::class.java) ?: return null
         val now = System.currentTimeMillis()
+        val recorded = LocationChoice.best(lastKnown(manager), now)
+        if (!FixPolicy.needsFresh(recorded, now)) return recorded
 
-        return LocationChoice.best(lastKnown(manager), now)
+        return fresh(FixPolicy.FOREGROUND_TIMEOUT_MILLIS)
     }
 
     override suspend fun fresh(timeoutMillis: Long): DeviceFix? {
         if (!hasPermission(context)) return null
 
         val manager = context.getSystemService(LocationManager::class.java) ?: return null
-        val provider = freshProvider(manager)
-        val asked = if (provider == null) null else {
-            runCatching { withTimeoutOrNull(timeoutMillis) { requestOnce(manager, provider) } }
-                .onFailure { Log.w(TAG, "could not ask for a fresh position", it) }
-                .getOrNull()
-        }
+        val asked = runCatching {
+            withTimeoutOrNull(timeoutMillis) { askInOrder(manager) }
+        }.onFailure { Log.w(TAG, "could not ask for a fresh position", it) }
+            .getOrNull()
 
         val fixes = lastKnown(manager) + listOfNotNull(asked?.toFix())
         return LocationChoice.best(fixes, System.currentTimeMillis())
@@ -69,14 +73,23 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
         .getOrDefault(emptyList())
         .map { it.toFix() }
 
-    /** Network first; the platform's fused provider only where it exists and is on. */
-    private fun freshProvider(manager: LocationManager): String? = when {
-        runCatching { manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) }
-            .getOrDefault(false) -> LocationManager.NETWORK_PROVIDER
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            runCatching { manager.isProviderEnabled(LocationManager.FUSED_PROVIDER) }
-                .getOrDefault(false) -> LocationManager.FUSED_PROVIDER
-        else -> null
+    /** The first provider to answer; one that refuses or says nothing hands on to the next. */
+    private suspend fun askInOrder(manager: LocationManager): Location? {
+        val enabled = runCatching { manager.getProviders(true).toSet() }
+            .onFailure { Log.w(TAG, "could not list the enabled providers", it) }
+            .getOrDefault(emptySet())
+
+        for (provider in FixPolicy.providers(Build.VERSION.SDK_INT, enabled)) {
+            val location = try {
+                requestOnce(manager, provider)
+            } catch (e: SecurityException) {
+                // Older Android refuses GPS to a coarse-only app.
+                Log.w(TAG, "$provider refused a coarse-only ask", e)
+                null
+            }
+            if (location != null) return location
+        }
+        return null
     }
 
     /** One fix or null; cancelling the coroutine cancels the system's request. */
