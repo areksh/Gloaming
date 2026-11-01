@@ -475,8 +475,12 @@ is a file replacement.
   `NoCompass`, which is what lets every UI test run without a real sensor; a
   phone with no rotation vector is told so instead of shown a pointer. Find
   keeps the screen on through the view's `keepScreenOn` (restoring the
-  previous value), buzzes once on each change to lined up, and wraps itself
-  alone in the night-vision theme when `nightVisionWhenFinding` is on.
+  previous value), and buzzes on coming within `Guide.ALIGNED_DEGREES`,
+  re-arming only past `AlignBuzz.REARM_DEGREES` so a wavering hand does not
+  buzz on every crossing. With `nightVisionWhenFinding` on it wraps itself
+  alone in the night-vision theme and dims the window through `DimScreen`
+  (`DimScreen.kt`, shared with the app-wide night vision in `MainActivity`),
+  which restores the brightness it found when Find is left.
   `CompassCheck.shouldOffer` opens `CompassSheet` on a low or unreliable
   reading at most once a week, stamping `compassOfferedAt`; the sheet shows the
   accuracy live, Done stamps `compassCheckedAt`, and Line up, offered while the

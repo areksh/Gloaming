@@ -73,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the edge when the target is off the view or not yet risen, and then Find
   gives its rise time. Beneath, where it is in words, which way the phone is
   facing, and how to recognise it. The screen stays on while Find is open, and
-  Find alone turns red on black (Night vision when finding, on by default).
+  Find alone turns red on black and dims the screen (Night vision when
+  finding, on by default), putting the brightness back when you leave it.
   Find it on a row of Tonight's night opens Find aimed at that row. When the
   phone says its compass is unsure, Find offers a check, at most once a week:
   the figure of eight that lets the phone relearn north, with its accuracy

@@ -199,4 +199,56 @@ class PointingTest {
         assertFalse(guidance.aligned)
         assertEquals("Nearly there.", GuideWords.instruction(guidance))
     }
+
+    // --- when to buzz ---
+
+    /** Feeds [separations] through the buzz from armed, and counts the buzzes. */
+    private fun buzzes(vararg separations: Double?): Int {
+        var armed = true
+        var fired = 0
+        for (separation in separations) {
+            val step = AlignBuzz.next(armed, separation)
+            armed = step.armed
+            if (step.fire) fired++
+        }
+        return fired
+    }
+
+    @Test
+    fun `buzzes once on coming within the aligned distance`() {
+        assertEquals(1, buzzes(20.0, Guide.ALIGNED_DEGREES))
+    }
+
+    @Test
+    fun `does not buzz short of the aligned distance`() {
+        assertEquals(0, buzzes(20.0, Guide.ALIGNED_DEGREES + 0.1))
+    }
+
+    @Test
+    fun `jitter between four and seven degrees buzzes nothing more`() {
+        assertEquals(1, buzzes(20.0, 4.0, 7.0, 4.5, 6.9, 4.0, 7.0, 3.0))
+    }
+
+    @Test
+    fun `going out past the re-arm distance and back in buzzes again`() {
+        assertEquals(2, buzzes(20.0, 4.0, AlignBuzz.REARM_DEGREES + 0.1, 4.0))
+    }
+
+    @Test
+    fun `reaching the re-arm distance exactly does not re-arm`() {
+        assertEquals(1, buzzes(20.0, 4.0, AlignBuzz.REARM_DEGREES, 4.0))
+    }
+
+    @Test
+    fun `no reading changes nothing`() {
+        assertEquals(1, buzzes(20.0, null, 4.0, null, 4.0))
+        assertEquals(2, buzzes(4.0, 9.0, null, 4.0))
+    }
+
+    @Test
+    fun `measures the separation on the sky, not by adding the differences`() {
+        // Ninety degrees of azimuth apart, both nearly overhead: a few degrees.
+        assertEquals(1.41, Guide.separation(AltAz(89.0, 0.0), AltAz(89.0, 90.0)), 0.01)
+        assertEquals(10.0, Guide.separation(AltAz(10.0, 0.0), AltAz(20.0, 0.0)), 1e-9)
+    }
 }

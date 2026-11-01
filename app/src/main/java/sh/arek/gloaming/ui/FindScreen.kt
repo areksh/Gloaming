@@ -26,8 +26,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -61,6 +63,7 @@ import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.data.CompassReading
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.magneticDeclination
+import sh.arek.gloaming.domain.AlignBuzz
 import sh.arek.gloaming.domain.CompassCheck
 import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.FindTargets
@@ -142,6 +145,9 @@ fun FindScreen(
     clock: () -> Long = { System.currentTimeMillis() },
 ) {
     KeepScreenOn()
+    // Dimmed as well as red, the same as night vision everywhere else, and
+    // only while Find is shown: leaving it puts the brightness back.
+    DimScreen(state.settings.nightVisionWhenFinding)
     if (state.settings.nightVisionWhenFinding) {
         GloamingTheme(nightVision = true) {
             FindContent(state, actions, source, initial, modifier, onTargetChange, clock)
@@ -266,11 +272,20 @@ private fun Guided(
     val guidance = if (pointing != null && position != null) Guide.of(pointing, position) else null
     val aligned = guidance?.aligned == true
 
-    // Keyed on the state, so it runs once each time it becomes true and not
-    // on every reading that stays lined up.
+    // Buzzes on lining up and re-arms only once the phone has moved well off
+    // the target (AlignBuzz), so a hand wavering at the edge of lined up does
+    // not buzz on every crossing. Followed as a flow of the separation rather
+    // than decided in composition, which must not perform effects.
+    val separation = if (pointing != null && position != null) Guide.separation(pointing, position) else null
+    val latestSeparation by rememberUpdatedState(separation)
     val haptics = LocalHapticFeedback.current
-    LaunchedEffect(aligned) {
-        if (aligned) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    LaunchedEffect(haptics) {
+        var armed = true
+        snapshotFlow { latestSeparation }.collect {
+            val step = AlignBuzz.next(armed, it)
+            armed = step.armed
+            if (step.fire) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
 
     var sheetOpen by rememberSaveable { mutableStateOf(false) }

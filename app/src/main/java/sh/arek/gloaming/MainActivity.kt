@@ -1,9 +1,7 @@
 package sh.arek.gloaming
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
-import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -85,6 +83,7 @@ import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
 import sh.arek.gloaming.share.shareText
 import sh.arek.gloaming.ui.DownloadRow
+import sh.arek.gloaming.ui.DimScreen
 import sh.arek.gloaming.ui.GloamingRoot
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
@@ -178,33 +177,6 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Dims the screen while night vision is on, and hands it back afterwards.
- *
- * Red on black is most of the answer but not all of it: a bright screen of any
- * colour still floods a dark-adapted eye. Set on this window rather than in
- * system settings, so it applies to this app alone and reverts the moment it
- * closes.
- */
-@androidx.compose.runtime.Composable
-private fun DimScreen(enabled: Boolean) {
-    val activity = LocalContext.current.findActivity() ?: return
-    DisposableEffect(enabled) {
-        activity.setBrightness(if (enabled) NIGHT_BRIGHTNESS else SYSTEM_BRIGHTNESS)
-        onDispose { activity.setBrightness(SYSTEM_BRIGHTNESS) }
-    }
-}
-
-private fun Activity.setBrightness(value: Float) {
-    window.attributes = window.attributes.apply { screenBrightness = value }
-}
-
-/** As dim as the platform allows without switching the backlight off entirely. */
-private const val NIGHT_BRIGHTNESS = 0.01f
-
-/** The sentinel that hands brightness back to the system. */
-private const val SYSTEM_BRIGHTNESS = -1f
-
-/**
  * Hands the log to whatever the user picks to receive it.
  *
  * A copy rather than the file itself. The journal lives in device-protected
@@ -280,12 +252,6 @@ private val CALENDAR_PERMISSIONS = listOf(
 
 private fun granted(context: Context, permission: String): Boolean =
     ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
-}
 
 /**
  * The theme is applied here rather than around this, because night vision is a

@@ -57,8 +57,9 @@ object Guide {
     const val ZENITH_DEGREES = 85.0
 
     /**
-     * The separation is the true great-circle angle, not the sum of the two
-     * differences: near the pole a large azimuth gap is a small angle.
+     * The separation is the true great-circle angle ([separation]), not the
+     * sum of the two differences: near the pole a large azimuth gap is a
+     * small angle.
      */
     fun of(pointing: AltAz, target: AltAz): Guidance {
         val nearZenith = pointing.altitude >= ZENITH_DEGREES || target.altitude >= ZENITH_DEGREES
@@ -74,7 +75,8 @@ object Guide {
         )
     }
 
-    private fun separation(a: AltAz, b: AltAz): Double {
+    /** The angle between two directions on the sky, in degrees. */
+    fun separation(a: AltAz, b: AltAz): Double {
         val a1 = Math.toRadians(a.altitude)
         val a2 = Math.toRadians(b.altitude)
         val dAz = Math.toRadians(a.azimuth - b.azimuth)
@@ -118,5 +120,35 @@ object GuideWords {
         if (size < NO_TILT) return null
         val way = if (tilt > 0.0) "up" else "down"
         return if (size < LITTLE_TILT) "tilt $way a little" else "tilt $way"
+    }
+}
+
+/**
+ * When to buzz on lining up: once on coming within [Guide.ALIGNED_DEGREES],
+ * and not again until the phone has moved past [REARM_DEGREES].
+ *
+ * The gap between the two is what keeps a hand that wavers around the edge of
+ * lined up from buzzing on every crossing.
+ */
+object AlignBuzz {
+    /** How far off the target the phone must go before lining up buzzes again. */
+    const val REARM_DEGREES = 8.0
+
+    /**
+     * @property armed whether coming within the aligned distance will buzz.
+     * @property fire whether to buzz now.
+     */
+    data class Step(val armed: Boolean, val fire: Boolean)
+
+    /**
+     * The next step from [armed] and the angle between where the phone points
+     * and the target, or null where there is none (no reading, or nothing to
+     * point at), which changes nothing.
+     */
+    fun next(armed: Boolean, separationDegrees: Double?): Step = when {
+        separationDegrees == null -> Step(armed, fire = false)
+        armed && separationDegrees <= Guide.ALIGNED_DEGREES -> Step(armed = false, fire = true)
+        !armed && separationDegrees > REARM_DEGREES -> Step(armed = true, fire = false)
+        else -> Step(armed, fire = false)
     }
 }

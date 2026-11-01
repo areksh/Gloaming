@@ -1,6 +1,7 @@
 package sh.arek.gloaming.ui
 
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -293,6 +294,60 @@ class FindScreenTest {
         shown = false
         compose.waitForIdle()
         assertFalse(view!!.keepScreenOn)
+    }
+
+    /**
+     * Night vision on Find dims the window as well as turning it red, and
+     * hands back whatever brightness was there before once Find is left.
+     * Read from the window, as NightVisionWindowTest does: brightness never
+     * reaches the composition.
+     */
+    @Test
+    fun dimsTheScreenWhileFindIsShownInNightVision() {
+        var shown by mutableStateOf(true)
+        setBrightness(0.5f)
+        compose.setContent {
+            if (shown) {
+                FindScreen(
+                    state(settings = located.copy(nightVisionWhenFinding = true)),
+                    actions, FakeCompassSource(), FindTarget.Aurora, clock = { now },
+                )
+            }
+        }
+
+        compose.waitForIdle()
+        assertEquals(NIGHT_BRIGHTNESS, brightness(), 0f)
+
+        shown = false
+        compose.waitForIdle()
+        assertEquals(0.5f, brightness(), 0f)
+    }
+
+    @Test
+    fun leavesTheBrightnessAloneWithoutNightVisionWhenFinding() {
+        compose.setContent {
+            FindScreen(
+                state(settings = located.copy(nightVisionWhenFinding = false)),
+                actions, FakeCompassSource(), FindTarget.Aurora, clock = { now },
+            )
+        }
+
+        compose.waitForIdle()
+        assertEquals(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE, brightness(), 0f)
+    }
+
+    private fun brightness(): Float {
+        var brightness = Float.NaN
+        compose.runOnUiThread { brightness = compose.activity.window.attributes.screenBrightness }
+        return brightness
+    }
+
+    /** This test activity's own window, never the phone's setting. */
+    private fun setBrightness(value: Float) {
+        compose.runOnUiThread {
+            val window = compose.activity.window
+            window.attributes = window.attributes.apply { screenBrightness = value }
+        }
     }
 
     @Test
