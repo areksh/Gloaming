@@ -204,6 +204,14 @@ private fun LocationCard(
                 )
             }
 
+            // Outside the branch below, because two of the things it reports
+            // turn automatic off: a refused or withdrawn location grant leaves
+            // the page on typed in, and the note would otherwise go with the
+            // branch that was showing it.
+            state.locationNote?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+
             if (automatic) {
                 // True of every cadence below, the background ones included:
                 // the background grant extends the coarse one in time, never in
@@ -231,9 +239,6 @@ private fun LocationCard(
                     modifier = Modifier.fillMaxWidth().testTag(DETECT_LOCATION_TAG),
                 ) {
                     Text(if (state.detectingLocation) "Looking..." else "Update now")
-                }
-                state.locationNote?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall)
                 }
                 CadenceChoice(state, onLocationCadenceChange)
             } else {

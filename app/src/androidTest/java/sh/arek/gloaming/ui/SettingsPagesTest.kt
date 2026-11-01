@@ -12,11 +12,26 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.test.core.app.ActivityScenario
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
+import sh.arek.gloaming.Graph
+import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.AndroidLocationSource
+import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.LocationCadence
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.LocationGrants
+import sh.arek.gloaming.work.LocationAlarm
 
 /**
  * The three Settings pages that are about whether the app can do its job,
@@ -122,5 +137,103 @@ class SettingsPagesTest {
 
         compose.onNodeWithText("Nothing downloaded yet", substring = true).assertIsDisplayed()
         compose.onNodeWithTag(DOWNLOADS_PAGE_TAG).assertDoesNotExist()
+    }
+
+    // --- coming back to the real activity after Android's settings changed ---
+
+    private val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+    private var storedBefore: UserSettings? = null
+
+    /**
+     * Stores [claimed] over the phone's own settings, keeping its position so
+     * nothing of the owner's is lost, and remembers what was there. Read and
+     * written the way the app does; never cleared.
+     */
+    private fun claim(mode: LocationMode, cadence: LocationCadence) {
+        val original = Graph.settings(targetContext).read()
+        storedBefore = original
+        BootAware.saveSettings(
+            targetContext,
+            original.copy(
+                latitude = original.latitude ?: 55.95,
+                longitude = original.longitude ?: -3.19,
+                locationMode = mode,
+                locationCadence = cadence,
+                backgroundLocationRevoked = false,
+            ),
+        )
+    }
+
+    @After
+    fun putTheStoredSettingsBack() {
+        val original = storedBefore ?: return
+        BootAware.saveSettings(targetContext, original)
+        // The activity under test armed or cancelled the refresh for what it
+        // was shown, so it is set for the owner's own settings again.
+        LocationAlarm.arm(targetContext, original)
+    }
+
+    /** Away and back, which is all that reaches the activity's resume. */
+    private fun leaveAndReturn(scenario: ActivityScenario<MainActivity>) {
+        scenario.moveToState(Lifecycle.State.CREATED)
+        scenario.moveToState(Lifecycle.State.RESUMED)
+    }
+
+    private fun openLocationPage() {
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo().performClick()
+    }
+
+    @Test
+    fun returningWithoutTheLocationGrantTurnsAskingTheDeviceOffAndSaysSo() {
+        assumeFalse(AndroidLocationSource.hasPermission(targetContext))
+        claim(LocationMode.Automatic, LocationCadence.Every(3))
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            leaveAndReturn(scenario)
+            openLocationPage()
+
+            compose.onNodeWithText(LocationGrants.LOCATION_REMOVED_NOTE).assertIsDisplayed()
+            assertEquals(
+                LocationMode.Manual,
+                Graph.settings(targetContext).read().locationMode,
+            )
+        }
+    }
+
+    @Test
+    fun theNoteAboutAWithdrawnGrantSurvivesTheActivityBeingRebuilt() {
+        assumeFalse(AndroidLocationSource.hasPermission(targetContext))
+        claim(LocationMode.Automatic, LocationCadence.OnOpen)
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            leaveAndReturn(scenario)
+            openLocationPage()
+            compose.onNodeWithText(LocationGrants.LOCATION_REMOVED_NOTE).assertIsDisplayed()
+
+            // The stored settings are already typed in now, so only a note
+            // that was kept can say it again.
+            scenario.recreate()
+
+            compose.onNodeWithText(LocationGrants.LOCATION_REMOVED_NOTE).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun returningWithoutTheBackgroundGrantPutsAnIntervalBackToEachOpenAndShowsTheRedLine() {
+        assumeTrue(AndroidLocationSource.hasPermission(targetContext))
+        assumeFalse(AndroidLocationSource.hasBackgroundPermission(targetContext))
+        claim(LocationMode.Automatic, LocationCadence.Every(3))
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            leaveAndReturn(scenario)
+            openLocationPage()
+
+            compose.onNodeWithText("Android no longer lets Gloaming read", substring = true)
+                .assertIsDisplayed()
+            val stored = Graph.settings(targetContext).read()
+            assertEquals(LocationCadence.OnOpen, stored.locationCadence)
+            assertTrue(stored.backgroundLocationRevoked)
+        }
     }
 }

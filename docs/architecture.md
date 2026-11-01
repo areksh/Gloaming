@@ -365,7 +365,12 @@ is a file replacement.
   a thirty-second budget, saves it with `locationUpdatedAt`, and re-arms. A
   withdrawn background grant puts the cadence back to opening the app and sets
   `backgroundLocationRevoked` for the screen to explain. The journal says
-  whether a refresh happened, never where.
+  whether a refresh happened, never where. `MainActivity` applies the same
+  reconciliation on every return and at first composition
+  (`domain.LocationGrants`): the grants are often withdrawn while the app is
+  closed, and an interval without the background grant goes back to opening
+  the app, while automatic without the location grant goes back to typed in
+  with a note.
 
   The cadence is picked on the settings screen's location card, which reports
   the choice and leaves the asking to `MainActivity`: an interval without the

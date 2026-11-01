@@ -69,6 +69,7 @@ import sh.arek.gloaming.domain.CadenceRequest
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.LocationGrants
 import sh.arek.gloaming.domain.LocationRefresh
 import sh.arek.gloaming.domain.OutlookInput
 import sh.arek.gloaming.domain.OutlookReport
@@ -396,9 +397,33 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
-    var locationNote by remember { mutableStateOf<String?>(null) }
+    // Saved across recreation, like the request it reports on: Android may
+    // rebuild the activity while the user is on its settings page, and a note
+    // held only in memory goes with it.
+    var locationNote by rememberSaveable { mutableStateOf<String?>(null) }
     var backgroundLocationOk by remember {
         mutableStateOf(AndroidLocationSource.hasBackgroundPermission(context))
+    }
+
+    /**
+     * Brings the screen's copy of the settings into line with the grants
+     * Android holds now, saving it when that changed anything.
+     *
+     * Either grant can be withdrawn in Android's settings while the app is
+     * closed, and only the background receiver ever noticed. The note, when
+     * there is one, is for a change the Location page has no other line for.
+     */
+    fun reconcileGrants() {
+        val reconciled = LocationGrants.reconcile(
+            settings,
+            locationGranted = AndroidLocationSource.hasPermission(context),
+            backgroundGranted = AndroidLocationSource.hasBackgroundPermission(context),
+        )
+        if (reconciled.settings !== settings) {
+            settings = reconciled.settings
+            saveSettings(settings)
+        }
+        reconciled.note?.let { locationNote = it }
     }
 
     var shownAt by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -430,6 +455,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 settings = settingsStore.read()
+                reconcileGrants()
                 alertState = stateStore.read()
                 batteryOk = batteryExempt()
                 notificationsOk = notificationsAllowed()
@@ -445,6 +471,11 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
+    // The first composition as well as every return: the observer above only
+    // fires once the lifecycle reaches resumed, after a first frame drawn from
+    // settings the grants may already have outgrown.
+    LaunchedEffect(Unit) { reconcileGrants() }
 
     // Only while the screen is actually in front. Both of the things this
     // refreshes are read off a clock, and neither is worth a wake when nobody

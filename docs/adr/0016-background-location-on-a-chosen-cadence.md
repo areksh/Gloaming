@@ -55,6 +55,10 @@ first-class.
   taken away in the system settings, the next wake puts the cadence back to
   "each time you open Gloaming" and records that it did, so the screen can say
   why rather than leave the change to be noticed.
+  The app does the same when it is opened, since the grant is as often
+  withdrawn while it is closed: an interval without the background grant goes
+  back to opening the app, and automatic without the location grant goes back
+  to typed in, keeping the position it had and saying so.
 
 ## Consequences
 

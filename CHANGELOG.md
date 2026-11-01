@@ -208,6 +208,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Taking location away in Android's settings is now noticed when you come
+  back.** Turning location off for Gloaming, or allowing it only while the app
+  is in use, left the settings claiming what no longer worked: "Ask the phone"
+  stayed on, and an interval stayed chosen with no warning. Coming back now puts
+  the interval back to "Each time you open Gloaming" with the red line saying
+  why, or turns "Ask the phone" off and keeps the position it had, with a note
+  saying so (ADR-0016).
+
+- **The note on the Location page no longer disappears.** "Location permission
+  was declined" was written to a part of the page that is hidden once "Ask the
+  phone" is off, which is exactly what a refusal does, and a note was lost when
+  Android rebuilt the app while you were on its settings page. Both now stay
+  until you do something else.
+
 - **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
   was judged on total cloud, so 70% cirrus over an otherwise clear sky counted
   as closed to a planet or a pass that shines straight through it. The hourly
