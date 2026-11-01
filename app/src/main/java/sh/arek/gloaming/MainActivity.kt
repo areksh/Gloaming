@@ -946,6 +946,11 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         }
         val worked = withContext(Dispatchers.Default) {
             runCatching {
+                // One snapshot of the alert state for the whole run. Read
+                // again later, a check landing mid-run would stamp a sentence
+                // decided from the old reading with the new check's time, and
+                // the widget would quote it against the reading it contradicts.
+                val state = alertState
                 // Both read the cache and stop. The fetch that fills that cache
                 // is its own effect above, so a slow network cannot hold the
                 // whole tab blank waiting for a cloud reading.
@@ -963,7 +968,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                     cloud = weather.lastKnown(latitude, longitude),
                     hourly = forecast,
                 )
-                val probability = alertState.lastProbability
+                val probability = state.lastProbability
                 val report = runCatching {
                     Outlooks.of(
                         list,
@@ -972,7 +977,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                             nowMillis = now,
                             hourly = forecast,
                             auroraProbability = probability,
-                            auroraAgeMillis = alertState.lastPollAt
+                            auroraAgeMillis = state.lastPollAt
                                 ?.takeIf { probability != null }
                                 ?.let { now - it },
                             // How long ago the elements were published, which
@@ -1010,7 +1015,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         sentence = report?.let(OutlookWords::headline),
                         nightEndMillis = night?.endMillis,
                         settings = settings,
-                        state = alertState,
+                        state = state,
                         now = now,
                     )
                 ) {
