@@ -77,6 +77,13 @@ class OutlookStoreTest {
     }
 
     @Test
+    fun `the store for a locked phone holds nothing, whatever is written to it`() {
+        NothingHeld.write(HeldOutlook("first", 1L, 2L, "56,357", 1L))
+
+        assertNull(NothingHeld.read())
+    }
+
+    @Test
     fun `names the place by its grid cell and never the precise position`() {
         val place = HeldOutlook.placeOf(UserSettings(latitude = 55.95, longitude = -3.19))
 

@@ -433,6 +433,31 @@ class PreferenceStoresTest {
     }
 }
 
+/**
+ * Where tonight's outlook is kept. It carries the observer's grid cell, so it
+ * follows the same rule as the settings mirror: the device-encrypted store
+ * only when before-unlock alerting is on.
+ */
+class OutlookPartitionTest {
+
+    @Test
+    fun `keeps the outlook in device-encrypted storage only when before-unlock alerting is on`() {
+        assertEquals(StoragePartition.Device, BootAware.outlookPartition(beforeUnlock = true, unlocked = true))
+        assertEquals(StoragePartition.Device, BootAware.outlookPartition(beforeUnlock = true, unlocked = false))
+    }
+
+    @Test
+    fun `keeps the outlook beside the precise position otherwise`() {
+        assertEquals(StoragePartition.Credential, BootAware.outlookPartition(beforeUnlock = false, unlocked = true))
+    }
+
+    /** Credential-encrypted storage cannot be opened before first unlock, so there is nothing to read. */
+    @Test
+    fun `has nowhere to read the outlook from before first unlock with the option off`() {
+        assertNull(BootAware.outlookPartition(beforeUnlock = false, unlocked = false))
+    }
+}
+
 class MirrorSelectionTest {
 
     private val precise = UserSettings(latitude = 55.95, longitude = -3.19, threshold = 40)

@@ -24,12 +24,16 @@ import kotlin.math.roundToInt
  *   storage. They are public data fetched from a public endpoint, so there is
  *   nothing to protect.
  * - **Alert state** (timestamps, a probability, a latch) likewise.
- * - **Tonight's outlook** (one sentence and the two times it is good between)
- *   likewise: the widget quotes it before first unlock, and it holds no
- *   position.
  * - **Settings used by the poll** live in device-encrypted storage only when
  *   before-unlock alerting is switched on, and then carry the observer's
  *   *grid cell* rather than the position typed in.
+ * - **Tonight's outlook** (one sentence, when it was written, the end of the
+ *   night it describes, the check it was decided against, and the observer's
+ *   1-degree *grid cell* as the place it is about) follows those settings:
+ *   device-encrypted only while before-unlock alerting is on, so the widget
+ *   can quote it before first unlock, and otherwise credential-encrypted. See
+ *   [outlookPartition]; turning the option off clears the device-encrypted
+ *   copy with the mirror.
  * - **The location cadence and when the position was last refreshed** are
  *   ordinary settings, kept beside the precise position in
  *   credential-encrypted storage (the mirror carries a copy, like the rest of
@@ -89,6 +93,8 @@ object BootAware {
         }
         if (toMirror == null) {
             mirror.clear()
+            // The held outlook names the grid cell, so it goes with the mirror.
+            PreferencesOutlookStore(devicePreferences(context)).clear()
             // The cloud reading goes with it. It was taken at the mirror's
             // whole degree, so leaving it would keep a position in the weaker
             // store after the user opted out of having one there - the same
@@ -161,6 +167,33 @@ object BootAware {
         } else {
             PreferencesSettingsStore(credentialPreferences(context))
         }
+    /**
+     * Where tonight's outlook may be kept, or null where it cannot be read.
+     *
+     * The outlook names the observer's grid cell, so it follows the settings
+     * mirror: device-encrypted only while before-unlock alerting is on, which
+     * is also the only time the widget reads it before first unlock, and
+     * otherwise credential-encrypted beside the precise position. That store
+     * cannot be opened before first unlock, so with the option off a locked
+     * phone has no outlook to read rather than an exception.
+     */
+    fun outlookPartition(beforeUnlock: Boolean, unlocked: Boolean): StoragePartition? = when {
+        beforeUnlock -> StoragePartition.Device
+        unlocked -> StoragePartition.Credential
+        else -> null
+    }
+
+    /** Tonight's outlook, from the store [outlookPartition] chooses now. */
+    fun outlookStore(context: Context): OutlookStore =
+        when (outlookPartition(beforeUnlockEnabled(context), isUnlocked(context))) {
+            StoragePartition.Device -> PreferencesOutlookStore(devicePreferences(context))
+            StoragePartition.Credential -> PreferencesOutlookStore(credentialPreferences(context))
+            null -> NothingHeld
+        }
+
     /** Where the cached documents live under whichever store holds them. */
     const val CACHE_DIRECTORY = "sky"
 }
+
+/** The two halves of app storage; see [BootAware]. */
+enum class StoragePartition { Device, Credential }

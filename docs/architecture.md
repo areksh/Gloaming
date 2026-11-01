@@ -320,13 +320,14 @@ is a file replacement.
 
   Two small additions sit in it. `OutlookStore` holds Tonight's opening
   sentence for the widget, which redraws where the whole of tonight cannot be
-  worked out, keyed by the grid cell and never the precise position, and
-  stamped with the check it was decided against: `WidgetContent.update` decides
-  what the screen leaves there, never a live aurora reading, and
-  `WidgetContent.of` quotes it only until a newer check lands. The aurora alert
-  does not read it; its sentence comes from the poll's own reading.
-  `LocationCadence` is the stored choice of how often a detected position is
-  refreshed (ADR-0016).
+  worked out. It is keyed by the grid cell, never the precise position, so
+  `BootAware.outlookStore` chooses its store by the same rule as the settings
+  mirror. It is stamped with the check it was decided against:
+  `WidgetContent.update` decides what the screen leaves there, never a live
+  aurora reading, and `WidgetContent.of` quotes it only until a newer check
+  lands. The aurora alert does not read it; its sentence comes from the poll's
+  own reading. `LocationCadence` is the stored choice of how often a detected
+  position is refreshed (ADR-0016).
 - **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
   horizon-crossing search over the vendored propagator, which offers no search
   of its own), and `PassDescription` (qualitative buckets - never a magnitude).

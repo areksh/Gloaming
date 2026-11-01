@@ -3,9 +3,10 @@ package sh.arek.gloaming.data
 import android.content.SharedPreferences
 
 /**
- * Tonight's opening sentence, kept for the places that cannot compute it.
+ * Tonight's opening sentence, kept for the widget, which cannot compute it.
  *
- * The widget redraws from a poll receiver, sometimes before first unlock, and
+ * The widget redraws from a poll receiver, before first unlock too when
+ * before-unlock alerting is on, and
  * the outlook needs the whole of tonight's list to decide. Rather than redo
  * that there, the screen leaves its sentence behind when it works it out and
  * the widget quotes it.
@@ -29,8 +30,8 @@ data class HeldOutlook(
 ) {
     companion object {
         /**
-         * The grid cell as a key, never the precise position: this store is
-         * readable before first unlock. Null where there is no location.
+         * The grid cell as a key, never the precise position: this store may
+         * be readable before first unlock. Null where there is no location.
          */
         fun placeOf(settings: UserSettings): String? =
             settings.cell?.let { "${it.latitude},${it.longitude}" }
@@ -44,9 +45,11 @@ interface OutlookStore {
 }
 
 /**
- * Backed by device-encrypted storage, like the alert state beside it, because
- * the widget draws before first unlock. It holds a sentence and two times and
- * no position, so nothing about it needs the credential-encrypted store.
+ * Backed by whichever preferences it is handed; [BootAware.outlookStore]
+ * chooses them. It holds a sentence, three times and the observer's 1-degree
+ * grid cell, so it lives in device-encrypted storage only while before-unlock
+ * alerting is on, like the settings mirror that carries the same cell, and in
+ * credential-encrypted storage otherwise.
  */
 class PreferencesOutlookStore(private val prefs: SharedPreferences) : OutlookStore {
 
@@ -91,4 +94,15 @@ class PreferencesOutlookStore(private val prefs: SharedPreferences) : OutlookSto
         /** Written for "no check yet"; a check's time is never negative. */
         const val NO_POLL = -1L
     }
+}
+
+/**
+ * The outlook store on a locked phone whose outlook lives in
+ * credential-encrypted storage, which cannot be opened until first unlock:
+ * nothing is held, and nothing written is kept.
+ */
+object NothingHeld : OutlookStore {
+    override fun read(): HeldOutlook? = null
+    override fun write(held: HeldOutlook) = Unit
+    override fun clear() = Unit
 }

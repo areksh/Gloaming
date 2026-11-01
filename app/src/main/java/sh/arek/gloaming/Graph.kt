@@ -22,7 +22,6 @@ import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
 import sh.arek.gloaming.data.OutlookStore
 import sh.arek.gloaming.data.PreferencesAlertStateStore
-import sh.arek.gloaming.data.PreferencesOutlookStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
@@ -145,8 +144,8 @@ object Graph {
     fun alertState(context: Context): AlertStateStore =
         PreferencesAlertStateStore(devicePreferences(context))
 
-    fun outlookStore(context: Context): OutlookStore =
-        PreferencesOutlookStore(devicePreferences(context))
+    /** Tonight's outlook, in whichever store [BootAware.outlookPartition] chooses. */
+    fun outlookStore(context: Context): OutlookStore = BootAware.outlookStore(context)
 
     /**
      * The cloud source, for anything that only wants what is already held.
