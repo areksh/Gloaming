@@ -14,6 +14,7 @@ import org.junit.runner.RunWith
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.SkyStatus
+import sh.arek.gloaming.ui.OutlookWords
 
 /**
  * That the notification path works on a real device.
@@ -149,7 +150,9 @@ class NotifierTest {
      */
     @Test
     fun theAlertOpensWithTheOutlookAndKeepsTheFiguresInTheExpandedText() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+        val until = 1_800_000_000_000L
+        AndroidAuroraNotifier(context)
+            .notifyAurora(ovation(72), status, clear, threshold = 30, clearUntil = until)
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -157,10 +160,12 @@ class NotifierTest {
         val collapsed = extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
         val expanded = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString()
 
-        assertTrue(collapsed, collapsed.startsWith("Aurora likely now:"))
-        assertTrue(expanded, expanded.startsWith("Aurora likely now:"))
-        assertTrue(expanded, expanded.contains("Local probability 72%"))
-        assertTrue(expanded, expanded.contains("clear"))
+        // The spell's end reaches the words, in the exact form the screen uses.
+        val outlook = OutlookWords.auroraAlert(72, until)
+        assertTrue(outlook, outlook.contains("while it stays clear until"))
+        assertEquals(outlook, collapsed)
+        assertTrue(expanded, expanded.startsWith("$outlook\n"))
+        assertTrue(expanded, expanded.contains("Local probability 72%, clear"))
     }
 
     /**

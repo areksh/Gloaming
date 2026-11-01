@@ -18,7 +18,9 @@ import sh.arek.gloaming.data.Journal
 import sh.arek.gloaming.data.LocationSource
 import sh.arek.gloaming.data.ManifestRepository
 import sh.arek.gloaming.data.OpenMeteoWeather
+import sh.arek.gloaming.data.OutlookStore
 import sh.arek.gloaming.data.PreferencesAlertStateStore
+import sh.arek.gloaming.data.PreferencesOutlookStore
 import sh.arek.gloaming.data.PreferencesSettingsStore
 import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
@@ -27,8 +29,6 @@ import sh.arek.gloaming.data.SkyRepository
 import sh.arek.gloaming.data.VerdictLog
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
-import sh.arek.gloaming.data.OutlookStore
-import sh.arek.gloaming.data.PreferencesOutlookStore
 import sh.arek.gloaming.data.devicePreferences
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.CalendarWriter
@@ -140,11 +140,11 @@ object Graph {
      * one place means a poll before unlock and one after share the same
      * hysteresis and rate limiting rather than each keeping their own.
      */
-    fun outlookStore(context: Context): OutlookStore =
-        PreferencesOutlookStore(devicePreferences(context))
-
     fun alertState(context: Context): AlertStateStore =
         PreferencesAlertStateStore(devicePreferences(context))
+
+    fun outlookStore(context: Context): OutlookStore =
+        PreferencesOutlookStore(devicePreferences(context))
 
     /**
      * The cloud source, for anything that only wants what is already held.

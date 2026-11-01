@@ -19,8 +19,11 @@ class WidgetContentTest {
         held: HeldOutlook? = null,
     ) = WidgetContent.of(settings, state, held, now)
 
-    private fun outlook(validUntil: Long = now + 4 * 60 * minute) =
-        HeldOutlook("Clear from 22:00. Look for the ISS at 22:14.", now - minute, validUntil)
+    private fun outlook(
+        validUntil: Long = now + 4 * 60 * minute,
+        writtenAt: Long = now - minute,
+        place: String = "56,357",
+    ) = HeldOutlook("Clear from 22:00. Look for the ISS at 22:14.", writtenAt, validUntil, place)
 
     @Test
     fun `shows tonight's outlook while it is still tonight`() {
@@ -35,6 +38,32 @@ class WidgetContentTest {
         val content = content(held = outlook(validUntil = now))
 
         assertTrue(content.detail, content.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `does not show an outlook worked out for somewhere else`() {
+        val content = content(held = outlook(place = "40,100"))
+
+        assertTrue(content.detail, content.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `stops showing an outlook once it has aged`() {
+        val fresh = content(held = outlook(writtenAt = now - WidgetContent.OUTLOOK_FRESH_MILLIS + 1))
+        val aged = content(held = outlook(writtenAt = now - WidgetContent.OUTLOOK_FRESH_MILLIS))
+
+        assertEquals("Clear from 22:00. Look for the ISS at 22:14.", fresh.detail)
+        assertTrue(aged.detail, aged.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `a failed check outranks the held outlook`() {
+        val content = content(
+            state = AlertState(lastProbability = 42, lastPollAt = now - 10 * minute, lastError = "offline"),
+            held = outlook(),
+        )
+
+        assertEquals("Last check failed", content.detail)
     }
 
     @Test

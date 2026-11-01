@@ -227,7 +227,7 @@ class SkyPoller(
             hourly = weather.forecast(latitude, longitude),
             tolerance = user.cloudTolerance,
             darkFrom = at,
-            darkUntil = dark.endsAt ?: (at + HORIZON_MILLIS),
+            darkUntil = dark.endsAt ?: (at + PassPlanner.HORIZON_MILLIS),
             nowMillis = at,
         )?.takeIf { it.underway }?.until
     }
@@ -351,9 +351,6 @@ class SkyPoller(
     companion object {
         /** The manifest key for the cloud forecast, which is never compiled in. */
         const val ENDPOINT_WEATHER = "weather"
-
-        /** How far to look for the end of a spell when the dark has no end (polar night). */
-        private const val HORIZON_MILLIS = 12 * 60 * 60 * 1000L
     }
 }
 

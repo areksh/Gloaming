@@ -27,6 +27,15 @@ object WidgetContent {
      */
     const val STALE_AFTER_MILLIS: Long = 12 * 60 * 60 * 1000L
 
+    /**
+     * How long a held outlook is quoted for.
+     *
+     * The poller does not recompute the outlook, so the sentence ages from the
+     * moment the screen wrote it; "clear from 22:00" is not worth repeating
+     * hours after the cloud forecast it rested on has moved.
+     */
+    const val OUTLOOK_FRESH_MILLIS: Long = 3 * 60 * 60 * 1000L
+
     data class Text(
         val headline: String,
         val detail: String,
@@ -39,6 +48,11 @@ object WidgetContent {
      *   is still tonight its sentence replaces the freshness line; the figure
      *   above it stays the reading, which is what the widget is for.
      */
+    private fun holds(held: HeldOutlook, settings: UserSettings, now: Long): Boolean =
+        now < held.validUntil &&
+            now < held.writtenAt + OUTLOOK_FRESH_MILLIS &&
+            held.place == HeldOutlook.placeOf(settings)
+
     fun of(settings: UserSettings, state: AlertState, held: HeldOutlook?, now: Long): Text {
         if (!settings.hasLocation) {
             return Text(NO_READING, "Tap to set your location", worthLooking = false)
@@ -49,8 +63,10 @@ object WidgetContent {
             ?.takeIf { age != null && age < STALE_AFTER_MILLIS }
 
         val detail = when {
-            held != null && now < held.validUntil -> held.headline
+            // Ahead of the outlook: a failed check means the reading above is
+            // not current, and the sentence beside it would read as if it were.
             state.lastError != null -> "Last check failed"
+            held != null && holds(held, settings, now) -> held.headline
             else -> describeAge(state.lastPollAt, now)
         }
 

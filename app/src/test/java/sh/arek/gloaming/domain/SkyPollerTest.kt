@@ -235,6 +235,39 @@ class SkyPollerTest {
     }
 
     @Test
+    fun `tells the aurora alert of no end for a spell that has not begun`() = runTest {
+        val notifier = Notifier()
+        val hour = 3_600_000L
+        // Cloudy now, clear from two hours on.
+        val hours = listOf(0L, 1L).map { HourlyCover(nowMillis + it * hour, 100) } +
+            listOf(2L, 3L).map { HourlyCover(nowMillis + it * hour, 0) }
+
+        poller(
+            70, settingsAt(), State(), notifier,
+            weather = Weather(hours = hours),
+            darkness = Darkness.Now(endsAt = nowMillis + 8 * hour),
+        ).poll()
+
+        assertEquals(listOf<Long?>(null), notifier.clearUntils)
+    }
+
+    @Test
+    fun `looks twelve hours ahead for a spell's end when the dark has none`() = runTest {
+        val notifier = Notifier()
+        val hour = 3_600_000L
+        // Clear for twenty hours: only the twelve-hour fallback can cut it.
+        val hours = (0L until 20L).map { HourlyCover(nowMillis + it * hour, 0) }
+
+        poller(
+            70, settingsAt(), State(), notifier,
+            weather = Weather(hours = hours),
+            darkness = Darkness.Now(endsAt = null),
+        ).poll()
+
+        assertEquals(listOf<Long?>(nowMillis + 12 * hour), notifier.clearUntils)
+    }
+
+    @Test
     fun `tells the aurora alert of no spell when the forecast holds none`() = runTest {
         val notifier = Notifier()
 

@@ -949,13 +949,16 @@ private fun GloamingApp() {
                 // outlook (no location) nothing is written, and the widget
                 // asks for a location before it reads the store anyway.
                 val sentence = report?.let(OutlookWords::headline)
-                if (sentence != null && night != null) {
+                val place = HeldOutlook.placeOf(settings)
+                if (sentence != null && night != null && place != null) {
                     val store = Graph.outlookStore(context)
                     val before = store.read()
-                    // Redrawn only when the words or the night changed, not on
+                    // Redrawn only when the words, the night or the place changed, not on
                     // every tick of the clock.
-                    if (before?.headline != sentence || before.validUntil != night.endMillis) {
-                        store.write(HeldOutlook(sentence, now, night.endMillis))
+                    if (before?.headline != sentence || before.validUntil != night.endMillis ||
+                        before.place != place
+                    ) {
+                        store.write(HeldOutlook(sentence, now, night.endMillis, place))
                         AuroraWidget.refresh(context)
                     }
                 }

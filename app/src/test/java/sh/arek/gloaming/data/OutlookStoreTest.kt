@@ -17,7 +17,7 @@ class OutlookStoreTest {
     @Test
     fun `returns the outlook exactly as it was written`() {
         val prefs = FakeSharedPreferences()
-        val held = HeldOutlook("Clear all night. Look for the ISS at 22:14.", 1_000L, 2_000L)
+        val held = HeldOutlook("Clear all night. Look for the ISS at 22:14.", 1_000L, 2_000L, "56,357")
 
         store(prefs).write(held)
 
@@ -27,11 +27,19 @@ class OutlookStoreTest {
     @Test
     fun `replaces the outlook before it rather than adding to it`() {
         val store = store()
-        store.write(HeldOutlook("first", 1L, 2L))
-        val second = HeldOutlook("second", 3L, 4L)
+        store.write(HeldOutlook("first", 1L, 2L, "56,357"))
+        val second = HeldOutlook("second", 3L, 4L, "56,357")
 
         store.write(second)
 
         assertEquals(second, store.read())
+    }
+
+    @Test
+    fun `names the place by its grid cell and never the precise position`() {
+        val place = HeldOutlook.placeOf(UserSettings(latitude = 55.95, longitude = -3.19))
+
+        assertEquals("56,357", place)
+        assertNull(HeldOutlook.placeOf(UserSettings()))
     }
 }
