@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -170,5 +171,29 @@ class SetupTest {
         }
 
         compose.onNodeWithTag(Section.Tonight.tag).assertIsDisplayed()
+    }
+
+    @Test
+    fun theRootShowsSetupUntilItIsDone() {
+        compose.setContent {
+            GloamingRoot(state = state.copy(settings = located.copy(setupDone = false)), actions = UiActions())
+        }
+
+        compose.onNodeWithText("Step 1 of 3").assertIsDisplayed()
+        compose.onNodeWithTag(Section.Tonight.tag).assertDoesNotExist()
+    }
+
+    @Test
+    fun theStepSurvivesRecreation() {
+        val restoration = StateRestorationTester(compose)
+        restoration.setContent {
+            SetupFlow(state = state, actions = UiActions(), onFinished = {})
+        }
+        compose.onNodeWithTag(SETUP_SKIP_TAG).performClick()
+        compose.onNodeWithText("Step 2 of 3").assertIsDisplayed()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithText("Step 2 of 3").assertIsDisplayed()
     }
 }

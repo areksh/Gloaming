@@ -239,6 +239,14 @@ class PreferenceStoresTest {
     }
 
     @Test
+    fun `an explicit set-up stays set up with no location`() {
+        val store = settingsStore()
+        store.write(UserSettings(setupDone = true))
+
+        assertTrue(store.read().setupDone)
+    }
+
+    @Test
     fun `an explicit not-yet-set-up survives a location being saved`() {
         val store = settingsStore()
         store.write(UserSettings(latitude = 55.95, longitude = -3.19, setupDone = false))
