@@ -33,12 +33,15 @@ interface AuroraNotifier {
      *   the "was it worth it?" record says what the alert was judged against -
      *   the setting can be changed the next morning, and the record has to mean
      *   what it meant on the night.
+     * @param clearUntil where the clear spell now under way ends, or null when
+     *   the forecast holds none - the alert then says nothing about cloud.
      */
     fun notifyAurora(
         likelihood: Likelihood,
         status: SkyStatus,
         cloud: CloudCover?,
         threshold: Int? = null,
+        clearUntil: Long? = null,
     )
 }
 
@@ -182,7 +185,9 @@ class SkyPoller(
             )
         }
 
-        notifier.notifyAurora(likelihood, status, cloud, user.threshold)
+        notifier.notifyAurora(
+            likelihood, status, cloud, user.threshold, clearUntil(user, latitude, longitude, at),
+        )
         return Attempt(
             PollOutcome.Notified(probability),
             status,
@@ -206,6 +211,25 @@ class SkyPoller(
                 subject = "Aurora",
             ),
         )
+    }
+
+    /**
+     * Where the clear spell the observer is in ends, from the held forecast.
+     *
+     * Only a spell already under way counts: the alert says "likely now", and a
+     * clear patch that begins at three would make "while it stays clear until"
+     * claim a clear sky that is not there yet. Read from the cache rather than
+     * fetched, like the schedule's own look at the sky.
+     */
+    private fun clearUntil(user: UserSettings, latitude: Double, longitude: Double, at: Long): Long? {
+        val dark = darkness.at(latitude, longitude, at) as? Darkness.Now ?: return null
+        return ClearSpell.first(
+            hourly = weather.forecast(latitude, longitude),
+            tolerance = user.cloudTolerance,
+            darkFrom = at,
+            darkUntil = dark.endsAt ?: (at + HORIZON_MILLIS),
+            nowMillis = at,
+        )?.takeIf { it.underway }?.until
     }
 
     /**
@@ -327,6 +351,9 @@ class SkyPoller(
     companion object {
         /** The manifest key for the cloud forecast, which is never compiled in. */
         const val ENDPOINT_WEATHER = "weather"
+
+        /** How far to look for the end of a spell when the dark has no end (polar night). */
+        private const val HORIZON_MILLIS = 12 * 60 * 60 * 1000L
     }
 }
 

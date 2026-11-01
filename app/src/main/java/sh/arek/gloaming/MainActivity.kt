@@ -56,6 +56,7 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.HeldOutlook
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
@@ -87,10 +88,12 @@ import sh.arek.gloaming.ui.GloamingNav
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.NightTimeline
+import sh.arek.gloaming.ui.OutlookWords
 import sh.arek.gloaming.ui.Timeline
 import sh.arek.gloaming.ui.UiActions
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
+import sh.arek.gloaming.widget.AuroraWidget
 import sh.arek.gloaming.ui.theme.GloamingTheme
 import sh.arek.gloaming.work.LocationAlarm
 import sh.arek.gloaming.work.PassAlarm
@@ -940,6 +943,21 @@ private fun GloamingApp() {
                     runCatching { NightTimeline.of(list, it, forecast, settings, now) }
                         .onFailure { e -> Log.w("Gloaming", "could not lay out the night", e) }
                         .getOrNull()
+                }
+                // Left for the widget, which cannot work it out itself. Only
+                // when there is a sentence and a night to bound it by: with no
+                // outlook (no location) nothing is written, and the widget
+                // asks for a location before it reads the store anyway.
+                val sentence = report?.let(OutlookWords::headline)
+                if (sentence != null && night != null) {
+                    val store = Graph.outlookStore(context)
+                    val before = store.read()
+                    // Redrawn only when the words or the night changed, not on
+                    // every tick of the clock.
+                    if (before?.headline != sentence || before.validUntil != night.endMillis) {
+                        store.write(HeldOutlook(sentence, now, night.endMillis))
+                        AuroraWidget.refresh(context)
+                    }
                 }
                 WorkedNight(list, report, forecast, night)
             }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()

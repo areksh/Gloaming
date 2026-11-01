@@ -143,6 +143,27 @@ class NotifierTest {
     }
 
     /**
+     * The collapsed text is what someone sees at two in the morning, so it
+     * opens with the outlook's own words; the figures that used to be the whole
+     * of it move behind the expand.
+     */
+    @Test
+    fun theAlertOpensWithTheOutlookAndKeepsTheFiguresInTheExpandedText() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+        val extras = posted!!.notification.extras
+        val collapsed = extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
+        val expanded = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString()
+
+        assertTrue(collapsed, collapsed.startsWith("Aurora likely now:"))
+        assertTrue(expanded, expanded.startsWith("Aurora likely now:"))
+        assertTrue(expanded, expanded.contains("Local probability 72%"))
+        assertTrue(expanded, expanded.contains("clear"))
+    }
+
+    /**
      * Posting must never throw, whatever the permission state. An alert the
      * user declined is their choice; a crash in a background wake is a bug.
      *

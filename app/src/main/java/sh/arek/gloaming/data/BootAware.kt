@@ -24,6 +24,9 @@ import kotlin.math.roundToInt
  *   storage. They are public data fetched from a public endpoint, so there is
  *   nothing to protect.
  * - **Alert state** (timestamps, a probability, a latch) likewise.
+ * - **Tonight's outlook** (one sentence and the two times it is good between)
+ *   likewise: the widget quotes it before first unlock, and it holds no
+ *   position.
  * - **Settings used by the poll** live in device-encrypted storage only when
  *   before-unlock alerting is switched on, and then carry the observer's
  *   *grid cell* rather than the position typed in.

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.HeldOutlook
 import sh.arek.gloaming.data.UserSettings
 
 class WidgetContentTest {
@@ -15,7 +16,33 @@ class WidgetContentTest {
     private fun content(
         settings: UserSettings = located,
         state: AlertState = AlertState(lastProbability = 42, lastPollAt = now - 10 * minute),
-    ) = WidgetContent.of(settings, state, now)
+        held: HeldOutlook? = null,
+    ) = WidgetContent.of(settings, state, held, now)
+
+    private fun outlook(validUntil: Long = now + 4 * 60 * minute) =
+        HeldOutlook("Clear from 22:00. Look for the ISS at 22:14.", now - minute, validUntil)
+
+    @Test
+    fun `shows tonight's outlook while it is still tonight`() {
+        val content = content(held = outlook())
+
+        assertEquals("Clear from 22:00. Look for the ISS at 22:14.", content.detail)
+        assertEquals("42%", content.headline)
+    }
+
+    @Test
+    fun `falls back to the reading once the night is over`() {
+        val content = content(held = outlook(validUntil = now))
+
+        assertTrue(content.detail, content.detail.contains("10 minutes ago"))
+    }
+
+    @Test
+    fun `keeps asking for a location whatever outlook is held`() {
+        val content = content(settings = UserSettings(), held = outlook())
+
+        assertEquals("Tap to set your location", content.detail)
+    }
 
     @Test
     fun `shows the local probability and how old it is`() {

@@ -1,6 +1,7 @@
 package sh.arek.gloaming.widget
 
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.HeldOutlook
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.ui.describeAge
 
@@ -33,7 +34,12 @@ object WidgetContent {
         val worthLooking: Boolean,
     )
 
-    fun of(settings: UserSettings, state: AlertState, now: Long): Text {
+    /**
+     * @param held tonight's outlook as the screen last worked it out. While it
+     *   is still tonight its sentence replaces the freshness line; the figure
+     *   above it stays the reading, which is what the widget is for.
+     */
+    fun of(settings: UserSettings, state: AlertState, held: HeldOutlook?, now: Long): Text {
         if (!settings.hasLocation) {
             return Text(NO_READING, "Tap to set your location", worthLooking = false)
         }
@@ -43,6 +49,7 @@ object WidgetContent {
             ?.takeIf { age != null && age < STALE_AFTER_MILLIS }
 
         val detail = when {
+            held != null && now < held.validUntil -> held.headline
             state.lastError != null -> "Last check failed"
             else -> describeAge(state.lastPollAt, now)
         }

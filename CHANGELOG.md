@@ -103,6 +103,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exemption, which are current state with no history anywhere and so cannot be
   recovered by the following morning.
 
+- **The widget and the aurora alert now open with tonight's outlook.** The
+  widget's second line used to say how long ago the reading was taken; while
+  it is still tonight it now carries the same sentence Tonight opens with,
+  and goes back to the age of the reading once the night is over. The aurora
+  alert's text now reads "Aurora likely now: 70% here. Look north, low down,
+  while it stays clear until 02:00." with the probability source, cloud, Kp
+  and Bz moved behind the expand. The sentence is kept in device-encrypted
+  storage, holds no position, and is refreshed whenever Tonight is opened.
+
 - **A failed reschedule is said out loud.** Both calls that arm the next wake
   swallowed their failures silently, which is the one fault that ends the
   schedule outright: no alarm pending, no line anywhere, and nothing until a
