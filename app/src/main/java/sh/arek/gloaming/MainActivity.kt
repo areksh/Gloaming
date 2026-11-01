@@ -97,6 +97,7 @@ import sh.arek.gloaming.ui.OutlookWords
 import sh.arek.gloaming.ui.Timeline
 import sh.arek.gloaming.ui.UiActions
 import sh.arek.gloaming.ui.formatTimeOfDay
+import sh.arek.gloaming.ui.localDay
 import sh.arek.gloaming.ui.parseTimeOfDay
 import sh.arek.gloaming.widget.AuroraWidget
 import sh.arek.gloaming.widget.HeldUpdate
@@ -378,7 +379,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     // when the screen is opened: an age frozen at "checked 3 minutes ago" while
     // somebody watches it is a small lie, and the same freeze is what would
     // leave "nothing to see until it gets dark" up after dark.
-    // The year ahead, worked out once per location rather than per composition.
+    // The year ahead, worked out once per location and day rather than per composition.
     // It costs about a quarter of a second, which is nothing on a background
     // thread and far too much on the main one.
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
@@ -764,10 +765,13 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         }
     }
 
-    // Keyed on the location and nothing else: the calendar is deterministic and
-    // does not go stale, so recomputing it on any other change would be work
-    // done for no different answer.
-    LaunchedEffect(settings.latitude, settings.longitude, calendarNonce) {
+    // Keyed on the location and the day: the calendar is deterministic and
+    // does not go stale within a day, so recomputing it on any other change
+    // would be work done for no different answer. The day is there because
+    // "today" - the outlined night, the stubs for nights gone, the events
+    // still ahead - is fixed when it is worked out, and a screen left open
+    // past midnight would otherwise go on a day behind.
+    LaunchedEffect(settings.latitude, settings.longitude, calendarNonce, localDay(shownAt)) {
         val latitude = settings.latitude
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {

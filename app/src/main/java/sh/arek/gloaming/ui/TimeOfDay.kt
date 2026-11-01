@@ -3,6 +3,7 @@ package sh.arek.gloaming.ui
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * A time of day typed by the user, as minutes since midnight.
@@ -50,3 +51,15 @@ internal fun clock(millis: Long): String =
  */
 fun describeDate(millis: Long): String =
     SimpleDateFormat("EEEE d MMMM", Locale.getDefault()).format(Date(millis))
+
+/**
+ * Days since the epoch in the device's own zone, so the number turns at the
+ * midnight the person sees. What "today" is keyed on where a screen has to
+ * notice the date changing while it is open.
+ */
+fun localDay(millis: Long): Long {
+    val zone = TimeZone.getDefault()
+    return Math.floorDiv(millis + zone.getOffset(millis), DAY_MILLIS)
+}
+
+private const val DAY_MILLIS = 24 * 60 * 60 * 1000L

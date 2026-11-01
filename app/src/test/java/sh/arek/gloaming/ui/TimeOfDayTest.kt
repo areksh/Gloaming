@@ -64,4 +64,25 @@ class TimeOfDayTest {
             Locale.setDefault(locale)
         }
     }
+
+    /** Ahead recomputes when this moves, so it must move at local midnight, not UTC's. */
+    @Test
+    fun `numbers the day in the device's own zone, turning at local midnight`() {
+        val zone = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/London"))
+            // Summer time: local midnight is 23:00 UTC.
+            val beforeSummerMidnight = java.time.Instant.parse("2026-07-01T22:59:59Z").toEpochMilli()
+            val afterSummerMidnight = java.time.Instant.parse("2026-07-01T23:00:00Z").toEpochMilli()
+            // Winter: local midnight is midnight UTC.
+            val beforeWinterMidnight = java.time.Instant.parse("2026-10-31T23:59:59Z").toEpochMilli()
+            val afterWinterMidnight = java.time.Instant.parse("2026-11-01T00:00:00Z").toEpochMilli()
+
+            assertEquals(localDay(beforeSummerMidnight) + 1, localDay(afterSummerMidnight))
+            assertEquals(localDay(beforeWinterMidnight) + 1, localDay(afterWinterMidnight))
+            assertEquals(localDay(afterSummerMidnight), localDay(beforeSummerMidnight + 3_600_000L))
+        } finally {
+            TimeZone.setDefault(zone)
+        }
+    }
 }
