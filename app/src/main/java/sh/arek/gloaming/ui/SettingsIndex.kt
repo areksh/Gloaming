@@ -92,7 +92,7 @@ fun summary(page: SettingsPage, state: MainUiState): String {
     return when (page) {
         SettingsPage.Location -> when {
             settings.locationMode == LocationMode.Automatic && summaryAlarming(page, state) ->
-                "Approximate, from the phone. Background updates revoked; each time you open Gloaming"
+                "Approximate, from the phone. Background updates off, revoked by Android"
 
             settings.locationMode == LocationMode.Automatic ->
                 "Approximate, from the phone. ${describeCadenceSummary(settings.locationCadence)}"

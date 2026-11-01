@@ -458,7 +458,7 @@ class SettingsSummaryTest {
 
         assertTrue(summaryAlarming(SettingsPage.Location, revoked))
         assertEquals(
-            "Approximate, from the phone. Background updates revoked; each time you open Gloaming",
+            "Approximate, from the phone. Background updates off, revoked by Android",
             summary(SettingsPage.Location, revoked),
         )
     }
