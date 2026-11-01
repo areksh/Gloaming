@@ -109,6 +109,14 @@ comes first however low it is. If you would rather see every one above the
 horizon, that is a setting. Individual stars and deep-sky objects are
 deliberately not here: that is a catalogue, and Stellarium does it better.
 
+Find, beside Tonight on the bottom bar, turns the phone into a pointer. Pick a
+planet, the moon, a constellation, a satellite pass or the aurora, hold the
+phone up, and it says which way to turn and tilt until you are on it. True north
+comes from the phone's own model of the Earth's field, nothing is fetched, and
+when the compass is unsure Find offers a check that lets the phone relearn
+north. It is red on black and dimmed by default, so it does not cost you your
+night vision.
+
 None of which helps if you do not know the words. "On the far side of Polaris
 from the Plough" is a perfectly good direction and useless to somebody who knows
 neither, so there is a guide, a page under "Screen and reference" in Settings:

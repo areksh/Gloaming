@@ -317,6 +317,12 @@ is a file replacement.
   credential-encrypted store or the device-encrypted mirror a locked wake can
   reach - is the whole point of the split. `sh.arek.gloaming.data.BootAware`
   records that split and what may be written to which; it is not repeated here.
+
+  Two small additions sit in it. `OutlookStore` holds Tonight's opening
+  sentence, keyed by the grid cell and never the precise position, for the
+  widget and the aurora alert, which run where the whole of tonight cannot be
+  worked out. `LocationCadence` is the stored choice of how often a detected
+  position is refreshed (ADR-0016).
 - **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
   horizon-crossing search over the vendored propagator, which offers no search
   of its own), and `PassDescription` (qualitative buckets - never a magnitude).
@@ -326,8 +332,11 @@ is a file replacement.
   cell, or AuroraWatch inside the UK bounding box) so the UI never branches on
   which source is in play; the decision engine (hysteresis `T_on`/`T_off`,
   minimum re-alert interval, quiet hours, per-user threshold, the non-optional
-  darkness gate and the cloud gate); the astronomy calculators; and the
-  adaptive-polling scheduler policy.
+  darkness gate and the cloud gate); the astronomy calculators, among them
+  `astronomy.SkyPositions`, which places a body or a fixed point at an instant
+  for Find; `Outlook`, which decides Tonight's opening sentence from the same
+  documents by putting every candidate through the gates in order and keeping
+  the picks and the exclusions; and the adaptive-polling scheduler policy.
 - **scheduling:** `AlarmManager.setWindow()` or chained `OneTimeWorkRequest`s
   (WorkManager's 15-minute floor is too coarse in both directions, Sec. 9.3);
   every scheduled wake is jittered - spread either side of the requested time
@@ -401,6 +410,15 @@ is a file replacement.
   before setup existed is not asked again. The device-encrypted mirror carries
   it along and nothing reads it there.
 
+  **Colour, type and callbacks are each in one place.** `ui.theme.Palette`
+  holds every colour by role (the sky ramp, the cloud hatch, the dimmed row),
+  read from `LocalPalette` with the Material scheme derived from the same
+  values; there is a dark, a light and a night-vision palette, and no
+  wallpaper-derived colour. `UiActions` bundles every callback the screens can
+  raise, each defaulting to a no-op, and `MainActivity` is the one place that
+  builds the real one. `TimeOfDay.kt` parses and prints the typed `HH:MM` and
+  the device-zone clock and date strings the screens share.
+
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
   is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Find,
   Ahead, Settings); the guide is not one, and is a Settings page.
@@ -414,8 +432,9 @@ is a file replacement.
   lands on its index. Both are scrolling columns through `ScrollingSection`,
   which holds the padding and spacing the sections share. Tonight brings its
   own column, `TonightScreen`, with the same figures: a `PullToRefreshBox`
-  whose pull runs a check, over the scroll, and the Watch tonight button pinned beneath it
-  rather than scrolled. Its head is `TonightHeader` - a banner while
+  whose pull runs a check, over the scroll, and the Watch tonight button pinned
+  beneath it rather than scrolled (it opens `WatchSheet`, the choice of how
+  long). Its head is `TonightHeader` - a banner while
   background checks or notifications are not allowed, then the status line,
   which stays under it and opens the checks sheet (`ChecksSheet`: Check now,
   the last error, the downloads report, battery saver); then the date and the
@@ -535,6 +554,18 @@ Greenfield, held to the full TDD bar (ADR-0001).
   null-safe polar-darkness path (Sec. 5). Phase 3 runs Vallado's SGP4
   verification vectors in CI against the vendored propagator (Sec. 7) - a
   checklist gate before Phase 3 ships, not an aspiration.
+- **The redesigned screens are tested at the pure seam first.** The words and
+  the decisions are functions with JVM tests: `OutlookTest` (the picks and
+  exclusions), `OutlookWordsTest`, `NightTimelineTest` (rows, lanes and
+  layout), `TonightListsTest`, `AheadRowsTest`, `MonthStripTest`,
+  `SettingsSummaryTest`, `SetupStepsTest`, `RowTopicTest`, `PaletteTest`,
+  `OutlookStoreTest`, `SkyPositionsTest`, and for Find `FindTargetsTest`,
+  `PointingTest`, `CompassCheckTest` and `FindWordsTest`. The background
+  position refresh has `LocationCadenceTest`, `LocationRefreshTest`,
+  `CadenceRequestTest`, `CadenceWordingTest` and `BackgroundRequestTest`. What
+  has no JVM seam is on the phone: `GloamingNavTest`, `AheadScreenTest`,
+  `FindScreenTest` (against `FakeCompassSource`, so no real sensor is needed),
+  `SettingsPagesTest`, `SetupTest` and `CompassSensorTest`.
 - **Worker:** Vitest against workerd for the fetchers, `composeStatus()`, the
   packer and the circuit breaker.
 - **A catalogue of nights, shared by both suites.** `app/src/scenarios/` is a
