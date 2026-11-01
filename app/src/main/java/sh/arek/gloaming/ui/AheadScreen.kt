@@ -508,11 +508,12 @@ private fun KindsSheet(
  * The calendar's own vocabulary, behind one tap.
  *
  * Occultation, elongation, opposition and the rest are the app's densest run
- * of jargon, and unlike the Tonight tab there is no card here to hang an
- * Explain button off - Ahead is a year in one list. So it goes above the
- * filter, which is where somebody deciding what to hide is already looking,
- * and closed by default: a reader who knows the words should reach the first
- * month without scrolling past a glossary.
+ * of jargon. An event's sheet carries the notes for its kind, as every row's
+ * sheet does, but somebody reading a year of titles meets the words before
+ * opening anything. So the glossary goes above the kinds button, which is
+ * where somebody deciding what to hide is already looking, and is closed by
+ * default: a reader who knows the words should reach the first month without
+ * scrolling past a glossary.
  */
 @Composable
 private fun AheadHelp() {

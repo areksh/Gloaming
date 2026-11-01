@@ -100,5 +100,5 @@ private fun GuideEntryText(entry: GuideEntry) {
 /** How an entry is reached from a test, and kept stable across rewordings. */
 fun guideTag(entry: GuideEntry): String = "guide:${entry.term}"
 
-/** How the calendar's Explain button is reached from a test. */
+/** How Ahead's "What these words mean" button is reached from a test. */
 fun helpTag(topic: HelpTopic): String = "help:${topic.name}"
