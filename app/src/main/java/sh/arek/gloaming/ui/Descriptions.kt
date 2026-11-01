@@ -19,6 +19,7 @@ import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
 import sh.arek.gloaming.net.Transfer
 import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.satellites.IssCoverage
+import sh.arek.gloaming.satellites.SatellitePass
 
 /**
  * The sentences the screens are made of, apart from the screens themselves.
@@ -412,6 +413,12 @@ internal fun describeConstellation(seen: ConstellationTonight): String {
     return listOfNotNull(best, where, always, seen.constellation.starHop).joinToString(" ")
 }
 
+/** One pass in one line: when, which way, and how high. */
+internal fun describePassLine(pass: SatellitePass): String =
+    "${clock(pass.risesAt)}  ${pass.name} - rises ${Compass.of(pass.riseAzimuth).label}, " +
+        "highest ${pass.peakElevation.roundToInt()} degrees ${Compass.of(pass.peakAzimuth).label} " +
+        "at ${clock(pass.peaksAt)}"
+
 /**
  * One planet in one line: how high, which way, when, and how bright.
  *
@@ -511,7 +518,7 @@ fun isStale(ageMillis: Long?, afterMillis: Long = STALE_AFTER_MILLIS): Boolean =
 
 const val STALE_AFTER_MILLIS: Long = 3L * 24 * 60 * 60 * 1000
 
-/** What the satellites card says when it has no elements, and how loudly. */
+/** What Tonight says for the satellites when it has no elements, and how loudly. */
 data class SatellitesNote(val text: String, val alarming: Boolean)
 
 /**

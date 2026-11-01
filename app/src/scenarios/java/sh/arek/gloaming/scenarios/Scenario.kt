@@ -20,6 +20,7 @@ import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.NightTimeline
 
 /**
  * One night, chosen because it shows something the app would otherwise have to
@@ -293,6 +294,8 @@ object Scenarios {
     fun uiState(scenario: Scenario): MainUiState {
         val latitude = scenario.latitude
         val longitude = scenario.longitude
+        val tonight = tonight(scenario)
+        val outlook = outlook(scenario)
         return MainUiState(
             settings = scenario.settings,
             alertState = scenario.alertState,
@@ -309,9 +312,10 @@ object Scenarios {
                 null
             },
             calendar = calendar(scenario),
-            tonight = tonight(scenario),
-            outlook = outlook(scenario),
+            tonight = tonight,
+            outlook = outlook,
             hourly = scenario.hourly,
+            timeline = NightTimeline.of(tonight, outlook, scenario.hourly, scenario.settings, scenario.nowMillis),
             pendingVerdict = Conditions.decode(scenario.alertState.pendingVerdict),
         )
     }

@@ -95,13 +95,13 @@ proper astronomical darkness, which at this latitude does not arrive at all
 between May and August. The planets are there too, with how high each gets,
 which way to look, and which constellation each is sitting in.
 
-The constellations have a card of their own, because which patterns are up is a
-season rather than an occasion and a calendar of them would be an almanac. It
-leads with a handful worth going out for, with where to look and one sentence on
+The constellations are listed under the night, under "Also up tonight",
+because which patterns are up is a season rather than an occasion and a calendar
+of them would be an almanac. The list leads with a handful worth going out for, with where to look and one sentence on
 how to pick each one out - three stars in a line make Orion's belt, the end of
 the Plough's bowl points at Polaris. The ones that never set from where you are
 get named in a line at the end rather than a row each: they are the same every
-night of the year, and ranked by height they would fill the card and crowd out
+night of the year, and ranked by height they would fill the list and crowd out
 whatever has changed since last month. Whichever pattern is at its best tonight
 comes first however low it is. If you would rather see every one above the
 horizon, that is a setting. Individual stars and deep-sky objects are
@@ -113,9 +113,10 @@ neither, so there is a guide, under Settings: the landmarks every direction in
 the app is measured from, the vocabulary the rest of the app uses - magnitude,
 opposition, occultation, radiant, umbra - and the part nobody tells you, which
 is that your eyes take twenty minutes to adapt to the dark and an aurora rarely
-looks like the photographs. Each card on Tonight will also explain its own
-words in place, underneath its answer rather than in front of it, because the
-question gets asked while looking at the sentence that raised it. None of it
+looks like the photographs. Each row on Tonight's timeline will also explain
+its own words in place, in the sheet it opens, underneath its answer rather than
+in front of it, because the question gets asked while looking at the sentence
+that raised it. None of it
 needs a location, a forecast or a network, so it is the one screen that works
 before anything is set up.
 
@@ -319,7 +320,7 @@ Each night declares what it is supposed to show, and where it is about the
 opening sentence the outlook it should give, and `ScenariosTest` proves both -
 without that, a screen test against a scenario that had quietly gone empty would
 pass exactly as happily as one against a full one. `ScenarioScreensTest` then
-renders every one of them through the real Tonight tab on the device, and
+renders every one of them through the real Tonight screen on the device, and
 `ScenarioNotificationsTest` posts the notification each would produce.
 
 Two dates in the catalogue are not free choices. The satellite nights sit within

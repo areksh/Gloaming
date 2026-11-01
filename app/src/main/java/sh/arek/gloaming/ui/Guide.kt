@@ -11,7 +11,7 @@ package sh.arek.gloaming.ui
  * "the far side of Polaris from the Plough" - and that sentence is useless to
  * anybody who does not already know what Polaris and the Plough are, which is
  * exactly the reader it was written for. This is the rest of that thought:
- * every landmark the hops point from, every term the calendar and the cards
+ * every landmark the hops point from, every term the calendar and Tonight
  * put on screen, and the handful of things about actually standing outside in
  * the dark that no amount of arithmetic replaces.
  *
@@ -29,11 +29,11 @@ data class GuideEntry(val term: String, val body: String)
 data class GuideSection(val title: String, val blurb: String, val entries: List<GuideEntry>)
 
 /**
- * A card that can explain its own words.
+ * A set of words a part of the app can explain: a kind of row on Tonight's
+ * timeline ([helpTopic] says which), or the calendar.
  *
- * One per card that has any, which is not every card: a help button over
- * plain English is noise. [Guide.TOPIC_TERMS] says which entries each one
- * offers.
+ * Only where there are any: notes under plain English are noise.
+ * [Guide.TOPIC_TERMS] says which entries each one offers.
  */
 enum class HelpTopic {
     Aurora,
@@ -105,8 +105,8 @@ object Guide {
             GuideEntry(
                 "Star-hopping",
                 "Getting from a pattern you know to one you do not by following a line " +
-                    "of bright stars. It is how every direction on the constellations " +
-                    "card is written - follow the curve of the Plough's handle and you " +
+                    "of bright stars. It is how every direction for a constellation " +
+                    "on Tonight is written - follow the curve of the Plough's handle and you " +
                     "reach Arcturus - because a bare position in the sky is nearly " +
                     "impossible to point at and a chain of bright stars is easy. Learn " +
                     "three or four patterns and the rest opens up from them.",
@@ -170,7 +170,7 @@ object Guide {
     private val WORDS = GuideSection(
         title = "The words this app uses",
         blurb = "Astronomy has a habit of giving an ordinary-looking word a very " +
-            "specific job. These are the ones that turn up on the cards and in " +
+            "specific job. These are the ones that turn up on Tonight and in " +
             "the calendar.",
         entries = listOf(
             GuideEntry(
@@ -448,10 +448,10 @@ object Guide {
     val TERMS: List<GuideEntry> = SECTIONS.flatMap { it.entries }
 
     /**
-     * What each card offers to explain, in the order it offers it.
+     * What each topic offers to explain, in the order it offers it.
      *
      * Named by string rather than by reference so an entry lives in exactly
-     * one place - its section - and a card borrows it. The cost is that a
+     * one place - its section - and a topic borrows it. The cost is that a
      * typo here is a term that silently does not appear, which is what
      * `GuideTest` exists to catch.
      */
@@ -533,7 +533,7 @@ object Guide {
     )
 
     /**
-     * What one card explains, in the order it wants them.
+     * What one topic explains, in the order it wants them.
      *
      * Silently drops a term it cannot find rather than throwing. A help button
      * is not worth crashing a screen over, and the test catches the typo that

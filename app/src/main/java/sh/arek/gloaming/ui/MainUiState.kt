@@ -57,8 +57,8 @@ data class MainUiState(
     /**
      * Why the last attempt at the satellite elements failed, where that is known.
      *
-     * Resolved here so the satellites card can tell a fresh install apart from a
-     * broken download. In memory for one process, so a background poll that
+     * Resolved here so Tonight can tell a fresh install apart from a broken
+     * download. In memory for one process, so a background poll that
      * failed overnight leaves nothing to quote - which is a third case again,
      * and one [describeMissingElements] has words for.
      */
@@ -93,6 +93,11 @@ data class MainUiState(
     val outlook: OutlookReport? = null,
     /** The held hourly cloud forecast [outlook] was decided against. */
     val hourly: List<HourlyCover> = emptyList(),
+    /**
+     * Tonight from sunset to sunrise, laid out from [tonight] and [outlook],
+     * or null until both are worked out or where the sun does not set.
+     */
+    val timeline: Timeline? = null,
     /** True while a position is being read from the device. */
     val detectingLocation: Boolean = false,
     /**

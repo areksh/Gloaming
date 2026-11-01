@@ -320,6 +320,61 @@ class NightTimelineTest {
         assertTrue(timeline.cloud.all { it.fromMillis >= timeline.startMillis && it.untilMillis <= timeline.endMillis })
     }
 
+    /** The sky column is coloured by how far down the sun is, so the model carries that. */
+    @Test
+    fun `samples the sun's height down the night for the sky column`() {
+        val timeline = build(list())!!
+        val sun = timeline.sun
+
+        assertEquals(timeline.startMillis, sun.first().atMillis)
+        assertEquals(timeline.endMillis, sun.last().atMillis)
+        assertTrue(sun.zipWithNext().all { (a, b) -> b.atMillis - a.atMillis in 1..15 * 60_000L })
+        val midnight = sun.minBy { kotlin.math.abs(it.atMillis - at("2026-12-15T00:00:00Z")) }
+        assertEquals(Twilight.sunAltitude(55.9533, -3.1883, midnight.atMillis), midnight.altitude, 1e-9)
+        assertTrue("${midnight.altitude}", midnight.altitude < -18.0)
+    }
+
+    /** What TalkBack reads for the drawing, which is otherwise only shading and lines. */
+    @Test
+    fun `summarises the drawing in words`() {
+        val start = at("2026-12-14T15:40:00Z")
+        val end = at("2026-12-15T08:40:00Z")
+        val timeline = Timeline(
+            startMillis = start,
+            endMillis = end,
+            rows = emptyList(),
+            cloud = listOf(
+                CloudSpan(start, at("2026-12-14T17:00:00Z"), 90),
+                CloudSpan(at("2026-12-14T17:00:00Z"), at("2026-12-14T18:00:00Z"), 80),
+                CloudSpan(at("2026-12-14T18:00:00Z"), at("2026-12-15T02:00:00Z"), 10),
+                CloudSpan(at("2026-12-15T02:00:00Z"), at("2026-12-15T03:00:00Z"), 60),
+            ),
+            lanes = listOf(
+                Lane("Moon", LaneStyle.Solid, at("2026-12-14T20:40:00Z"), end),
+                Lane("Jupiter", LaneStyle.Dashed, start, at("2026-12-15T04:10:00Z")),
+                Lane("Saturn", LaneStyle.Dotted, start, end),
+            ),
+            nowMillis = at("2026-12-14T18:05:00Z"),
+        )
+
+        assertEquals(
+            "Tonight from sunset at 15:40 to sunrise at 08:40. Mostly cloudy until 18:00, " +
+                "and from 02:00 to 03:00. The moon is up from 20:40. Jupiter is up until 04:10. " +
+                "Saturn is up all night. Now 18:05.",
+            NightTimeline.summary(timeline),
+        )
+    }
+
+    @Test
+    fun `summarises a clear night with nothing drawn on it in a sentence`() {
+        val timeline = Timeline(
+            at("2026-12-14T15:40:00Z"), at("2026-12-15T08:40:00Z"),
+            emptyList(), emptyList(), emptyList(), null,
+        )
+
+        assertEquals("Tonight from sunset at 15:40 to sunrise at 08:40.", NightTimeline.summary(timeline))
+    }
+
     @Test
     fun `layout keeps a row at its time when there is room`() {
         assertEquals(listOf(0, 100, 300), NightTimeline.layout(listOf(0, 100, 300), listOf(50, 50, 50), 8))

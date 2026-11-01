@@ -33,8 +33,7 @@ fun GuideContent() {
                     "that assumes you have never done any of it before: the landmarks " +
                     "every direction is measured from, what the words used elsewhere in the app " +
                     "mean, and what actually helps once you are outside in the dark. " +
-                    "Each card on Tonight can explain its own words too - the " +
-                    "Explain button beside its heading.",
+                    "Each row on Tonight explains its own words too - tap it.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -54,12 +53,11 @@ fun GuideContent() {
 }
 
 /**
- * What one card's words mean, under the card that used them.
+ * What one row's words mean, in the sheet that row opens.
  *
- * Opened in place rather than sending the reader to the Guide tab. The
- * question is asked while looking at the sentence that raised it, and an
- * answer that costs you your place on the screen is one nobody comes back
- * from.
+ * Opened in place rather than sending the reader to the guide. The question
+ * is asked while looking at the sentence that raised it, and an answer that
+ * costs you your place on the screen is one nobody comes back from.
  */
 @Composable
 internal fun HelpNotes(topic: HelpTopic) {
@@ -70,10 +68,10 @@ internal fun HelpNotes(topic: HelpTopic) {
 }
 
 /**
- * The same words, where a whole screen rather than one card raised them.
+ * The same words, where a whole screen rather than one row raised them.
  *
- * The calendar has no cards to hang an Explain button off - it is a year in
- * one list - so its entries arrive as a card of their own above the filter.
+ * The calendar has no rows to open - it is a year in one list - so its
+ * entries arrive as a card of their own above the filter.
  */
 @Composable
 internal fun HelpCard(topic: HelpTopic) {
@@ -102,5 +100,5 @@ private fun GuideEntryText(entry: GuideEntry) {
 /** How an entry is reached from a test, and kept stable across rewordings. */
 fun guideTag(entry: GuideEntry): String = "guide:${entry.term}"
 
-/** How a card's Explain button is reached from a test. */
+/** How the calendar's Explain button is reached from a test. */
 fun helpTag(topic: HelpTopic): String = "help:${topic.name}"

@@ -22,6 +22,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the way to allow them. Watch now is a "Watch tonight" button pinned at the foot
   of the screen: it offers the choice of how long in a sheet, and while a
   watch runs it says until when and stops on a tap.
+- **Tonight is the night itself, drawn from sunset to sunrise.** The stack of
+  cards is gone. Under the opening sentence the night runs down the screen,
+  every hour the same height: a column shaded from dusk to full dark and back,
+  forecast cloud hatched over it, the moon and up to two bright planets as
+  solid, dashed and dotted lines beside it, and a line at now. Twilight,
+  satellite passes (with a small compass of the way each crosses), moonrise
+  and moonset, the planets, dated events and the clear spell sit at their
+  times; the ones behind cloud are dimmed and the ones worth going out for are
+  bold, so it reads in night vision too. Tapping a row opens a sheet with the
+  detail, any caveat, and the explanation of its words that used to sit
+  behind each card's Explain button, with Share and Export for a dated event.
+  Under the night, "Also up tonight" lists the constellations, comets and
+  anything else up without a row, and "Not worth it tonight" lists what was
+  left out and why - including when Gloaming has no satellite data to say what
+  is crossing. The Open-Meteo credit sits under the cloud it covers and the
+  AuroraWatch credit under the line that reads their figure. Where the sun
+  neither sets nor rises, as in a polar winter, how dark it gets is said in
+  words instead. TalkBack reads the night as a list, in time order.
 - **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot
   of the screen, within thumb's reach. The calendar is now called Ahead, and
   the guide is no longer a tab of its own: it moves under Settings, as "Guide

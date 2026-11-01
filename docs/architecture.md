@@ -386,9 +386,9 @@ is a file replacement.
 - **ui:** Compose screens; a prominent staleness display that distinguishes
   "quiet/dormant" from "not looked recently" (Sec. 10); red night-vision mode
   and a home-screen widget (Phase 2). Also the guide - `Guide.kt` is pure data
-  like `Credits.kt`, read both by its own page under Settings and by the Explain
-  button on each Tonight card, so a term is worded once and shown in two
-  places.
+  like `Credits.kt`, read both by its own page under Settings and by the sheet
+  each row on Tonight's timeline opens (`helpTopic` picks the entries), so a
+  term is worded once and shown in two places.
 
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
   is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
@@ -406,7 +406,22 @@ is a file replacement.
   forecast, so the sentence and the night beneath it cannot disagree. The
   elements' age it is given is how long ago `sats.json` says they were
   published, not how long the phone has held them, since a 304 keeps the
-  latter young for ever. The calendar is a `LazyColumn` owning its own
+  latter young for ever. The same pass lays the night out as a `Timeline`
+  (`NightTimeline.of`: rows, cloud spans, lanes and the sun's altitude every
+  quarter hour, matching rows to the outlook's picks and exclusions so a row's
+  weight is the outlook's verdict). Under the header, `NightTimelineView` draws
+  it at 56 dp an hour: one `Canvas` for the sky column, hatching, lanes and
+  the now line, heard by a screen reader as `NightTimeline.summary`, with the
+  rows as real tappable nodes over it placed by `NightTimeline.layout`, so
+  TalkBack reads them in time order. With no sunset or sunrise to bound it -
+  the polar night, the midnight sun - there is no timeline, and the darkness
+  thresholds are said in words in its place. A row opens `RowSheet` - the detail the
+  old cards carried, the caveat, the guide's notes, Share and Export for a
+  dated event. `TonightLists` works out the two lists beneath: "Also up
+  tonight" (whatever is up with no row and was not set aside) and "Not worth
+  it tonight" (the outlook's exclusions in `OutlookWords.excluded`, then the
+  satellites when there are none to list, saying whether the sky is empty or
+  the elements are missing). The calendar is a `LazyColumn` owning its own
   scrolling, because a year ahead is around a hundred entries and composing
   them all cost a frame of 1300ms on opening and every frame of a scroll
   afterwards - and because a lazy list measured inside a scrolling column is

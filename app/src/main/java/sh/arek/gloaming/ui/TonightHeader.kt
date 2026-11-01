@@ -160,7 +160,8 @@ private fun AlertBanner(title: String, body: String, action: String, onAction: (
 }
 
 /**
- * The date, the opening sentence and the line under it.
+ * The date, the opening sentence, the line under it, and where the aurora
+ * reading came from when that is AuroraWatch.
  *
  * Without a location the sentence slot asks for one, which is the only true
  * thing it could say. With one but no outlook yet it is left empty: the
@@ -198,6 +199,17 @@ private fun OutlookLines(state: MainUiState) {
         }
         follow?.let {
             Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+        }
+        // Beside the outlook that reads it. AuroraWatch's conditions tie the
+        // credit to their data, and somebody deciding whether to trust 55%
+        // should see where it came from without scrolling; the attribution
+        // they specify is carried in full under Credits and licences.
+        if (state.settings.hasLocation && state.alertState.lastFromAuroraWatch) {
+            Text(
+                "This reading came from AuroraWatch UK.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.muted,
+            )
         }
     }
 }

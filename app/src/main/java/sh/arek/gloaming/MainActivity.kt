@@ -86,6 +86,8 @@ import sh.arek.gloaming.ui.DownloadRow
 import sh.arek.gloaming.ui.GloamingNav
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.NightTimeline
+import sh.arek.gloaming.ui.Timeline
 import sh.arek.gloaming.ui.UiActions
 import sh.arek.gloaming.ui.formatTimeOfDay
 import sh.arek.gloaming.ui.parseTimeOfDay
@@ -117,6 +119,14 @@ private const val DEFAULT_QUIET_UNTIL = 7 * 60
  * catalogue sixty times an hour for an answer that changes slowly.
  */
 private const val TONIGHT_STALE_MILLIS = 15 * 60_000L
+
+/** Tonight as worked out off the main thread: the list, its outlook and its timeline. */
+private class WorkedNight(
+    val list: TonightList,
+    val report: OutlookReport?,
+    val forecast: List<HourlyCover>,
+    val timeline: Timeline?,
+)
 
 /**
  * How often the downloads card re-reads what the fetcher has been doing.
@@ -360,6 +370,7 @@ private fun GloamingApp() {
     var tonight by remember { mutableStateOf<TonightList?>(null) }
     var outlook by remember { mutableStateOf<OutlookReport?>(null) }
     var hourly by remember { mutableStateOf(emptyList<HourlyCover>()) }
+    var timeline by remember { mutableStateOf<Timeline?>(null) }
     var detectingLocation by remember { mutableStateOf(false) }
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
@@ -873,6 +884,7 @@ private fun GloamingApp() {
             tonight = null
             outlook = null
             hourly = emptyList()
+            timeline = null
             return@LaunchedEffect
         }
         val worked = withContext(Dispatchers.Default) {
@@ -922,12 +934,20 @@ private fun GloamingApp() {
                         ),
                     )
                 }.onFailure { Log.w("Gloaming", "could not work out the outlook", it) }.getOrNull()
-                Triple(list, report, forecast)
+                // Laid out from the same list and outlook, so a row's weight
+                // is the outlook's own verdict on it.
+                val night = report?.let {
+                    runCatching { NightTimeline.of(list, it, forecast, settings, now) }
+                        .onFailure { e -> Log.w("Gloaming", "could not lay out the night", e) }
+                        .getOrNull()
+                }
+                WorkedNight(list, report, forecast, night)
             }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()
         }
-        tonight = worked?.first
-        outlook = worked?.second
-        hourly = worked?.third.orEmpty()
+        tonight = worked?.list
+        outlook = worked?.report
+        hourly = worked?.forecast.orEmpty()
+        timeline = worked?.timeline
     }
 
     GloamingTheme(nightVision = settings.nightVision) {
@@ -961,6 +981,7 @@ private fun GloamingApp() {
                     tonight = tonight,
                     outlook = outlook,
                     hourly = hourly,
+                    timeline = timeline,
                     detectingLocation = detectingLocation,
                     locationNote = locationNote,
                     backgroundLocationAllowed = backgroundLocationOk,

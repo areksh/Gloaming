@@ -62,13 +62,22 @@ data class Timeline(
     val lanes: List<Lane>,
     /** Where now falls on the axis, null once the night is over or before it starts. */
     val nowMillis: Long?,
+    /** How far down the sun is through the night, for colouring the sky column. */
+    val sun: List<SunSample> = emptyList(),
 )
+
+/** The sun's altitude, in degrees, at one moment of the night. */
+data class SunSample(val atMillis: Long, val altitude: Double)
 
 /** Builds the [Timeline] and does the arithmetic of laying its rows out. Pure and clock-free. */
 object NightTimeline {
 
     private const val HOUR_MILLIS: Long = 60 * 60 * 1000L
     private const val MAX_PLANET_LANES: Int = 2
+    private const val SUN_STEP_MILLIS: Long = 15 * 60 * 1000L
+
+    /** Cover at or above which a stretch of the night is called mostly cloudy. */
+    private const val CLOUDY_PERCENT: Int = 50
 
     /**
      * Null when there is no sunset or no sunrise to bound the night - the
@@ -175,7 +184,18 @@ object NightTimeline {
             cloud = cloudSpans(hourly, start, end),
             lanes = lanes(list, start, end),
             nowMillis = nowMillis.takeIf { it in start..end },
+            sun = sunSamples(latitude, longitude, start, end),
         )
+    }
+
+    /**
+     * Every quarter of an hour from sunset to sunrise, both ends included.
+     * Fine enough that the twilight bands blend rather than step at 56 dp an
+     * hour, and few enough to work out with the rest of the night.
+     */
+    private fun sunSamples(latitude: Double, longitude: Double, start: Long, end: Long): List<SunSample> {
+        val times = generateSequence(start) { it + SUN_STEP_MILLIS }.takeWhile { it < end }.toList() + end
+        return times.map { SunSample(it, Twilight.sunAltitude(latitude, longitude, it)) }
     }
 
     /**
@@ -204,6 +224,46 @@ object NightTimeline {
      * [idealTops] must be in row order. A row is only ever pushed down, to
      * exactly [gap] below the one above it, never up past its own time.
      */
+    /**
+     * The drawing in one paragraph, for a screen reader: the span of the
+     * night, when it is mostly cloudy, what each lane says is up, and now.
+     * The rows say the rest themselves.
+     */
+    fun summary(timeline: Timeline): String {
+        val start = timeline.startMillis
+        val end = timeline.endMillis
+
+        fun span(from: Long, until: Long): String = when {
+            from <= start && until >= end -> "all night"
+            from <= start -> "until ${clock(until)}"
+            until >= end -> "from ${clock(from)}"
+            else -> "from ${clock(from)} to ${clock(until)}"
+        }
+
+        val sentences = mutableListOf("Tonight from sunset at ${clock(start)} to sunrise at ${clock(end)}.")
+
+        val cloudy = mutableListOf<LongRange>()
+        for (span in timeline.cloud.sortedBy { it.fromMillis }.filter { it.cover >= CLOUDY_PERCENT }) {
+            val last = cloudy.lastOrNull()
+            if (last != null && last.last >= span.fromMillis) {
+                cloudy[cloudy.lastIndex] = last.first..maxOf(last.last, span.untilMillis)
+            } else {
+                cloudy += span.fromMillis..span.untilMillis
+            }
+        }
+        if (cloudy.isNotEmpty()) {
+            sentences += "Mostly cloudy " + cloudy.joinToString(", and ") { span(it.first, it.last) } + "."
+        }
+
+        for (lane in timeline.lanes) {
+            val name = if (lane.label == "Moon") "The moon" else lane.label
+            sentences += "$name is up ${span(lane.fromMillis, lane.untilMillis)}."
+        }
+
+        timeline.nowMillis?.let { sentences += "Now ${clock(it)}." }
+        return sentences.joinToString(" ")
+    }
+
     fun layout(idealTops: List<Int>, heights: List<Int>, gap: Int): List<Int> {
         val tops = IntArray(idealTops.size)
         for (i in idealTops.indices) {

@@ -1009,7 +1009,7 @@ private fun ConstellationCard(state: MainUiState, onChange: (Boolean) -> Unit) {
                 } else {
                     "The handful worth leading with, and the ones that never set named " +
                         "in a line at the end. Ranked by height alone the patterns that " +
-                        "are up every night of the year fill the card, and what has " +
+                        "are up every night of the year fill the list, and what has " +
                         "changed since last month never reaches it."
                 },
                 style = MaterialTheme.typography.bodySmall,

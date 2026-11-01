@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -19,6 +20,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -60,6 +62,8 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.WatchDuration
 import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.Calibration
+import sh.arek.gloaming.domain.Excluded
+import sh.arek.gloaming.domain.Gate
 import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.domain.OutlookReport
@@ -78,8 +82,8 @@ import sh.arek.gloaming.satellites.SatellitePass
  * button reports being busy.
  *
  * Tonight and Settings are rendered together in one column here rather than
- * through the tab bar, because these assertions are about what each card says
- * and not about which tab it is behind. GloamingNavTest covers the navigation.
+ * through the bottom bar, because these assertions are about what each part
+ * says and not about which section it is in. GloamingNavTest covers the navigation.
  *
  * **These need the device unlocked.** An activity launched behind the keyguard
  * resumes for an instant and pauses again without ever drawing, so the Compose
@@ -127,6 +131,8 @@ class ScreensTest {
     private var verdict: Answer? = null
     private var automatic: Boolean? = null
     private var exported = 0
+    private var sharedEvent: SkyEvent? = null
+    private var exportedEvent: SkyEvent? = null
     private var cleared = 0
 
 
@@ -145,6 +151,7 @@ class ScreensTest {
         backgroundLocationAllowed: Boolean = false,
         tonight: TonightList? = null,
         outlook: OutlookReport? = null,
+        timeline: Timeline? = null,
         calendarName: String? = null,
         pendingVerdict: Conditions? = null,
         recommendations: Recommendations? = null,
@@ -184,6 +191,7 @@ class ScreensTest {
                     backgroundLocationAllowed = backgroundLocationAllowed,
                     tonight = tonight,
                     outlook = outlook,
+                    timeline = timeline,
                     calendarName = calendarName,
                     pendingVerdict = pendingVerdict,
                     recommendations = recommendations,
@@ -200,6 +208,8 @@ class ScreensTest {
                     onPollNow = { polled++ },
                     onRequestBatteryExemption = { exemptionsAsked++ },
                     onRequestNotifications = { notificationsAsked++ },
+                    onShareEvent = { sharedEvent = it },
+                    onExportEvent = { exportedEvent = it },
                 )
                 TonightContent(state = state, actions = tonightActions)
                 // Pinned under the scroll on the real screen; here it follows
@@ -246,59 +256,48 @@ class ScreensTest {
         }
     }
 
-    @Test
-    fun showsTheProbabilityAndItsAge() {
-        show(alertState = AlertState(lastProbability = 42, lastPollAt = now - 10 * 60_000L))
-
-        compose.onNodeWithText("Aurora").assertExists()
-        compose.onNodeWithText("42% probability here").assertExists()
-        compose.onNodeWithTag(STATUS_LINE_TAG)
-            .assertTextContains("Checked 10 minutes ago", substring = true)
-    }
-
     /**
-     * Every part of Tonight says what it is about.
-     *
-     * The reported complaint was that the tab was unreadable: an oversized
-     * unlabelled percentage over a card called "Tonight" that was mostly
-     * satellite passes. These are the titles, and the titles are the fix.
+     * How old the reading is, on the status line, and the aurora itself among
+     * what was left out - in the outlook's words, with the figure in them.
      */
     @Test
-    fun titlesEveryPartOfTonight() {
+    fun showsTheAgeOfTheReadingAndListsTheAuroraLeftOut() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
+            alertState = AlertState(lastProbability = 32, lastPollAt = now - 10 * 60_000L),
+            tonight = quietNight(),
+            outlook = leftOut(Excluded("Aurora", null, Gate.Aurora, note = "32")),
         )
 
-        for (title in listOf("Aurora", "Darkness", "Satellites")) {
-            compose.onNodeWithText(title).performScrollTo().assertIsDisplayed()
-        }
+        compose.onNodeWithTag(STATUS_LINE_TAG)
+            .assertTextContains("Checked 10 minutes ago", substring = true)
+        inList(NOT_WORTH_TAG, "Aurora")
+        inList(NOT_WORTH_TAG, "32%, too weak to see from here.")
     }
 
-    /** A card with nothing to say is absent rather than empty. */
+    /** The night is drawn, and each list under it says what it is. */
     @Test
-    fun leavesOutTheCardsWithNothingToSay() {
+    fun titlesTheListsUnderTheTimeline() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
+            tonight = withConstellations(isAtItsBest = false),
+            outlook = leftOut(Excluded("Aurora", null, Gate.Aurora, note = "12")),
+            timeline = night(),
         )
 
-        compose.onNodeWithText("Events tonight").assertDoesNotExist()
-        compose.onNodeWithText("Comets tonight").assertDoesNotExist()
+        compose.onNodeWithTag(TIMELINE_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Also up tonight").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Not worth it tonight").performScrollTo().assertIsDisplayed()
+    }
+
+    /** A list with nothing in it is absent rather than a heading over nothing. */
+    @Test
+    fun leavesOutAListWithNothingInIt() {
+        show(
+            tonight = quietNight(passes = listOf(station)),
+            timeline = night(passRow(station)),
+        )
+
+        compose.onNodeWithTag(ALSO_UP_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(NOT_WORTH_TAG).assertDoesNotExist()
     }
 
     /** The state the reported bug was stuck in. */
@@ -1561,156 +1560,92 @@ class ScreensTest {
 
     // --- tonight ---
 
-    /** Passes were only ever reachable as a notification. Now they are readable. */
+    /** Passes were only ever reachable as a notification. Now they are rows on the night. */
     @Test
     fun listsWhatIsCrossingTonight() {
-        val station = SatellitePass(
-            catalogue = 25544,
-            name = "ISS (ZARYA)",
-            channel = PassChannel.Iss,
-            risesAt = now + 3_600_000L,
-            riseAzimuth = 225.0,
-            peaksAt = now + 3_900_000L,
-            peakElevation = 68.0,
-            peakAzimuth = 180.0,
-            setsAt = now + 4_200_000L,
-            setAzimuth = 135.0,
-            rangeAtPeakKm = 420.0,
-            sunlitAtPeak = true,
-            entersShadowAt = null,
-            leavesShadowAt = null,
-        )
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = listOf(station),
-                bestPasses = listOf(station),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+        val row = passRow(station)
+        show(tonight = quietNight(passes = listOf(station)), timeline = night(row))
 
-        compose.onNodeWithText("Satellites").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("ISS (ZARYA)", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("68 degrees south", substring = true).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("ISS (ZARYA), 68 degrees high").assertIsDisplayed()
+        openRow(row)
+        inSheet("68 degrees south", substring = true)
     }
 
-    /** An empty sky is an answer, not a blank card. */
+    /** An empty sky is an answer, not a blank. */
     @Test
     fun saysWhenNothingIsCrossingTonight() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+        show(tonight = quietNight())
 
-        compose.onNodeWithText("Nothing crossing tonight", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(NOT_WORTH_TAG, "Nothing crossing tonight", substring = true)
     }
 
     /**
-     * The cloud the app gates every alert on, said out loud for the first time.
+     * The cloud the app gates every alert on, said out loud.
      *
      * "80% cloud" is the wrong summary of a night that is overcast until
-     * midnight and then clear for three hours, so the gap is the line that
-     * matters rather than the number above it.
+     * midnight and then clear for three hours, so the gap is the row on the
+     * night, and the figure is a tap away on it.
      */
     @Test
     fun showsTheCloudAndTheGapInIt() {
+        val spell = ClearSpell(
+            from = now + 3 * 3_600_000L,
+            until = now + 5 * 3_600_000L,
+            underway = false,
+            allNight = false,
+        )
+        val row = row(spell.from, "Clear until ${clock(spell.until)}", RowSubject.Clear, tone = RowTone.Strong)
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
+            tonight = quietNight().copy(
                 cloud = CloudCover(total = 80, low = 60, mid = 20, high = 10),
-                clearSpell = ClearSpell(
-                    from = now + 3 * 3_600_000L,
-                    until = now + 5 * 3_600_000L,
-                    underway = false,
-                    allNight = false,
-                ),
+                clearSpell = spell,
             ),
+            timeline = night(row, cloud = listOf(CloudSpan(now - 3_600_000L, spell.from, 80))),
         )
 
-        compose.onNodeWithText("Sky now").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("80% cloud overhead.").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Clearer from about", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        openRow(row)
+        inSheet("80% cloud overhead.")
+        inSheet("Clearer from about", substring = true)
     }
 
     /**
-     * CC BY 4.0 requires the credit beside the data it covers, and this is the
-     * first place in the app that shows a forecast rather than acting on one
-     * out of sight.
+     * CC BY 4.0 requires the credit beside the data it covers, and the
+     * timeline is where the forecast is drawn. The cloud gate is off here so
+     * the settings screen, rendered in the same column, does not credit it too.
      */
     @Test
     fun creditsOpenMeteoBesideTheForecast() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-                cloud = CloudCover(total = 10, low = 0, mid = 0, high = 10),
-            ),
+            settings = located.copy(cloudGateEnabled = false),
+            tonight = quietNight(),
+            timeline = night(cloud = listOf(CloudSpan(now - 3_600_000L, now, 60))),
         )
 
-        compose.onNodeWithText("Sky now").performScrollTo().assertIsDisplayed()
-        compose.onAllNodesWithText("Weather data by Open-Meteo.com").onFirst().assertExists()
+        compose.onNodeWithText("Weather data by Open-Meteo.com").performScrollTo().assertIsDisplayed()
+        val credit = compose.onNodeWithText("Weather data by Open-Meteo.com").getUnclippedBoundsInRoot()
+        val drawn = compose.onNodeWithTag(TIMELINE_TAG).getUnclippedBoundsInRoot()
+        assertTrue(credit.top >= drawn.bottom)
     }
 
-    /** Nothing held and nothing forecast is not a card saying "unknown". */
+    /** No cloud drawn, no credit for it. */
     @Test
-    fun leavesOutTheSkyCardWithNoReadingAtAll() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+    fun leavesOutTheWeatherCreditWithNoCloudDrawn() {
+        show(settings = located.copy(cloudGateEnabled = false), tonight = quietNight(), timeline = night())
 
-        compose.onNodeWithText("Sky now").assertDoesNotExist()
+        compose.onNodeWithText("Weather data by Open-Meteo.com").assertDoesNotExist()
     }
 
     /**
-     * The moon, which the app has weighed against every comet since comets went
-     * in and never once mentioned. What it reports is how much of the night the
-     * moon spoils rather than how bright it is - a full moon that has set by
-     * midnight costs far less than a half moon up all night.
+     * The moon, which the app has weighed against every comet and once never
+     * mentioned. Up all night it has no row to tap, so it is listed - with how
+     * much of the night it spoils rather than how bright it is, since a full
+     * moon that has set by midnight costs far less than a half moon up all night.
      */
     @Test
     fun showsTheMoonAndWhatItCostsTheNight() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
+            tonight = quietNight().copy(
                 moon = MoonTonight(
                     phaseDegrees = 180.0,
                     illumination = 0.98,
@@ -1720,13 +1655,12 @@ class ScreensTest {
                     setsAt = null,
                 ),
             ),
+            timeline = night(),
         )
 
-        compose.onNodeWithText("The moon").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Full moon, 98% lit.").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("washes out about 98%", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(ALSO_UP_TAG, "The moon")
+        inList(ALSO_UP_TAG, "Full moon, 98% lit.", substring = true)
+        inList(ALSO_UP_TAG, "washes out about 98%", substring = true)
     }
 
     /**
@@ -1737,97 +1671,62 @@ class ScreensTest {
      */
     @Test
     fun showsBothDarknessThresholds() {
+        val dark = row(now, "Dark enough for aurora", RowSubject.Twilight)
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-                darkestFrom = now + 3_600_000L,
-                darkestUntil = now + 7 * 3_600_000L,
-            ),
+            tonight = quietNight().copy(darkestFrom = now + 3_600_000L, darkestUntil = now + 7 * 3_600_000L),
+            timeline = night(dark),
         )
 
-        compose.onNodeWithText("Dark from", substring = true).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Fully dark from", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        openRow(dark)
+        inSheet("Dark from", substring = true)
+        inSheet("Fully dark from", substring = true)
     }
 
     @Test
     fun saysWhenItNeverGetsFullyDark() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+        val drawn = night()
+        show(tonight = quietNight(), timeline = drawn)
 
-        compose.onNodeWithText("It never gets fully dark here", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        openRow(drawn.rows.first())
+        inSheet("It never gets fully dark here", substring = true)
     }
 
     /**
-     * The one card on the tab whose answer is certain. Cloud is a forecast, an
-     * aurora is a probability and a comet is usually a disappointment; a planet
-     * is where the arithmetic says it is, and will be there.
+     * The one answer on the screen that is certain. Cloud is a forecast, an
+     * aurora is a probability and a comet is usually a disappointment; a
+     * planet is where the arithmetic says it is, and will be there.
      */
     @Test
     fun showsThePlanetsUpTonight() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-                planets = listOf(
-                    PlanetTonight(
-                        body = SkyBody.Jupiter,
-                        peakAltitude = 46.4,
-                        peakAt = now + 3 * 3_600_000L,
-                        peakAzimuth = 178.0,
-                        magnitude = -2.46,
-                        risesAt = null,
-                        setsAt = null,
-                    ),
-                ),
-            ),
+        val jupiter = PlanetTonight(
+            body = SkyBody.Jupiter,
+            peakAltitude = 46.4,
+            peakAt = now + 3 * 3_600_000L,
+            peakAzimuth = 178.0,
+            magnitude = -2.46,
+            risesAt = null,
+            setsAt = null,
         )
+        val row = row(jupiter.peakAt, "Jupiter highest, 46 degrees", RowSubject.Planet(jupiter))
+        show(tonight = quietNight().copy(planets = listOf(jupiter)), timeline = night(row))
 
-        compose.onNodeWithText("Planets tonight").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Jupiter").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Highest 46 degrees south", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        compose.onNodeWithText("Jupiter highest, 46 degrees").performScrollTo().assertIsDisplayed()
+        openRow(row)
+        inSheet("Highest 46 degrees south", substring = true)
     }
 
     /**
-     * The other card whose answer is certain, and the only one that tries to
-     * teach rather than report: the star-hop is there for somebody who cannot
-     * yet find the pattern the rest of the line is describing.
+     * The other answer that is certain, and the only one that tries to teach
+     * rather than report: the star-hop is there for somebody who cannot yet
+     * find the pattern the rest of the line is describing.
      */
     @Test
     fun showsTheConstellationsUpTonight() {
         show(tonight = withConstellations(isAtItsBest = false))
 
-        compose.onNodeWithText("Constellations tonight").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Orion").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Highest 39 degrees south", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
-        compose.onNodeWithText("belt", substring = true).performScrollTo().assertIsDisplayed()
+        inList(ALSO_UP_TAG, "Orion")
+        inList(ALSO_UP_TAG, "Highest 39 degrees south", substring = true)
+        inList(ALSO_UP_TAG, "belt", substring = true)
     }
 
     /** The one night of the year says so, because it is why to go out tonight. */
@@ -1835,20 +1734,19 @@ class ScreensTest {
     fun marksTheConstellationAtItsBestTonight() {
         show(tonight = withConstellations(isAtItsBest = true))
 
-        compose.onNodeWithText("At its best tonight", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(ALSO_UP_TAG, "At its best tonight", substring = true)
     }
 
-    /** Absent rather than empty, like every card on the tab but the satellites. */
+    /** Nothing listed for a pattern that is not up. */
     @Test
-    fun leavesOutTheConstellationsCardWhenNoneAreUp() {
+    fun leavesOutAConstellationThatIsNotUp() {
         show(tonight = withConstellations(isAtItsBest = false).copy(constellations = emptyList()))
 
-        compose.onNodeWithText("Constellations tonight").assertDoesNotExist()
+        compose.onNodeWithText("Orion").assertDoesNotExist()
+        compose.onNodeWithTag(ALSO_UP_TAG).assertDoesNotExist()
     }
 
-    /** The ones held back are still said, or the card would simply lose them. */
+    /** The ones held back are still said, or the list would simply lose them. */
     @Test
     fun namesTheConstellationsThatNeverSet() {
         show(
@@ -1859,66 +1757,246 @@ class ScreensTest {
         // Matched on the opening rather than on "every night of the year",
         // which the settings card explaining this control also says - and
         // show() renders both screens into one column.
-        compose.onNodeWithText("Also up, as they are", substring = true)
+        inList(ALSO_UP_TAG, "Also up, as they are", substring = true)
+    }
+
+    /**
+     * A row explains its own words, in the sheet it opens.
+     *
+     * A pass at 68 degrees is no use to somebody who does not know what a
+     * pass or a degree above the horizon is - and that is precisely the
+     * reader the row is for. The words are beside the row that used them
+     * rather than a page away, and only its own: a pass has no business
+     * explaining a star-hop.
+     */
+    @Test
+    fun aRowExplainsItsWords() {
+        val row = passRow(station)
+        show(tonight = quietNight(passes = listOf(station)), timeline = night(row))
+
+        openRow(row)
+
+        compose.onNode(hasTestTag(guideTag(term("A pass"))) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG)))
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithTag(guideTag(term("Polaris"))).assertDoesNotExist()
+    }
+
+    /**
+     * Closed until asked for. The night is what somebody came for, and a
+     * glossary in front of it is a glossary between them and tonight.
+     */
+    @Test
+    fun keepsTheExplanationOutOfTheWayUntilARowIsTapped() {
+        show(tonight = quietNight(passes = listOf(station)), timeline = night(passRow(station)))
+
+        compose.onNodeWithTag(ROW_SHEET_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(guideTag(term("A pass"))).assertDoesNotExist()
+    }
+
+
+    /**
+     * TalkBack reads the night as a list: the drawing as one sentence, then
+     * every row as something to tap, in time order - and two rows at the same
+     * minute are nudged apart rather than drawn over each other.
+     */
+    @Test
+    fun everyTimelineRowIsReachableInTimeOrder() {
+        val drawn = night(
+            row(now, "Dark enough for aurora", RowSubject.Twilight),
+            passRow(station),
+            eventRow(eclipse),
+            row(eclipse.at, "Moonrise", RowSubject.Moon),
+        )
+        show(tonight = quietNight(passes = listOf(station), events = listOf(eclipse)), timeline = drawn)
+
+        compose.onNode(hasContentDescription(NightTimeline.summary(drawn))).assertExists()
+        for (row in drawn.rows) {
+            compose.onNodeWithTag(timelineRowTag(row))
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHasClickAction()
+        }
+        // Read without scrolling in between, so every bound is from one offset.
+        val bounds = drawn.rows.map { compose.onNodeWithTag(timelineRowTag(it)).getUnclippedBoundsInRoot() }
+        for ((above, below) in bounds.zipWithNext()) {
+            assertTrue("$above then $below", below.top >= above.bottom)
+        }
+    }
+
+    /**
+     * Inside the arctic circle in December the sun never sets because it
+     * never rises, so there is no night to draw from sunset to sunrise - but
+     * the darkness is the whole point of the place, and is still said.
+     */
+    @Test
+    fun saysHowDarkItGetsWhenThereIsNoSunsetToDraw() {
+        show(
+            tonight = quietNight().copy(darkestFrom = now + hour, darkestUntil = now + 7 * hour),
+            timeline = null,
+        )
+
+        compose.onNodeWithText("Dark from ${clock(now)} until ${clock(now + 8 * hour)}.")
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onNodeWithText("Fully dark from", substring = true).performScrollTo().assertIsDisplayed()
+    }
+
+    /** Where the night is drawn, its twilight rows say it instead. */
+    @Test
+    fun leavesTheDarknessToTheRowsWhenTheNightIsDrawn() {
+        show(
+            tonight = quietNight().copy(darkestFrom = now + hour, darkestUntil = now + 7 * hour),
+            timeline = night(),
+        )
+
+        compose.onNodeWithText("Fully dark from", substring = true).assertDoesNotExist()
+    }
+
+    /** A dated event can still be shared or put in a calendar, from its row. */
+    @Test
+    fun tappingAnEventRowOffersShareAndExport() {
+        val row = eventRow(eclipse)
+        show(tonight = quietNight(events = listOf(eclipse)), timeline = night(row))
+
+        openRow(row)
+        compose.onNodeWithTag(ROW_SHEET_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(shareTag(eclipse)).performScrollTo().performClick()
+        compose.onNodeWithTag(exportTag(eclipse)).performScrollTo().performClick()
+
+        assertEquals(eclipse, sharedEvent)
+        assertEquals(eclipse, exportedEvent)
+    }
+
+    /** Only a dated event has anything to share. */
+    @Test
+    fun aPassRowOffersNothingToShare() {
+        val row = passRow(station)
+        show(tonight = quietNight(passes = listOf(station)), timeline = night(row))
+
+        openRow(row)
+
+        compose.onNode(hasText("Share") and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG))).assertDoesNotExist()
+    }
+
+    /**
+     * What the outlook set aside is listed under the night, each with the
+     * first reason it failed - the same words the outlook would use.
+     */
+    @Test
+    fun listsWhatWasLeftOutAndWhy() {
+        show(
+            tonight = quietNight(passes = listOf(station)),
+            outlook = leftOut(Excluded(station.name, station.peaksAt, Gate.Cloud, note = "80")),
+            timeline = night(passRow(station, tone = RowTone.Dim)),
+        )
+
+        inList(NOT_WORTH_TAG, "ISS (ZARYA) at ${clock(station.peaksAt)}")
+        inList(NOT_WORTH_TAG, "Forecast 80% cloud when it crosses.")
+    }
+
+    // --- the night, drawn by hand ---
+
+    private val hour = 3_600_000L
+
+    private val station = SatellitePass(
+        catalogue = 25544,
+        name = "ISS (ZARYA)",
+        channel = PassChannel.Iss,
+        risesAt = now + 3_600_000L,
+        riseAzimuth = 225.0,
+        peaksAt = now + 3_900_000L,
+        peakElevation = 68.0,
+        peakAzimuth = 180.0,
+        setsAt = now + 4_200_000L,
+        setAzimuth = 135.0,
+        rangeAtPeakKm = 420.0,
+        sunlitAtPeak = true,
+        entersShadowAt = null,
+        leavesShadowAt = null,
+    )
+
+    private val eclipse = SkyEvent(
+        kind = EventKind.LunarEclipse,
+        at = now + 2 * 3_600_000L,
+        from = now + 3_600_000L,
+        until = now + 4 * 3_600_000L,
+        title = "Partial eclipse of the moon",
+        detail = "18 per cent of the moon in shadow at maximum.",
+        visibility = Visibility.Marginal(
+            "The moon is only 8 degrees up at maximum, in a sky that is not fully dark.",
+        ),
+    )
+
+    /** A dark night with nothing in it but what a test adds. */
+    private fun quietNight(
+        passes: List<SatellitePass> = emptyList(),
+        events: List<SkyEvent> = emptyList(),
+    ) = TonightList(
+        darkFrom = now,
+        darkUntil = now + 8 * hour,
+        passes = passes,
+        bestPasses = passes,
+        events = events,
+        comets = emptyList(),
+        noctilucent = null,
+    )
+
+    /** Sunset an hour before now, sunrise thirteen after, and the rows given between. */
+    private fun night(vararg rows: TimelineRow, cloud: List<CloudSpan> = emptyList()) = Timeline(
+        startMillis = now - hour,
+        endMillis = now + 13 * hour,
+        rows = (
+            listOf(row(now - hour, "Sunset", RowSubject.Twilight)) + rows +
+                row(now + 13 * hour, "Sunrise", RowSubject.Twilight)
+            ).sortedBy { it.atMillis },
+        cloud = cloud,
+        lanes = emptyList(),
+        nowMillis = now,
+    )
+
+    private fun row(
+        at: Long,
+        title: String,
+        subject: RowSubject,
+        detail: String? = null,
+        tone: RowTone = RowTone.Normal,
+    ) = TimelineRow(at, clock(at), title, detail, tone, subject)
+
+    private fun passRow(pass: SatellitePass, tone: RowTone = RowTone.Normal) = row(
+        pass.peaksAt,
+        "${pass.name}, 68 degrees high",
+        RowSubject.Pass(pass),
+        "Rises south-west, sets south-east",
+        tone,
+    )
+
+    private fun eventRow(event: SkyEvent) = row(event.at, event.title, RowSubject.Event(event))
+
+    private fun leftOut(vararg excluded: Excluded) = OutlookReport(
+        outlook = Outlook.Quiet(darkFrom = now, learn = null, conditional = false),
+        excluded = excluded.toList(),
+        auroraProbability = 12,
+        threshold = 40,
+    )
+
+    private fun term(name: String) = Guide.TERMS.first { it.term == name }
+
+    private fun openRow(row: TimelineRow) {
+        compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().performClick()
+        compose.waitForIdle()
+    }
+
+    private fun inSheet(text: String, substring: Boolean = false) {
+        compose.onNode(hasText(text, substring = substring) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG)))
             .performScrollTo()
             .assertIsDisplayed()
     }
 
-    /**
-     * The card that already taught, now able to explain what it taught in.
-     *
-     * Cassiopeia's star-hop is "the far side of Polaris from the Plough",
-     * which is no use whatever to somebody who knows neither - and that is
-     * precisely the reader a star-hop is written for. The words are under the
-     * card that used them rather than a tab away, because the question is
-     * asked while looking at the sentence that raised it.
-     */
-    @Test
-    fun explainsTheWordsTheConstellationsCardUses() {
-        show(tonight = withConstellations(isAtItsBest = false))
-
-        compose.onNodeWithTag(helpTag(HelpTopic.Constellations)).performScrollTo().performClick()
-
-        compose.onNodeWithText("Polaris").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("The Plough").performScrollTo().assertIsDisplayed()
-    }
-
-    /**
-     * Closed until asked for. The card's own answer is what somebody came for,
-     * and a glossary in front of it is a glossary between them and tonight.
-     */
-    @Test
-    fun keepsTheExplanationOutOfTheWayUntilItIsWanted() {
-        show(tonight = withConstellations(isAtItsBest = false))
-
-        compose.onNodeWithText("Polaris").assertDoesNotExist()
-    }
-
-    /** And closes again, or the button is a one-way door. */
-    @Test
-    fun putsTheExplanationAwayAgain() {
-        val explain = compose.onNodeWithTag(helpTag(HelpTopic.Constellations))
-        show(tonight = withConstellations(isAtItsBest = false))
-
-        explain.performScrollTo().performClick()
-        explain.performScrollTo().performClick()
-
-        compose.onNodeWithText("Polaris").assertDoesNotExist()
-    }
-
-    /**
-     * Each card answers for its own words and no others. The satellites card
-     * has no business explaining a star-hop, and a single shared sheet of
-     * every term in the app would be the Guide tab with extra steps.
-     */
-    @Test
-    fun explainsOnlyTheWordsTheCardItselfUses() {
-        show(tonight = withConstellations(isAtItsBest = false))
-
-        compose.onNodeWithTag(helpTag(HelpTopic.Satellites)).performScrollTo().performClick()
-
-        compose.onNodeWithText("A pass").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Polaris").assertDoesNotExist()
+    private fun inList(tag: String, text: String, substring: Boolean = false) {
+        compose.onNode(hasText(text, substring = substring) and hasAnyAncestor(hasTestTag(tag)))
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     private fun withConstellations(isAtItsBest: Boolean) = TonightList(
@@ -1941,24 +2019,14 @@ class ScreensTest {
         ),
     )
 
-    /** Midsummer at high latitude has no darkness, and the card says that. */
+    /** Midsummer at high latitude has no darkness, and the night's rows say that. */
     @Test
     fun saysWhenItDoesNotGetDark() {
-        show(
-            tonight = TonightList(
-                darkFrom = null,
-                darkUntil = null,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+        val drawn = night()
+        show(tonight = quietNight().copy(darkFrom = null, darkUntil = null), timeline = drawn)
 
-        compose.onNodeWithText("It does not get properly dark here at this time of year.")
-            .performScrollTo()
-            .assertIsDisplayed()
+        openRow(drawn.rows.first())
+        inSheet("It does not get properly dark here at this time of year.")
     }
 
     // --- comets ---
@@ -2004,12 +2072,7 @@ class ScreensTest {
     @Test
     fun listsACometThatIsUpTonight() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
+            tonight = quietNight().copy(
                 comets = listOf(
                     SkyEvent(
                         kind = EventKind.Comet,
@@ -2022,72 +2085,42 @@ class ScreensTest {
                         visibility = Visibility.Good,
                     ),
                 ),
-                noctilucent = null,
             ),
+            timeline = night(),
         )
 
-        compose.onNodeWithText("Comet 220P/McNaught").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("46 degrees in the south", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(ALSO_UP_TAG, "Comet 220P/McNaught")
+        inList(ALSO_UP_TAG, "46 degrees in the south", substring = true)
     }
 
     /**
-     * The caveat travels with a dated event too, not only with a comet.
+     * The caveat travels with a dated event, into the sheet its row opens.
      *
      * This is the whole reason Tonight keeps marginal events rather than
      * dropping them - "the moon only reaches 8 degrees at maximum, in a sky
-     * that is not fully dark" is what somebody plans around - and the card was
-     * quietly not carrying it. A partial eclipse promised on the home screen
-     * and explained only in the calendar is worse than one not promised at all.
+     * that is not fully dark" is what somebody plans around. A partial eclipse
+     * promised on the home screen and explained only in the calendar is worse
+     * than one not promised at all.
      */
     @Test
     fun saysWhyAnEventTonightIsOnlyMarginal() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = listOf(
-                    SkyEvent(
-                        kind = EventKind.LunarEclipse,
-                        at = now + 3_600_000L,
-                        from = now,
-                        until = now + 4 * 3_600_000L,
-                        title = "Partial eclipse of the moon",
-                        detail = "18 per cent of the moon in shadow at maximum.",
-                        visibility = Visibility.Marginal(
-                            "The moon is only 8 degrees up at maximum, in a sky that is " +
-                                "not fully dark.",
-                        ),
-                    ),
-                ),
-                comets = emptyList(),
-                noctilucent = null,
-            ),
-        )
+        val row = eventRow(eclipse)
+        show(tonight = quietNight().copy(events = listOf(eclipse)), timeline = night(row))
 
         compose.onNodeWithText("Partial eclipse of the moon").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("only 8 degrees up at maximum", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        openRow(row)
+        inSheet("only 8 degrees up at maximum", substring = true)
     }
 
     /**
      * The reason is shown where there is one. "Washed out by the moon" is the
-     * difference between a wasted walk and a good one, so it belongs on the
-     * card rather than only in the verdict.
+     * difference between a wasted walk and a good one, so it belongs beside
+     * the comet rather than only in the outlook.
      */
     @Test
     fun saysWhyACometIsOnlyMarginal() {
         show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
+            tonight = quietNight().copy(
                 comets = listOf(
                     SkyEvent(
                         kind = EventKind.Comet,
@@ -2101,13 +2134,10 @@ class ScreensTest {
                         ),
                     ),
                 ),
-                noctilucent = null,
             ),
         )
 
-        compose.onNodeWithText("It only reaches 4 degrees", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(ALSO_UP_TAG, "It only reaches 4 degrees", substring = true)
     }
 
     /**
@@ -2287,26 +2317,14 @@ class ScreensTest {
     /**
      * "Nothing crossing" and "no catalogue to look in" are the same empty list
      * and must not be the same sentence. A device that has never managed to
-     * download the elements was being told the sky was quiet.
+     * download the elements was being told the sky was quiet; now it says so
+     * where things left out are listed.
      */
     @Test
-    fun admitsItDoesNotKnowWhatIsCrossingWithoutTheElements() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-                elementsHeld = false,
-            ),
-        )
+    fun saysWhenTheElementsAreMissingInsteadOfAnEmptySky() {
+        show(tonight = quietNight().copy(elementsHeld = false))
 
-        compose.onNodeWithText("Not worked out yet", substring = true)
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(NOT_WORTH_TAG, describeMissingElements(everChecked = false, failure = null).text)
         compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
             .assertDoesNotExist()
     }
@@ -2314,22 +2332,9 @@ class ScreensTest {
     /** And with elements held, an empty night is still allowed to be empty. */
     @Test
     fun stillSaysTheSkyIsQuietWhenItHasTheElementsAndNothingCrosses() {
-        show(
-            tonight = TonightList(
-                darkFrom = now,
-                darkUntil = now + 8 * 3_600_000L,
-                passes = emptyList(),
-                bestPasses = emptyList(),
-                events = emptyList(),
-                comets = emptyList(),
-                noctilucent = null,
-                elementsHeld = true,
-            ),
-        )
+        show(tonight = quietNight().copy(elementsHeld = true))
 
-        compose.onNodeWithText("Nothing crossing tonight that clears the horizon in sunlight.")
-            .performScrollTo()
-            .assertIsDisplayed()
+        inList(NOT_WORTH_TAG, "Nothing crossing tonight that clears the horizon in sunlight.")
     }
 
     /**
