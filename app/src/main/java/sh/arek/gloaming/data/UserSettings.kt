@@ -480,6 +480,27 @@ data class UserSettings(
      * given a position to be of any use, is not walked through it again.
      */
     val setupDone: Boolean = false,
+
+    /**
+     * When the compass check was last offered, or null if never.
+     *
+     * Paces the offer to once a week (`CompassCheck.OFFER_EVERY_MILLIS`) so a
+     * phone whose compass stays poor is not nagged. Holds no position.
+     */
+    val compassOfferedAt: Long? = null,
+
+    /** When the compass was last checked against the moon, or null if never. */
+    val compassCheckedAt: Long? = null,
+
+    /**
+     * How far, in degrees, the phone's compass is taken to read from true,
+     * as found by the moon check; added to every heading. Zero is no
+     * correction, and the default.
+     */
+    val compassOffsetDegrees: Double = 0.0,
+
+    /** Whether the red night-vision palette is used while finding something. */
+    val nightVisionWhenFinding: Boolean = true,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 

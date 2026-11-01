@@ -49,6 +49,10 @@ private const val KEY_LIVE_LEAD = "live_follow_lead_minutes"
 private const val KEY_LIVE_MAX = "live_follow_max_minutes"
 private const val KEY_LOG_RETENTION = "log_retention_days"
 private const val KEY_SETUP_DONE = "setup_done"
+private const val KEY_COMPASS_OFFERED_AT = "compass_offered_at"
+private const val KEY_COMPASS_CHECKED_AT = "compass_checked_at"
+private const val KEY_COMPASS_OFFSET = "compass_offset_degrees"
+private const val KEY_NIGHT_VISION_FINDING = "night_vision_when_finding"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -168,6 +172,9 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
         val longitude = prefs.getLong(KEY_LONGITUDE, UNSET)
         val quietStart = prefs.getInt(KEY_QUIET_START, NO_MINUTE)
         val quietEnd = prefs.getInt(KEY_QUIET_END, NO_MINUTE)
+        val compassOfferedAt = prefs.getLong(KEY_COMPASS_OFFERED_AT, UNSET)
+        val compassCheckedAt = prefs.getLong(KEY_COMPASS_CHECKED_AT, UNSET)
+        val compassOffset = prefs.getLong(KEY_COMPASS_OFFSET, UNSET)
         return UserSettings(
             latitude = if (latitude == UNSET) null else Double.fromBits(latitude),
             longitude = if (longitude == UNSET) null else Double.fromBits(longitude),
@@ -295,6 +302,10 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             } else {
                 latitude != UNSET && longitude != UNSET
             },
+            compassOfferedAt = if (compassOfferedAt == UNSET) null else compassOfferedAt,
+            compassCheckedAt = if (compassCheckedAt == UNSET) null else compassCheckedAt,
+            compassOffsetDegrees = if (compassOffset == UNSET) 0.0 else Double.fromBits(compassOffset),
+            nightVisionWhenFinding = prefs.getBoolean(KEY_NIGHT_VISION_FINDING, true),
         )
     }
 
@@ -378,6 +389,18 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_COMET_STALE, settings.cometObservationStaleDays)
             putInt(KEY_COMET_MOON, settings.cometMoonTolerance)
             putBoolean(KEY_SETUP_DONE, settings.setupDone)
+            if (settings.compassOfferedAt == null) {
+                remove(KEY_COMPASS_OFFERED_AT)
+            } else {
+                putLong(KEY_COMPASS_OFFERED_AT, settings.compassOfferedAt)
+            }
+            if (settings.compassCheckedAt == null) {
+                remove(KEY_COMPASS_CHECKED_AT)
+            } else {
+                putLong(KEY_COMPASS_CHECKED_AT, settings.compassCheckedAt)
+            }
+            putLong(KEY_COMPASS_OFFSET, settings.compassOffsetDegrees.toRawBits())
+            putBoolean(KEY_NIGHT_VISION_FINDING, settings.nightVisionWhenFinding)
         }.apply()
     }
 
@@ -417,6 +440,9 @@ internal val SETTINGS_KEYS = listOf(
     KEY_CALENDAR_SYNC,
     KEY_CLOUD_GATE,
     KEY_CLOUD_TOLERANCE,
+    KEY_COMPASS_CHECKED_AT,
+    KEY_COMPASS_OFFERED_AT,
+    KEY_COMPASS_OFFSET,
     KEY_COMET_ALTITUDE,
     KEY_COMET_MAGNITUDE,
     KEY_COMET_MOON,
@@ -441,6 +467,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_LONGITUDE,
     KEY_MINIMUM_ELEVATION,
     KEY_NIGHT_VISION,
+    KEY_NIGHT_VISION_FINDING,
     KEY_PASS_ALERTS,
     KEY_PASS_LEAD,
     KEY_POLL_MINUTES,

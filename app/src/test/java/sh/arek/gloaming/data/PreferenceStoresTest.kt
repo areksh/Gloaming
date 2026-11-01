@@ -126,6 +126,10 @@ class PreferenceStoresTest {
         cometObservationStaleDays = 30,
         cometMoonTolerance = 25,
         setupDone = true,
+        compassOfferedAt = 1_800_000_000_000L,
+        compassCheckedAt = 1_800_100_000_000L,
+        compassOffsetDegrees = -7.5,
+        nightVisionWhenFinding = false,
     )
 
     @Test
@@ -231,6 +235,16 @@ class PreferenceStoresTest {
         prefs.edit().remove("setup_done").apply()
 
         assertTrue(PreferencesSettingsStore(prefs).read().setupDone)
+    }
+
+    @Test
+    fun `an install from before the compass check reads its defaults`() {
+        val settings = settingsStore().read()
+
+        assertNull(settings.compassOfferedAt)
+        assertNull(settings.compassCheckedAt)
+        assertEquals(0.0, settings.compassOffsetDegrees, 0.0)
+        assertTrue(settings.nightVisionWhenFinding)
     }
 
     @Test
