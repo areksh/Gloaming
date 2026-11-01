@@ -61,13 +61,15 @@ object CompassCheck {
      *
      * The correction is the moon's azimuth minus the pointing azimuth, wrapped
      * to -180..180; the result is [currentOffset] plus that, normalised to the
-     * same range. Null when the moon is below [MIN_MOON_ALTITUDE], when the
+     * same range. Null when the moon is below [MIN_MOON_ALTITUDE] or at or
+     * above [Guide.ZENITH_DEGREES], where a bearing means nothing, when the
      * altitudes differ by more than [MAX_TILT_MISMATCH] (the phone is not
      * pointing at the moon), or when the correction itself - the change this
      * check would make, not the new total - exceeds [MAX_OFFSET_DEGREES].
      */
     fun offsetFromMoon(pointing: AltAz, moon: AltAz, currentOffset: Double): Double? {
         if (moon.altitude < MIN_MOON_ALTITUDE) return null
+        if (moon.altitude >= Guide.ZENITH_DEGREES) return null
         if (abs(pointing.altitude - moon.altitude) > MAX_TILT_MISMATCH) return null
         val correction = signed180(moon.azimuth - pointing.azimuth)
         if (abs(correction) > MAX_OFFSET_DEGREES) return null

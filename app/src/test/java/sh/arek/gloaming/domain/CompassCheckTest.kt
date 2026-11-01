@@ -79,6 +79,14 @@ class CompassCheckTest {
     }
 
     @Test
+    fun `refuses a moon so high that its bearing means nothing`() {
+        // Near the zenith a degree of tilt swings the bearing wildly, the same
+        // reason Guide stops asking for a turn up there.
+        assertNull(offset(pointing = AltAz(86.0, 100.0), moon = AltAz(86.0, 104.0)))
+        assertNotNull(offset(pointing = AltAz(84.0, 100.0), moon = AltAz(84.0, 104.0)))
+    }
+
+    @Test
     fun `refuses when not pointed at the moon`() {
         assertNull(offset(pointing = AltAz(20.0, 100.0), moon = AltAz(30.0, 104.0)))
     }
