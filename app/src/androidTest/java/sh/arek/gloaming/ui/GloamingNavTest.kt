@@ -437,7 +437,7 @@ class GloamingNavTest {
     )
 
     @Test
-    fun showsACometInTheCalendar() {
+    fun showsACometAhead() {
         show(calendar = listOf(comet))
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()

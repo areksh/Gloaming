@@ -12,8 +12,17 @@ import sh.arek.gloaming.astronomy.Twilight
  *
  * @property moonlight [Twilight.moonInterference] for the night that starts on
  *   this date's evening, 0 (no moon in the dark) to 1 (full moon up all night).
+ * @property past the night is over; it is drawn, muted, but never counts as the
+ *   darkest run.
+ * @property today the night that starts this evening.
  */
-data class NightCell(val day: Int, val moonlight: Double, val hasEvent: Boolean)
+data class NightCell(
+    val day: Int,
+    val moonlight: Double,
+    val hasEvent: Boolean,
+    val past: Boolean = false,
+    val today: Boolean = false,
+)
 
 /**
  * A month of [NightCell]s, with the longest run of dark nights already found.
@@ -49,7 +58,8 @@ data class MonthStrip(
             1 -> "Events on ${days[0]} $name."
             else -> "Events on ${days.dropLast(1).joinToString(", ")} and ${days.last()} $name."
         }
-        return "$name $year. ${darkestWords()}. $events"
+        val today = nights.firstOrNull { it.today }?.let { " Today is ${it.day} $name." }.orEmpty()
+        return "$name $year. ${darkestWords()}. $events$today"
     }
 }
 
@@ -64,14 +74,15 @@ object MonthStrips {
 
     /**
      * [months] strips, the first for the month [fromMillis] falls in, in the
-     * device's time zone.
+     * device's time zone. The date of [fromMillis] is today: earlier nights are
+     * flagged [NightCell.past] and left out of the darkest run.
      *
      * A night is aimed at midnight at the end of its date, which the nearest
      * night search turns into the dusk-to-dawn stretch around it. A dot goes on
      * any day an event in [events] is dated to.
      *
-     * Slow enough (a few milliseconds a night) that the caller keeps it off the
-     * main thread, alongside the calendar it is drawn from.
+     * Slow enough (a year measures about 0.13 s on a desktop JVM, more on a
+     * phone) that the caller keeps it off the main thread.
      */
     fun of(
         latitude: Double,
@@ -81,6 +92,7 @@ object MonthStrips {
         events: List<SkyEvent>,
     ): List<MonthStrip> {
         val eventDays = events.groupBy { dayKey(it.at) }.keys
+        val today = dayKey(fromMillis)
         val names = SimpleDateFormat("MMMM", Locale.getDefault())
 
         val cursor = Calendar.getInstance()
@@ -102,10 +114,13 @@ object MonthStrips {
                 val midnight = Calendar.getInstance()
                 midnight.timeInMillis = cursor.timeInMillis
                 midnight.add(Calendar.HOUR_OF_DAY, 12)
+                val key = year * 10_000 + month * 100 + day
                 NightCell(
                     day = day,
                     moonlight = Twilight.moonInterference(latitude, longitude, midnight.timeInMillis),
-                    hasEvent = (year * 10_000 + month * 100 + day) in eventDays,
+                    hasEvent = key in eventDays,
+                    past = key < today,
+                    today = key == today,
                 )
             }
             val run = darkestRun(nights)
@@ -121,7 +136,7 @@ object MonthStrips {
         var best: IntRange? = null
         var start = -1
         for ((index, night) in nights.withIndex()) {
-            if (night.moonlight < DARK_BELOW) {
+            if (night.moonlight < DARK_BELOW && !night.past) {
                 if (start < 0) start = index
                 val run = nights[start].day..night.day
                 if (best == null || run.last - run.first > best.last - best.first) best = run

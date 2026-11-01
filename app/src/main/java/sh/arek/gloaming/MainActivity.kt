@@ -762,12 +762,12 @@ private fun GloamingApp() {
             return@LaunchedEffect
         }
         calendarLoading = true
-        // The strips are worked out in the same pass as the events they mark,
-        // off the main thread: a night's moonlight is a sweep of the sky and a
-        // year of them is not something to spend in a composition.
-        val (events, strips) = withContext(Dispatchers.Default) {
-            val now = System.currentTimeMillis()
-            val events = runCatching {
+        val now = System.currentTimeMillis()
+        // The events are published as soon as they are ready: the screen is
+        // usable without the strips, which take longer again, and must
+        // not wait for them.
+        val events = withContext(Dispatchers.Default) {
+            runCatching {
                 // Comets come from a document rather than from the ephemeris,
                 // so they are worked out separately and merged in by date. A
                 // device that has never fetched one simply has none, which is
@@ -785,17 +785,20 @@ private fun GloamingApp() {
                 Log.w("Gloaming", "could not work out the calendar", it)
                 emptyList()
             }
-            val strips = runCatching {
+        }
+        calendar = events
+        calendarLoading = false
+        // Then the strips, still off the main thread: a night's moonlight is a
+        // sweep of the sky and a year of them is not something to spend in a
+        // composition.
+        months = withContext(Dispatchers.Default) {
+            runCatching {
                 MonthStrips.of(latitude, longitude, now, MonthStrips.YEAR_AHEAD, events)
             }.getOrElse {
                 Log.w("Gloaming", "could not shade the months", it)
                 emptyList()
             }
-            events to strips
         }
-        calendar = events
-        months = strips
-        calendarLoading = false
     }
 
     // Recomputed whenever a verdict is given or taken away, or the switch is

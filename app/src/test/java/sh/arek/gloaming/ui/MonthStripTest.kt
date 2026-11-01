@@ -176,6 +176,14 @@ class MonthStripTest {
     }
 
     @Test
+    fun `says which night is today`() {
+        val cells = (1..31).map { NightCell(it, 0.5, false, today = it == 20) }
+        val words = MonthStrip(2026, 12, "December", cells, null, null).description()
+
+        assertTrue(words, words.endsWith("Today is 20 December."))
+    }
+
+    @Test
     fun `the description gives the darkest run and the event days`() {
         val strip = strip(darkFrom = 5, darkUntil = 13, eventDays = setOf(3, 9))
 
@@ -194,15 +202,72 @@ class MonthStripTest {
     }
 
     @Test
-    fun `three months take under half a second`() {
+    fun `the year ahead takes under a second`() {
         // Warm the astronomy tables, as the calendar's own budget does not.
         strips(months = 1)
 
         val started = System.nanoTime()
-        strips(months = 3)
+        strips(months = MonthStrips.YEAR_AHEAD)
         val tookMillis = (System.nanoTime() - started) / 1_000_000
 
-        assertTrue("took ${tookMillis}ms", tookMillis < 500)
+        assertTrue("took ${tookMillis}ms", tookMillis < BUDGET_MILLIS)
+    }
+
+    @Test
+    fun `flags the nights before today and today itself`() {
+        val december = strips(from = at(2026, 12, 20)).single()
+
+        assertEquals((1..19).toList(), december.nights.filter { it.past }.map { it.day })
+        assertEquals(listOf(20), december.nights.filter { it.today }.map { it.day })
+        assertFalse(december.nights.first { it.day == 20 }.past)
+    }
+
+    @Test
+    fun `flags nothing in a month that has not begun`() {
+        val january = strips(from = at(2026, 12, 20), months = 2)[1]
+
+        assertFalse(january.nights.any { it.past || it.today })
+    }
+
+    @Test
+    fun `a past night keeps its shading`() {
+        val december = strips(from = at(2026, 12, 20)).single()
+
+        assertTrue(december.nights.first { it.day == 24 }.moonlight > 0.5)
+        assertTrue(december.nights.first { it.day == 1 }.moonlight > 0.0)
+    }
+
+    @Test
+    fun `the darkest run never includes a past night`() {
+        // The new moon is on the 9th and the run around it is behind us.
+        val december = strips(from = at(2026, 12, 20)).single()
+
+        val from = december.darkFrom
+        if (from != null) {
+            assertTrue("run starts on $from", from >= 20)
+        }
+    }
+
+    @Test
+    fun `a month that is wholly dark ahead still names a run`() {
+        val december = strips(from = at(2026, 12, 6)).single()
+
+        assertEquals(6, december.darkFrom)
+    }
+
+    @Test
+    fun `the description does not announce past nights as darkest`() {
+        val december = strips(from = at(2026, 12, 20)).single()
+
+        val words = december.description()
+
+        assertFalse(words, words.contains("Darkest: 5"))
+        assertTrue(words, words.contains("Today is 20 December."))
+    }
+
+    private companion object {
+        /** Measured at about 0.13 s for the year on the JVM; this leaves room for a slow machine. */
+        const val BUDGET_MILLIS = 1_000
     }
 
     private fun strip(darkFrom: Int?, darkUntil: Int?, eventDays: Set<Int> = emptySet()) = MonthStrip(

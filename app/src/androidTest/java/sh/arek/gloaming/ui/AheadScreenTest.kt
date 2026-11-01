@@ -243,6 +243,23 @@ class AheadScreenTest {
 
     // --- what Ahead adds to the old calendar ---
 
+    /** The row gives a verdict even for a good event, so a reader is never left guessing. */
+    @Test
+    fun saysWhenAnEventIsGoodFromHere() {
+        show(later)
+
+        compose.onNodeWithText("Good from here").assertIsDisplayed()
+    }
+
+    @Test
+    fun givesTheReasonRatherThanGoodWhenItIsNotVisible() {
+        val elsewhere = later.copy(visibility = Visibility.NotFromHere("The sun has set here."))
+        show(elsewhere)
+
+        compose.onNodeWithText("The sun has set here.").assertIsDisplayed()
+        compose.onNodeWithText("Good from here").assertDoesNotExist()
+    }
+
     /** The kinds are one button, and it says how many are showing. */
     @Test
     fun theKindsLiveBehindOneButton() {

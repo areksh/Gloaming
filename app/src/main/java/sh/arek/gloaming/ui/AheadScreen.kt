@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -264,7 +265,8 @@ internal const val HAPPENING_NOW: String = "Happening now"
  * The strip of a month's nights.
  *
  * Shaded from the darkest sky to the accent as the moon spoils the night, with
- * a row of dots beneath for the days that have an event. Neither carries the
+ * a row of dots beneath for the days that have an event. Nights already over
+ * are short stubs and today is outlined. Neither carries the
  * meaning alone: the darkest run is written out underneath and the whole strip
  * has a description for a screen reader, because with night vision on there is
  * one colour to shade with and little to tell the shades apart.
@@ -288,11 +290,25 @@ private fun MonthStripView(strip: MonthStrip) {
             val gap = 1.dp.toPx()
             for ((index, cell) in strip.nights.withIndex()) {
                 val left = index * width
+                // A night that is over is drawn as a short stub rather than a
+                // full block, so it is set back by its shape and not only by
+                // its colour: night vision has one colour to work with.
+                val height = if (cell.past) 8.dp.toPx() else 24.dp.toPx()
                 drawRect(
                     color = lerp(night, palette.accent, cell.moonlight.coerceIn(0.0, 1.0).toFloat()),
-                    topLeft = Offset(left + gap / 2, 0f),
-                    size = Size(width - gap, 24.dp.toPx()),
+                    topLeft = Offset(left + gap / 2, 24.dp.toPx() - height),
+                    size = Size(width - gap, height),
+                    alpha = if (cell.past) 0.5f else 1f,
                 )
+                if (cell.today) {
+                    // Outlined, so today is marked by shape too.
+                    drawRect(
+                        color = palette.text,
+                        topLeft = Offset(left + gap / 2, 0f),
+                        size = Size(width - gap, 24.dp.toPx()),
+                        style = Stroke(width = 2.dp.toPx()),
+                    )
+                }
                 if (cell.hasEvent) {
                     drawCircle(
                         color = palette.text,

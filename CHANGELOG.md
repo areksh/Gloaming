@@ -45,9 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   month opens with a strip of its nights, brighter where the moon spoils the
   sky and darker where it does not, with a dot on any day that has an event and
   the darkest run written out ("Darkest: 5-13 December"), so nothing depends on
-  telling shades apart - which matters most in night vision. The events follow
-  beneath with the weekday, day, title, whether it is good from here and a
-  star; tapping one opens the same sheet as Tonight, with Share and Export. The
+  telling shades apart - which matters most in night vision. Nights already
+  gone are short stubs, left out of the darkest run, and tonight is outlined. The events follow
+  beneath with the weekday, day, title, "Good from here" or the reason it is
+  not, and a star; tapping one opens the same sheet as Tonight, with Share and Export. The
   kinds sit behind one "Showing 9 of 14 kinds" button, and a "Starred only"
   chip narrows the list to what you have starred.
 - **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot
