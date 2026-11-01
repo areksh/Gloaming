@@ -124,7 +124,7 @@ object Planets {
     fun altitude(body: SkyBody, latitude: Double, longitude: Double, atMillis: Long): Double =
         position(bodyOf(body), Observer(latitude, longitude, 0.0), atMillis).altitude
 
-    private fun position(engineBody: Body, observer: Observer, atMillis: Long) =
+    internal fun position(engineBody: Body, observer: Observer, atMillis: Long) =
         Time.fromMillisecondsSince1970(atMillis).let { time ->
             val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)
             horizon(time, observer, position.ra, position.dec, Refraction.Normal)
@@ -190,7 +190,7 @@ object Planets {
         )
     }
 
-    private fun bodyOf(body: SkyBody) = when (body) {
+    internal fun bodyOf(body: SkyBody) = when (body) {
         SkyBody.Mercury -> Body.Mercury
         SkyBody.Venus -> Body.Venus
         SkyBody.Mars -> Body.Mars
