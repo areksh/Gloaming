@@ -733,7 +733,7 @@ GrapheneOS and denies location by default; the whole privacy posture is weakened
 for a permission the app does not need; and manual entry enables trip planning ("will
 Shetland be clear on Tuesday?"), which device GPS cannot.
 
-`LocationManager` (never the fused provider - Play Services) is offered as a convenience
+`LocationManager` (the platform's own "fused" provider on API 31+ is asked first, never Play Services' fused provider) is offered as a convenience
 for users who want it. The app must be fully functional with location permission
 permanently denied.
 

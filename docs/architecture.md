@@ -544,9 +544,11 @@ is a file replacement.
 
   **Find points the phone at a target, from pure parts behind one sensor
   seam.** `FindScreen` offers `domain.FindTargets.available` as chips - only
-  what can be seen now or very soon, judged from each target's `fix` and a
-  `Sky` (the sun's height, and whether a current aurora reading meets the
-  threshold), worked out at most once a minute, with `nextUp` naming the
+  what can be seen now or very soon, judged by the sun's height and a
+  `Sky` (and whether a current aurora reading meets the threshold),
+  by altitude alone for a planet, the moon or a pattern (no rise search),
+  and for a pass by whether it is under way or rises within
+  `FindTargets.PASS_LEAD_MILLIS` (30 minutes), worked out at most once a minute, with `nextUp` naming the
   soonest to come when nothing is up - places
   the chosen one with `FindTargets.fix` once a second (the rise search behind
   it is memoised), and turns each compass reading into a direction with
@@ -599,7 +601,7 @@ is a file replacement.
   tolerance are the same target (`FindTargets.same`), which is how a
   notification's rise, from the poller's own search grid, selects tonight's
   chip rather than adding a second. Find offers only Tonight's best passes
-  that have not set, soonest first and at most `FindTargets.MAX_PASSES`, since
+  that are under way or rise within `PASS_LEAD_MILLIS` (30 minutes), soonest first and at most `FindTargets.MAX_PASSES`, since
   every pass made the picker too long to use; a pass handed in by a
   notification is always offered, beyond the limit if need be. Until tonight has been worked out, a pass
   that cannot be placed reads "Working out tonight..." rather than gone.

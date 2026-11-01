@@ -268,8 +268,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worked out - for the same place, while that night is still on - marked
   "Updating..." until the new one arrives, instead of an empty screen for about
   twenty seconds. That copy stays on the phone, unreadable until it is first
-  unlocked, because it is worked out from your exact position, and is dropped
-  when location is taken away or you move to another place.
+  unlocked, because it is worked out from your exact position, and is never
+  shown for another place or once that night is over.
   The night also no longer waits for the year ahead to be worked out: it
   works out the next three weeks of events for itself, so a fresh Tonight lands
   in about half the time.
