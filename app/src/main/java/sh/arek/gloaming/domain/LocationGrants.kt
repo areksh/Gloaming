@@ -5,6 +5,18 @@ import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 
 /**
+ * Which location grants Android holds right now.
+ *
+ * A seam so the screen's reconciliation can be driven on a phone without
+ * granting or revoking anything real: revoking a grant kills the app's
+ * process. See `Graph.locationGrants`.
+ */
+interface LocationGrantSource {
+    fun location(): Boolean
+    fun background(): Boolean
+}
+
+/**
  * Brings the stored location settings into line with what Android lets the
  * app do now.
  *

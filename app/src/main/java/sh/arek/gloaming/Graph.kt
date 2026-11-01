@@ -5,6 +5,7 @@ import java.io.File
 import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.AndroidCompassSource
+import sh.arek.gloaming.data.AndroidLocationGrants
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CometRepository
@@ -34,6 +35,7 @@ import sh.arek.gloaming.data.devicePreferences
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.CalendarWriter
 import sh.arek.gloaming.domain.EventPoller
+import sh.arek.gloaming.domain.LocationGrantSource
 import sh.arek.gloaming.domain.PassPoller
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.net.HttpFetcher
@@ -98,6 +100,14 @@ object Graph {
      */
     fun journal(context: Context): Journal =
         Journal(File(cacheDirectory(context.applicationContext), Journal.FILE_NAME))
+
+    /** Replaced by instrumented tests only; null means Android's own answer. */
+    @Volatile
+    var locationGrantsOverride: LocationGrantSource? = null
+
+    /** Which location grants are held, for the screen to reconcile its settings with. */
+    fun locationGrants(context: Context): LocationGrantSource =
+        locationGrantsOverride ?: AndroidLocationGrants(context)
 
     /** Settings as shown and edited: the precise position the user typed. */
     fun settings(context: Context): SettingsStore =

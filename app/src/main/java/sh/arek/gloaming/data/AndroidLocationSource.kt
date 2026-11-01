@@ -14,6 +14,7 @@ import androidx.core.util.Consumer
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
+import sh.arek.gloaming.domain.LocationGrantSource
 
 /**
  * The device's own idea of where it is, from `LocationManager`.
@@ -168,4 +169,10 @@ class AndroidLocationSource(private val context: Context) : LocationSource {
             ContextCompat.checkSelfPermission(context, PERMISSION) ==
                 PackageManager.PERMISSION_GRANTED
     }
+}
+
+/** The grants as Android reports them. */
+class AndroidLocationGrants(private val context: Context) : LocationGrantSource {
+    override fun location(): Boolean = AndroidLocationSource.hasPermission(context)
+    override fun background(): Boolean = AndroidLocationSource.hasBackgroundPermission(context)
 }

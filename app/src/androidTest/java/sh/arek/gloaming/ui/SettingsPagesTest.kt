@@ -18,18 +18,16 @@ import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeFalse
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.data.AlertState
-import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.LocationGrantSource
 import sh.arek.gloaming.domain.LocationGrants
 import sh.arek.gloaming.work.LocationAlarm
 
@@ -164,8 +162,21 @@ class SettingsPagesTest {
         )
     }
 
+    /**
+     * Grants the screen believes it has, without granting or revoking anything
+     * real: revoking kills the process, and the phone's own grants are the
+     * owner's.
+     */
+    private fun grants(location: Boolean, background: Boolean) {
+        Graph.locationGrantsOverride = object : LocationGrantSource {
+            override fun location() = location
+            override fun background() = background
+        }
+    }
+
     @After
     fun putTheStoredSettingsBack() {
+        Graph.locationGrantsOverride = null
         val original = storedBefore ?: return
         BootAware.saveSettings(targetContext, original)
         // The activity under test armed or cancelled the refresh for what it
@@ -186,7 +197,7 @@ class SettingsPagesTest {
 
     @Test
     fun returningWithoutTheLocationGrantTurnsAskingTheDeviceOffAndSaysSo() {
-        assumeFalse(AndroidLocationSource.hasPermission(targetContext))
+        grants(location = false, background = false)
         claim(LocationMode.Automatic, LocationCadence.Every(3))
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -203,7 +214,7 @@ class SettingsPagesTest {
 
     @Test
     fun theNoteAboutAWithdrawnGrantSurvivesTheActivityBeingRebuilt() {
-        assumeFalse(AndroidLocationSource.hasPermission(targetContext))
+        grants(location = false, background = false)
         claim(LocationMode.Automatic, LocationCadence.OnOpen)
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
@@ -221,8 +232,7 @@ class SettingsPagesTest {
 
     @Test
     fun returningWithoutTheBackgroundGrantPutsAnIntervalBackToEachOpenAndShowsTheRedLine() {
-        assumeTrue(AndroidLocationSource.hasPermission(targetContext))
-        assumeFalse(AndroidLocationSource.hasBackgroundPermission(targetContext))
+        grants(location = true, background = false)
         claim(LocationMode.Automatic, LocationCadence.Every(3))
 
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->

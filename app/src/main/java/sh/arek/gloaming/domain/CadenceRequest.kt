@@ -17,6 +17,18 @@ sealed interface CadencePick {
     data class Ask(val permissions: List<String>) : CadencePick
 }
 
+/** What to do about a background request that may never be answered. */
+sealed interface StalePending {
+    /** Nothing was waiting, or Android still has the question. */
+    data object None : StalePending
+
+    /** The answer never arrived and the grant is not held: forget the request. */
+    data object Clear : StalePending
+
+    /** The answer never arrived but the grant is held: store what was asked for. */
+    data class Apply(val cadence: LocationCadence) : StalePending
+}
+
 /** What Android's last answer about a background cadence comes to. */
 enum class CadenceAnswer { Granted, BackgroundRefused, CoarseRefused }
 
@@ -52,6 +64,28 @@ object CadenceRequest {
         COARSE in missing -> CadenceAnswer.CoarseRefused
         missing.isEmpty() -> CadenceAnswer.Granted
         else -> CadenceAnswer.BackgroundRefused
+    }
+
+    /**
+     * What to make of a request still marked pending when the screen comes
+     * back.
+     *
+     * Android hands a permission result over before the screen resumes, so a
+     * request still pending then, with none launched from this screen
+     * ([requestInFlight]), lost its answer - to the process being restarted
+     * while the user was on Android's page, say. Left marked, it would drop
+     * every later pick as a second request. The grant is read for itself
+     * instead: held, the interval is stored as the answer would have; not
+     * held, the request is forgotten and the cadence stays as it was.
+     */
+    fun stalePending(
+        pendingHours: Int?,
+        requestInFlight: Boolean,
+        backgroundGranted: Boolean,
+    ): StalePending = when {
+        pendingHours == null || requestInFlight -> StalePending.None
+        backgroundGranted -> StalePending.Apply(LocationCadence.Every(pendingHours))
+        else -> StalePending.Clear
     }
 
     private const val COARSE = android.Manifest.permission.ACCESS_COARSE_LOCATION

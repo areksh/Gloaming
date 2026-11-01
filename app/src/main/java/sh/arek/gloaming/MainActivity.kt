@@ -66,6 +66,7 @@ import sh.arek.gloaming.data.isDue
 import sh.arek.gloaming.domain.CadenceAnswer
 import sh.arek.gloaming.domain.CadencePick
 import sh.arek.gloaming.domain.CadenceRequest
+import sh.arek.gloaming.domain.StalePending
 import sh.arek.gloaming.domain.CalendarSyncer
 import sh.arek.gloaming.domain.Calibration
 import sh.arek.gloaming.domain.EventPlanner
@@ -414,10 +415,11 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
      * there is one, is for a change the Location page has no other line for.
      */
     fun reconcileGrants() {
+        val grants = Graph.locationGrants(context)
         val reconciled = LocationGrants.reconcile(
             settings,
-            locationGranted = AndroidLocationSource.hasPermission(context),
-            backgroundGranted = AndroidLocationSource.hasBackgroundPermission(context),
+            locationGranted = grants.location(),
+            backgroundGranted = grants.background(),
         )
         if (reconciled.settings !== settings) {
             settings = reconciled.settings
@@ -455,7 +457,6 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 settings = settingsStore.read()
-                reconcileGrants()
                 alertState = stateStore.read()
                 batteryOk = batteryExempt()
                 notificationsOk = notificationsAllowed()
@@ -699,6 +700,12 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     // settings page, and the activity may be rebuilt before it comes back.
     var pendingHours by rememberSaveable { mutableStateOf<Int?>(null) }
 
+    // Whether a request was launched from this screen and has not come back.
+    // Not saved: after the process is restarted or the activity rebuilt, a
+    // pendingHours that is still set has lost its answer. See
+    // CadenceRequest.stalePending.
+    var requestLaunched by remember { mutableStateOf(false) }
+
     fun backgroundMissing(): List<String> = AndroidLocationSource.backgroundRequest(
         sdk = Build.VERSION.SDK_INT,
         coarseGranted = AndroidLocationSource.hasPermission(context),
@@ -719,6 +726,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
 
     /** Android has answered its last question about the background grant. */
     fun settleBackground() {
+        requestLaunched = false
         val hours = pendingHours ?: return
         pendingHours = null
         backgroundLocationOk = AndroidLocationSource.hasBackgroundPermission(context)
@@ -750,6 +758,27 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         } else {
             settleBackground()
         }
+    }
+
+    // After Android has handed over any permission result, which it does
+    // before resuming: a request still pending then lost its answer, and
+    // would otherwise lock out every later pick. Before the reconciliation,
+    // which reads the stored cadence this may change.
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val resolution = CadenceRequest.stalePending(
+                    pendingHours,
+                    requestInFlight = requestLaunched,
+                    backgroundGranted = Graph.locationGrants(context).background(),
+                )
+                if (resolution !is StalePending.None) pendingHours = null
+                if (resolution is StalePending.Apply) chooseCadence(resolution.cadence)
+                reconcileGrants()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     /**
@@ -1423,10 +1452,12 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                             CadencePick.Store -> chooseCadence(cadence)
                             is CadencePick.AskCoarseFirst -> {
                                 pendingHours = (cadence as LocationCadence.Every).hours
+                                requestLaunched = true
                                 coarseBeforeBackground.launch(pick.permissions.toTypedArray())
                             }
                             is CadencePick.Ask -> {
                                 pendingHours = (cadence as LocationCadence.Every).hours
+                                requestLaunched = true
                                 backgroundPermission.launch(pick.permissions.toTypedArray())
                             }
                         }

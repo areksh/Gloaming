@@ -98,4 +98,38 @@ class CadenceRequestTest {
             CadenceRequest.answer(missing = listOf(coarse, background)),
         )
     }
+
+    // --- a request whose answer never arrived ---
+
+    @Test
+    fun `applies a stale request when the grant is now held`() {
+        assertEquals(
+            StalePending.Apply(LocationCadence.Every(3)),
+            CadenceRequest.stalePending(3, requestInFlight = false, backgroundGranted = true),
+        )
+    }
+
+    @Test
+    fun `forgets a stale request when the grant is not held`() {
+        assertEquals(
+            StalePending.Clear,
+            CadenceRequest.stalePending(3, requestInFlight = false, backgroundGranted = false),
+        )
+    }
+
+    @Test
+    fun `changes nothing when no request is waiting`() {
+        assertEquals(
+            StalePending.None,
+            CadenceRequest.stalePending(null, requestInFlight = false, backgroundGranted = true),
+        )
+    }
+
+    @Test
+    fun `leaves a request alone while one launched from this screen is out`() {
+        assertEquals(
+            StalePending.None,
+            CadenceRequest.stalePending(3, requestInFlight = true, backgroundGranted = false),
+        )
+    }
 }
