@@ -120,10 +120,13 @@ object Guide {
             GuideEntry(
                 "The Summer Triangle",
                 "Three brilliant stars - Vega, Deneb and Altair - making a wide " +
-                    "triangle high in the evening sky in the northern summer (the " +
-                    "southern winter), and still up in the early autumn. Vega is the brightest and the " +
-                    "highest; Deneb sits in the Milky Way at the head of Cygnus; Altair " +
-                    "is the lowest of the three, with a fainter star either side of it.",
+                    "triangle in the evening sky from the middle of the year into the " +
+                    "autumn of the north, which is the winter and spring of the south. " +
+                    "From the north it stands high, with Vega the highest and Altair " +
+                    "the lowest; from the south it sits low towards the north and the " +
+                    "other way up, Altair on top. Vega is the brightest, Deneb " +
+                    "sits in the Milky Way at the head of Cygnus, and Altair has a " +
+                    "fainter star either side of it.",
             ),
             GuideEntry(
                 "The Pleiades",
@@ -138,35 +141,37 @@ object Guide {
                 "The Square of Pegasus",
                 "Four stars in a large, almost empty square, high on autumn evenings " +
                     "in the northern hemisphere (towards the south) and on spring " +
-                    "evenings in the southern (towards the north). The emptiness is the useful part: from a properly " +
-                    "dark place you can count several stars inside it, from a suburb " +
-                    "perhaps one, and from a town centre none - which makes it a decent " +
-                    "test of how dark your sky actually is.",
+                    "evenings in the southern (towards the north). The emptiness is " +
+                    "the useful part: from a properly dark place you can count " +
+                    "several stars inside it, from a suburb perhaps one, and from a " +
+                    "town centre none - which makes it a decent test of how dark your " +
+                    "sky actually is.",
             ),
             GuideEntry(
                 "The Milky Way",
                 "Our own galaxy seen edge-on from inside it: a faint band of light " +
                     "across the sky, at its thickest and brightest towards Sagittarius, " +
                     "low towards the south on northern summer nights and high up on " +
-                    "southern winter ones. It needs a properly dark sky " +
-                    "and twenty minutes of dark adaptation, and then it is unmistakable. " +
+                    "southern winter ones. It needs a properly dark sky and twenty " +
+                    "minutes of dark adaptation, and then it is unmistakable. " +
                     "If you have never seen it, that is a fact about where you have been " +
                     "standing rather than about your eyes.",
             ),
             GuideEntry(
                 "The Southern Cross",
                 "A small, tight cross of four stars, the landmark of the southern sky " +
-                    "and never visible from most of the northern hemisphere. The two bright Pointers of " +
-                    "Centaurus stand beside it. Its long axis aims roughly at the south " +
-                    "celestial pole, which - unlike the north - has no bright star to " +
-                    "mark it.",
+                    "and never visible from most of the northern hemisphere. The two " +
+                    "bright Pointers of Centaurus stand beside it. Its long axis aims " +
+                    "roughly at the south celestial pole, which - unlike the north - " +
+                    "has no bright star to mark it.",
             ),
             GuideEntry(
                 "Circumpolar",
                 "Close enough to the pole never to set. From the middle northern " +
                     "latitudes the Plough, Cassiopeia and their neighbours are up every " +
                     "night of the year at some hour and some angle, and from the " +
-                    "southern hemisphere the Southern Cross and Centaurus do the same. " +
+                    "middle southern latitudes the Southern Cross and Centaurus do " +
+                    "the same. " +
                     "That is why the app names such patterns together on one line " +
                     "rather than giving each a row that would never change. The nearer " +
                     "you are to a pole the more of the sky is circumpolar; from the " +
@@ -243,10 +248,9 @@ object Guide {
                     "the pole. Magnetic latitude is not the ordinary kind: the same Kp " +
                     "reaches lower geographic latitudes in North America than in " +
                     "Europe, and the picture is mirrored in the southern hemisphere. " +
-                    "It is a three-hourly " +
-                    "global average, so it is a poor guide to what is happening here " +
-                    "right now, which is why this app works from the shape of the oval " +
-                    "instead.",
+                    "It is a three-hourly global average, so it is a poor guide to " +
+                    "what is happening here right now, which is why this app works " +
+                    "from the shape of the oval instead.",
             ),
             GuideEntry(
                 "Opposition",
