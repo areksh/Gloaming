@@ -35,6 +35,7 @@ object OutlookWords {
     private const val HIGH_DEGREES = 50.0
     private const val LOW_DEGREES = 25.0
     private const val SHOWER_SUFFIX = " at their best"
+    private const val LIKELY_PERCENT = 50
     private val NUMBERS = listOf(
         "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
     )
@@ -54,7 +55,8 @@ object OutlookWords {
         }
         is Outlook.AuroraNow ->
             if (outlook.conditional) {
-                "If it is clear, aurora is likely now: ${outlook.probability}% here. " +
+                "If it is clear, aurora is ${chance(outlook.probability)} now: " +
+                    "${outlook.probability}% here. " +
                     "Look ${report.poleward.label}, low down."
             } else {
                 auroraAlert(outlook.probability, outlook.clearUntil, report.poleward)
@@ -132,13 +134,22 @@ object OutlookWords {
     }
 
     /**
-     * The alert for an aurora that is likely and clear now; the same words as
-     * the headline. [towards] is the observer's nearer pole.
+     * The alert for an aurora over the user's threshold and clear now; the
+     * same words as the headline. [towards] is the observer's nearer pole.
      */
     fun auroraAlert(probability: Int, clearUntil: Long?, towards: Compass): String {
         val until = clearUntil?.let { ", while it stays clear until ${clock(it)}" } ?: ""
-        return "Aurora likely now: $probability% here. Look ${towards.label}, low down$until."
+        return "Aurora ${chance(probability)} now: $probability% here. " +
+            "Look ${towards.label}, low down$until."
     }
+
+    /**
+     * "likely" at even odds or better, "possible" below. The alert fires at
+     * the user's own threshold, which can be as low as 10%, and "likely" at
+     * 15% would be the sort of claim that teaches people to stop reading.
+     */
+    private fun chance(probability: Int): String =
+        if (probability >= LIKELY_PERCENT) "likely" else "possible"
 
     private fun goOut(outlook: Outlook.GoOut): String {
         val first = outlook.picks.first().atMillis

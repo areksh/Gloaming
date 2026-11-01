@@ -621,4 +621,23 @@ class OutlookWordsTest {
     fun `the alert sends an observer below the equator south`() {
         assertEquals("Aurora likely now: 65% here. Look south, low down.", OutlookWords.auroraAlert(65, null, Compass.South))
     }
+
+    /**
+     * The alert fires at the user's own threshold, 30% by default and as low
+     * as 10%, so "likely" is said only at even odds or better.
+     */
+    @Test
+    fun `calls an aurora below even odds possible rather than likely`() {
+        assertEquals("Aurora possible now: 30% here. Look north, low down.", OutlookWords.auroraAlert(30, null, Compass.North))
+        assertEquals("Aurora possible now: 49% here. Look north, low down.", OutlookWords.auroraAlert(49, null, Compass.North))
+        assertEquals("Aurora likely now: 50% here. Look north, low down.", OutlookWords.auroraAlert(50, null, Compass.North))
+        assertEquals(
+            "If it is clear, aurora is possible now: 30% here. Look north, low down.",
+            OutlookWords.headline(report(Outlook.AuroraNow(30, null, conditional = true))),
+        )
+        assertEquals(
+            "Aurora possible now: 30% here. Look north, low down.",
+            OutlookWords.headline(report(Outlook.AuroraNow(30, null, conditional = false))),
+        )
+    }
 }

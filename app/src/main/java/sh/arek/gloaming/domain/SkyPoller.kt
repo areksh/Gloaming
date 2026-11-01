@@ -220,7 +220,7 @@ class SkyPoller(
     /**
      * Where the clear spell the observer is in ends, from the held forecast.
      *
-     * Only a spell already under way counts: the alert says "likely now", and a
+     * Only a spell already under way counts: the alert speaks of now, and a
      * clear patch that begins at three would make "while it stays clear until"
      * claim a clear sky that is not there yet. Read from the cache rather than
      * fetched, like the schedule's own look at the sky.
