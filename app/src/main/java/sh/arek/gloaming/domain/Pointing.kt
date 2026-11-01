@@ -94,7 +94,9 @@ object GuideWords {
     fun instruction(g: Guidance): String {
         if (g.aligned) return "There."
         val parts = listOfNotNull(turnWords(g.turnDegrees), tiltWords(g.tiltDegrees))
-        if (parts.isEmpty()) return ""
+        // Near the zenith no turn is asked, so a few degrees across the top
+        // of the sky can leave neither band with anything to say.
+        if (parts.isEmpty()) return "Nearly there."
         val line = parts.joinToString(", then ")
         return line.replaceFirstChar { it.uppercaseChar() } + "."
     }

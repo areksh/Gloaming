@@ -169,13 +169,13 @@ class PointingTest {
 
     @Test
     fun `tilt bands are read at their edges`() {
-        assertEquals("", words(tilt = 4.9))
+        assertEquals("Nearly there.", words(tilt = 4.9))
         assertEquals("Tilt up a little.", words(tilt = 5.0))
         assertEquals("Tilt up a little.", words(tilt = 14.9))
         assertEquals("Tilt up.", words(tilt = 15.0))
         assertEquals("Tilt down a little.", words(tilt = -5.0))
         assertEquals("Tilt down.", words(tilt = -15.0))
-        assertEquals("", words(tilt = -4.9))
+        assertEquals("Nearly there.", words(tilt = -4.9))
     }
 
     @Test
@@ -188,5 +188,15 @@ class PointingTest {
     @Test
     fun `a tilt alone is capitalised`() {
         assertEquals("Tilt up.", words(tilt = 30.0))
+    }
+
+    @Test
+    fun `near the zenith and not yet lined up there is still something to say`() {
+        // Six degrees apart across the zenith: no turn is asked up there and
+        // the tilt is under the smallest band, yet the two are not in line.
+        val guidance = Guide.of(AltAz(89.0, 0.0), AltAz(85.0, 180.0))
+
+        assertFalse(guidance.aligned)
+        assertEquals("Nearly there.", GuideWords.instruction(guidance))
     }
 }
