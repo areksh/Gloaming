@@ -43,16 +43,16 @@ object WidgetContent {
         val worthLooking: Boolean,
     )
 
-    /**
-     * @param held tonight's outlook as the screen last worked it out. While it
-     *   is still tonight its sentence replaces the freshness line; the figure
-     *   above it stays the reading, which is what the widget is for.
-     */
     private fun holds(held: HeldOutlook, settings: UserSettings, now: Long): Boolean =
         now < held.validUntil &&
             now < held.writtenAt + OUTLOOK_FRESH_MILLIS &&
             held.place == HeldOutlook.placeOf(settings)
 
+    /**
+     * @param held tonight's outlook as the screen last worked it out. While it
+     *   is still tonight its sentence replaces the freshness line; the figure
+     *   above it stays the reading, which is what the widget is for.
+     */
     fun of(settings: UserSettings, state: AlertState, held: HeldOutlook?, now: Long): Text {
         if (!settings.hasLocation) {
             return Text(NO_READING, "Tap to set your location", worthLooking = false)
