@@ -6,6 +6,7 @@ import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.satellites.LiveTracker
+import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.satellites.SatellitesDocument
 
@@ -134,15 +135,64 @@ object FindTargets {
     @Volatile
     private var remembered: Remembered? = null
 
-    /** Forgets the remembered rise; for tests. */
+    /** How many passes have been looked for in the elements; read by tests to show the memo works. */
+    @Volatile
+    internal var passSearches = 0
+
+    /**
+     * The last pass looked for in the elements, so a screen placing it every
+     * second searches once. Keyed by the target, the place and the very
+     * document searched, and replaced whole like [Remembered].
+     */
+    private class RememberedPass(
+        val key: String,
+        val elements: SatellitesDocument,
+        val pass: SatellitePass?,
+    )
+
+    @Volatile
+    private var rememberedPass: RememberedPass? = null
+
+    /** Forgets the remembered rise and pass; for tests. */
     internal fun forget() {
         remembered = null
+        rememberedPass = null
         scans = 0
+        passSearches = 0
     }
 
     private const val SEARCH_STEP_MILLIS = 5 * 60_000L
     private const val SEARCH_SPAN_MILLIS = 24 * 3_600_000L
-    private const val PASS_MATCH_MILLIS = 10 * 60_000L
+
+    /**
+     * How far apart two rise times may be and still be the same pass.
+     *
+     * A notification's rise comes off the poller's own search grid and
+     * Tonight's off another, so the two land a second or so apart; the next
+     * pass of the same satellite is over an hour away.
+     */
+    const val PASS_MATCH_MILLIS: Long = 10 * 60_000L
+
+    /**
+     * Whether [a] and [b] are the same target: equal, or the same satellite
+     * rising within [PASS_MATCH_MILLIS] of each other.
+     */
+    fun same(a: FindTarget, b: FindTarget): Boolean =
+        if (a is FindTarget.Pass && b is FindTarget.Pass) {
+            a.catalogue == b.catalogue && kotlin.math.abs(a.risesAt - b.risesAt) <= PASS_MATCH_MILLIS
+        } else {
+            a == b
+        }
+
+    /**
+     * The entry in [available] that is the same target as [target], or null
+     * when none is - so a pass handed in by a notification selects Tonight's
+     * own chip for it rather than standing beside it as a second one.
+     */
+    fun matching(target: FindTarget, available: List<FindTarget>): FindTarget? =
+        available.filter { same(it, target) }.minByOrNull {
+            if (it is FindTarget.Pass && target is FindTarget.Pass) kotlin.math.abs(it.risesAt - target.risesAt) else 0L
+        }
 
     /**
      * Everything worth offering now, in the order the picker shows it.
@@ -270,10 +320,14 @@ object FindTargets {
         longitude: Double,
         nowMillis: Long,
     ): TargetFix? {
+        // Tonight's list first, and the elements where it has nothing: the
+        // list is rebuilt from the start of the window onwards, which leaves
+        // out a pass already under way, so once one has risen it is only in
+        // the elements.
         val pass: SatellitePass? = list.passes
-            .filter { it.catalogue == target.catalogue }
-            .filter { kotlin.math.abs(it.risesAt - target.risesAt) <= PASS_MATCH_MILLIS }
+            .filter { same(FindTarget.Pass(it.catalogue, it.risesAt), target) }
             .minByOrNull { kotlin.math.abs(it.risesAt - target.risesAt) }
+            ?: elements?.let { passFromElements(target, it, latitude, longitude) }
         if (pass == null || pass.setsAt <= nowMillis) return null
 
         val label = pass.name
@@ -292,6 +346,43 @@ object FindTargets {
         } else {
             TargetFix(label, null, pass.risesAt, pass.riseAzimuth, wording)
         }
+    }
+
+    /**
+     * The pass [target] names, worked out from the elements of its one
+     * satellite over the [PASS_MATCH_MILLIS] either side of its rise.
+     *
+     * Twenty minutes of one satellite is a few hundred propagations, and the
+     * answer is remembered, so the screen placing the target every second
+     * searches once rather than every tick.
+     */
+    private fun passFromElements(
+        target: FindTarget.Pass,
+        elements: SatellitesDocument,
+        latitude: Double,
+        longitude: Double,
+    ): SatellitePass? {
+        val key = "${target.encode()}@$latitude,$longitude"
+        rememberedPass?.takeIf { it.key == key && it.elements === elements }?.let { return it.pass }
+
+        passSearches++
+        val satellite = elements.satellites.firstOrNull { it.catalogue == target.catalogue }
+        val pass = satellite?.let {
+            PassFinder.passes(
+                elements = it,
+                latitude = latitude,
+                longitude = longitude,
+                fromMillis = target.risesAt - PASS_MATCH_MILLIS,
+                untilMillis = target.risesAt + PASS_MATCH_MILLIS,
+                // Any pass at all: the one asked for was already judged worth
+                // pointing at by whoever offered it.
+                minimumPeakElevation = 0.0,
+            )
+                .filter { found -> kotlin.math.abs(found.risesAt - target.risesAt) <= PASS_MATCH_MILLIS }
+                .minByOrNull { found -> kotlin.math.abs(found.risesAt - target.risesAt) }
+        }
+        rememberedPass = RememberedPass(key, elements, pass)
+        return pass
     }
 
     private const val PASS_WORDING =

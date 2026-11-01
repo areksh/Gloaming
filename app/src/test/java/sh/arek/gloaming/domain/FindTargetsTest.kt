@@ -235,6 +235,72 @@ class FindTargetsTest {
         assertNull(result.risesAt)
     }
 
+    /**
+     * What Tonight hands Find once the pass has risen: PassFinder leaves out a
+     * pass already under way at the start of its window, so the list rebuilt
+     * after rise no longer holds it. Find must still place it from the
+     * elements rather than call it gone while it is overhead.
+     */
+    @Test
+    fun `a pass under way is placed even once tonight's list has dropped it`() {
+        val during = pass.peaksAt
+
+        val result = fix(FindTarget.Pass(pass.catalogue, pass.risesAt), tonight(), at = during)!!
+
+        val expected = LiveTracker(iss, latitude, longitude).fixAt(during)
+        assertEquals(expected.elevation, result.position!!.altitude, 1e-9)
+        assertEquals(expected.azimuth, result.position.azimuth, 1e-9)
+        assertEquals("ISS (ZARYA)", result.label)
+    }
+
+    @Test
+    fun `a pass the list does not hold is found by its rise, a few seconds either way`() {
+        // A notification's rise comes off the poller's own search grid, which
+        // lands a second or so from Tonight's.
+        val asked = FindTarget.Pass(pass.catalogue, pass.risesAt + 3_000L)
+
+        val result = fix(asked, tonight(), at = pass.risesAt - 5 * 60_000L)!!
+
+        assertNull(result.position)
+        assertEquals(pass.risesAt.toDouble(), result.risesAt!!.toDouble(), 1_000.0)
+        assertEquals(pass.riseAzimuth, result.riseAzimuth!!, 0.5)
+    }
+
+    @Test
+    fun `a pass the list does not hold is still gone once it has set`() {
+        assertNull(fix(FindTarget.Pass(pass.catalogue, pass.risesAt), tonight(), at = pass.setsAt + 1))
+    }
+
+    @Test
+    fun `a pass the list does not hold, with no elements either, is not known`() {
+        assertNull(fix(FindTarget.Pass(pass.catalogue, pass.risesAt), tonight(), withElements = null, at = pass.peaksAt))
+    }
+
+    @Test
+    fun `following a pass the list does not hold searches its elements once`() {
+        val target = FindTarget.Pass(pass.catalogue, pass.risesAt)
+        fix(target, tonight(), at = pass.peaksAt)
+        val searched = FindTargets.passSearches
+
+        val later = fix(target, tonight(), at = pass.peaksAt + 1_000L)!!
+
+        assertEquals(searched, FindTargets.passSearches)
+        assertNotNull(later.position)
+    }
+
+    @Test
+    fun `a notification's pass is matched to tonight's own entry for it`() {
+        val available = FindTargets.available(tonight(passes = listOf(pass)), false, pass.risesAt - 60_000L)
+        val tonights = FindTarget.Pass(pass.catalogue, pass.risesAt)
+
+        assertEquals(tonights, FindTargets.matching(FindTarget.Pass(pass.catalogue, pass.risesAt + 2_000L), available))
+        assertEquals(tonights, FindTargets.matching(FindTarget.Pass(pass.catalogue, pass.risesAt - 9 * 60_000L), available))
+        assertNull(FindTargets.matching(FindTarget.Pass(pass.catalogue, pass.risesAt + 11 * 60_000L), available))
+        assertNull(FindTargets.matching(FindTarget.Pass(pass.catalogue + 1, pass.risesAt), available))
+        assertEquals(FindTarget.Moon, FindTargets.matching(FindTarget.Moon, available))
+        assertNull(FindTargets.matching(FindTarget.Aurora, available))
+    }
+
     @Test
     fun `a pass with no elements has no position and says why`() {
         val result = fix(

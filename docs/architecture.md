@@ -514,7 +514,16 @@ is a file replacement.
   (shared with the row mapping) gives it a target. `findTargetFrom` is the one
   place a handed-in target is read. The satellite elements Tonight was
   worked out from ride along in `MainUiState.elements`, so a pass is followed
-  from the same copy without reading the cache on the main thread.
+  from the same copy without reading the cache on the main thread. A pass is
+  found in tonight's list where it is there, and otherwise in its own
+  satellite's elements over `FindTargets.PASS_MATCH_MILLIS` either side of its
+  rise, memoised: Tonight's list is rebuilt from now onwards and `PassFinder`
+  leaves out a pass already under way, so once a pass has risen only the
+  elements still hold it. Two passes of one satellite rising within that
+  tolerance are the same target (`FindTargets.same`), which is how a
+  notification's rise, from the poller's own search grid, selects tonight's
+  chip rather than adding a second. Until tonight has been worked out, a pass
+  that cannot be placed reads "Working out tonight..." rather than gone.
 
 ### Manifest verification
 

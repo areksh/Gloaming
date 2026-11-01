@@ -18,7 +18,9 @@ import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.TargetFix
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
+import sh.arek.gloaming.satellites.SatelliteElements
 import sh.arek.gloaming.satellites.SatellitePass
+import sh.arek.gloaming.satellites.SatellitesDocument
 
 /** The words on the Find screen and which rows of the night it can point at. */
 class FindWordsTest {
@@ -48,6 +50,9 @@ class FindWordsTest {
         risesAt: Long? = null,
         riseAzimuth: Double? = null,
     ) = TargetFix("Saturn", position, risesAt, riseAzimuth, "Pale yellow.")
+
+    /** The instruction once tonight has been worked out, which is the usual case. */
+    private fun instruction(fix: TargetFix?, guidance: Guidance?) = findInstruction(fix, guidance, tonightKnown = true)
 
     private fun night(
         planets: List<PlanetTonight> = emptyList(),
@@ -173,37 +178,51 @@ class FindWordsTest {
     fun `guides in the words the guide gives`() {
         val guidance = Guidance(turnDegrees = 30.0, tiltDegrees = 20.0, aligned = false)
 
-        assertEquals("Turn right, then tilt up.", findInstruction(fix(position = AltAz(30.0, 30.0)), guidance))
+        assertEquals("Turn right, then tilt up.", instruction(fix(position = AltAz(30.0, 30.0)), guidance))
     }
 
     @Test
     fun `says there when lined up`() {
         val guidance = Guidance(turnDegrees = 1.0, tiltDegrees = 1.0, aligned = true)
 
-        assertEquals("There.", findInstruction(fix(position = AltAz(30.0, 30.0)), guidance))
+        assertEquals("There.", instruction(fix(position = AltAz(30.0, 30.0)), guidance))
     }
 
     @Test
     fun `waits for the compass before guiding`() {
-        assertEquals("Waiting for the compass.", findInstruction(fix(position = AltAz(30.0, 30.0)), null))
+        assertEquals("Waiting for the compass.", instruction(fix(position = AltAz(30.0, 30.0)), null))
     }
 
     @Test
     fun `gives the rise time of a target not yet up, compass or not`() {
         val guidance = Guidance(turnDegrees = 30.0, tiltDegrees = 20.0, aligned = false)
 
-        assertEquals("Not up until ${clock(now + hour)}.", findInstruction(fix(risesAt = now + hour), guidance))
-        assertEquals("Not up until ${clock(now + hour)}.", findInstruction(fix(risesAt = now + hour), null))
+        assertEquals("Not up until ${clock(now + hour)}.", instruction(fix(risesAt = now + hour), guidance))
+        assertEquals("Not up until ${clock(now + hour)}.", instruction(fix(risesAt = now + hour), null))
     }
 
     @Test
     fun `says so of a target below the horizon with no rise to give`() {
-        assertEquals("Cannot be pointed at now.", findInstruction(fix(), null))
+        assertEquals("Cannot be pointed at now.", instruction(fix(), null))
     }
 
     @Test
     fun `says so of a target that has gone`() {
-        assertEquals("That one has gone for tonight.", findInstruction(null, null))
+        assertEquals("That one has gone for tonight.", instruction(null, null))
+    }
+
+    @Test
+    fun `says tonight is still being worked out rather than that the target has gone`() {
+        assertEquals("Working out tonight...", findInstruction(null, null, tonightKnown = false))
+        assertEquals("That one has gone for tonight.", instruction(null, null))
+    }
+
+    @Test
+    fun `a target that can be placed is placed whether or not tonight is known`() {
+        assertEquals(
+            "Not up until ${clock(now + hour)}.",
+            findInstruction(fix(risesAt = now + hour), null, tonightKnown = false),
+        )
     }
 
     // --- the compass ---
@@ -286,6 +305,39 @@ class FindWordsTest {
 
         assertEquals("Jupiter", chipLabel(FindTarget.Planet(SkyBody.Jupiter), list, now))
         assertEquals("ISS (ZARYA)", chipLabel(FindTarget.Pass(25544, now + hour), list, now + hour))
+    }
+
+    @Test
+    fun `names a pass whose rise is a few seconds from tonight's as tonight's`() {
+        val list = night(passes = listOf(pass))
+
+        assertEquals(
+            "ISS (ZARYA), ${clock(now + hour)}",
+            chipLabel(FindTarget.Pass(25544, now + hour + 3_000L), list, now),
+        )
+        assertEquals("Satellite 25544", chipLabel(FindTarget.Pass(25544, now + hour + 11 * 60_000L), list, now))
+    }
+
+    @Test
+    fun `names a pass the night no longer holds by its satellite where the elements know it`() {
+        val elements = SatellitesDocument(
+            schema = 1,
+            updated = "2026-11-01T00:00:00Z",
+            satellites = listOf(
+                SatelliteElements(
+                    name = "ISS (ZARYA)", catalogue = 25544, epoch = 21320.51955234,
+                    epochMillis = 1637065689322L, meanMotion = 15.48582035, eccentricity = 0.0004694,
+                    inclination = 51.6447, raan = 309.4881, argPerigee = 203.6966, meanAnomaly = 299.8876,
+                    bstar = 0.000031985, meanMotionDot = 0.00001288,
+                ),
+            ),
+        )
+
+        assertEquals("ISS (ZARYA)", chipLabel(FindTarget.Pass(25544, now - 60_000L), night(), now, elements))
+        assertEquals(
+            "ISS (ZARYA), ${clock(now + hour)}",
+            chipLabel(FindTarget.Pass(25544, now + hour), night(), now, elements),
+        )
     }
 
     @Test

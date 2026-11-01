@@ -9,11 +9,13 @@ import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.domain.CompassAccuracy
 import sh.arek.gloaming.domain.CompassCheck
 import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.FindTargets
 import sh.arek.gloaming.domain.Guidance
 import sh.arek.gloaming.domain.Guide
 import sh.arek.gloaming.domain.GuideWords
 import sh.arek.gloaming.domain.TargetFix
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.SatellitesDocument
 
 /**
  * What a row of the night can be pointed at, or null where there is nothing
@@ -77,13 +79,16 @@ private fun degreesUp(altitude: Double): String {
 /**
  * The one line that tells somebody what to do with the phone.
  *
- * [fix] null means the target has gone - a pass that has set. [guidance] null
- * means the compass has not given a reading yet. A target below the horizon
- * gives its rise time whatever the compass says, because no amount of turning
- * will find it.
+ * [fix] null means the target cannot be placed. Once tonight is known
+ * ([tonightKnown]) that is because it has gone - a pass that has set; before
+ * then, as on a cold start from a pass alert, it is because the elements and
+ * the night are still being read, and saying "gone" would be false. [guidance]
+ * null means the compass has not given a reading yet. A target below the
+ * horizon gives its rise time whatever the compass says, because no amount of
+ * turning will find it.
  */
-fun findInstruction(fix: TargetFix?, guidance: Guidance?): String {
-    if (fix == null) return "That one has gone for tonight."
+fun findInstruction(fix: TargetFix?, guidance: Guidance?, tonightKnown: Boolean): String {
+    if (fix == null) return if (tonightKnown) "That one has gone for tonight." else "Working out tonight..."
     if (fix.position == null) {
         return fix.risesAt?.let { "Not up until ${clock(it)}." } ?: "Cannot be pointed at now."
     }
@@ -132,9 +137,18 @@ fun lineUpResult(correctionDegrees: Double): String {
  * ahead: "Saturn", "The moon, 20:40", "ISS (ZARYA), 00:52".
  *
  * Read from tonight's list rather than worked out, so a row of chips costs
- * nothing to draw.
+ * nothing to draw. A pass is matched to the list's entry for it as
+ * [FindTargets.same] matches it, a few seconds either way; one the list no
+ * longer holds - it has risen, so the list rebuilt since leaves it out - is
+ * named from [elements] where they know the satellite, and by its catalogue
+ * number where they do not.
  */
-fun chipLabel(target: FindTarget, list: TonightList, nowMillis: Long): String {
+fun chipLabel(
+    target: FindTarget,
+    list: TonightList,
+    nowMillis: Long,
+    elements: SatellitesDocument? = null,
+): String {
     fun withRise(name: String, risesAt: Long?) =
         if (risesAt != null && risesAt > nowMillis) "$name, ${clock(risesAt)}" else name
 
@@ -144,8 +158,11 @@ fun chipLabel(target: FindTarget, list: TonightList, nowMillis: Long): String {
         FindTarget.Moon -> withRise("The moon", list.moon?.risesAt)
         is FindTarget.Pattern -> if (target.name == "Ursa Major") "The Plough" else target.name
         is FindTarget.Pass -> list.passes
-            .firstOrNull { it.catalogue == target.catalogue && it.risesAt == target.risesAt }
+            .filter { FindTargets.same(FindTarget.Pass(it.catalogue, it.risesAt), target) }
+            .minByOrNull { abs(it.risesAt - target.risesAt) }
             ?.let { withRise(it.name, it.risesAt) }
+            ?: elements?.satellites?.firstOrNull { it.catalogue == target.catalogue }
+                ?.let { withRise(it.name, target.risesAt) }
             ?: "Satellite ${target.catalogue}"
         FindTarget.Aurora -> "Aurora"
     }

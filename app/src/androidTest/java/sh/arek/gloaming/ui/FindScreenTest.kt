@@ -190,6 +190,32 @@ class FindScreenTest {
         )
     }
 
+    /**
+     * A pass alert's rise comes off the poller's search grid, a second or so
+     * from tonight's; it selects tonight's chip rather than adding a
+     * "Satellite 25544" chip beside it.
+     */
+    @Test
+    fun aPassFromANotificationSelectsTonightsChipForIt() {
+        val handedIn = FindTarget.Pass(25544, station.risesAt + 2_000L)
+        show(FakeCompassSource(), initial = handedIn, tonight = night(listOf(station)))
+
+        compose.onNodeWithTag(findChipTag(FindTarget.Pass(25544, station.risesAt))).assertIsSelected()
+        compose.onNodeWithTag(findChipTag(handedIn)).assertDoesNotExist()
+        compose.onNodeWithText("Satellite 25544", substring = true).assertDoesNotExist()
+    }
+
+    /** On a cold start from a pass alert tonight is not worked out yet, and the pass has not gone. */
+    @Test
+    fun aPassBeforeTonightIsWorkedOutIsNotCalledGone() {
+        val compass = FakeCompassSource()
+        show(compass, initial = FindTarget.Pass(25544, station.risesAt), tonight = null)
+
+        compass.point(azimuth = 90.0, altitude = 0.0)
+
+        instruction().assertTextEquals("Working out tonight...")
+    }
+
     @Test
     fun waitsForTheCompassBeforeGuiding() {
         show(FakeCompassSource())

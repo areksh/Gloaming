@@ -197,7 +197,11 @@ private fun FindContent(
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
-        val target = chosen?.let { FindTarget.decode(it) } ?: available.first()
+        val asked = chosen?.let { FindTarget.decode(it) } ?: available.first()
+        // A pass handed in by a notification rises a second or so from
+        // tonight's own entry for it, so it is matched to that entry rather
+        // than standing beside it as a second chip.
+        val target = FindTargets.matching(asked, available) ?: asked
         // A target opened from a row is offered even when tonight's list has
         // moved on from it, so the chip it was opened on is still there.
         val chips = if (target in available) available else listOf(target) + available
@@ -218,7 +222,7 @@ private fun FindContent(
                         chosen = chip.encode()
                         onTargetChange(chip)
                     },
-                    label = { Text(chipLabel(chip, list, now)) },
+                    label = { Text(chipLabel(chip, list, now, state.elements)) },
                     modifier = Modifier.testTag(findChipTag(chip)),
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = palette.accent,
@@ -305,7 +309,7 @@ private fun Guided(
         }
     }
 
-    val instruction = findInstruction(fix, guidance)
+    val instruction = findInstruction(fix, guidance, state.tonight != null)
     val where = fix?.let { whereLine(it, pointing) }
 
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
