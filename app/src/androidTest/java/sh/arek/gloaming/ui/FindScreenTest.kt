@@ -25,6 +25,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -279,6 +280,11 @@ class FindScreenTest {
 
         val line = compose.onNodeWithTag(FIND_NOTHING_TAG)
         line.assertIsDisplayed()
+        // The search a day ahead runs off the main thread, so the line is on
+        // screen first and the next-up part follows.
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Next up:", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
         line.assert(SemanticsMatcher("names what is next") {
             val text = it.config[SemanticsProperties.Text].joinToString("") { part -> part.text }
             text.startsWith("Nothing to point at right now. Next up: ") && ", from " in text
