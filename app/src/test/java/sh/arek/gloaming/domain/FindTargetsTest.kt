@@ -822,6 +822,15 @@ class FindTargetsTest {
     }
 
     @Test
+    fun `never names a pass that is already under way`() {
+        val at0 = pass.risesAt + minute
+        val list = tonight(passes = listOf(pass))
+        val nothing: (FindTarget, Long) -> Double = { _, _ -> -5.0 }
+
+        assertNull(FindTargets.nextUp(list, at0, nothing, { -30.0 }))
+    }
+
+    @Test
     fun `the soonest of a body and a pass wins`() {
         val at0 = pass.risesAt - 6 * 3_600_000L
         val list = tonight(passes = listOf(pass))

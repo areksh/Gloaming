@@ -249,6 +249,11 @@ private fun FindContent(
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
         val asked = chosen?.let { FindTarget.decode(it) } ?: available.firstOrNull()
+        // A default nobody tapped is held once shown, so a list that changes
+        // underneath it does not move the guidance to another target.
+        LaunchedEffect(asked) {
+            if (chosen == null && asked != null) chosen = asked.encode()
+        }
 
         Text(
             "Hold the phone up and point its top edge at the sky.",
@@ -257,7 +262,11 @@ private fun FindContent(
         )
         if (asked == null) {
             Text(
-                nothingToPointAt(next?.let { (target, at) -> chipLabel(target, list, Long.MAX_VALUE, state.elements) to at }),
+                if (!findTonightKnown(state.tonight, state.tonightUpdating, state.elements)) {
+                    WORKING_OUT_TONIGHT
+                } else {
+                    nothingToPointAt(next?.let { (target, at) -> chipLabel(target, list, Long.MAX_VALUE, state.elements) to at })
+                },
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.testTag(FIND_NOTHING_TAG),
             )

@@ -354,8 +354,9 @@ object FindTargets {
      * Aurora is never named: when it will be strong enough is not known ahead.
      * Bodies and patterns are stepped through at [altitudeAt] and [sunAt]
      * (coarse, like the rise search, so "from" is a few minutes late at worst);
-     * a pass is named [PASS_LEAD_MILLIS] before it rises, or now if it is
-     * already under way. On a tie a body wins.
+     * a pass is named [PASS_LEAD_MILLIS] before it rises. One already under
+     * way is never named: if it were offerable the list would not be empty, so
+     * it is one that cannot be placed yet, and "from now" would be false. On a tie a body wins.
      */
     fun nextUp(
         list: TonightList,
@@ -368,7 +369,7 @@ object FindTargets {
         val passes = list.bestPasses
             .filter { it.setsAt > nowMillis }
             .map { FindTarget.Pass(it.catalogue, it.risesAt) to maxOf(nowMillis, it.risesAt - PASS_LEAD_MILLIS) }
-            .filter { it.second <= until }
+            .filter { it.second in (nowMillis + 1)..until }
             .minByOrNull { it.second }
 
         var at = nowMillis

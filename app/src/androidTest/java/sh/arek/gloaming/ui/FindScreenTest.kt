@@ -292,6 +292,37 @@ class FindScreenTest {
         assertEquals(emptyList<String>(), chipTags())
     }
 
+    /** Not knowing tonight yet is not the same as nothing being up. */
+    @Test
+    fun whileTonightIsNotKnownItSaysItIsWorkingItOut() {
+        show(FakeCompassSource(), initial = null, tonight = null, at = dayWithoutMoon())
+
+        compose.onNodeWithTag(FIND_NOTHING_TAG).assertTextEquals(WORKING_OUT_TONIGHT)
+    }
+
+    /** A target nobody tapped is held once shown, so the list changing does not move the guidance. */
+    @Test
+    fun aDefaultTargetStaysSelectedAfterItHasSet() {
+        var at by mutableStateOf(dayWithMoon())
+        compose.setContent {
+            FindScreen(
+                state = state(nowMillis = at),
+                actions = actions,
+                source = FakeCompassSource(),
+                initial = null,
+                clock = { at },
+            )
+        }
+        compose.onNodeWithTag(findChipTag(FindTarget.Moon)).assertIsSelected()
+
+        at = dayWithoutMoon()
+
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText("Not up until", substring = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(findChipTag(FindTarget.Moon)).assertIsSelected()
+    }
+
     /** A chosen target that goes below the horizon stays chosen, and says when it is back. */
     @Test
     fun aChosenTargetThatHasSetStaysSelectedAndSaysWhenItIsBack() {
