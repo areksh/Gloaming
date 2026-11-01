@@ -301,6 +301,7 @@ class FindWordsTest {
         assertEquals("Jupiter", chipLabel(FindTarget.Planet(SkyBody.Jupiter), list, now))
         assertEquals("The moon", chipLabel(FindTarget.Moon, list, now))
         assertEquals("The Plough", chipLabel(FindTarget.Pattern("Ursa Major"), list, now))
+        assertEquals("The Southern Cross", chipLabel(FindTarget.Pattern("Crux"), list, now))
         assertEquals("Orion", chipLabel(FindTarget.Pattern("Orion"), list, now))
         assertEquals("Aurora", chipLabel(FindTarget.Aurora, list, now))
     }

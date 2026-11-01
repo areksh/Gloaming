@@ -683,15 +683,18 @@ object Outlooks {
 
     /**
      * A constellation to learn on a quiet night: the one at its best if there
-     * is one, else the Plough wherever Ursa Major is up, which from these
-     * latitudes is every night.
+     * is one, else a signpost that is up - the Plough, which from the middle
+     * northern latitudes is every night, or the Southern Cross, which is the
+     * same from the middle southern ones.
      */
-    private fun toLearn(list: TonightList): String? =
-        list.constellations.firstOrNull { it.isAtItsBest }?.constellation?.name
-            ?: "the Plough".takeIf {
-                list.constellations.any { it.constellation.name == URSA_MAJOR } ||
-                    URSA_MAJOR in list.constellationsAlwaysUp
-            }
+    private fun toLearn(list: TonightList): String? {
+        fun up(name: String) =
+            list.constellations.any { it.constellation.name == name } || name in list.constellationsAlwaysUp
+        return list.constellations.firstOrNull { it.isAtItsBest }?.constellation?.name
+            ?: "the Plough".takeIf { up(URSA_MAJOR) }
+            ?: "the Southern Cross".takeIf { up(CRUX) }
+    }
 
     private const val URSA_MAJOR = "Ursa Major"
+    private const val CRUX = "Crux"
 }

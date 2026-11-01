@@ -167,7 +167,7 @@ fun chipLabel(
         is FindTarget.Planet ->
             withRise(target.body.label, list.planets.firstOrNull { it.body == target.body }?.risesAt)
         FindTarget.Moon -> withRise("The moon", list.moon?.risesAt)
-        is FindTarget.Pattern -> if (target.name == "Ursa Major") "The Plough" else target.name
+        is FindTarget.Pattern -> FindTargets.patternLabel(target.name)
         is FindTarget.Pass -> list.passes
             .filter { FindTargets.same(FindTarget.Pass(it.catalogue, it.risesAt), target) }
             .minByOrNull { abs(it.risesAt - target.risesAt) }

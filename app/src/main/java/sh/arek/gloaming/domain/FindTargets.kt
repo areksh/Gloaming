@@ -121,7 +121,22 @@ object FindTargets {
     )
 
     private const val PLOUGH = "Ursa Major"
+    private const val SOUTHERN_CROSS = "Crux"
+
+    /**
+     * The patterns everything else is found from: the Plough in the north,
+     * the Southern Cross in the south. Each is offered whenever it is up,
+     * before tonight's list is worked out, and outside [MORE_PATTERNS].
+     */
+    private val SIGNPOSTS = listOf(PLOUGH, SOUTHERN_CROSS)
     private const val MORE_PATTERNS = 3
+
+    /** What a pattern is called on Find: the signposts by the names people use. */
+    internal fun patternLabel(name: String): String = when (name) {
+        PLOUGH -> "The Plough"
+        SOUTHERN_CROSS -> "The Southern Cross"
+        else -> name
+    }
 
     /** How high aurora is looked for: low down, over the poleward horizon. */
     private const val AURORA_ALTITUDE = 10.0
@@ -244,10 +259,10 @@ object FindTargets {
     private fun skyCandidates(list: TonightList): List<FindTarget> {
         val patterns = list.constellations
             .map { it.constellation.name }
-            .filter { it != PLOUGH }
+            .filter { it !in SIGNPOSTS }
             .map { FindTarget.Pattern(it) }
         return PLANETS.map { FindTarget.Planet(it) } + FindTarget.Moon +
-            FindTarget.Pattern(PLOUGH) + patterns
+            SIGNPOSTS.map { FindTarget.Pattern(it) } + patterns
     }
 
     /**
@@ -257,8 +272,8 @@ object FindTargets {
      * Not what is merely up: the moon whenever it is above the horizon, since
      * it is seen by day and is what the compass check aims at; a planet from
      * [Outlooks.PLANET_MIN_ALTITUDE] once the sun is below [PLANET_SUN_LIMIT];
-     * the Plough and up to three more patterns above the horizon once the sun
-     * is below [DARK_SUN_LIMIT]; a pass under way or rising within
+     * the [SIGNPOSTS] and up to three more patterns above the horizon once
+     * the sun is below [DARK_SUN_LIMIT]; a pass under way or rising within
      * [PASS_LEAD_MILLIS], the soonest [MAX_PASSES] of Tonight's best; and
      * aurora when [Sky.auroraNow] and the sun is below [DARK_SUN_LIMIT].
      * Nothing is offered for rising later: [nextUp] says what that is.
@@ -283,7 +298,7 @@ object FindTargets {
             if (!sunAllows(candidate, sky.sunAltitude)) continue
             val altitude = altitudeOf(candidate) ?: continue
             if (!highEnough(candidate, altitude)) continue
-            if (candidate is FindTarget.Pattern && candidate.name != PLOUGH && morePatterns-- <= 0) continue
+            if (candidate is FindTarget.Pattern && candidate.name !in SIGNPOSTS && morePatterns-- <= 0) continue
             targets += candidate
         }
         val coming = list.bestPasses
@@ -451,7 +466,7 @@ object FindTargets {
 
     private fun patternFix(c: Constellation, latitude: Double, longitude: Double, nowMillis: Long) =
         bodyFix(
-            label = if (c.name == PLOUGH) "The Plough" else c.name,
+            label = patternLabel(c.name),
             recognise = c.starHop,
             positionAt = { SkyPositions.fixed(c.raHours, c.dec, latitude, longitude, it) },
             key = "pattern:${c.name}@$latitude,$longitude",

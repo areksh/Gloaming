@@ -240,8 +240,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   says what is above, below, left or right of what, or where in the sky or the
   year it stands, since the sky turns over between hemispheres: Orion is
   "Betelgeuse on one side of the belt and Rigel on the other", and Sirius is
-  found by following the belt away from Aldebaran. Names of data sources such
-  as AuroraWatch UK are unchanged.
+  found by following the belt away from Aldebaran. Find offers the Southern
+  Cross the way it offers the Plough, whenever it is up and before tonight is
+  worked out, and a quiet night south of the equator suggests learning it.
+  Names of data sources such as AuroraWatch UK are unchanged.
 
 ### Fixed
 

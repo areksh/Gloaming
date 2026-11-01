@@ -110,7 +110,10 @@ private const val TICK_MILLIS = 1_000L
 /** Declination changes by a fraction of a degree a year, so once a day is plenty. */
 private const val DAY_MILLIS = 24 * 3_600_000L
 
-/** Tonight with nothing in it, so the Plough can be found before the list is worked out. */
+/**
+ * Tonight with nothing in it, so the Plough or the Southern Cross can be found
+ * before the list is worked out.
+ */
 private val EMPTY_NIGHT = TonightList(
     darkFrom = null,
     darkUntil = null,

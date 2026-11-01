@@ -158,23 +158,40 @@ class FindTargetsTest {
     }
 
     @Test
-    fun `offers the Plough first among patterns`() {
+    fun `offers the signposts first among patterns, then three more`() {
         val list = tonight(constellations = listOf("Orion", "Ursa Major", "Cygnus", "Lyra", "Cassiopeia"))
 
         val patterns = offered(list).filterIsInstance<FindTarget.Pattern>()
 
         assertEquals(
-            listOf("Ursa Major", "Orion", "Cygnus", "Lyra"),
+            listOf("Ursa Major", "Crux", "Orion", "Cygnus", "Lyra"),
             patterns.map { it.name },
         )
         assertEquals("The Plough", fix(patterns.first())!!.label)
     }
 
     @Test
-    fun `offers the Plough even when tonight's list does not name it`() {
+    fun `offers the signposts even when tonight's list names neither`() {
         val patterns = offered().filterIsInstance<FindTarget.Pattern>()
 
-        assertEquals(listOf("Ursa Major"), patterns.map { it.name })
+        assertEquals(listOf("Ursa Major", "Crux"), patterns.map { it.name })
+    }
+
+    /**
+     * South of the equator the Plough is down and the Southern Cross is the
+     * signpost, so it gets the same place: offered whenever it is up, before
+     * the list is worked out, and outside the three further patterns.
+     */
+    @Test
+    fun `offers the Southern Cross as the signpost when the Plough is down`() {
+        val list = tonight(constellations = listOf("Orion", "Scorpius", "Centaurus", "Sagittarius"))
+        val down = FindTarget.Pattern("Ursa Major")
+
+        val patterns = offered(list, fixOf = { if (it == down) placed(null) else placed(30.0) })
+            .filterIsInstance<FindTarget.Pattern>()
+
+        assertEquals(listOf("Crux", "Orion", "Scorpius", "Centaurus"), patterns.map { it.name })
+        assertEquals("The Southern Cross", fix(patterns.first())!!.label)
     }
 
     @Test
@@ -706,7 +723,8 @@ class FindTargetsTest {
             listOf(
                 FindTarget.Planet::class, FindTarget.Planet::class, FindTarget.Planet::class,
                 FindTarget.Planet::class, FindTarget.Planet::class, FindTarget.Moon::class,
-                FindTarget.Pattern::class, FindTarget.Pattern::class, FindTarget.Pass::class,
+                FindTarget.Pattern::class, FindTarget.Pattern::class, FindTarget.Pattern::class,
+                FindTarget.Pass::class,
                 FindTarget.Aurora::class,
             ),
             kinds,

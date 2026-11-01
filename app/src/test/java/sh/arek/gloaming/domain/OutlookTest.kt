@@ -668,6 +668,20 @@ class OutlookTest {
         assertEquals("the Plough", (report.outlook as Outlook.Quiet).learn)
     }
 
+    /** South of the equator the Plough is down, and the Southern Cross is the signpost. */
+    @Test
+    fun `clear and quiet in the south suggests the Southern Cross`() {
+        val report = Outlooks.of(
+            tonight(
+                constellations = listOf(pattern("Scorpius")),
+                constellationsAlwaysUp = listOf("Crux", "Centaurus"),
+            ),
+            input(),
+        )
+
+        assertEquals("the Southern Cross", (report.outlook as Outlook.Quiet).learn)
+    }
+
     @Test
     fun `a constellation at its best is the one to learn`() {
         val report = Outlooks.of(
