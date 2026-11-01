@@ -220,11 +220,11 @@ class SettingsPagesTest {
 
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().performClick()
 
-        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertIsDisplayed()
+        compose.onNodeWithText(cadenceExplainerText()).assertIsDisplayed()
         compose.onNodeWithTag(CADENCE_EXPLAINER_CONTINUE_TAG).assertIsDisplayed()
         compose.onNodeWithTag(CADENCE_EXPLAINER_CANCEL_TAG).performClick()
 
-        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertDoesNotExist()
+        compose.onNodeWithText(cadenceExplainerText()).assertDoesNotExist()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsSelected()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").assertIsNotSelected()
     }
@@ -236,10 +236,10 @@ class SettingsPagesTest {
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextInput("3")
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
 
-        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertIsDisplayed()
+        compose.onNodeWithText(cadenceExplainerText()).assertIsDisplayed()
         compose.onNodeWithTag(CADENCE_EXPLAINER_CANCEL_TAG).performClick()
 
-        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertDoesNotExist()
+        compose.onNodeWithText(cadenceExplainerText()).assertDoesNotExist()
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().assertTextEquals("")
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").assertIsSelected()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").assertIsNotSelected()

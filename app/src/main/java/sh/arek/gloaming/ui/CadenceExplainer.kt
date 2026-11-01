@@ -1,5 +1,6 @@
 package sh.arek.gloaming.ui
 
+import android.os.Build
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,10 +21,21 @@ const val CADENCE_EXPLAINER_CANCEL_TAG = "cadence-explainer-cancel"
 
 const val CADENCE_EXPLAINER_TITLE = "Background updates"
 
-const val CADENCE_EXPLAINER_TEXT =
-    "Android will ask whether Gloaming may use your location all the time. Choose " +
-        "\"Allow all the time\" and leave \"Use precise location\" off - Gloaming only " +
-        "needs to know roughly where you are."
+/**
+ * What the dialog says about Android's page for the background grant.
+ *
+ * "Use precise location" is a toggle from Android 12 (API 31); before that the
+ * page has no such control, so the advice to leave it off is left out.
+ */
+fun cadenceExplainerText(sdk: Int = Build.VERSION.SDK_INT): String =
+    if (sdk >= Build.VERSION_CODES.S) {
+        "Android will ask whether Gloaming may use your location all the time. Choose " +
+            "\"Allow all the time\" and leave \"Use precise location\" off - Gloaming only " +
+            "needs to know roughly where you are."
+    } else {
+        "Android will ask whether Gloaming may use your location all the time. Choose " +
+            "\"Allow all the time\"."
+    }
 
 /**
  * Holds an interval pick back until it has been explained.
@@ -88,7 +100,7 @@ fun CadenceExplainerDialog(explainer: CadenceExplainer) {
     AlertDialog(
         onDismissRequest = explainer::cancel,
         title = { Text(CADENCE_EXPLAINER_TITLE) },
-        text = { Text(CADENCE_EXPLAINER_TEXT) },
+        text = { Text(cadenceExplainerText()) },
         confirmButton = {
             TextButton(
                 onClick = explainer::continueRequest,
