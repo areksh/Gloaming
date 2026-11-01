@@ -5,6 +5,7 @@ import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.domain.CompassAccuracy
 import sh.arek.gloaming.domain.CompassCheck
 import sh.arek.gloaming.domain.FindTarget
@@ -26,11 +27,17 @@ fun findTarget(subject: RowSubject): FindTarget? = when (subject) {
     RowSubject.Moon -> FindTarget.Moon
     is RowSubject.Pass -> FindTarget.Pass(subject.pass.catalogue, subject.pass.risesAt)
     is RowSubject.Planet -> FindTarget.Planet(subject.planet.body)
-    is RowSubject.Event -> when (subject.event.kind) {
-        EventKind.LunarEclipse, EventKind.Occultation, EventKind.MoonPhase, EventKind.MoonQuarter ->
-            FindTarget.Moon
-        else -> null
-    }
+    is RowSubject.Event -> findTarget(subject.event)
+}
+
+/**
+ * What an event can be pointed at, shared by its row and its notification so
+ * the two never disagree about whether there is anything to find.
+ */
+fun findTarget(event: SkyEvent): FindTarget? = when (event.kind) {
+    EventKind.LunarEclipse, EventKind.Occultation, EventKind.MoonPhase, EventKind.MoonQuarter ->
+        FindTarget.Moon
+    else -> null
 }
 
 /**

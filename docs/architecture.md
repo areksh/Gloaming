@@ -486,7 +486,13 @@ is a file replacement.
   accuracy live, Done stamps `compassCheckedAt`, and Line up, offered while the
   moon is up, stores `CompassCheck.offsetFromMoon` or says why it refused.
   Find it on a row's sheet switches to Find aimed at that row; `GloamingNav`
-  holds the target as its encoded string. The satellite elements Tonight was
+  holds the target as its encoded string. Find it on a notification
+  (`notify/FindIt.kt`) sends the same string as an extra to `MainActivity`,
+  which is `singleTop` so a second tap while the app is open reaches
+  `onNewIntent`; it hands the string to `GloamingNav` and clears it once shown,
+  ignores one it cannot decode, and drops it while setup is unfinished. Passes
+  and the aurora always carry the action; an event does where `findTarget`
+  (shared with the row mapping) gives it a target. The satellite elements Tonight was
   worked out from ride along in `MainUiState.elements`, so a pass is followed
   from the same copy without reading the cache on the main thread.
 

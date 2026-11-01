@@ -45,6 +45,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.Darkness
+import sh.arek.gloaming.notify.FindIt
 import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
@@ -154,6 +155,35 @@ private fun quietHoursFrom(from: String, until: String): QuietHours? {
 
 class MainActivity : ComponentActivity() {
 
+    /**
+     * The Find target a notification's "Find it" handed in, encoded, until the
+     * screen has used it. Snapshot state so a second tap while the app is open
+     * reaches the composition; cleared once shown so the same target can be
+     * aimed at again.
+     */
+    private var pendingFind by mutableStateOf<String?>(null)
+
+    /**
+     * `singleTop` so tapping "Find it" while the app is already in front lands
+     * here rather than stacking a second copy.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        takeFindTarget(intent)
+    }
+
+    /**
+     * Moves the target out of [intent] and into [pendingFind]. Removed from the
+     * intent so a recreation, which hands the same intent back, does not aim
+     * Find a second time.
+     */
+    private fun takeFindTarget(intent: Intent) {
+        val target = intent.getStringExtra(FindIt.EXTRA_FIND_TARGET) ?: return
+        intent.removeExtra(FindIt.EXTRA_FIND_TARGET)
+        pendingFind = target
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -172,7 +202,11 @@ class MainActivity : ComponentActivity() {
             PollAlarm.schedule(this, settings.pollIntervalMinutes)
         }
 
-        setContent { GloamingApp() }
+        // Only on a fresh start: after a rotation or process death the intent
+        // is the original one, and its target has already been used.
+        if (savedInstanceState == null) takeFindTarget(intent)
+
+        setContent { GloamingApp(initialFind = pendingFind, onInitialFindShown = { pendingFind = null }) }
     }
 }
 
@@ -258,7 +292,7 @@ private fun granted(context: Context, permission: String): Boolean =
  * setting and the settings are read here.
  */
 @androidx.compose.runtime.Composable
-private fun GloamingApp() {
+private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     val context = LocalContext.current
     val settingsStore = remember { Graph.settings(context) }
     val stateStore = remember { Graph.alertState(context) }
@@ -1398,6 +1432,8 @@ private fun GloamingApp() {
                 // Tonight is not empty the first time it is seen.
                 onSetupFinished = { checkNow() },
                 compass = compass,
+                initialFind = initialFind,
+                onInitialFindShown = onInitialFindShown,
             )
         }
     }

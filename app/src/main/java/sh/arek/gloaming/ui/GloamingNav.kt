@@ -18,6 +18,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +82,11 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  *
  * @param compass what Find and the Compass settings page read; the phone's
  *   sensors in the app, a fake in a test, and none at all by default.
+ * @param initialFind a target handed in by Find it on a notification, encoded.
+ *   A target this build can read opens Find aimed at it, wherever the app was;
+ *   anything else is ignored and the app opens as it would have. Either way
+ *   [onInitialFindShown] is called, so the caller can forget it and the same
+ *   notification tapped again aims Find again.
  */
 @Composable
 fun GloamingNav(
@@ -88,6 +94,8 @@ fun GloamingNav(
     actions: UiActions,
     modifier: Modifier = Modifier,
     compass: CompassSource = NoCompass,
+    initialFind: String? = null,
+    onInitialFindShown: () -> Unit = {},
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     // The open Settings page by name: null is the index. A name rather than the
@@ -107,6 +115,17 @@ fun GloamingNav(
     // What Find is aimed at, encoded, so Find it on a row can open it on that
     // row and a target picked on Find is still chosen after a visit elsewhere.
     var findTarget by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(initialFind) {
+        if (initialFind != null) {
+            if (FindTarget.decode(initialFind) != null) {
+                findTarget = initialFind
+                selected = Section.Find.ordinal
+                openPage = null
+            }
+            onInitialFindShown()
+        }
+    }
 
     // System Back leaves a page for the index rather than the app.
     BackHandler(enabled = page != null) { openPage = null }

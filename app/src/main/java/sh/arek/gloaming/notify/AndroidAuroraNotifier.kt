@@ -16,6 +16,7 @@ import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.data.SkyStatus
 import sh.arek.gloaming.domain.AuroraNotifier
+import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.ui.OutlookWords
 import sh.arek.gloaming.ui.describeCloud
 
@@ -96,6 +97,7 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .setAutoCancel(true)
+            .addFindIt(context, FindTarget.Aurora, NOTIFICATION_ID)
             // The highest-leverage two buttons in the app: they turn every real
             // night into the calibration data the default thresholds have been
             // waiting on since the first version.

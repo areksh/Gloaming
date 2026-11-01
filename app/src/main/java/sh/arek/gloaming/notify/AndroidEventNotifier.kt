@@ -20,6 +20,7 @@ import sh.arek.gloaming.domain.EventNotifier
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.ui.findTarget
 import sh.arek.gloaming.work.EclipseService
 import sh.arek.gloaming.work.FollowEclipseReceiver
 
@@ -49,6 +50,9 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             .setContentIntent(openApp())
             .apply { followEclipse(event)?.let { addAction(0, "Follow it", it) } }
+            .apply {
+                findTarget(event)?.let { addFindIt(context, it, notificationId(event, phase)) }
+            }
             // Only on the notice for the night itself. Asking whether an
             // eclipse two days away was worth it is asking about something
             // that has not happened.

@@ -75,7 +75,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   facing, and how to recognise it. The screen stays on while Find is open, and
   Find alone turns red on black and dims the screen (Night vision when
   finding, on by default), putting the brightness back when you leave it.
-  Find it on a row of Tonight's night opens Find aimed at that row. When the
+  Find it on a row of Tonight's night opens Find aimed at that row, and so
+  does Find it on an alert about a pass, the aurora, or an eclipse or other
+  event of the moon. When the
   phone says its compass is unsure, Find offers a check, at most once a week:
   the figure of eight that lets the phone relearn north, with its accuracy
   climbing as you go, then, with the moon up, Line up, which corrects the

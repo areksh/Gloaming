@@ -90,6 +90,19 @@ class FindWordsTest {
     }
 
     @Test
+    fun `points at the moon from an event itself, as a row does`() {
+        for (kind in EventKind.entries) {
+            assertEquals(
+                kind.name,
+                findTarget(RowSubject.Event(event(kind))),
+                findTarget(event(kind)),
+            )
+        }
+        assertEquals(FindTarget.Moon, findTarget(event(EventKind.LunarEclipse)))
+        assertNull(findTarget(event(EventKind.SolarEclipse)))
+    }
+
+    @Test
     fun `offers nothing for a row with nothing to point at`() {
         assertNull(findTarget(RowSubject.Twilight))
         assertNull(findTarget(RowSubject.Clear))

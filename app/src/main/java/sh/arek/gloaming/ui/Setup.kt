@@ -14,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -118,7 +119,8 @@ fun SetupFlow(
 
 /**
  * What the app shows: first-run setup until it has been walked through or
- * skipped, and the navigation after.
+ * skipped, and the navigation after. [initialFind] is passed on to the
+ * navigation; see [GloamingNav].
  */
 @Composable
 fun GloamingRoot(
@@ -127,10 +129,15 @@ fun GloamingRoot(
     modifier: Modifier = Modifier,
     onSetupFinished: () -> Unit = {},
     compass: CompassSource = NoCompass,
+    initialFind: String? = null,
+    onInitialFindShown: () -> Unit = {},
 ) {
     if (state.settings.setupDone) {
-        GloamingNav(state, actions, modifier, compass)
+        GloamingNav(state, actions, modifier, compass, initialFind, onInitialFindShown)
     } else {
+        // Setup comes first: a target handed in before it is done is dropped
+        // rather than kept, so it cannot surprise anybody when setup ends.
+        LaunchedEffect(initialFind) { if (initialFind != null) onInitialFindShown() }
         SetupFlow(state, actions, onFinished = onSetupFinished, modifier = modifier)
     }
 }

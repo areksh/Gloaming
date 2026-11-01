@@ -14,6 +14,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.NoCompass
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.encode
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
@@ -41,6 +48,10 @@ class GloamingNavTest {
     private val starred = mutableListOf<SkyEvent>()
     private var hiddenKind: EventKind? = null
 
+    /** What an incoming intent asked Find to aim at, as the activity would hand it over. */
+    private var initialFind by mutableStateOf<String?>(null)
+    private var initialFindShown = 0
+
     private val eclipse = SkyEvent(
         kind = EventKind.SolarEclipse,
         at = 1_800_000_000_000L,
@@ -61,9 +72,13 @@ class GloamingNavTest {
         calendar: List<SkyEvent> = listOf(eclipse),
         calendarLoading: Boolean = false,
         batteryExempt: Boolean = true,
+        compass: CompassSource = NoCompass,
     ) {
         compose.setContent {
             GloamingNav(
+                compass = compass,
+                initialFind = initialFind,
+                onInitialFindShown = { initialFindShown++ },
                 state = MainUiState(
                     settings = settings,
                     alertState = AlertState(),
@@ -104,6 +119,48 @@ class GloamingNavTest {
 
         compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
         compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed()
+    }
+
+    /**
+     * Find it from a notification: the activity hands the encoded target in
+     * and Find opens aimed at it. Aurora is looked for due north, ten degrees up.
+     */
+    @Test
+    fun anIntentNamingATargetOpensFindOnIt() {
+        val compass = FakeCompassSource()
+        initialFind = FindTarget.Aurora.encode()
+        show(compass = compass)
+
+        compose.onNodeWithTag(Section.Find.tag).assertIsSelected()
+        compass.point(azimuth = 0.0, altitude = 10.0)
+        compose.onNodeWithTag(FIND_INSTRUCTION_TAG).assertTextEquals("There.")
+        assertEquals(1, initialFindShown)
+    }
+
+    @Test
+    fun anIntentNamingNonsenseOpensTonight() {
+        initialFind = "nonsense:42"
+        show(compass = FakeCompassSource())
+
+        compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
+        assertEquals(1, initialFindShown)
+    }
+
+    /** A second tap while the app is open must aim Find again, even from another tab. */
+    @Test
+    fun aSecondIntentWhileOpenAimsFindAgain() {
+        val compass = FakeCompassSource()
+        show(compass = compass)
+        compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
+
+        compose.runOnIdle { initialFind = FindTarget.Aurora.encode() }
+        compose.waitForIdle()
+        compose.onNodeWithTag(Section.Find.tag).assertIsSelected()
+
+        compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.runOnIdle { initialFind = FindTarget.Moon.encode() }
+        compose.waitForIdle()
+        compose.onNodeWithTag(Section.Find.tag).assertIsSelected()
     }
 
     /** The bar holds four sections, in the order the spec gives. */

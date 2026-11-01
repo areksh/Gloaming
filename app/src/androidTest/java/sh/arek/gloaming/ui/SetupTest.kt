@@ -1,5 +1,7 @@
 package sh.arek.gloaming.ui
 
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.encode
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -181,6 +183,24 @@ class SetupTest {
 
         compose.onNodeWithText("Step 1 of 3").assertIsDisplayed()
         compose.onNodeWithTag(Section.Tonight.tag).assertDoesNotExist()
+    }
+
+    /** A notification tapped before setup is done does not skip it, and is not kept. */
+    @Test
+    fun theRootIgnoresATargetUntilSetupIsDone() {
+        var shown = 0
+        compose.setContent {
+            GloamingRoot(
+                state = state.copy(settings = located.copy(setupDone = false)),
+                actions = UiActions(),
+                initialFind = FindTarget.Aurora.encode(),
+                onInitialFindShown = { shown++ },
+            )
+        }
+
+        compose.onNodeWithText("Step 1 of 3").assertIsDisplayed()
+        compose.onNodeWithTag(Section.Tonight.tag).assertDoesNotExist()
+        compose.runOnIdle { assertEquals(1, shown) }
     }
 
     @Test
