@@ -39,6 +39,11 @@ import kotlin.math.roundToInt
  *   credential-encrypted storage (the mirror carries a copy, like the rest of
  *   the settings). Only the background location alarm reads
  *   them, and that only runs while unlocked.
+ * - **The kept Tonight** (`tonight-snapshot.json`: the night's list, keyed by
+ *   the observer's grid cell and the end of the night, so it is never shown
+ *   for another place) is derived from the precise position, so it lives in
+ *   credential-encrypted `filesDir` and never in device-encrypted storage.
+ *   Backups exclude it.
  * - **The precise position** never leaves credential-encrypted storage, and
  *   nor does the cloud reading taken at it - see [weatherCacheContext].
  */
