@@ -227,8 +227,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to a minute: the night was worked out twice, first without the calendar and
   then again with it, and the first pass could briefly open with a sentence
   that knew nothing of the night's events. Turning the phone threw it all away
-  and started again. Now the night is worked out once, after the calendar, and
-  kept while the app is running, so turning the phone or coming back to the
+  and started again. Now the night is worked out once, and kept while the app
+  is running, so turning the phone or coming back to the
   app shows it at once - also when Gloaming follows the phone's location, where
   turning the phone used to ask for a fresh position and start again whenever
   it had moved a little. While it is being worked out a progress bar and
@@ -240,6 +240,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   twenty seconds. That copy stays on the phone, unreadable until it is first
   unlocked, because it is worked out from your exact position, and is dropped
   when location is taken away or you move to another place.
+  The night also no longer waits for the year ahead to be worked out: it
+  works out the next three weeks of events for itself, so a fresh Tonight lands
+  in about half the time.
 
 - **Tonight follows the cloud and constellation settings straight away.**
   Turning "Check cloud cover" or "Every constellation" on or off left

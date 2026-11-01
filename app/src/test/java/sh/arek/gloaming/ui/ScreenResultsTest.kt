@@ -55,13 +55,13 @@ class ScreenResultsTest {
         place: Pair<Double, Double>? = edinburgh,
         threshold: Int = 30,
         user: UserSettings = settings(place).copy(threshold = threshold),
-        calendar: CalendarKey = calendarKey(user = user),
+        recalculation: Int = 0,
     ) = TonightKey.of(
         settings = user,
-        calendar = calendar,
         forecastVersion = 0,
         lastPollAt = null,
         staleSlot = 0L,
+        recalculation = recalculation,
     )
 
     private fun event(title: String) = SkyEvent(
@@ -308,7 +308,7 @@ class ScreenResultsTest {
         val results = results()
         fun keys(): Pair<CalendarKey, TonightKey> {
             val calendar = calendarKey(recalculation = results.recalculation)
-            return calendar to tonightKey(calendar = calendar)
+            return calendar to tonightKey(recalculation = results.recalculation)
         }
         fun ensure() {
             val (calendar, tonight) = keys()
@@ -330,49 +330,25 @@ class ScreenResultsTest {
         assertEquals(2, results.tonightRuns)
     }
 
-    // --- tonight waits for its calendar ---
+    // --- tonight does not wait for its calendar ---
 
     @Test
-    fun `tonight is not started until its calendar has landed`() = runTest {
+    fun `tonight is worked out while the calendar is still in flight`() = runTest {
         val results = results()
         val gate = CompletableDeferred<Unit>()
-        val events = listOf(event("Saturn at opposition"))
-        var given: List<SkyEvent>? = null
 
-        results.ensureCalendar(calendarKey(), events = { gate.await(); events }, months = { emptyList() })
-        results.ensureTonight(tonightKey()) { calendar -> given = calendar; night(1) }
+        results.ensureCalendar(calendarKey(), events = { gate.await(); emptyList() }, months = { emptyList() })
+        results.ensureTonight(tonightKey()) { night(1) }
         runCurrent()
 
-        assertEquals(0, results.tonightRuns)
-        assertTrue(results.tonightUpdating)
+        assertEquals(1, results.tonightRuns)
+        assertEquals(1L, results.tonight?.darkFrom)
+        assertFalse(results.tonightUpdating)
         assertTrue(results.calendarLoading)
 
         gate.complete(Unit)
         advanceUntilIdle()
-
-        assertEquals(1, results.tonightRuns)
-        assertEquals(events, given)
-    }
-
-    @Test
-    fun `tonight is not worked out against another key's calendar`() = runTest {
-        val results = results()
-        land(results, calendarKey(recalculation = 0))
-        val gate = CompletableDeferred<Unit>()
-        val fresh = listOf(event("Fresh"))
-        var given: List<SkyEvent>? = null
-
-        results.ensureCalendar(calendarKey(recalculation = 1), events = { gate.await(); fresh }, months = { emptyList() })
-        results.ensureTonight(tonightKey(calendar = calendarKey(recalculation = 1))) { calendar ->
-            given = calendar
-            night(1)
-        }
-        runCurrent()
-        assertEquals(0, results.tonightRuns)
-
-        gate.complete(Unit)
-        advanceUntilIdle()
-        assertEquals(fresh, given)
+        assertFalse(results.calendarLoading)
     }
 
     @Test
@@ -485,6 +461,11 @@ class ScreenResultsTest {
     }
 
     @Test
+    fun `a new recalculation gives tonight a new key`() {
+        assertNotEquals(tonightKey(recalculation = 0), tonightKey(recalculation = 1))
+    }
+
+    @Test
     fun `a change to any comet setting gives the calendar a new key`() {
         val base = settings()
         val changes = listOf<(UserSettings) -> UserSettings>(
@@ -586,7 +567,7 @@ class ScreenResultsTest {
     }
 
     @Test
-    fun `calendar work that throws still lets tonight run`() = runTest {
+    fun `calendar work that throws leaves tonight running`() = runTest {
         val results = results()
 
         results.ensureCalendar(calendarKey(), events = { throw IllegalStateException("broken") }, months = { emptyList() })

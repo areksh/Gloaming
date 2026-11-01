@@ -152,7 +152,7 @@ class TonightPersistenceTest {
             val runs = results.tonightRuns
 
             scenario.onActivity { results.recalculate() }
-            // In the work itself, past the wait for the calendar.
+            // In the work itself.
             compose.waitUntil(NIGHT_TIMEOUT_MILLIS) { results.tonightRuns == runs + 1 }
             assertTrue(results.tonightUpdating)
             scenario.recreate()
@@ -227,7 +227,7 @@ class TonightPersistenceTest {
     /**
      * A cold start: the holder is empty, but the last night worked out was
      * kept. Its sentence and "Updating..." are up together before the fresh
-     * run, which needs a calendar first and then a night, has landed anything.
+     * run has landed anything.
      * The snapshot is made for the cell the typed position falls in, and
      * carries a sentence the real run would not give, so seeing it proves it
      * came from the file.
@@ -266,7 +266,6 @@ class TonightPersistenceTest {
             compose.onNodeWithTag(TONIGHT_UPDATING_TAG).assertExists()
             compose.onNodeWithText(TONIGHT_UPDATING).assertExists()
             assertTrue(cold.tonightUpdating)
-            assertEquals(0, cold.tonightRuns)
         }
     }
 
@@ -274,7 +273,7 @@ class TonightPersistenceTest {
         /** Opening on the snapshot is immediate; this is room for a slow start. */
         const val SEED_TIMEOUT_MILLIS = 15_000L
 
-        /** A calendar and then a night, each the better part of ten seconds, with room. */
+        /** A night is the better part of ten seconds, with room. */
         const val NIGHT_TIMEOUT_MILLIS = 120_000L
 
         /** A real check runs the pollers, the pass sweep included, before the night. */

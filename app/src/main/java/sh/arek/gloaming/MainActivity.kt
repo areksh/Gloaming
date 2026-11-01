@@ -51,6 +51,7 @@ import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.TonightEvents
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.notify.FindIt
 import sh.arek.gloaming.comets.Comets
@@ -960,21 +961,21 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         if (changed) results.forecastChanged()
     }
 
-    // Worked out from the calendar and the elements already on the device, so
-    // it costs no network. Worked out again when the calendar is, when a
-    // forecast changes what is held, when a check lands, and on the clock
-    // tick, because "tonight" moves as the evening does - and never before
-    // the calendar it reads has landed (ScreenResults.ensureTonight).
+    // Worked out from the elements already on the device, so it costs no
+    // network, and from its own events over a short horizon
+    // (TonightEvents), so it does not wait for the year. Worked out again when
+    // a forecast changes what is held, when a check lands, and on the clock
+    // tick, because "tonight" moves as the evening does.
     //
     // The outlook is decided here too, from the same documents and the same
     // held forecast, so the sentence at the top cannot disagree with the night
     // beneath it.
     val tonightKey = TonightKey.of(
         settings,
-        calendar = calendarKey,
         forecastVersion = results.forecastVersion,
         lastPollAt = alertState.lastPollAt,
         staleSlot = shownAt / TONIGHT_STALE_MILLIS,
+        recalculation = results.recalculation,
     )
     LaunchedEffect(tonightKey) {
         val user = settings
@@ -984,7 +985,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         // against the reading it contradicts.
         val state = alertState
         val app = context.applicationContext
-        results.ensureTonight(tonightKey) work@{ calendar ->
+        results.ensureTonight(tonightKey) work@{
             val latitude = user.latitude ?: return@work null
             val longitude = user.longitude ?: return@work null
             runCatching {
@@ -996,10 +997,11 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                 val elements = satellites.cached()
                 val forecast = weather.forecast(latitude, longitude)
                 val now = System.currentTimeMillis()
+                val comets = Graph.comets(app).cached()
                 val list = Tonight.of(
                     satellites = elements,
-                    comets = Graph.comets(app).cached(),
-                    calendar = calendar,
+                    comets = comets,
+                    calendar = TonightEvents.of(latitude, longitude, now, comets, user),
                     settings = user,
                     nowMillis = now,
                     cloud = weather.lastKnown(latitude, longitude),
@@ -1284,8 +1286,9 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         saveSettings(settings)
                     },
                     // The four comet controls change which comets belong in the
-                    // calendar and how they are described; CalendarKey holds all
-                    // four, so saving them is enough to work it out again.
+                    // calendar and tonight, and how they are described;
+                    // CalendarKey and TonightKey each hold all four, so saving
+                    // them is enough to work both out again.
                     onCometMagnitudeChange = {
                         settings = settings.copy(cometMagnitudeThreshold = it)
                         saveSettings(settings)

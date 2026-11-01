@@ -502,19 +502,24 @@ is a file replacement.
   instance from `Graph.screenResults`, as Compose state the screen reads. No
   ViewModel: it is a plain class, like the rest of the wiring. `MainActivity`
   hands it a `CalendarKey` and a `TonightKey` - made from the settings by
-  their `of`, holding every setting the work reads (the comet settings in the
-  calendar's) and the position to `KEY_PRECISION_DEGREES`, about a kilometre,
-  so an approximate fix wandering does not start it all again; the work itself
+  their `of`, each holding every setting its work reads and the position to
+  `KEY_PRECISION_DEGREES`, about a kilometre, so an approximate fix wandering does not start it all again; the work itself
   uses the exact position - and work starts only for a key that is neither
   shown nor in flight, in the holder's own scope on the default dispatcher.
   So a rotation, mid-run or not, finds the result or the run where it left
   it, and reopening with nothing changed works nothing out. A new key cancels
   the run in flight; the sweep cannot be cancelled and runs on regardless, so
-  a result is published only if its run is still the newest. Tonight's work
-  waits for the calendar of its own key, so it runs once per open and never
-  against a year that is not there yet; a key for another grid cell takes the
-  old place's night down at once. Work that throws ends its run, so nothing is
-  left updating for ever, and the scope's handler logs it rather than letting
+  a result is published only if its run is still the newest. Tonight does
+  not wait for the calendar: it works its own events out
+  (`astronomy.TonightEvents`) over 22 days rather than the year, because
+  `Tonight.of` lists only the events whose window overlaps tonight and the
+  longest window, an opposition's, opens three weeks before its date, so the
+  year scan's ten seconds bought nothing a 22-day scan does not. For that
+  reason the `TonightKey` holds the comet settings itself, and
+  `TonightEventsTest` holds the two scans equal over the scenario catalogue
+  and a year of nights at three latitudes. A key for another grid cell takes
+  the old place's night down at once. Work that throws ends its run, so
+  nothing is left updating for ever, and the scope's handler logs it rather than letting
   it crash the app. A cold process would otherwise show nothing for the twenty
   seconds the first night takes, so each finished run also writes
   `tonight-snapshot.json` (`data.TonightSnapshots`: the list, outlook, hourly

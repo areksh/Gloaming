@@ -8,9 +8,6 @@ import androidx.compose.runtime.snapshots.Snapshot
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.GridCell
@@ -98,17 +95,16 @@ const val TONIGHT_STALE_MILLIS = 15 * 60_000L
  * What tonight is worked out from, beyond the documents on the device. Made
  * with [of].
  *
- * The calendar it is worked out against is a key rather than the list, so
- * Tonight waits for that calendar instead of being worked out first against an
- * empty one and then again; the comet settings `Tonight.of` reads arrive
- * through it. The settings here are every other one that `Tonight.of`,
- * `Outlooks.of` and `NightTimeline.of` read: one left out leaves the night
- * decided from its old value - the card quoting a new cloud tolerance against
- * a gap worked out from the old one, or the cloud gate turned on and the
- * sentence still decided without it.
+ * Tonight works its own events out ([sh.arek.gloaming.astronomy.TonightEvents])
+ * and so does not depend on the calendar's key, which means the comet
+ * settings that the events and `Tonight.of` read are here themselves. The
+ * settings are every one that `TonightEvents`, `Tonight.of`, `Outlooks.of` and
+ * `NightTimeline.of` read: one left out leaves the night decided from its old
+ * value - the card quoting a new cloud tolerance against a gap worked out from
+ * the old one, or the cloud gate turned on and the sentence still decided
+ * without it.
  */
 data class TonightKey(
-    val calendar: CalendarKey,
     /** The position, to [KEY_PRECISION_DEGREES]. */
     val latitude: Double?,
     val longitude: Double?,
@@ -117,13 +113,18 @@ data class TonightKey(
     val minimumPassElevationDegrees: Int,
     val threshold: Int,
     val showEveryConstellation: Boolean,
+    /** The comet settings, which decide which comets the night lists and how. */
+    val cometMagnitudeThreshold: Int,
+    val minimumCometAltitudeDegrees: Int,
+    val cometObservationStaleDays: Int,
+    val cometMoonTolerance: Int,
     /** [ScreenResults.forecastVersion]: a fetched forecast that changed what is held. */
     val forecastVersion: Int,
     /** A check brings a new reading and possibly new elements, both of which the outlook reads. */
     val lastPollAt: Long?,
     /** The screen's clock in [TONIGHT_STALE_MILLIS] stretches, because "tonight" moves as the evening does. */
     val staleSlot: Long,
-    /** [ScreenResults.recalculation] when the key was made; the same as [calendar]'s. */
+    /** [ScreenResults.recalculation] when the key was made. */
     val recalculation: Int,
 ) {
     /** The place the night is about, at the grid's resolution. */
@@ -133,12 +134,11 @@ data class TonightKey(
     companion object {
         fun of(
             settings: UserSettings,
-            calendar: CalendarKey,
             forecastVersion: Int,
             lastPollAt: Long?,
             staleSlot: Long,
+            recalculation: Int,
         ) = TonightKey(
-            calendar = calendar,
             latitude = keyed(settings.latitude),
             longitude = keyed(settings.longitude),
             cloudGateEnabled = settings.cloudGateEnabled,
@@ -146,10 +146,14 @@ data class TonightKey(
             minimumPassElevationDegrees = settings.minimumPassElevationDegrees,
             threshold = settings.threshold,
             showEveryConstellation = settings.showEveryConstellation,
+            cometMagnitudeThreshold = settings.cometMagnitudeThreshold,
+            minimumCometAltitudeDegrees = settings.minimumCometAltitudeDegrees,
+            cometObservationStaleDays = settings.cometObservationStaleDays,
+            cometMoonTolerance = settings.cometMoonTolerance,
             forecastVersion = forecastVersion,
             lastPollAt = lastPollAt,
             staleSlot = staleSlot,
-            recalculation = calendar.recalculation,
+            recalculation = recalculation,
         )
     }
 }
@@ -217,7 +221,7 @@ class ScreenResults(
 
     /**
      * True from the moment tonight is asked for under a new key until it is
-     * published, including the wait for its calendar.
+     * published.
      */
     var tonightUpdating by mutableStateOf(false)
         private set
@@ -246,11 +250,6 @@ class ScreenResults(
     private var calendarInFlight: CalendarKey? = null
     private var calendarJob: Job? = null
     private var calendarGeneration = 0
-
-    /** Which key's events [calendar] holds, for a tonight run waiting on them. */
-    private val landed = MutableStateFlow<Landed?>(null)
-
-    private class Landed(val key: CalendarKey, val events: List<SkyEvent>)
 
     private var tonightShown: TonightKey? = null
     private var tonightInFlight: TonightKey? = null
@@ -327,9 +326,8 @@ class ScreenResults(
                     }
                 } finally {
                     // Work that threw: the exception goes on to the scope's
-                    // handler, but this run is over, and a Tonight waiting on
-                    // its events is let go with none - what the calendar's own
-                    // work answers when it fails - rather than left waiting.
+                    // handler, but this run is over, and the events are
+                    // published empty rather than left reading "loading".
                     synchronized(lock) {
                         if (generation == calendarGeneration && calendarInFlight == key) {
                             if (!published) publishEvents(key, emptyList())
@@ -348,21 +346,19 @@ class ScreenResults(
             calendar = events
             calendarLoading = false
         }
-        landed.value = Landed(key, events)
     }
 
     /**
      * Works out tonight for [key] unless it is already shown or under way.
      *
-     * The [work] is not started until the calendar for [TonightKey.calendar]
-     * has landed, and is handed those events, so the night and its opening
-     * sentence are never worked out against a year that is not there yet. A
+     * The [work] starts at once and gathers its own events over a short
+     * horizon, so Tonight does not wait for the year ahead. A
      * key for another grid cell takes the old place's night down at once
      * rather than leaving "clear from 22:00" up about somewhere else; a
      * position wandering inside the cell keeps it up until the new one lands.
      * A null night takes every result down.
      */
-    fun ensureTonight(key: TonightKey, work: suspend (List<SkyEvent>) -> WorkedNight?) {
+    fun ensureTonight(key: TonightKey, work: suspend () -> WorkedNight?) {
         synchronized(lock) {
             if (key == tonightInFlight) return
             if (key == tonightShown) {
@@ -397,9 +393,8 @@ class ScreenResults(
             }
             tonightJob = scope.launch {
                 try {
-                    val events = landed.filterNotNull().first { it.key == key.calendar }.events
                     tonightCount.incrementAndGet()
-                    val worked = work(events)
+                    val worked = work()
                     val persist = synchronized(lock) {
                         if (generation != tonightGeneration) return@launch
                         Snapshot.withMutableSnapshot {
