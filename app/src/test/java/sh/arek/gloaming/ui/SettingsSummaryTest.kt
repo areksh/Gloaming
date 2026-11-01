@@ -133,13 +133,33 @@ class SettingsSummaryTest {
     }
 
     @Test
+    fun `says how often the background updates run in the index summary`() {
+        fun located(cadence: LocationCadence) = summary(
+            SettingsPage.Location,
+            state(UserSettings(locationMode = LocationMode.Automatic, locationCadence = cadence)),
+        )
+        assertEquals(
+            "Approximate, from the phone. Background updates every hour",
+            located(LocationCadence.Every(1)),
+        )
+        assertEquals(
+            "Approximate, from the phone. Background updates every 3 hours",
+            located(LocationCadence.Every(3)),
+        )
+        assertEquals(
+            "Approximate, from the phone. Background updates once a day",
+            located(LocationCadence.Every(24)),
+        )
+    }
+
+    @Test
     fun `says a located phone is approximate and how often it updates`() {
         val settings = UserSettings(
             locationMode = LocationMode.Automatic,
             locationCadence = LocationCadence.OnOpen,
         )
         assertEquals(
-            "Approximate, from the phone. Off - when I open Gloaming",
+            "Approximate, from the phone. Background updates off",
             summary(SettingsPage.Location, state(settings)),
         )
     }

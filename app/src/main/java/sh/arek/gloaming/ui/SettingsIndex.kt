@@ -95,7 +95,7 @@ fun summary(page: SettingsPage, state: MainUiState): String {
                 "Approximate, from the phone. Background updates revoked; each time you open Gloaming"
 
             settings.locationMode == LocationMode.Automatic ->
-                "Approximate, from the phone. ${describeCadence(settings.locationCadence)}"
+                "Approximate, from the phone. ${describeCadenceSummary(settings.locationCadence)}"
 
             settings.hasLocation ->
                 "Typed in: ${coordinates(settings.latitude!!, settings.longitude!!)}"

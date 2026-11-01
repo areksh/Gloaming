@@ -573,6 +573,20 @@ fun describeCadence(cadence: LocationCadence): String = when (cadence) {
 }
 
 /**
+ * Background updates as the Settings index summary says them, after "Approximate,
+ * from the phone." - where the card's own "Off - when I open Gloaming" would
+ * read as though the location were off.
+ */
+fun describeCadenceSummary(cadence: LocationCadence): String = when (cadence) {
+    LocationCadence.OnOpen -> "Background updates off"
+    is LocationCadence.Every -> when (cadence.hours) {
+        1 -> "Background updates every hour"
+        24 -> "Background updates once a day"
+        else -> "Background updates every ${cadence.hours} hours"
+    }
+}
+
+/**
  * When the detected position was last refreshed.
  *
  * The time alone for today, and the date as well otherwise, judged in the

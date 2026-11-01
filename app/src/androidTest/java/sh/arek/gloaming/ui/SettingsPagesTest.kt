@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -208,7 +209,7 @@ class SettingsPagesTest {
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
 
         compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo()
-            .assertTextContains("Approximate, from the phone. Every 3 hours", substring = true)
+            .assertTextContains("Approximate, from the phone. Background updates every 3 hours", substring = true)
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").assertIsSelected()
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).assertTextContains("3")
     }
@@ -226,6 +227,22 @@ class SettingsPagesTest {
         compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertDoesNotExist()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsSelected()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").assertIsNotSelected()
+    }
+
+    @Test
+    fun cancellingATypedIntervalClearsTheFieldAndLeavesItOff() {
+        showLocation(backgroundLocationAllowed = false)
+
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextInput("3")
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
+
+        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertIsDisplayed()
+        compose.onNodeWithTag(CADENCE_EXPLAINER_CANCEL_TAG).performClick()
+
+        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertDoesNotExist()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().assertTextEquals("")
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").assertIsNotSelected()
     }
 
     @Test

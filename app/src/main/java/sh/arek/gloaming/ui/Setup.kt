@@ -101,11 +101,14 @@ fun SetupFlow(
     val automatic = state.settings.locationMode == LocationMode.Automatic
     var wasAutomatic by rememberSaveable { mutableStateOf(automatic) }
     var offering by rememberSaveable { mutableStateOf(false) }
+    // Latched: declining, then switching the location off and on, asks no more.
+    var offered by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(automatic) {
-        if (automatic && !wasAutomatic && step == SetupStep.Location &&
+        if (automatic && !wasAutomatic && !offered && step == SetupStep.Location &&
             state.settings.locationCadence !is LocationCadence.Every
         ) {
             offering = true
+            offered = true
         }
         wasAutomatic = automatic
     }

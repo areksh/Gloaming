@@ -1440,8 +1440,8 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         }
                     },
                     onLocationCadenceChange = { cadence ->
-                        // Asked at the moment an interval is picked, with the
-                        // card's warning about Android's page on screen behind it.
+                        // Asked at the moment an interval is picked, after the card
+                        // has explained Android's page in a dialog.
                         val pick = CadenceRequest.onPick(
                             cadence,
                             inFlight = pendingHours != null,

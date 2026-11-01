@@ -380,15 +380,14 @@ is a file replacement.
   first held behind a dialog (`CadenceExplainer`) saying what Android will ask,
   since Android's own page replaces the app on screen and a line on the card
   could not be read there, and first-run setup offers hourly updates the moment
-  the switch comes on. An interval without the
-  background grant asks Android for it next - one request for both grants on
-  API 29, coarse and then background on its own from API 30 (which Android
-  answers with its settings page), nothing below 29 - as
-  `AndroidLocationSource.backgroundRequest` works out. `domain.CadenceRequest`
-  decides each step: a pick made while a request is still with Android is
-  dropped, since Android answers a second one at once with nothing granted; a
-  refused background grant stores off and says so,
-  and a refused coarse grant goes back to typing it in, as the switch does.
+  the switch comes on. An interval without the background grant asks Android
+  for it next - one request for both grants on API 29, coarse and then
+  background on its own from API 30 (which Android answers with its settings
+  page), nothing below 29 - as `AndroidLocationSource.backgroundRequest` works
+  out. `domain.CadenceRequest` decides each step: a pick made while a request
+  is still with Android is dropped, since Android answers a second one at once
+  with nothing granted; a refused background grant stores off and says so, and
+  a refused coarse grant goes back to typing it in, as the switch does.
   The interval being asked for survives the activity being rebuilt meanwhile.
   The custom number of hours is sent on Done or when the field loses focus,
   never per keystroke. Picking any cadence clears `backgroundLocationRevoked`.

@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   could not be read; and setup offers hourly updates as soon as the location is
   allowed. If the grant is refused, or later taken away, the app goes back to
   refreshing when it is opened and the card says why. A refresh due while the
-  phone is locked after a reboot waits for the unlock. A "Only on Update now"
+  phone is locked after a reboot waits for the unlock. An "Only on Update now"
   choice no longer exists: the button always works, and a phone that had it
   chosen now refreshes when Gloaming opens. ADR-0016 records why the app now
   declares a permission it once promised never to.
@@ -223,9 +223,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The note on the Location page no longer disappears.** "Location permission
   was declined" was written to a part of the page that is hidden once the
-  location switch is off, which is exactly what a refusal does, and a note was lost when
-  Android rebuilt the app while you were on its settings page. Both now stay
-  until you do something else.
+  location switch is off, which is exactly what a refusal does, and a note was
+  lost when Android rebuilt the app while you were on its settings page. Both
+  now stay until you do something else.
 
 - **A clear spell no longer closes on high thin cloud.** Tonight's clear spell
   was judged on total cloud, so 70% cirrus over an otherwise clear sky counted

@@ -55,8 +55,8 @@ appears, and setup offers hourly updates when the location is first allowed.
   alarm, and the boot receiver arms it again after unlock.
 - **A withdrawn grant ends it plainly.** If the background permission has been
   taken away in the system settings, the next wake puts the cadence back to
-  off, so it is read only when the app is opened, and records that it did, so the screen can say
-  why rather than leave the change to be noticed.
+  off, so it is read only when the app is opened, and records that it did, so
+  the screen can say why rather than leave the change to be noticed.
   The app does the same when it is opened, since the grant is as often
   withdrawn while it is closed: an interval without the background grant goes
   back to opening the app, and automatic without the location grant goes back

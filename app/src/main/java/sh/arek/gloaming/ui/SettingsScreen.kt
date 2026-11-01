@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -313,9 +314,17 @@ private fun CadenceChoice(
     }
     // Back to the interval in force once an answer has been settled: a pick
     // that was cancelled or refused leaves the cadence as it was, and the field
-    // would otherwise go on showing a number that is not running.
+    // would otherwise go on showing a number that is not running. A pick that
+    // was held behind the dialog resets it whether or not the field still has
+    // focus, which it often does: the dialog is a window of its own.
+    val focusManager = LocalFocusManager.current
+    var wasPending by remember { mutableStateOf(false) }
     LaunchedEffect(cadence, explainer.pending) {
-        if (explainer.pending == null && !customFocused) {
+        if (explainer.pending != null) {
+            wasPending = true
+        } else if (wasPending || !customFocused) {
+            if (wasPending) focusManager.clearFocus()
+            wasPending = false
             customInput = storedText
             customSent = null
             customOpen = storedCustom
@@ -339,18 +348,21 @@ private fun CadenceChoice(
             },
         )
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(
-            selected = customSelected,
-            onClick = {
-                customSent = null
-                customOpen = true
-                customFocus.requestFocus()
-            },
-            modifier = Modifier
-                .semantics { contentDescription = "Every number of hours you type" }
-                .testTag(CADENCE_TAG_PREFIX + "custom"),
-        )
+    Row(
+        modifier = Modifier
+            .selectable(
+                selected = customSelected,
+                onClick = {
+                    customSent = null
+                    customOpen = true
+                    customFocus.requestFocus()
+                },
+                role = Role.RadioButton,
+            )
+            .testTag(CADENCE_TAG_PREFIX + "custom"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = customSelected, onClick = null)
         Text("Every ", style = MaterialTheme.typography.bodyMedium)
         // Sent when the typing is finished, never per keystroke: "12" passes
         // through "1" on the way, and each value sent can bring up Android's
@@ -371,6 +383,7 @@ private fun CadenceChoice(
             keyboardActions = KeyboardActions(onDone = { commitCustom() }),
             modifier = Modifier
                 .width(80.dp)
+                .semantics { contentDescription = "Hours between background updates" }
                 .focusRequester(customFocus)
                 .onFocusChanged {
                     if (customFocused && !it.isFocused) commitCustom()

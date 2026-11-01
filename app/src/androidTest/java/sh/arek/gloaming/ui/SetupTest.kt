@@ -153,6 +153,19 @@ class SetupTest {
     }
 
     @Test
+    fun offersBackgroundUpdatesOnlyOncePerSetup() {
+        state = stateOf(settings = located)
+        show()
+        state = state.copy(settings = located.copy(locationMode = LocationMode.Automatic))
+        compose.onNodeWithTag(OFFER_DECLINE_TAG).performClick()
+
+        state = state.copy(settings = located)
+        state = state.copy(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText("Keep your location up to date?").assertDoesNotExist()
+    }
+
+    @Test
     fun acceptingTheOfferExplainsBeforeAskingForEveryHour() {
         state = stateOf(settings = located)
         show()
