@@ -81,10 +81,12 @@ class ManifestDeclarationTest {
     fun requestsNothingBeyondItsOwnManifestAndTheSystem() {
         val ours = setOf(
             android.Manifest.permission.INTERNET,
-            // Coarse only, foreground only, and never required - the app works
-            // with it denied forever. ManifestPermissionsTest guards that fine
-            // and background location stay out.
+            // Coarse only and never required - the app works with it denied
+            // forever. ManifestPermissionsTest guards that fine stays out.
             android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            // Only for refreshing that coarse position on a cadence the user
+            // chose, asked for when somebody picks one. See ADR-0016.
+            "android.permission.ACCESS_BACKGROUND_LOCATION",
             android.Manifest.permission.WAKE_LOCK,
             android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
             "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
@@ -124,6 +126,11 @@ class ManifestDeclarationTest {
      * unlocked once, so being delivered early would produce a crash where there
      * is currently nothing at all.
      *
+     * The location receiver must not: the cadence and the position it writes
+     * live in credential-encrypted storage, which a delivery before unlock
+     * could read neither of, and the boot that follows the unlock arms it
+     * again.
+     *
      * The verdict receiver must, and can: everything it touches - the verdict
      * log, the journal and the alert state - already lives in device-protected
      * storage. Before-unlock alerting is a supported configuration, so an alert
@@ -148,6 +155,7 @@ class ManifestDeclarationTest {
                 "sh.arek.gloaming.work.FollowPassReceiver" to false,
                 "sh.arek.gloaming.work.FollowEclipseReceiver" to false,
                 "sh.arek.gloaming.work.WorthItReceiver" to true,
+                "sh.arek.gloaming.work.LocationReceiver" to false,
             ),
             ours,
         )
