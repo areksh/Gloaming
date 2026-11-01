@@ -219,12 +219,6 @@ object NightTimeline {
     }
 
     /**
-     * Top offsets that keep rows apart while holding each as near its time as it can.
-     *
-     * [idealTops] must be in row order. A row is only ever pushed down, to
-     * exactly [gap] below the one above it, never up past its own time.
-     */
-    /**
      * The drawing in one paragraph, for a screen reader: the span of the
      * night, when it is mostly cloudy, what each lane says is up, and now.
      * The rows say the rest themselves.
@@ -264,6 +258,12 @@ object NightTimeline {
         return sentences.joinToString(" ")
     }
 
+    /**
+     * Top offsets that keep rows apart while holding each as near its time as it can.
+     *
+     * [idealTops] must be in row order. A row is only ever pushed down, to
+     * exactly [gap] below the one above it, never up past its own time.
+     */
     fun layout(idealTops: List<Int>, heights: List<Int>, gap: Int): List<Int> {
         val tops = IntArray(idealTops.size)
         for (i in idealTops.indices) {
