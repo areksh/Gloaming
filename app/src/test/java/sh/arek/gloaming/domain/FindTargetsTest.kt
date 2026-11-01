@@ -364,4 +364,20 @@ class FindTargetsTest {
         fix(target, at = now + 11 * 60_000L)
         assertEquals(searched + 1, FindTargets.scans)
     }
+
+    @Test
+    fun `reads a target handed in by a notification`() {
+        assertEquals(FindTarget.Moon, findTargetFrom(FindTarget.Moon.encode(), setupDone = true))
+    }
+
+    @Test
+    fun `reads nothing from garbage or from no extra`() {
+        assertNull(findTargetFrom("nonsense:42", setupDone = true))
+        assertNull(findTargetFrom(null, setupDone = true))
+    }
+
+    @Test
+    fun `drops a valid target while setup is not done`() {
+        assertNull(findTargetFrom(FindTarget.Aurora.encode(), setupDone = false))
+    }
 }

@@ -42,6 +42,14 @@ fun FindTarget.encode(): String = when (this) {
     FindTarget.Aurora -> "aurora"
 }
 
+/**
+ * The target a notification's "Find it" asked for: null when there was none,
+ * when it cannot be read, or when setup is not done - setup comes first and a
+ * target handed in meanwhile is dropped rather than kept.
+ */
+fun findTargetFrom(extra: String?, setupDone: Boolean): FindTarget? =
+    if (extra == null || !setupDone) null else FindTarget.decode(extra)
+
 /** The target [text] names, or null for anything [encode] could not have written. */
 fun FindTarget.Companion.decode(text: String): FindTarget? {
     val kind = text.substringBefore(':')

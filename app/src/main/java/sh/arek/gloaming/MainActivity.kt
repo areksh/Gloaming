@@ -45,11 +45,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.Darkness
-import sh.arek.gloaming.notify.FindIt
 import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.SkyCalendar
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.notify.FindIt
 import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware

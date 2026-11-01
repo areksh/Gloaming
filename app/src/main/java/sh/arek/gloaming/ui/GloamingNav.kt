@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.findTargetFrom
 import sh.arek.gloaming.domain.decode
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.ui.theme.LocalPalette
@@ -118,8 +119,8 @@ fun GloamingNav(
 
     LaunchedEffect(initialFind) {
         if (initialFind != null) {
-            if (FindTarget.decode(initialFind) != null) {
-                findTarget = initialFind
+            findTargetFrom(initialFind, setupDone = true)?.let {
+                findTarget = it.encode()
                 selected = Section.Find.ordinal
                 openPage = null
             }

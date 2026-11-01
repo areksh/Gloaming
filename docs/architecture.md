@@ -492,7 +492,8 @@ is a file replacement.
   `onNewIntent`; it hands the string to `GloamingNav` and clears it once shown,
   ignores one it cannot decode, and drops it while setup is unfinished. Passes
   and the aurora always carry the action; an event does where `findTarget`
-  (shared with the row mapping) gives it a target. The satellite elements Tonight was
+  (shared with the row mapping) gives it a target. `findTargetFrom` is the one
+  place a handed-in target is read. The satellite elements Tonight was
   worked out from ride along in `MainUiState.elements`, so a pass is followed
   from the same copy without reading the cache on the main thread.
 

@@ -146,8 +146,8 @@ class NotifierTest {
         val labels = postedAlert()!!.notification.actions.orEmpty().map { it.title.toString() }
         assertEquals(
             labels.toString(),
-            setOf(Answer.Worth.label, Answer.NotWorth.label),
-            labels.toSet() - "Find it",
+            listOf("Find it", Answer.Worth.label, Answer.NotWorth.label),
+            labels,
         )
     }
 
