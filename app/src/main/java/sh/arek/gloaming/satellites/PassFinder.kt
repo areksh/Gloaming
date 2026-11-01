@@ -3,6 +3,7 @@ package sh.arek.gloaming.satellites
 import com.rtbishop.look4sat.core.domain.predict.GeoPos
 import com.rtbishop.look4sat.core.domain.predict.OrbitalObject
 import com.rtbishop.look4sat.core.domain.predict.RAD2DEG
+import kotlinx.serialization.Serializable
 
 /**
  * One satellite crossing one observer's sky, from horizon to horizon.
@@ -11,6 +12,7 @@ import com.rtbishop.look4sat.core.domain.predict.RAD2DEG
  * here says whether the pass is worth watching - that needs the observer's own
  * darkness as well, and belongs to [PassDescription].
  */
+@Serializable
 data class SatellitePass(
     val catalogue: Int,
     val name: String,

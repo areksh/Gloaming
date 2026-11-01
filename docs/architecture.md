@@ -515,7 +515,20 @@ is a file replacement.
   against a year that is not there yet; a key for another grid cell takes the
   old place's night down at once. Work that throws ends its run, so nothing is
   left updating for ever, and the scope's handler logs it rather than letting
-  it crash the app. Both keys carry `recalculation`, which Check
+  it crash the app. A cold process would otherwise show nothing for the twenty
+  seconds the first night takes, so each finished run also writes
+  `tonight-snapshot.json` (`data.TonightSnapshots`: the list, outlook, hourly
+  cover and timeline, keyed by grid cell and by the end of the night, written
+  by temporary file and rename) and the first ask of an empty holder seeds
+  from it when it is for the same cell and the night is not over, marked as
+  updating. It is never read over a night already worked out in the process.
+  The file lives in `Context.filesDir`, which is credential-encrypted, and
+  never in device-encrypted storage: it is derived from the precise position,
+  which `BootAware` keeps out of anything readable before first unlock. A
+  version or decode mismatch drops it, and so does a run with no position.
+  The satellite elements are not kept, so until the run lands Find says
+  "Working out tonight..." for a target it cannot place rather than that it
+  has gone. Both keys carry `recalculation`, which Check
   now bumps once its check has landed, so it - and the pull to refresh that
   runs it - works both out again from scratch. The cloud forecast bumps the
   tonight key only when a fetch changed what is held, since a reading under an

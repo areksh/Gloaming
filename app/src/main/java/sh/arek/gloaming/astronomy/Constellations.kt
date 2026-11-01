@@ -9,6 +9,7 @@ import io.github.cosinekitty.astronomy.Time
 import io.github.cosinekitty.astronomy.constellation
 import io.github.cosinekitty.astronomy.equator
 import io.github.cosinekitty.astronomy.horizon
+import kotlinx.serialization.Serializable
 
 /**
  * One pattern in the sky, as a person would look for it.
@@ -23,6 +24,7 @@ import io.github.cosinekitty.astronomy.horizon
  * tens of degrees across, so correcting it would be arithmetic that changes no
  * answer the app ever gives.
  */
+@Serializable
 data class Constellation(
     val name: String,
     /** Right ascension in hours, which is the unit the library's `horizon` wants. */
@@ -44,6 +46,7 @@ data class Constellation(
 )
 
 /** One constellation's night: how high it gets, which way to look, and when. */
+@Serializable
 data class ConstellationTonight(
     val constellation: Constellation,
     /** The highest its centre gets inside tonight's darkness, in degrees. */

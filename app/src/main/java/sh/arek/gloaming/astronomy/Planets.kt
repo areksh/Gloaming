@@ -11,8 +11,10 @@ import io.github.cosinekitty.astronomy.equator
 import io.github.cosinekitty.astronomy.horizon
 import io.github.cosinekitty.astronomy.illumination
 import io.github.cosinekitty.astronomy.searchRiseSet
+import kotlinx.serialization.Serializable
 
 /** One planet's night: how high it gets, which way to look, and when. */
+@Serializable
 data class PlanetTonight(
     val body: SkyBody,
     /** The highest it gets inside tonight's darkness, in degrees. */

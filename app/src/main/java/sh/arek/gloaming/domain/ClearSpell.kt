@@ -1,5 +1,6 @@
 package sh.arek.gloaming.domain
 
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.data.HourlyCover
 
 /**
@@ -14,6 +15,7 @@ import sh.arek.gloaming.data.HourlyCover
  * Everything here is arithmetic over a list. No clock, no network, no Android:
  * the hours arrive from the forecast that was fetched anyway.
  */
+@Serializable
 data class ClearSpell(
     /** When it starts, never earlier than now or the start of the darkness. */
     val from: Long,

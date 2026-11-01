@@ -309,7 +309,11 @@ private fun Guided(
         }
     }
 
-    val instruction = findInstruction(fix, guidance, state.tonight != null)
+    val instruction = findInstruction(
+        fix,
+        guidance,
+        findTonightKnown(state.tonight, state.tonightUpdating, state.elements),
+    )
     val where = fix?.let { whereLine(it, pointing) }
 
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

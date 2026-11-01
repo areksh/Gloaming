@@ -1,5 +1,6 @@
 package sh.arek.gloaming.domain
 
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
@@ -30,6 +31,7 @@ import sh.arek.gloaming.satellites.TrainFinder
  * the cloud: a full moon up all night is the difference between a good night
  * and a wasted drive, and unlike the cloud it is known months ahead.
  */
+@Serializable
 data class MoonTonight(
     /** 0 at new, 90 at first quarter, 180 at full, 270 at last quarter. */
     val phaseDegrees: Double,
@@ -52,6 +54,7 @@ data class MoonTonight(
 )
 
 /** What there is to see between now and the end of tonight. */
+@Serializable
 data class TonightList(
     /** When the sky is dark enough to be worth going out, if it will be. */
     val darkFrom: Long?,

@@ -1,7 +1,9 @@
 package sh.arek.gloaming.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.astronomy.EventKind
@@ -215,6 +217,22 @@ class FindWordsTest {
     fun `says tonight is still being worked out rather than that the target has gone`() {
         assertEquals("Working out tonight...", findInstruction(null, null, tonightKnown = false))
         assertEquals("That one has gone for tonight.", instruction(null, null))
+    }
+
+    /**
+     * A night opened from the last one kept has its list but no elements until
+     * the fresh run lands, so a pass that has risen since is missing from that
+     * list and cannot be placed. That is not the pass having gone.
+     */
+    @Test
+    fun `tonight is not known while a night without elements is being worked out again`() {
+        val list = TonightList(null, null, emptyList(), emptyList(), emptyList(), emptyList(), null)
+        val elements = SatellitesDocument(schema = 1, updated = "2026-11-01T00:00:00Z")
+
+        assertFalse(findTonightKnown(list, updating = true, elements = null))
+        assertTrue(findTonightKnown(list, updating = true, elements = elements))
+        assertTrue(findTonightKnown(list, updating = false, elements = null))
+        assertFalse(findTonightKnown(null, updating = false, elements = null))
     }
 
     @Test

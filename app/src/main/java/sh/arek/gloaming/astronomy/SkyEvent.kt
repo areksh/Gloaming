@@ -1,5 +1,7 @@
 package sh.arek.gloaming.astronomy
 
+import kotlinx.serialization.Serializable
+
 /**
  * What the sky is doing, in the categories a person would sort it into.
  *
@@ -110,15 +112,19 @@ enum class EventKind {
  * a penumbral lunar eclipse, where the moon misses the deep shadow entirely -
  * are not produced at all, because they are not events.
  */
+@Serializable
 sealed interface Visibility {
 
     /** Up, dark enough, and worth the walk. */
+    @Serializable
     data object Good : Visibility
 
     /** Visible, but with something against it: low, brief, slight, or in twilight. */
+    @Serializable
     data class Marginal(val reason: String) : Visibility
 
     /** Below the horizon here, whatever it is doing elsewhere. */
+    @Serializable
     data class NotFromHere(val reason: String) : Visibility
 }
 
@@ -156,6 +162,7 @@ data class Sighting(
  * and last contact and for a shower is a whole night - they are not the same
  * span and nothing should assume they are.
  */
+@Serializable
 data class SkyEvent(
     val kind: EventKind,
     val at: Long,

@@ -1,6 +1,7 @@
 package sh.arek.gloaming.ui
 
 import kotlin.math.roundToInt
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyEvent
@@ -22,15 +23,23 @@ enum class RowTone { Normal, Dim, Strong }
 enum class LaneStyle { Solid, Dashed, Dotted }
 
 /** What a row is about, so the screen can give it an icon and a tap target. */
+@Serializable
 sealed interface RowSubject {
+    @Serializable
     data object Twilight : RowSubject
+    @Serializable
     data object Clear : RowSubject
+    @Serializable
     data object Moon : RowSubject
+    @Serializable
     data class Pass(val pass: SatellitePass) : RowSubject
+    @Serializable
     data class Planet(val planet: PlanetTonight) : RowSubject
+    @Serializable
     data class Event(val event: SkyEvent) : RowSubject
 }
 
+@Serializable
 data class TimelineRow(
     val atMillis: Long,
     /** Local clock time, as read off the device's own zone. */
@@ -42,9 +51,11 @@ data class TimelineRow(
 )
 
 /** A stretch of forecast cloud cover, in percent, drawn as shading down the time axis. */
+@Serializable
 data class CloudSpan(val fromMillis: Long, val untilMillis: Long, val cover: Int)
 
 /** Something that is up for a stretch of the night: the moon or a bright planet. */
+@Serializable
 data class Lane(val label: String, val style: LaneStyle, val fromMillis: Long, val untilMillis: Long)
 
 /**
@@ -54,6 +65,7 @@ data class Lane(val label: String, val style: LaneStyle, val fromMillis: Long, v
  * the clocks change the axis must be as long as the night really is, and only
  * the labels follow the wall clock.
  */
+@Serializable
 data class Timeline(
     val startMillis: Long,
     val endMillis: Long,
@@ -67,6 +79,7 @@ data class Timeline(
 )
 
 /** The sun's altitude, in degrees, at one moment of the night. */
+@Serializable
 data class SunSample(val atMillis: Long, val altitude: Double)
 
 /** Builds the [Timeline] and does the arithmetic of laying its rows out. Pure and clock-free. */

@@ -77,6 +77,17 @@ private fun degreesUp(altitude: Double): String {
 }
 
 /**
+ * Whether tonight is known well enough for Find to say a target has gone.
+ *
+ * Not while it is being worked out again with no satellite elements held: a
+ * night opened from the last one kept has its list but not the elements, so a
+ * pass that has risen since is missing from the list and cannot be placed, and
+ * the fresh run is what brings both.
+ */
+fun findTonightKnown(tonight: TonightList?, updating: Boolean, elements: SatellitesDocument?): Boolean =
+    tonight != null && !(updating && elements == null)
+
+/**
  * The one line that tells somebody what to do with the phone.
  *
  * [fix] null means the target cannot be placed. Once tonight is known

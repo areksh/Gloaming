@@ -2,6 +2,7 @@ package sh.arek.gloaming.domain
 
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
@@ -23,6 +24,7 @@ enum class PickKind { Aurora, Event, Pass, Planet }
  * Exactly one of [event], [pass] and [planet] is set, matching [kind]; none is
  * set for the aurora, which is a reading rather than an object.
  */
+@Serializable
 data class Pick(
     val kind: PickKind,
     val subject: String,
@@ -73,6 +75,7 @@ enum class DarknessShortfall {
  * [SkyEvent.at] (not the moment it was judged at, which can move with the
  * clock and the forecast), a planet's judged moment, and null for the aurora.
  */
+@Serializable
 data class Excluded(
     val subject: String,
     val atMillis: Long?,
@@ -96,21 +99,26 @@ data class Excluded(
  * a shower under a full moon, is worse than no sentence - it is the thing that
  * teaches people to stop believing it.
  */
+@Serializable
 sealed interface Outlook {
     /** No position, so nothing about tonight can be said at all. */
+    @Serializable
     data object NoLocation : Outlook
 
     /** Not enough held to say anything true: no forecast, or stale elements. */
+    @Serializable
     data class CannotTell(val forecastHeld: Boolean, val elementsStale: Boolean) : Outlook
 
     /**
      * An aurora above the threshold, dark and clear now. [clearUntil] only
      * with a forecast; [conditional] when there is none to say it is clear.
      */
+    @Serializable
     data class AuroraNow(val probability: Int, val clearUntil: Long?, val conditional: Boolean) :
         Outlook
 
     /** It never gets properly dark tonight. */
+    @Serializable
     data class NoNight(val noctilucent: Boolean) : Outlook
 
     /**
@@ -120,6 +128,7 @@ sealed interface Outlook {
      * sentence can say what the cloud is costing rather than just that it is
      * there. Null when everything would have failed anyway.
      */
+    @Serializable
     data class Overcast(val nextClear: ClearSpell?, val missed: Pick?) : Outlook
 
     /**
@@ -131,6 +140,7 @@ sealed interface Outlook {
      * darkness still to come: "cloudy until" and "clear all night" are
      * different sentences, and the times alone cannot tell them apart.
      */
+    @Serializable
     data class GoOut(
         val picks: List<Pick>,
         val clearFrom: Long?,
@@ -147,6 +157,7 @@ sealed interface Outlook {
      * clear spell's start rather than dusk, so "clear from" is never earlier
      * than the forecast allows. [learn] is a constellation that is up.
      */
+    @Serializable
     data class Quiet(val darkFrom: Long, val learn: String?, val conditional: Boolean) : Outlook
 }
 
@@ -158,6 +169,7 @@ sealed interface Outlook {
  * [poleward] is the way to the observer's nearer pole, where the aurora and
  * noctilucent clouds are looked for; north where there is no position.
  */
+@Serializable
 data class OutlookReport(
     val outlook: Outlook,
     val excluded: List<Excluded>,

@@ -232,7 +232,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   turning the phone used to ask for a fresh position and start again whenever
   it had moved a little. While it is being worked out a progress bar and
   "Updating..." sit under the status line, and before the first one is ready
-  Tonight says "Working out tonight..." instead of showing nothing.
+  Tonight says "Working out tonight..." instead of showing nothing. And when
+  the app is opened afresh, Tonight opens straight onto the last night it
+  worked out - for the same place, while that night is still on - marked
+  "Updating..." until the new one arrives, instead of an empty screen for about
+  twenty seconds. That copy stays on the phone, unreadable until it is first
+  unlocked, because it is worked out from your exact position, and is dropped
+  when location is taken away or you move to another place.
 
 - **Tonight follows the cloud and constellation settings straight away.**
   Turning "Check cloud cover" or "Every constellation" on or off left

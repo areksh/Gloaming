@@ -1,5 +1,7 @@
 package sh.arek.gloaming.data
 
+import kotlinx.serialization.Serializable
+
 /**
  * How much of the sky is covered, as percentages.
  *
@@ -7,6 +9,7 @@ package sh.arek.gloaming.data
  * observer: high cirrus at 60% still shows a strong aurora, while 60% low
  * stratus does not.
  */
+@Serializable
 data class CloudCover(
     val total: Int,
     val low: Int,
@@ -29,6 +32,7 @@ data class CloudCover(
  *
  * [atMillis] is the start of the hour, in UTC.
  */
+@Serializable
 data class HourlyCover(
     val atMillis: Long,
     val total: Int,

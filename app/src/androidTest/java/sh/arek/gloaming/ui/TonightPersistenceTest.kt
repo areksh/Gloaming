@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.lifecycle.Lifecycle
@@ -22,24 +23,32 @@ import org.junit.Test
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.data.DeviceFix
+import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.LocationSource
+import sh.arek.gloaming.data.TonightSnapshot
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.LocationGrantSource
+import sh.arek.gloaming.domain.Outlook
+import sh.arek.gloaming.domain.OutlookReport
+import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.work.RealSchedule
 
 /**
  * That Tonight outlives the activity: a rotation neither blanks it nor works
  * it out again, a rotation in the middle of a run neither restarts it nor
- * loses it, and Check now works it out again from scratch.
+ * loses it, and Check now works it out again from scratch. A cold start
+ * opens on the night kept from last time.
  *
  * The real activity against the real stores, because what is under test is
  * the activity going away and coming back. The position is typed in for the
  * run - the phone's own, where it has one - so a fresh fix arriving on a
- * recreation cannot move the keys under the counts; the settings are put back
- * afterwards and never cleared. Check now is a real check, as pressing it is.
+ * recreation cannot move the keys under the counts; the settings, and the
+ * kept night in its file, are put back afterwards and never cleared. Check now
+ * is a real check, as pressing it is.
  *
  * Slow by nature: a night takes the better part of ten seconds to work out on
  * the phone, after a calendar that takes as long. **These need the device
@@ -53,9 +62,12 @@ class TonightPersistenceTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val results = Graph.screenResults(context)
     private lateinit var original: UserSettings
+    private val snapshots = Graph.tonightSnapshots(context)
+    private var originalSnapshot: TonightSnapshot? = null
 
     @Before
     fun typeThePositionIn() {
+        originalSnapshot = snapshots.read()
         original = Graph.settings(context).read()
         BootAware.saveSettings(
             context,
@@ -72,6 +84,7 @@ class TonightPersistenceTest {
     fun putTheSettingsBack() {
         Graph.locationGrantsOverride = null
         Graph.locationSourceOverride = null
+        originalSnapshot?.let(snapshots::write) ?: snapshots.clear()
         BootAware.saveSettings(context, original)
         // The activity arms the poll at whatever the settings said, and Check
         // now re-arms it from its plan; both go back to the phone's own.
@@ -211,7 +224,56 @@ class TonightPersistenceTest {
         }
     }
 
+    /**
+     * A cold start: the holder is empty, but the last night worked out was
+     * kept. Its sentence and "Updating..." are up together before the fresh
+     * run, which needs a calendar first and then a night, has landed anything.
+     * The snapshot is made for the cell the typed position falls in, and
+     * carries a sentence the real run would not give, so seeing it proves it
+     * came from the file.
+     */
+    @Test
+    fun aColdStartOpensOnTheSnapshotMarkedAsUpdating() {
+        val here = Graph.settings(context).read()
+        val now = System.currentTimeMillis()
+        val kept = OutlookReport(
+            outlook = Outlook.AuroraNow(probability = 99, clearUntil = null, conditional = true),
+            excluded = emptyList(),
+            auroraProbability = 99,
+            threshold = 30,
+            poleward = Compass.North,
+        )
+        val sentence = OutlookWords.headline(kept)!!
+        snapshots.write(
+            TonightSnapshot.of(
+                cell = GridCell.of(here.latitude!!, here.longitude!!),
+                writtenAt = now - 60 * 60_000L,
+                list = TonightList(now, now + 6 * 60 * 60_000L, emptyList(), emptyList(), emptyList(), emptyList(), null),
+                outlook = kept,
+                hourly = emptyList(),
+                timeline = null,
+            ),
+        )
+        Graph.resetScreenResultsForTest()
+        val cold = Graph.screenResults(context)
+
+        ActivityScenario.launch(MainActivity::class.java).use {
+            compose.waitUntil(SEED_TIMEOUT_MILLIS) {
+                compose.onAllNodesWithTag(OUTLOOK_HEADLINE_TAG).fetchSemanticsNodes().isNotEmpty()
+            }
+
+            headline().assertTextEquals(sentence)
+            compose.onNodeWithTag(TONIGHT_UPDATING_TAG).assertExists()
+            compose.onNodeWithText(TONIGHT_UPDATING).assertExists()
+            assertTrue(cold.tonightUpdating)
+            assertEquals(0, cold.tonightRuns)
+        }
+    }
+
     private companion object {
+        /** Opening on the snapshot is immediate; this is room for a slow start. */
+        const val SEED_TIMEOUT_MILLIS = 15_000L
+
         /** A calendar and then a night, each the better part of ten seconds, with room. */
         const val NIGHT_TIMEOUT_MILLIS = 120_000L
 

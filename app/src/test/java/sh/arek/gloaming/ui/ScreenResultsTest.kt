@@ -22,7 +22,10 @@ import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.HourlyCover
+import sh.arek.gloaming.data.TonightSnapshot
+import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -96,8 +99,34 @@ class ScreenResultsTest {
      * `advanceUntilIdle` leaves alone. A run left waiting at the end of a
      * test is simply abandoned with the scope.
      */
-    private fun TestScope.results() =
-        ScreenResults(CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler) + escaped))
+    private fun TestScope.results(snapshots: TonightSnapshots? = null) = ScreenResults(
+        CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler) + escaped),
+        snapshots = snapshots,
+        clock = { NOW },
+    )
+
+    /** Keeps the snapshot in memory, and counts what was asked of it. */
+    private class MemorySnapshots(var held: TonightSnapshot? = null) : TonightSnapshots {
+        var reads = 0
+        var clears = 0
+        override fun read(): TonightSnapshot? { reads++; return held }
+        override fun write(snapshot: TonightSnapshot) { held = snapshot }
+        override fun clear() { clears++; held = null }
+    }
+
+    /** A snapshot of [marker]'s night for [cell], ending an hour after [NOW] unless told otherwise. */
+    private fun snapshot(
+        marker: Long,
+        cell: GridCell = GridCell.of(edinburgh.first, edinburgh.second),
+        endsAt: Long = NOW + 3_600_000L,
+    ) = TonightSnapshot.of(
+        cell = cell,
+        writtenAt = NOW - 3_600_000L,
+        list = night(marker).list.copy(darkUntil = endsAt),
+        outlook = null,
+        hourly = listOf(HourlyCover(marker, 10)),
+        timeline = null,
+    )
 
     /** What escaped the work, as the app's own handler would log it. */
     private val escapes = mutableListOf<Throwable>()
@@ -568,5 +597,154 @@ class ScreenResultsTest {
         assertEquals(1L, results.tonight?.darkFrom)
         assertFalse(results.tonightUpdating)
         assertEquals(listOf("broken"), escapes.map { it.message })
+    }
+
+    // --- the last night, kept across a cold start ---
+
+    @Test
+    fun `an empty holder opens on a usable snapshot, marked as updating`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)))
+        land(results)
+        val gate = CompletableDeferred<Unit>()
+
+        results.ensureTonight(tonightKey()) { gate.await(); night(8) }
+        runCurrent()
+
+        assertEquals(7L, results.tonight?.darkFrom)
+        assertEquals(listOf(HourlyCover(7L, 10)), results.hourly)
+        assertTrue(results.tonightUpdating)
+        // The elements are not kept; the run brings them.
+        assertNull(results.elements)
+    }
+
+    @Test
+    fun `the run that lands replaces the snapshot's night`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)))
+        land(results)
+
+        results.ensureTonight(tonightKey()) { night(8, elements = document) }
+        advanceUntilIdle()
+
+        assertEquals(8L, results.tonight?.darkFrom)
+        assertSame(document, results.elements)
+        assertFalse(results.tonightUpdating)
+    }
+
+    @Test
+    fun `a snapshot for another cell is not shown`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7, cell = GridCell.of(london.first, london.second))))
+        land(results)
+        val gate = CompletableDeferred<Unit>()
+
+        results.ensureTonight(tonightKey()) { gate.await(); night(8) }
+        runCurrent()
+
+        assertNull(results.tonight)
+    }
+
+    @Test
+    fun `a snapshot of a night that is over is not shown`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7, endsAt = NOW)))
+        land(results)
+        val gate = CompletableDeferred<Unit>()
+
+        results.ensureTonight(tonightKey()) { gate.await(); night(8) }
+        runCurrent()
+
+        assertNull(results.tonight)
+    }
+
+    @Test
+    fun `a snapshot never overwrites a night already worked out`() = runTest {
+        val snapshots = MemorySnapshots()
+        val results = results(snapshots)
+        land(results)
+        results.ensureTonight(tonightKey(threshold = 30)) { night(1) }
+        advanceUntilIdle()
+        snapshots.held = snapshot(7)
+        val gate = CompletableDeferred<Unit>()
+
+        results.ensureTonight(tonightKey(threshold = 50)) { gate.await(); night(2) }
+        runCurrent()
+
+        assertEquals(1L, results.tonight?.darkFrom)
+    }
+
+    @Test
+    fun `the snapshot is read only on the first ask`() = runTest {
+        val snapshots = MemorySnapshots()
+        val results = results(snapshots)
+        land(results)
+
+        results.ensureTonight(tonightKey(threshold = 30)) { night(1) }
+        advanceUntilIdle()
+        results.ensureTonight(tonightKey(threshold = 50)) { night(2) }
+        advanceUntilIdle()
+
+        assertEquals(1, snapshots.reads)
+    }
+
+    @Test
+    fun `a move to another cell takes a seeded night down`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)))
+        land(results, calendarKey(edinburgh))
+        results.ensureTonight(tonightKey(edinburgh)) { night(8) }
+        runCurrent()
+        land(results, calendarKey(london))
+
+        results.ensureTonight(tonightKey(london)) { CompletableDeferred<Unit>().await(); night(9) }
+
+        assertNull(results.tonight)
+    }
+
+    @Test
+    fun `each finished run writes a snapshot of its night`() = runTest {
+        val snapshots = MemorySnapshots()
+        val results = results(snapshots)
+        land(results)
+
+        results.ensureTonight(tonightKey()) { night(8) }
+        advanceUntilIdle()
+
+        val written = snapshots.held!!
+        assertEquals(8L, written.list.darkFrom)
+        assertEquals(listOf(HourlyCover(8L, 10)), written.hourly)
+        assertEquals(GridCell.of(edinburgh.first, edinburgh.second), written.cell)
+        assertEquals(NOW, written.writtenAt)
+    }
+
+    @Test
+    fun `no night worked out clears the snapshot`() = runTest {
+        val snapshots = MemorySnapshots(snapshot(7))
+        val results = results(snapshots)
+        land(results)
+
+        results.ensureTonight(tonightKey()) { null }
+        advanceUntilIdle()
+
+        assertNull(snapshots.held)
+    }
+
+    @Test
+    fun `a run replaced while it worked writes nothing`() = runTest {
+        val snapshots = MemorySnapshots()
+        val results = results(snapshots)
+        land(results)
+        val gate = CompletableDeferred<Unit>()
+        results.ensureTonight(tonightKey(threshold = 30)) {
+            withContext(NonCancellable) { gate.await() }
+            night(1)
+        }
+        runCurrent()
+        results.ensureTonight(tonightKey(threshold = 50)) { night(2) }
+        advanceUntilIdle()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(2L, snapshots.held!!.list.darkFrom)
+    }
+
+    private companion object {
+        const val NOW = 1_800_000_000_000L
     }
 }

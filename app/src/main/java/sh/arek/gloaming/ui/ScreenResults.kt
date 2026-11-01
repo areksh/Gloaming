@@ -15,7 +15,10 @@ import kotlinx.coroutines.launch
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.HourlyCover
+import sh.arek.gloaming.data.TonightSnapshot
+import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.usable
 import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -173,12 +176,24 @@ data class TonightKey(
  * exception goes on to [scope]'s handler; it never leaves a run marked in
  * flight for ever.
  *
+ * A cold process has nothing to show for the twenty seconds the first night
+ * takes, so the first [ensureTonight] seeds the holder from [snapshots], the
+ * last night worked out, if it is for this cell and not yet over, and shows it
+ * as updating. That happens once and only into an empty holder, so a snapshot
+ * never replaces a night worked out in this process. Each run that lands
+ * writes the next snapshot, under the same lock and generation check as its
+ * publishing, so a replaced run writes nothing; a run with no night clears it.
+ *
  * The properties are Compose state, so the screen follows them. They are
  * written from the caller's thread and from [scope]'s, always under one lock
  * and each run's results in one snapshot, so a frame never shows a list from
  * one run beside an outlook from another.
  */
-class ScreenResults(private val scope: CoroutineScope) {
+class ScreenResults(
+    private val scope: CoroutineScope,
+    private val snapshots: TonightSnapshots? = null,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
 
     var calendar by mutableStateOf(emptyList<SkyEvent>())
         private set
@@ -246,6 +261,9 @@ class ScreenResults(private val scope: CoroutineScope) {
 
     /** The grid cell the night on show was worked out for. */
     private var nightCell: GridCell? = null
+
+    /** Whether [snapshots] has been looked at: it is, once, by the first [ensureTonight]. */
+    private var seedTried = false
 
     /**
      * Works both out again from scratch, even with nothing they depend on
@@ -352,6 +370,7 @@ class ScreenResults(private val scope: CoroutineScope) {
                 }
                 return
             }
+            seedFromSnapshot(key)
             tonightJob?.cancel()
             val generation = ++tonightGeneration
             tonightInFlight = key
@@ -388,6 +407,7 @@ class ScreenResults(private val scope: CoroutineScope) {
                         tonightShown = key
                         tonightInFlight = null
                         tonightJob = null
+                        keep(worked, key.cell)
                     }
                 } finally {
                     // Work that threw: the night on show stays, but it is no
@@ -400,6 +420,47 @@ class ScreenResults(private val scope: CoroutineScope) {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Under [lock]. Shows the last night worked out, once, when the holder is
+     * empty and the snapshot is for this key's cell and a night not yet over.
+     */
+    private fun seedFromSnapshot(key: TonightKey) {
+        if (seedTried) return
+        seedTried = true
+        val cell = key.cell ?: return
+        if (tonight != null) return
+        val kept = runCatching { snapshots?.read() }.getOrNull() ?: return
+        if (!kept.usable(cell, clock())) return
+        Snapshot.withMutableSnapshot {
+            tonight = kept.list
+            outlook = kept.outlook
+            hourly = kept.hourly
+            timeline = kept.timeline
+        }
+        nightCell = cell
+    }
+
+    /** Under [lock]. Keeps [worked] for the next cold start, or forgets the last one when there is none. */
+    private fun keep(worked: WorkedNight?, cell: GridCell?) {
+        val store = snapshots ?: return
+        runCatching {
+            if (worked == null || cell == null) {
+                store.clear()
+            } else {
+                store.write(
+                    TonightSnapshot.of(
+                        cell = cell,
+                        writtenAt = clock(),
+                        list = worked.list,
+                        outlook = worked.report,
+                        hourly = worked.forecast,
+                        timeline = worked.timeline,
+                    ),
+                )
             }
         }
     }

@@ -19,6 +19,7 @@ import sh.arek.gloaming.data.FileCometCache
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSatelliteCache
 import sh.arek.gloaming.data.FileSkyCache
+import sh.arek.gloaming.data.FileTonightSnapshots
 import sh.arek.gloaming.data.FileVerdictLog
 import sh.arek.gloaming.data.FileWeatherCache
 import sh.arek.gloaming.data.GloamingEndpoints
@@ -33,6 +34,7 @@ import sh.arek.gloaming.data.SatelliteRepository
 import sh.arek.gloaming.data.SettingsStore
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.SkyRepository
+import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.VerdictLog
 import sh.arek.gloaming.data.WeatherSource
 import sh.arek.gloaming.data.credentialPreferences
@@ -357,15 +359,42 @@ object Graph {
      * several seconds of arithmetic, and nothing about a screen going away
      * should stop it.
      */
-    private val screenResults by lazy {
+    @Volatile
+    private var screenResults: ScreenResults? = null
+
+    private fun newScreenResults(context: Context): ScreenResults {
         // Logged rather than left to crash the app: the holder has already
         // ended the run that threw (see ScreenResults).
         val logged = CoroutineExceptionHandler { _, e ->
             Log.w("Gloaming", "could not work out what the screen shows", e)
         }
-        ScreenResults(CoroutineScope(SupervisorJob() + Dispatchers.Default + logged))
+        return ScreenResults(
+            CoroutineScope(SupervisorJob() + Dispatchers.Default + logged),
+            snapshots = tonightSnapshots(context),
+        )
     }
 
-    /** One instance per process; [context] is taken only to match the other accessors. */
-    fun screenResults(context: Context): ScreenResults = screenResults
+    /** One instance per process, made on first use. */
+    @Synchronized
+    fun screenResults(context: Context): ScreenResults =
+        screenResults ?: newScreenResults(context).also { screenResults = it }
+
+    /**
+     * Drops the holder so the next [screenResults] makes a fresh one, which
+     * seeds itself from the snapshot again, as a cold start does. Instrumented
+     * tests only; the old holder's run, if any, is left to finish unseen.
+     */
+    @Synchronized
+    fun resetScreenResultsForTest() {
+        screenResults = null
+    }
+
+    /**
+     * Where the last worked-out Tonight is kept: `filesDir`, which is
+     * credential-encrypted, and never device-protected storage. The snapshot
+     * is derived from the precise position, which must not be readable before
+     * first unlock (see [BootAware]).
+     */
+    fun tonightSnapshots(context: Context): TonightSnapshots =
+        FileTonightSnapshots(context.applicationContext.filesDir)
 }
