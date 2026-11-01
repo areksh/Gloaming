@@ -55,6 +55,7 @@ import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.Conditions
+import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
@@ -388,6 +389,8 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     var outlook by remember { mutableStateOf<OutlookReport?>(null) }
     var hourly by remember { mutableStateOf(emptyList<HourlyCover>()) }
     var timeline by remember { mutableStateOf<Timeline?>(null) }
+    // The grid cell the night on screen was worked out for; see the Tonight effect.
+    var nightCell by remember { mutableStateOf<GridCell?>(null) }
     var detectingLocation by remember { mutableStateOf(false) }
     // Bumped to ask for the calendar again when the user refreshes by hand.
     var calendarNonce by remember { mutableIntStateOf(0) }
@@ -922,7 +925,20 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
             outlook = null
             hourly = emptyList()
             timeline = null
+            nightCell = null
             return@LaunchedEffect
+        }
+        // After a move to another cell the old place's night would stay up
+        // until the new one lands - "clear from 22:00" said of somewhere else -
+        // so it is taken down at once. A detected position wandering inside
+        // the cell, as it does on each open, keeps it: the sentence is about
+        // that region, and blanking it on every open would only flicker.
+        val cell = settings.cell
+        if (nightCell != null && nightCell != cell) {
+            tonight = null
+            outlook = null
+            hourly = emptyList()
+            timeline = null
         }
         val worked = withContext(Dispatchers.Default) {
             runCatching {
@@ -1012,6 +1028,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         outlook = worked?.report
         hourly = worked?.forecast.orEmpty()
         timeline = worked?.timeline
+        nightCell = cell
     }
 
     GloamingTheme(nightVision = settings.nightVision) {
