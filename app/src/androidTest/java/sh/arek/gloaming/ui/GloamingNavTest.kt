@@ -362,6 +362,7 @@ class GloamingNavTest {
         show(calendar = listOf(eclipse, phase))
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(KINDS_FILTER_TAG).performScrollTo().performClick()
 
         compose.onNodeWithTag(kindTag(EventKind.SolarEclipse)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("New and full moon (1)").performScrollTo().assertIsDisplayed()
@@ -374,6 +375,7 @@ class GloamingNavTest {
         show(calendar = listOf(eclipse, phase))
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(KINDS_FILTER_TAG).performScrollTo().performClick()
         compose.onNodeWithTag(kindTag(EventKind.MoonPhase)).performScrollTo().performClick()
 
         assertEquals(EventKind.MoonPhase, hiddenKind)
@@ -441,6 +443,8 @@ class GloamingNavTest {
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
 
         compose.onNodeWithText("Comet 220P/McNaught").performScrollTo().assertIsDisplayed()
+        // The detail is said in the row's sheet now, not on the row.
+        compose.onNodeWithTag(eventRowTag(comet)).performScrollTo().performClick()
         compose.onNodeWithText("39 observers", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
@@ -463,6 +467,7 @@ class GloamingNavTest {
         show(calendar = listOf(comet, eclipse))
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(KINDS_FILTER_TAG).performScrollTo().performClick()
         compose.onNodeWithTag(kindTag(EventKind.Comet)).performScrollTo().performClick()
 
         assertEquals(EventKind.Comet, hiddenKind)
@@ -473,14 +478,15 @@ class GloamingNavTest {
      *
      * Neither needs a permission: sharing is an ACTION_SEND of text, and the
      * .ics goes out through the file provider the log already uses. Here
-     * rather than in ScreensTest because the calendar is only reachable
-     * through the bottom bar.
+     * rather than in ScreensTest because Ahead is only reachable through
+     * the bottom bar. They live in the row's sheet.
      */
     @Test
     fun offersToShareAnEvent() {
         show()
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(eventRowTag(eclipse)).performScrollTo().performClick()
         compose.onNodeWithTag(shareTag(eclipse)).performScrollTo().performClick()
 
         assertEquals(listOf(eclipse), shared)
@@ -492,6 +498,7 @@ class GloamingNavTest {
         show()
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(eventRowTag(eclipse)).performScrollTo().performClick()
         compose.onNodeWithTag(exportTag(eclipse)).performScrollTo().performClick()
 
         assertEquals(listOf(eclipse), exported)
@@ -512,6 +519,7 @@ class GloamingNavTest {
         show(calendar = listOf(elsewhere))
 
         compose.onNodeWithTag(Section.Ahead.tag).performClick()
+        compose.onNodeWithTag(eventRowTag(elsewhere)).performScrollTo().performClick()
         compose.onNodeWithTag(shareTag(elsewhere)).performScrollTo().performClick()
 
         assertEquals(listOf(elsewhere), shared)

@@ -87,6 +87,8 @@ import sh.arek.gloaming.ui.DownloadRow
 import sh.arek.gloaming.ui.GloamingNav
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
+import sh.arek.gloaming.ui.MonthStrip
+import sh.arek.gloaming.ui.MonthStrips
 import sh.arek.gloaming.ui.NightTimeline
 import sh.arek.gloaming.ui.OutlookWords
 import sh.arek.gloaming.ui.Timeline
@@ -370,6 +372,7 @@ private fun GloamingApp() {
     // thread and far too much on the main one.
     var calendar by remember { mutableStateOf(emptyList<SkyEvent>()) }
     var calendarLoading by remember { mutableStateOf(false) }
+    var months by remember { mutableStateOf(emptyList<MonthStrip>()) }
     var tonight by remember { mutableStateOf<TonightList?>(null) }
     var outlook by remember { mutableStateOf<OutlookReport?>(null) }
     var hourly by remember { mutableStateOf(emptyList<HourlyCover>()) }
@@ -755,12 +758,16 @@ private fun GloamingApp() {
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
             calendar = emptyList()
+            months = emptyList()
             return@LaunchedEffect
         }
         calendarLoading = true
-        calendar = withContext(Dispatchers.Default) {
-            runCatching {
-                val now = System.currentTimeMillis()
+        // The strips are worked out in the same pass as the events they mark,
+        // off the main thread: a night's moonlight is a sweep of the sky and a
+        // year of them is not something to spend in a composition.
+        val (events, strips) = withContext(Dispatchers.Default) {
+            val now = System.currentTimeMillis()
+            val events = runCatching {
                 // Comets come from a document rather than from the ephemeris,
                 // so they are worked out separately and merged in by date. A
                 // device that has never fetched one simply has none, which is
@@ -778,7 +785,16 @@ private fun GloamingApp() {
                 Log.w("Gloaming", "could not work out the calendar", it)
                 emptyList()
             }
+            val strips = runCatching {
+                MonthStrips.of(latitude, longitude, now, MonthStrips.YEAR_AHEAD, events)
+            }.getOrElse {
+                Log.w("Gloaming", "could not shade the months", it)
+                emptyList()
+            }
+            events to strips
         }
+        calendar = events
+        months = strips
         calendarLoading = false
     }
 
@@ -998,6 +1014,7 @@ private fun GloamingApp() {
                     watchingUntil = watchingUntil,
                     logSizeBytes = logSize,
                     calendar = calendar,
+                    months = months,
                     calendarLoading = calendarLoading,
                     tonight = tonight,
                     outlook = outlook,

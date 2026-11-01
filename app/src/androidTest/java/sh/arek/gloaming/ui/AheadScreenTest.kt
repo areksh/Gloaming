@@ -1,8 +1,13 @@
 package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -10,23 +15,27 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.EventPlanner
 
 /**
  * The year ahead, and which part of it is happening now.
  *
- * The calendar keeps an entry while any part of it is still ahead rather than
+ * Ahead keeps an entry while any part of it is still ahead rather than
  * only while its moment is, so the list now holds things already under way
  * alongside things weeks off. Telling those apart is the whole of what this
  * covers - the rest of the row is pinned by the JVM tests behind it.
  *
  * **Needs the device unlocked**, like every other Compose test here.
  */
-class CalendarScreenTest {
+class AheadScreenTest {
 
     @get:Rule
     val compose = createComposeRule()
@@ -81,28 +90,66 @@ class CalendarScreenTest {
         visibility = Visibility.Good,
     )
 
-    private fun show(vararg events: SkyEvent) {
-        // No scrolling column around it any more: the calendar is a lazy list
-        // and owns its own scrolling, which is the point of it.
+    private val shared = mutableListOf<SkyEvent>()
+    private val exported = mutableListOf<SkyEvent>()
+    private val starred = mutableListOf<SkyEvent>()
+    private val toggledKinds = mutableListOf<EventKind>()
+
+    private fun show(
+        vararg events: SkyEvent,
+        hiddenKinds: Set<String> = emptySet(),
+        starredKeys: Set<String> = emptySet(),
+        months: List<MonthStrip> = emptyList(),
+        startStarredOnly: Boolean = false,
+    ) {
+        // No scrolling column around it: Ahead is a lazy list and owns its own
+        // scrolling, which is the point of it.
         compose.setContent {
-            CalendarContent(
-                events = events.toList(),
-                hasLocation = true,
-                loading = false,
-                nowMillis = now,
+            var starredOnly by remember { mutableStateOf(startStarredOnly) }
+            AheadScreen(
+                state = MainUiState(
+                    settings = UserSettings(
+                        latitude = 55.95,
+                        longitude = -3.19,
+                        starredEvents = starredKeys,
+                        hiddenEventKinds = hiddenKinds,
+                    ),
+                    alertState = AlertState(),
+                    latitudeInput = "55.95",
+                    longitudeInput = "-3.19",
+                    quietFromInput = "23:00",
+                    quietUntilInput = "07:00",
+                    batteryExempt = true,
+                    notificationsAllowed = true,
+                    nowMillis = now,
+                    calendar = events.toList(),
+                    months = months,
+                ),
+                actions = UiActions(
+                    onShareEvent = { shared += it },
+                    onExportEvent = { exported += it },
+                    onToggleStar = { starred += it },
+                    onToggleKind = { toggledKinds += it },
+                ),
+                starredOnly = starredOnly,
+                onStarredOnlyChange = { starredOnly = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }
     }
 
+    private fun openKinds() {
+        compose.onNodeWithTag(KINDS_FILTER_TAG).performScrollTo().performClick()
+    }
+
     /**
-     * The calendar is the app's densest run of jargon - occultation,
+     * Ahead is the app's densest run of jargon - occultation,
      * elongation, opposition, greatest brightness - and the one screen with no
      * card to hang an Explain button off. Its words go above the filter, where
      * somebody deciding what to hide is already looking.
      */
     @Test
-    fun explainsTheWordsTheCalendarPutsOnScreen() {
+    fun explainsTheWordsAheadPutsOnScreen() {
         show(underWay, later)
 
         compose.onNodeWithTag(helpTag(HelpTopic.Calendar)).performScrollTo().performClick()
@@ -113,7 +160,7 @@ class CalendarScreenTest {
 
     /** Closed to begin with, so the first month is still the first thing read. */
     @Test
-    fun keepsTheCalendarsWordsOutOfTheWayUntilTheyAreWanted() {
+    fun keepsAheadsWordsOutOfTheWayUntilTheyAreWanted() {
         show(underWay, later)
 
         compose.onNodeWithText("Occultation").assertDoesNotExist()
@@ -150,6 +197,8 @@ class CalendarScreenTest {
     @Test
     fun offersAChipForTheConstellations() {
         show(underWay, pattern)
+
+        openKinds()
 
         compose.onNodeWithTag(kindTag(EventKind.Constellation))
             .performScrollTo()
@@ -190,5 +239,115 @@ class CalendarScreenTest {
         show(elsewhere)
 
         compose.onNodeWithTag(starTag(elsewhere)).performScrollTo().assertIsDisplayed()
+    }
+
+    // --- what Ahead adds to the old calendar ---
+
+    /** The kinds are one button, and it says how many are showing. */
+    @Test
+    fun theKindsLiveBehindOneButton() {
+        show(
+            underWay,
+            later,
+            hiddenKinds = setOf("MoonPhase", "MoonQuarter", "Season", "Constellation", "Comet"),
+        )
+
+        compose.onNodeWithTag(KINDS_FILTER_TAG).assertIsDisplayed()
+        compose.onNodeWithText("Showing 9 of 14 kinds").assertIsDisplayed()
+        compose.onNodeWithTag(kindTag(EventKind.Occultation)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theButtonOpensTheChipsAndTheyReportAKind() {
+        show(underWay, later)
+
+        openKinds()
+        compose.onNodeWithTag(kindTag(EventKind.Occultation)).performClick()
+
+        assertEquals(listOf(EventKind.Occultation), toggledKinds)
+    }
+
+    @Test
+    fun startsWithEveryKindShowing() {
+        show(underWay, later)
+
+        compose.onNodeWithText("Showing 14 of 14 kinds").assertIsDisplayed()
+    }
+
+    @Test
+    fun starredOnlyHidesTheRest() {
+        show(underWay, later, starredKeys = setOf(EventPlanner.starKey(later)))
+
+        compose.onNodeWithTag(STARRED_ONLY_TAG).performScrollTo().performClick()
+
+        compose.onNodeWithText(later.title).assertIsDisplayed()
+        compose.onNodeWithText(underWay.title).assertDoesNotExist()
+    }
+
+    @Test
+    fun starredOnlySaysSoWhenNothingIsStarred() {
+        show(underWay, later, startStarredOnly = true)
+
+        compose.onNodeWithText("Nothing starred is showing", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun turningStarredOnlyOffBringsTheRestBack() {
+        show(underWay, later, startStarredOnly = true)
+
+        compose.onNodeWithTag(STARRED_ONLY_TAG).performClick()
+
+        compose.onNodeWithText(underWay.title).assertIsDisplayed()
+    }
+
+    @Test
+    fun aStarOnARowIsReported() {
+        show(later)
+
+        compose.onNodeWithTag(starTag(later)).performClick()
+
+        assertEquals(listOf(later), starred)
+    }
+
+    /** The row opens the shared sheet, where Share and Export now live. */
+    @Test
+    fun tappingARowOpensItsSheetWithShareAndExport() {
+        show(later)
+
+        compose.onNodeWithTag(eventRowTag(later)).performClick()
+
+        compose.onNodeWithTag(ROW_SHEET_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(shareTag(later)).performClick()
+        assertEquals(listOf(later), shared)
+        compose.onNodeWithTag(exportTag(later)).performClick()
+        assertEquals(listOf(later), exported)
+    }
+
+    private val december = MonthStrip(
+        year = 2026,
+        month = 12,
+        name = "December",
+        nights = (1..31).map { NightCell(it, if (it in 5..13) 0.05 else 0.8, it == 9) },
+        darkFrom = 5,
+        darkUntil = 13,
+    )
+
+    /** The shading is never the only carrier: the run is written out. */
+    @Test
+    fun namesTheDarkestRunInWords() {
+        show(later, months = listOf(december))
+
+        compose.onNodeWithText("Darkest: 5-13 December").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun describesTheWholeStripForTalkBack() {
+        show(later, months = listOf(december))
+
+        compose.onNodeWithTag(monthTag(2026, 12))
+            .performScrollTo()
+            .assertContentDescriptionEquals(
+                "December 2026. Darkest: 5-13 December. Events on 9 December.",
+            )
     }
 }

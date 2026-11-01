@@ -421,12 +421,19 @@ is a file replacement.
   tonight" (whatever is up with no row and was not set aside) and "Not worth
   it tonight" (the outlook's exclusions in `OutlookWords.excluded`, then the
   satellites when there are none to list, saying whether the sky is empty or
-  the elements are missing). The calendar is a `LazyColumn` owning its own
+  the elements are missing). Ahead (`AheadScreen`) is a `LazyColumn` owning its own
   scrolling, because a year ahead is around a hundred entries and composing
   them all cost a frame of 1300ms on opening and every frame of a scroll
   afterwards - and because a lazy list measured inside a scrolling column is
   given unbounded height, which defeats the laziness and throws. The scroll
-  positions are remembered per section rather than shared.
+  positions are remembered per section rather than shared. Each month on
+  Ahead opens with a `MonthStrip`: one `NightCell` per night, shaded by
+  `Twilight.moonInterference`, a dot on the days that have an event, and the
+  longest run below `MonthStrips.DARK_BELOW` named in words and read out whole
+  by TalkBack, so the shading never carries the meaning alone. The strips are
+  worked out in the same background pass as the calendar and held in
+  `MainUiState.months`. An event row opens the shared `RowSheet` (Share and
+  Export live there); the kinds sit behind one "Showing N of 14 kinds" button.
 
 ### Manifest verification
 

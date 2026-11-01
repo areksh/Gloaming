@@ -62,7 +62,7 @@ const val GUIDE_BACK_TAG = "guide-back"
  * in place.
  *
  * Each section owns its own scroll, which is why [TonightContent],
- * [CalendarContent], [GuideContent] and [SettingsContent] emit loose children
+ * [GuideContent] and [SettingsContent] emit loose children
  * rather than columns of their own. [TonightScreen] is the one section that
  * brings its own column, because it pins the watch button under the scroll.
  */
@@ -83,6 +83,7 @@ fun GloamingNav(
     val guideScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
     val aheadScroll = rememberLazyListState()
+    var starredOnly by rememberSaveable { mutableStateOf(false) }
 
     // System Back leaves the guide for Settings rather than the app.
     BackHandler(enabled = showGuide) { showGuide = false }
@@ -121,16 +122,13 @@ fun GloamingNav(
             // The calendar brings its own scrolling: it is a lazy list, and a
             // lazy list inside a scrolling column is measured with unbounded
             // height, which defeats the point of it and throws.
-            Section.Ahead -> CalendarContent(
-                events = state.calendar,
-                hasLocation = state.settings.hasLocation,
-                loading = state.calendarLoading,
-                nowMillis = state.nowMillis,
-                starred = state.settings.starredEvents,
-                hiddenKinds = state.settings.hiddenEventKinds,
+            Section.Ahead -> AheadScreen(
+                state = state,
                 actions = actions,
+                starredOnly = starredOnly,
+                onStarredOnlyChange = { starredOnly = it },
                 modifier = content.fillMaxSize(),
-                state = aheadScroll,
+                listState = aheadScroll,
             )
 
             // Tonight scrolls itself too, with the watch button pinned under

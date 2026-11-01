@@ -51,8 +51,10 @@ standing rather than listed as though everything is visible from everywhere. An
 eclipse that reaches maximum after the sun has set where you are says so.
 Anything under way as you read the list is marked as happening now, and stays
 on the list until it is genuinely over rather than dropping off at the moment it
-starts. You can filter out the kinds you do not care about, and star the ones
-you do.
+starts. Each month opens with a strip of its nights shaded by how much the moon
+spoils them, a dot on the days with an event and the darkest run named in words.
+You can filter out the kinds you do not care about from behind one button, narrow
+the list to Starred only, and star the ones you do.
 Eclipses carry a countdown you can follow contact by contact, and summer nights
 carry a prompt for noctilucent clouds - which is a prompt and not a forecast,
 because nothing has been able to forecast those since 2023.

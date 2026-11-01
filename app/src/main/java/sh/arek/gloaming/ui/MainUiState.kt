@@ -82,6 +82,11 @@ data class MainUiState(
      * long to spend in a composition.
      */
     val calendar: List<SkyEvent> = emptyList(),
+    /**
+     * A strip of shaded nights for each month of that year, worked out in the
+     * same pass so the two never disagree about which days have an event.
+     */
+    val months: List<MonthStrip> = emptyList(),
     /** True while that computation is in flight, so the tab can say so. */
     val calendarLoading: Boolean = false,
     /** What there is to see between now and dawn, once it has been worked out. */
