@@ -1,12 +1,12 @@
 package sh.arek.gloaming.ui
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,18 +20,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -50,8 +53,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
@@ -270,27 +272,43 @@ private fun Guided(
     now: Long,
 ) {
     val palette = LocalPalette.current
-    val reading = rememberCompassReading(source)
+    val reading = rememberCompassReadingState(source)
     val declination = remember(latitude, longitude, now / DAY_MILLIS) {
         magneticDeclination(latitude, longitude, now)
     }
-    val pointing = reading?.let {
-        Pointing.direction(it.rotation, declination, state.settings.compassOffsetDegrees)
-    }
+    // A reading arrives every frame or so. Everything that follows from one is
+    // a derived state read only where a change should reach - the drawing, and
+    // the words, which change far less often than the readings do - so a
+    // reading redraws the view and does not recompose this function.
+    val offsetDegrees = state.settings.compassOffsetDegrees
     val position = fix?.position
-    val guidance = if (pointing != null && position != null) Guide.of(pointing, position) else null
-    val aligned = guidance?.aligned == true
+    val pointing = remember(declination, offsetDegrees) {
+        derivedStateOf {
+            reading.value?.let { Pointing.direction(it.rotation, declination, offsetDegrees) }
+        }
+    }
+    val guidance = remember(position) {
+        derivedStateOf {
+            val p = pointing.value
+            if (p != null && position != null) Guide.of(p, position) else null
+        }
+    }
+    val aligned = remember { derivedStateOf { guidance.value?.aligned == true } }
 
     // Buzzes on lining up and re-arms only once the phone has moved well off
     // the target (AlignBuzz), so a hand wavering at the edge of lined up does
     // not buzz on every crossing. Followed as a flow of the separation rather
     // than decided in composition, which must not perform effects.
-    val separation = if (pointing != null && position != null) Guide.separation(pointing, position) else null
-    val latestSeparation by rememberUpdatedState(separation)
+    val separation = remember(position) {
+        derivedStateOf {
+            val p = pointing.value
+            if (p != null && position != null) Guide.separation(p, position) else null
+        }
+    }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(haptics) {
         var armed = true
-        snapshotFlow { latestSeparation }.collect {
+        snapshotFlow { separation.value }.collect {
             val step = AlignBuzz.next(armed, it)
             armed = step.armed
             if (step.fire) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -302,10 +320,11 @@ private fun Guided(
     // Offered at most once per visit as well as once a week, so a screen whose
     // settings have not caught up with the stamp yet does not offer it twice.
     var offeredThisVisit by remember { mutableStateOf(false) }
-    val accuracy = reading?.accuracy
+    val accuracy by remember { derivedStateOf { reading.value?.accuracy } }
     LaunchedEffect(accuracy) {
-        if (accuracy != null && !offeredThisVisit &&
-            CompassCheck.shouldOffer(accuracy, state.settings.compassOfferedAt, now)
+        val seen = accuracy
+        if (seen != null && !offeredThisVisit &&
+            CompassCheck.shouldOffer(seen, state.settings.compassOfferedAt, now)
         ) {
             offeredThisVisit = true
             sheetOffered = true
@@ -314,18 +333,19 @@ private fun Guided(
         }
     }
 
-    val instruction = findInstruction(
-        fix,
-        guidance,
-        findTonightKnown(state.tonight, state.tonightUpdating, state.elements),
-    )
-    val where = fix?.let { whereLine(it, pointing) }
+    val tonightKnown = findTonightKnown(state.tonight, state.tonightUpdating, state.elements)
+    val instruction by remember(fix, tonightKnown) {
+        derivedStateOf { findInstruction(fix, guidance.value, tonightKnown) }
+    }
+    val where by remember(fix) {
+        derivedStateOf { fix?.let { whereLine(it, pointing.value) } }
+    }
 
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         FindView(
-            pointing = pointing,
+            pointing = { pointing.value },
             fix = fix,
-            aligned = aligned,
+            aligned = { aligned.value },
             palette = palette,
             modifier = Modifier
                 .widthIn(max = 320.dp)
@@ -376,7 +396,7 @@ private fun Guided(
 
     if (sheetOpen) {
         CompassSheet(
-            reading = reading,
+            reading = reading.value,
             state = state,
             actions = actions,
             nowMillis = now,
@@ -394,13 +414,21 @@ private fun Guided(
  * unregisters them.
  */
 @Composable
-internal fun rememberCompassReading(source: CompassSource): CompassReading? {
+internal fun rememberCompassReading(source: CompassSource): CompassReading? =
+    rememberCompassReadingState(source).value
+
+/**
+ * [rememberCompassReading] as the state itself, for a caller that reads it
+ * only where a change should reach: in a draw block or a derived value, and
+ * not in composition, which a reading a frame would recompose every frame.
+ */
+@Composable
+internal fun rememberCompassReadingState(source: CompassSource): State<CompassReading?> {
     val readings = remember(source) { source.readings() }
-    val reading by readings.collectAsStateWithLifecycle(
+    return readings.collectAsStateWithLifecycle(
         initialValue = null,
         minActiveState = Lifecycle.State.RESUMED,
     )
-    return reading
 }
 
 /** Holds the screen on while composed, and puts back whatever was there before. */
@@ -426,9 +454,9 @@ private fun KeepScreenOn() {
  */
 @Composable
 private fun FindView(
-    pointing: AltAz?,
+    pointing: () -> AltAz?,
     fix: TargetFix?,
-    aligned: Boolean,
+    aligned: () -> Boolean,
     palette: Palette,
     modifier: Modifier = Modifier,
 ) {
@@ -436,66 +464,76 @@ private fun FindView(
     val labelStyle = MaterialTheme.typography.labelLarge.copy(color = palette.text)
     val horizonStyle = MaterialTheme.typography.labelSmall.copy(color = palette.muted)
 
-    Canvas(modifier) {
-        val radius = size.minDimension / 2f
-        val perDegree = radius / HALF_VIEW_DEGREES
-        val circle = Path().apply { addOval(Rect(center, radius)) }
+    // The path and the dash are made when the size changes and not on every
+    // draw; a draw happens for each compass reading, and the lambdas below are
+    // where a reading is read, so a reading redraws this and recomposes nothing.
+    Spacer(modifier.graphicsLayer {}.drawWithCache {
+        val circle = Path().apply { addOval(Rect(Offset(size.width / 2f, size.height / 2f), size.minDimension / 2f)) }
+        val dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx()))
+        val horizonLayout = measurer.measure("Horizon", horizonStyle)
+        val targetLayout = fix?.let { measurer.measure(it.label, labelStyle) }
+        onDrawBehind {
+            val pointing = pointing()
+            val aligned = aligned()
+            val radius = size.minDimension / 2f
+            val perDegree = radius / HALF_VIEW_DEGREES
 
-        drawCircle(palette.raised, radius, center)
-        if (pointing != null) {
-            clipPath(circle) {
-                val horizonY = center.y + pointing.altitude.toFloat() * perDegree
-                if (horizonY < size.height) {
-                    drawRect(
-                        palette.ground,
-                        topLeft = Offset(0f, horizonY.coerceAtLeast(0f)),
-                        size = Size(size.width, size.height),
+            drawCircle(palette.raised, radius, center)
+            if (pointing != null) {
+                clipPath(circle) {
+                    val horizonY = center.y + pointing.altitude.toFloat() * perDegree
+                    if (horizonY < size.height) {
+                        drawRect(
+                            palette.ground,
+                            topLeft = Offset(0f, horizonY.coerceAtLeast(0f)),
+                            size = Size(size.width, size.height),
+                        )
+                    }
+                    drawLine(
+                        palette.muted,
+                        Offset(0f, horizonY),
+                        Offset(size.width, horizonY),
+                        strokeWidth = 1.2.dp.toPx(),
+                        pathEffect = dash,
                     )
-                }
-                drawLine(
-                    palette.muted,
-                    Offset(0f, horizonY),
-                    Offset(size.width, horizonY),
-                    strokeWidth = 1.2.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx())),
-                )
-                drawLabel(measurer, "Horizon", horizonStyle, Offset(center.x - radius * 0.6f, horizonY), above = true)
+                    drawLabel(horizonLayout, Offset(center.x - radius * 0.6f, horizonY), above = true)
 
-                val position = fix?.position
-                if (position != null) {
-                    val guidance = Guide.of(pointing, position)
-                    val dx = guidance.turnDegrees.toFloat() * perDegree
-                    val dy = -guidance.tiltDegrees.toFloat() * perDegree
-                    val ring = 14.dp.toPx()
-                    if (hypot(dx, dy) <= radius - ring) {
-                        val at = Offset(center.x + dx, center.y + dy)
-                        drawCircle(palette.text, ring, at, style = Stroke(2.dp.toPx()))
-                        drawLabel(measurer, fix.label, labelStyle, Offset(at.x + ring + 4.dp.toPx(), at.y), above = false)
+                    val position = fix?.position
+                    if (position != null) {
+                        val guidance = Guide.of(pointing, position)
+                        val dx = guidance.turnDegrees.toFloat() * perDegree
+                        val dy = -guidance.tiltDegrees.toFloat() * perDegree
+                        val ring = 14.dp.toPx()
+                        if (hypot(dx, dy) <= radius - ring) {
+                            val at = Offset(center.x + dx, center.y + dy)
+                            drawCircle(palette.text, ring, at, style = Stroke(2.dp.toPx()))
+                            targetLayout?.let { drawLabel(it, Offset(at.x + ring + 4.dp.toPx(), at.y), above = false) }
+                        }
                     }
                 }
+                edgeArrowDirection(pointing, fix, perDegree, radius - 14.dp.toPx())?.let { (dx, dy) ->
+                    drawEdgeArrow(dx, dy, radius, palette)
+                }
             }
-            edgeArrowDirection(pointing, fix, perDegree, radius - 14.dp.toPx())?.let { (dx, dy) ->
-                drawEdgeArrow(dx, dy, radius, palette)
-            }
-        }
-        drawCircle(palette.line, radius, center, style = Stroke(1.5.dp.toPx()))
+            drawCircle(palette.line, radius, center, style = Stroke(1.5.dp.toPx()))
 
-        val reticle = if (aligned) palette.accent else palette.muted
-        val width = if (aligned) 4.dp.toPx() else 1.6.dp.toPx()
-        val r = 22.dp.toPx()
-        drawCircle(reticle, r, center, style = Stroke(width))
-        val from = r - 4.dp.toPx()
-        val to = r + 10.dp.toPx()
-        for ((ux, uy) in listOf(0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f)) {
-            drawLine(
-                reticle,
-                Offset(center.x + ux * from, center.y + uy * from),
-                Offset(center.x + ux * to, center.y + uy * to),
-                strokeWidth = width,
-                cap = StrokeCap.Round,
-            )
+            val reticle = if (aligned) palette.accent else palette.muted
+            val width = if (aligned) 4.dp.toPx() else 1.6.dp.toPx()
+            val r = 22.dp.toPx()
+            drawCircle(reticle, r, center, style = Stroke(width))
+            val from = r - 4.dp.toPx()
+            val to = r + 10.dp.toPx()
+            for ((ux, uy) in listOf(0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f)) {
+                drawLine(
+                    reticle,
+                    Offset(center.x + ux * from, center.y + uy * from),
+                    Offset(center.x + ux * to, center.y + uy * to),
+                    strokeWidth = width,
+                    cap = StrokeCap.Round,
+                )
+            }
         }
-    }
+    })
 }
 
 /**
@@ -537,13 +575,10 @@ private fun DrawScope.drawEdgeArrow(dx: Float, dy: Float, radius: Float, palette
 }
 
 private fun DrawScope.drawLabel(
-    measurer: TextMeasurer,
-    text: String,
-    style: TextStyle,
+    layout: TextLayoutResult,
     at: Offset,
     above: Boolean,
 ) {
-    val layout = measurer.measure(text, style)
     val y = if (above) at.y - layout.size.height - 2.dp.toPx() else at.y - layout.size.height / 2f
     drawText(layout, topLeft = Offset(at.x, y))
 }
