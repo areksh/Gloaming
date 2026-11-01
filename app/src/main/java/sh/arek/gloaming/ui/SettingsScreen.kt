@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +44,12 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
@@ -52,6 +57,9 @@ import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
 import sh.arek.gloaming.domain.Recommendation
 import sh.arek.gloaming.ui.theme.LocalPalette
+
+const val COMPASS_RESET_TAG = "compass-reset"
+const val NIGHT_VISION_FINDING_SWITCH_TAG = "night-vision-finding-switch"
 
 /**
  * The body of one Settings page: the controls the index row leads to.
@@ -64,6 +72,7 @@ fun SettingsPageContent(
     page: SettingsPage,
     state: MainUiState,
     actions: UiActions = UiActions(),
+    compass: CompassSource = NoCompass,
 ) {
     when (page) {
         SettingsPage.Location -> LocationCard(
@@ -140,6 +149,10 @@ fun SettingsPageContent(
 
         SettingsPage.Log ->
             LogCard(state, actions.onLogRetentionChange, actions.onExportLog, actions.onClearLog)
+
+        SettingsPage.Compass -> CompassCard(state, actions, compass)
+        SettingsPage.NightVisionWhenFinding ->
+            NightVisionWhenFindingCard(state, actions.onNightVisionWhenFindingChange)
 
         SettingsPage.AutomaticSettings ->
             AutomaticSettingsCard(state, actions.onAutomaticSettingsChange)
@@ -1057,6 +1070,107 @@ private fun NightVisionCard(state: MainUiState, onNightVisionChange: (Boolean) -
                     "adapt to the dark and one glance at a white screen to lose it. Deep " +
                     "red is the one colour that barely registers, which is why " +
                     "observatories and ships' bridges use it.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * The compass Find points with: how sure the phone is of it, the check, and
+ * the standing correction a check on the moon left behind.
+ *
+ * The accuracy is read live while this page is in front, through the same
+ * lifecycle-aware collection Find uses, so the page does not hold the sensor
+ * once it is left.
+ */
+@Composable
+private fun CompassCard(state: MainUiState, actions: UiActions, compass: CompassSource) {
+    val reading = rememberCompassReading(compass)
+    var checking by rememberSaveable { mutableStateOf(false) }
+    val offset = state.settings.compassOffsetDegrees
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Compass", style = MaterialTheme.typography.titleMedium)
+            if (!compass.present) {
+                Text(NO_COMPASS_LINE, style = MaterialTheme.typography.bodyMedium)
+            } else {
+                Text(
+                    reading?.accuracy?.let(::accuracyLine) ?: "Waiting for the compass.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Text(
+                compassCorrectionLine(offset),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            if (compass.present) {
+                OutlinedButton(
+                    onClick = { checking = true },
+                    modifier = Modifier.fillMaxWidth().testTag(CHECK_COMPASS_TAG),
+                ) { Text("Check compass") }
+            }
+            if (offset != 0.0) {
+                OutlinedButton(
+                    onClick = { actions.onCompassOffsetChange(0.0) },
+                    modifier = Modifier.fillMaxWidth().testTag(COMPASS_RESET_TAG),
+                ) { Text("Remove the correction") }
+            }
+            Text(
+                "Find offers a check by itself when the phone says it is unsure of north, at " +
+                    "most once a week. Android has no way to recalibrate a compass on request; " +
+                    "turning the phone through a figure of eight is how it relearns north.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+    if (checking) {
+        CompassSheet(
+            reading = reading,
+            state = state,
+            actions = actions,
+            nowMillis = state.nowMillis,
+            offered = false,
+            onDismiss = { checking = false },
+        )
+    }
+}
+
+/** The correction in force, in a sentence. */
+private fun compassCorrectionLine(offset: Double): String {
+    val degrees = abs(offset).roundToInt()
+    return when (degrees) {
+        0 -> "No correction is applied."
+        1 -> "A correction of 1 degree is applied, from lining up on the moon."
+        else -> "A correction of $degrees degrees is applied, from lining up on the moon."
+    }
+}
+
+/**
+ * Red on black on Find alone, whatever the rest of the app is set to.
+ *
+ * On by default: Find is the screen held up to the sky, and the one most
+ * likely to be open in the dark with nothing else to look at.
+ */
+@Composable
+private fun NightVisionWhenFindingCard(state: MainUiState, onChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Night vision when finding", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.nightVisionWhenFinding,
+                    onCheckedChange = onChange,
+                    modifier = Modifier.testTag(NIGHT_VISION_FINDING_SWITCH_TAG),
+                )
+            }
+            Text(
+                "Find turns red on black while it is open, even with night vision off " +
+                    "everywhere else: it is the screen you hold up to the sky.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }

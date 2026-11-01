@@ -10,6 +10,7 @@ import sh.arek.gloaming.data.Verdict
 import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.SatellitesDocument
 
 /**
  * The live-following switch, reached by tag for the same reason: it sits beside
@@ -91,6 +92,12 @@ data class MainUiState(
     val calendarLoading: Boolean = false,
     /** What there is to see between now and dawn, once it has been worked out. */
     val tonight: TonightList? = null,
+    /**
+     * The satellite elements [tonight] was worked out from, so Find can follow
+     * a pass across the sky from the same copy rather than reading the cache
+     * again on the main thread.
+     */
+    val elements: SatellitesDocument? = null,
     /**
      * Tonight in one sentence, decided from [tonight] and the same held
      * documents, or null until it has been worked out.

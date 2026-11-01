@@ -34,6 +34,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.NoCompass
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.decode
+import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.ui.theme.LocalPalette
 
 /**
@@ -44,6 +49,7 @@ import sh.arek.gloaming.ui.theme.LocalPalette
  */
 enum class Section(val label: String, val tag: String) {
     Tonight("Tonight", "nav-tonight"),
+    Find("Find", "nav-find"),
     Ahead("Ahead", "nav-ahead"),
     Settings("Settings", "nav-settings"),
 }
@@ -69,14 +75,19 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  *
  * Each section owns its own scroll, which is why [TonightContent] and
  * [SettingsPageContent] emit loose children rather than columns of their own.
- * [TonightScreen] is the one section that brings its own column, because it
- * pins the watch button under the scroll.
+ * [TonightScreen] brings its own column because it pins the watch button
+ * under the scroll, and [FindScreen] because it can be themed apart from the
+ * rest. Find it on a Tonight row switches to Find aimed at that row.
+ *
+ * @param compass what Find and the Compass settings page read; the phone's
+ *   sensors in the app, a fake in a test, and none at all by default.
  */
 @Composable
 fun GloamingNav(
     state: MainUiState,
     actions: UiActions,
     modifier: Modifier = Modifier,
+    compass: CompassSource = NoCompass,
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     // The open Settings page by name: null is the index. A name rather than the
@@ -93,6 +104,9 @@ fun GloamingNav(
     val settingsScroll = rememberScrollState()
     val aheadScroll = rememberLazyListState()
     var starredOnly by rememberSaveable { mutableStateOf(false) }
+    // What Find is aimed at, encoded, so Find it on a row can open it on that
+    // row and a target picked on Find is still chosen after a visit elsewhere.
+    var findTarget by rememberSaveable { mutableStateOf<String?>(null) }
 
     // System Back leaves a page for the index rather than the app.
     BackHandler(enabled = page != null) { openPage = null }
@@ -147,6 +161,21 @@ fun GloamingNav(
                 actions = actions,
                 scroll = tonightScroll,
                 modifier = content.fillMaxSize(),
+                onFindIt = { target ->
+                    findTarget = target.encode()
+                    selected = Section.Find.ordinal
+                },
+            )
+
+            // Find scrolls itself, and listens to the compass only while it
+            // is the section shown.
+            Section.Find -> FindScreen(
+                state = state,
+                actions = actions,
+                source = compass,
+                initial = findTarget?.let { FindTarget.decode(it) },
+                modifier = content.fillMaxSize(),
+                onTargetChange = { findTarget = it.encode() },
             )
 
             Section.Settings -> if (page == null) {
@@ -167,7 +196,7 @@ fun GloamingNav(
                             .semantics { heading() }
                             .testTag(SETTINGS_PAGE_TITLE_TAG),
                     )
-                    SettingsPageContent(page = page, state = state, actions = actions)
+                    SettingsPageContent(page = page, state = state, actions = actions, compass = compass)
                 }
             }
         }
@@ -179,6 +208,7 @@ private fun SectionIcon(section: Section) {
     androidx.compose.material3.Icon(
         imageVector = when (section) {
             Section.Tonight -> Icons.moon
+            Section.Find -> Icons.compass
             Section.Ahead -> Icons.calendar
             Section.Settings -> Icons.sliders
         },
@@ -187,7 +217,7 @@ private fun SectionIcon(section: Section) {
 }
 
 /**
- * The three bar icons, drawn here as 24dp strokes so no icon library is needed.
+ * The bar icons, drawn here as 24dp strokes so no icon library is needed.
  * Stroked in black; the bar tints them.
  */
 private object Icons {
@@ -207,6 +237,18 @@ private object Icons {
         moveTo(20f, 14.5f)
         arcTo(8.5f, 8.5f, 0f, true, true, 9.5f, 4f)
         arcTo(6.5f, 6.5f, 0f, false, false, 20f, 14.5f)
+        close()
+    }
+
+    val compass = icon("compass") {
+        moveTo(20f, 12f)
+        arcTo(8f, 8f, 0f, true, true, 4f, 12f)
+        arcTo(8f, 8f, 0f, true, true, 20f, 12f)
+        close()
+        moveTo(15f, 9f)
+        lineTo(13.2f, 13.2f)
+        lineTo(9f, 15f)
+        lineTo(10.8f, 10.8f)
         close()
     }
 

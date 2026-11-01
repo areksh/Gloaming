@@ -21,6 +21,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.NoCompass
 
 /** What first-run setup asks about, in the order it asks. */
 enum class SetupStep(val page: SettingsPage) {
@@ -124,9 +126,10 @@ fun GloamingRoot(
     actions: UiActions,
     modifier: Modifier = Modifier,
     onSetupFinished: () -> Unit = {},
+    compass: CompassSource = NoCompass,
 ) {
     if (state.settings.setupDone) {
-        GloamingNav(state, actions, modifier)
+        GloamingNav(state, actions, modifier, compass)
     } else {
         SetupFlow(state, actions, onFinished = onSetupFinished, modifier = modifier)
     }

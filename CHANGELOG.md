@@ -60,10 +60,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to find those controls in Settings. Anything skipped is still reported by
   the banners on Tonight, and the same controls remain in Settings. Phones
   that already hold a position are not asked again.
-- **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot
-  of the screen, within thumb's reach. The calendar is now called Ahead, and
+- **A bottom bar.** Tonight, Find, Ahead and Settings now sit on a bar at the
+  foot of the screen, within thumb's reach. The calendar is now called Ahead, and
   the guide is no longer a tab of its own: it moves under Settings, as "Guide
   to the words".
+- **A Find tab points the way to what is up, with a compass check.** Once
+  outside, pick a planet, the moon, the Plough or another constellation, a
+  satellite pass or the aurora, hold the phone up with its top edge towards
+  the sky, and Find says which way to turn and tilt - "Turn right a little,
+  then tilt up." - until it says "There." and buzzes once. A view sixty
+  degrees across shows the horizon, the target and a reticle, with an arrow at
+  the edge when the target is off the view or not yet risen, and then Find
+  gives its rise time. Beneath, where it is in words, which way the phone is
+  facing, and how to recognise it. The screen stays on while Find is open, and
+  Find alone turns red on black (Night vision when finding, on by default).
+  Find it on a row of Tonight's night opens Find aimed at that row. When the
+  phone says its compass is unsure, Find offers a check, at most once a week:
+  the figure of eight that lets the phone relearn north, with its accuracy
+  climbing as you go, then, with the moon up, Line up, which corrects the
+  compass on the moon because Gloaming knows exactly where it is. Both live
+  under Settings, Finding things, where the check can be run and the
+  correction removed at any time. True north comes from the phone's own model
+  of the Earth's field; nothing is fetched. A phone with no compass is told so.
 - **A new look, in light and dark.** Gloaming has its own palette now: a dark
   slate ground with the pink of the Belt of Venus as its accent by night, and a
   light theme that follows the phone's setting for use in daylight. Everything

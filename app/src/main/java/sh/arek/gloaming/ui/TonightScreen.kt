@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.data.Answer
+import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.ui.theme.LocalPalette
 
 /** Tonight's scrolling column, which is what pulling down to check acts on. */
@@ -45,6 +46,9 @@ const val TONIGHT_SCROLL_TAG = "tonight-scroll"
  * and that is the moment nobody should have to scroll past the night to reach
  * it. Pulling the night down runs a check, the same as Check now in the
  * checks sheet.
+ *
+ * @param onFindIt opens Find aimed at a row's subject; with none, rows offer
+ *   no Find it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +57,7 @@ fun TonightScreen(
     actions: UiActions = UiActions(),
     scroll: ScrollState = rememberScrollState(),
     modifier: Modifier = Modifier,
+    onFindIt: ((FindTarget) -> Unit)? = null,
 ) {
     val palette = LocalPalette.current
     Column(modifier) {
@@ -70,7 +75,7 @@ fun TonightScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                TonightContent(state, actions)
+                TonightContent(state, actions, onFindIt)
             }
         }
         HorizontalDivider(color = palette.line)
@@ -95,6 +100,7 @@ fun TonightScreen(
 fun TonightContent(
     state: MainUiState,
     actions: UiActions = UiActions(),
+    onFindIt: ((FindTarget) -> Unit)? = null,
 ) {
     val palette = LocalPalette.current
     var showChecks by rememberSaveable { mutableStateOf(false) }
@@ -151,7 +157,20 @@ fun TonightContent(
     }
 
     timeline?.rows?.firstOrNull { timelineRowTag(it) == openRow }?.let { row ->
-        RowSheet(row, state, actions, onDismiss = { openRow = null })
+        // Find it only where there is somewhere to go: a row about something
+        // that can be pointed at, and a caller with a Find to open.
+        val target = findTarget(row.subject)
+        val findIt: (@Composable () -> Unit)? = if (target != null && onFindIt != null) {
+            {
+                FindItButton {
+                    openRow = null
+                    onFindIt(target)
+                }
+            }
+        } else {
+            null
+        }
+        RowSheet(row, state, actions, onDismiss = { openRow = null }, findIt = findIt)
     }
     if (showChecks) ChecksSheet(state, actions, onDismiss = { showChecks = false })
 }

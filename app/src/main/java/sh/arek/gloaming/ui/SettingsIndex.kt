@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import sh.arek.gloaming.BuildConfig
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.ui.theme.LocalPalette
@@ -35,6 +37,7 @@ enum class SettingsGroup(val title: String) {
     WorthWakingFor("What is worth waking for"),
     LeaveYouAlone("When to leave you alone"),
     IsItWorking("Is it working"),
+    FindingThings("Finding things"),
     LearningFromAnswers("Learning from your answers"),
     ScreenAndReference("Screen and reference"),
 }
@@ -62,6 +65,9 @@ enum class SettingsPage(val group: SettingsGroup, val title: String) {
     Notifications(SettingsGroup.IsItWorking, "Notifications"),
     Downloads(SettingsGroup.IsItWorking, "Downloads"),
     Log(SettingsGroup.IsItWorking, "Log"),
+
+    Compass(SettingsGroup.FindingThings, "Compass"),
+    NightVisionWhenFinding(SettingsGroup.FindingThings, "Night vision when finding"),
 
     AutomaticSettings(SettingsGroup.LearningFromAnswers, "Automatic settings"),
     YourAnswers(SettingsGroup.LearningFromAnswers, "Your answers"),
@@ -155,6 +161,18 @@ fun summary(page: SettingsPage, state: MainUiState): String {
             } else {
                 "${describeLogHeld(state.logSizeBytes)}, kept for ${describeDays(settings.logRetentionDays)}"
             }
+
+        SettingsPage.Compass -> {
+            val degrees = abs(settings.compassOffsetDegrees).roundToInt()
+            when {
+                degrees > 0 ->
+                    "Corrected by $degrees ${if (degrees == 1) "degree" else "degrees"} on the moon"
+                settings.compassCheckedAt != null -> "Checked, no correction"
+                else -> "Not checked yet"
+            }
+        }
+
+        SettingsPage.NightVisionWhenFinding -> if (settings.nightVisionWhenFinding) "On" else "Off"
 
         SettingsPage.AutomaticSettings -> if (settings.automaticSettings) "On" else "Off"
 

@@ -4,9 +4,11 @@ import android.content.Context
 import java.io.File
 import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
+import sh.arek.gloaming.data.AndroidCompassSource
 import sh.arek.gloaming.data.AndroidLocationSource
 import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.CometRepository
+import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.FileCometCache
 import sh.arek.gloaming.data.FileManifestStore
 import sh.arek.gloaming.data.FileSatelliteCache
@@ -318,6 +320,12 @@ object Graph {
 
     fun calendarWriter(context: Context): CalendarWriter =
         AndroidCalendarWriter(context.applicationContext)
+
+    /**
+     * The phone's compass, for Find. Nothing is registered until a screen
+     * collects its readings, and nothing stays registered once it stops.
+     */
+    fun compass(context: Context): CompassSource = AndroidCompassSource(context.applicationContext)
 
     /** The phone's own position, for the background refresh. See [AndroidLocationSource]. */
     fun locationSource(context: Context): LocationSource =

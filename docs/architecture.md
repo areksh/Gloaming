@@ -402,9 +402,9 @@ is a file replacement.
   it along and nothing reads it there.
 
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
-  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
-  Settings); the guide is not one, and is a Settings page.
-  Settings is an index (`SettingsIndex.kt`): `SettingsGroup`s, six questions
+  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Find,
+  Ahead, Settings); the guide is not one, and is a Settings page.
+  Settings is an index (`SettingsIndex.kt`): `SettingsGroup`s, seven questions
   in order, each listing its `SettingsPage`s as rows that show the page's
   current value (`summary`, with `summaryAlarming` marking the ones that report
   something broken, drawn in the alarm colour and in bold so night vision still
@@ -452,6 +452,39 @@ is a file replacement.
   worked out in the same background pass as the calendar and held in
   `MainUiState.months`. An event row opens the shared `RowSheet` (Share and
   Export live there); the kinds sit behind one "Showing N of 14 kinds" button.
+
+  **Find points the phone at a target, from pure parts behind one sensor
+  seam.** `FindScreen` offers `domain.FindTargets.available` as chips, places
+  the chosen one with `FindTargets.fix` once a second (the rise search behind
+  it is memoised), and turns each compass reading into a direction with
+  `Pointing.direction` - the phone's top edge, corrected by
+  `data.magneticDeclination` (the platform's `GeomagneticField`, so nothing is
+  fetched) and the user's stored `compassOffsetDegrees` - and into guidance
+  with `Guide.of` and `GuideWords`. The view is one `Canvas` sixty degrees
+  across, heard by TalkBack as the instruction and where; the instruction line
+  is a polite live region. The words are pure functions in `FindWords.kt`
+  (`whereLine`, `findInstruction`, `chipLabel`, `lineUpRefusal`, and
+  `findTarget`, which maps a timeline row to what Find can point at), so they
+  are tested on the JVM. Readings come through `data.CompassSource`
+  (`CompassSensor.kt`): `AndroidCompassSource` registers the rotation vector
+  for attitude and the magnetometer for its calibration status when its flow
+  is collected and unregisters in `awaitClose`, and the screen collects it
+  with `collectAsStateWithLifecycle` at `RESUMED`, so the sensors are held only
+  while Find (or the Compass settings page) is composed and the app is in
+  front. `GloamingNav` takes the source as a parameter, defaulting to
+  `NoCompass`, which is what lets every UI test run without a real sensor; a
+  phone with no rotation vector is told so instead of shown a pointer. Find
+  keeps the screen on through the view's `keepScreenOn` (restoring the
+  previous value), buzzes once on each change to lined up, and wraps itself
+  alone in the night-vision theme when `nightVisionWhenFinding` is on.
+  `CompassCheck.shouldOffer` opens `CompassSheet` on a low or unreliable
+  reading at most once a week, stamping `compassOfferedAt`; the sheet shows the
+  accuracy live, Done stamps `compassCheckedAt`, and Line up, offered while the
+  moon is up, stores `CompassCheck.offsetFromMoon` or says why it refused.
+  Find it on a row's sheet switches to Find aimed at that row; `GloamingNav`
+  holds the target as its encoded string. The satellite elements Tonight was
+  worked out from ride along in `MainUiState.elements`, so a pass is followed
+  from the same copy without reading the cache on the main thread.
 
 ### Manifest verification
 

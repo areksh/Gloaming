@@ -70,4 +70,11 @@ data class UiActions(
     val onRequestBatteryExemption: () -> Unit = {},
     val onRequestNotifications: () -> Unit = {},
     val onSetupDone: () -> Unit = {},
+    /** The compass check was offered at this instant, so it is not offered again for a week. */
+    val onCompassOffered: (Long) -> Unit = {},
+    /** The figure of eight was done at this instant. */
+    val onCompassChecked: (Long) -> Unit = {},
+    /** The compass correction is now this many degrees, from Line up or a reset. */
+    val onCompassOffsetChange: (Double) -> Unit = {},
+    val onNightVisionWhenFindingChange: (Boolean) -> Unit = {},
 )

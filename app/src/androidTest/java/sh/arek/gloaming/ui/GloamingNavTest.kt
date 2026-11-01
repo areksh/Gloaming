@@ -106,6 +106,21 @@ class GloamingNavTest {
         compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed()
     }
 
+    /** The bar holds four sections, in the order the spec gives. */
+    @Test
+    fun offersFourSectionsInOrder() {
+        show()
+
+        assertEquals(listOf("Tonight", "Find", "Ahead", "Settings"), Section.entries.map { it.label })
+        for (section in Section.entries) {
+            compose.onNodeWithTag(section.tag).assertIsDisplayed()
+        }
+        val lefts = Section.entries.map {
+            compose.onNodeWithTag(it.tag).fetchSemanticsNode().boundsInRoot.left
+        }
+        assertEquals(lefts.sorted(), lefts)
+    }
+
     /** The calendar is a tab away and shows what it was given. */
     @Test
     fun showsTheCalendarAsAhead() {

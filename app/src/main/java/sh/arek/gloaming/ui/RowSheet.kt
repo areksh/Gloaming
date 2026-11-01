@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -26,6 +27,9 @@ import sh.arek.gloaming.ui.theme.LocalPalette
 
 /** The row sheet, opened by tapping a row on the timeline. */
 const val ROW_SHEET_TAG = "row-sheet"
+
+/** Find it, on a row whose subject can be pointed at. */
+const val FIND_IT_TAG = "find-it"
 
 /**
  * Which words a row offers to explain: the ones the card it replaced offered
@@ -53,7 +57,7 @@ fun helpTopic(subject: RowSubject): HelpTopic? = when (subject) {
  * and Export.
  *
  * @param findIt the way to point the phone at this row's subject, where there
- *   is one; filled by the Find screen.
+ *   is one: a [FindItButton].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +110,12 @@ fun RowSheet(
             helpTopic(row.subject)?.let { HelpNotes(it) }
         }
     }
+}
+
+/** Opens Find aimed at a row's subject. */
+@Composable
+internal fun FindItButton(onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.testTag(FIND_IT_TAG)) { Text("Find it") }
 }
 
 @Composable

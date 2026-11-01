@@ -65,6 +65,7 @@ class SettingsSummaryTest {
                 "What is worth waking for",
                 "When to leave you alone",
                 "Is it working",
+                "Finding things",
                 "Learning from your answers",
                 "Screen and reference",
             ),
@@ -86,6 +87,10 @@ class SettingsSummaryTest {
         assertEquals(
             listOf("Background checks", "Notifications", "Downloads", "Log"),
             titles(SettingsGroup.IsItWorking),
+        )
+        assertEquals(
+            listOf("Compass", "Night vision when finding"),
+            titles(SettingsGroup.FindingThings),
         )
         assertEquals(
             listOf("Automatic settings", "Your answers"),
@@ -331,6 +336,51 @@ class SettingsSummaryTest {
         assertEquals(
             "Off",
             summary(SettingsPage.Log, state(UserSettings(logRetentionDays = 0))),
+        )
+    }
+
+    @Test
+    fun `says the compass has not been checked`() {
+        assertEquals("Not checked yet", summary(SettingsPage.Compass, state()))
+    }
+
+    @Test
+    fun `says a check that needed no correction`() {
+        assertEquals(
+            "Checked, no correction",
+            summary(SettingsPage.Compass, state(UserSettings(compassCheckedAt = 1_799_000_000_000L))),
+        )
+    }
+
+    @Test
+    fun `says how far the moon corrected the compass, to the whole degree`() {
+        assertEquals(
+            "Corrected by 4 degrees on the moon",
+            summary(SettingsPage.Compass, state(UserSettings(compassOffsetDegrees = -3.6))),
+        )
+        assertEquals(
+            "Corrected by 1 degree on the moon",
+            summary(SettingsPage.Compass, state(UserSettings(compassOffsetDegrees = 1.2))),
+        )
+    }
+
+    @Test
+    fun `calls a correction that rounds to nothing no correction`() {
+        assertEquals(
+            "Checked, no correction",
+            summary(
+                SettingsPage.Compass,
+                state(UserSettings(compassCheckedAt = 1_799_000_000_000L, compassOffsetDegrees = 0.3)),
+            ),
+        )
+    }
+
+    @Test
+    fun `says night vision when finding is on or off`() {
+        assertEquals("On", summary(SettingsPage.NightVisionWhenFinding, state()))
+        assertEquals(
+            "Off",
+            summary(SettingsPage.NightVisionWhenFinding, state(UserSettings(nightVisionWhenFinding = false))),
         )
     }
 

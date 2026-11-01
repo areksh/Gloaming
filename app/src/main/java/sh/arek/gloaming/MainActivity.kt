@@ -80,6 +80,7 @@ import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.net.Transfers
+import sh.arek.gloaming.satellites.SatellitesDocument
 import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
 import sh.arek.gloaming.share.shareText
@@ -128,6 +129,7 @@ private const val TONIGHT_STALE_MILLIS = 15 * 60_000L
 /** Tonight as worked out off the main thread: the list, its outlook and its timeline. */
 private class WorkedNight(
     val list: TonightList,
+    val elements: SatellitesDocument?,
     val report: OutlookReport?,
     val forecast: List<HourlyCover>,
     val timeline: Timeline?,
@@ -294,6 +296,7 @@ private fun GloamingApp() {
     val context = LocalContext.current
     val settingsStore = remember { Graph.settings(context) }
     val stateStore = remember { Graph.alertState(context) }
+    val compass = remember { Graph.compass(context) }
 
     var settings by remember { mutableStateOf(settingsStore.read()) }
     var alertState by remember { mutableStateOf(stateStore.read()) }
@@ -374,6 +377,7 @@ private fun GloamingApp() {
     var calendarLoading by remember { mutableStateOf(false) }
     var months by remember { mutableStateOf(emptyList<MonthStrip>()) }
     var tonight by remember { mutableStateOf<TonightList?>(null) }
+    var elements by remember { mutableStateOf<SatellitesDocument?>(null) }
     var outlook by remember { mutableStateOf<OutlookReport?>(null) }
     var hourly by remember { mutableStateOf(emptyList<HourlyCover>()) }
     var timeline by remember { mutableStateOf<Timeline?>(null) }
@@ -907,6 +911,7 @@ private fun GloamingApp() {
         val longitude = settings.longitude
         if (latitude == null || longitude == null) {
             tonight = null
+            elements = null
             outlook = null
             hourly = emptyList()
             timeline = null
@@ -984,10 +989,11 @@ private fun GloamingApp() {
                         AuroraWidget.refresh(context)
                     }
                 }
-                WorkedNight(list, report, forecast, night)
+                WorkedNight(list, elements, report, forecast, night)
             }.onFailure { Log.w("Gloaming", "could not work out tonight", it) }.getOrNull()
         }
         tonight = worked?.list
+        elements = worked?.elements
         outlook = worked?.report
         hourly = worked?.forecast.orEmpty()
         timeline = worked?.timeline
@@ -1023,6 +1029,7 @@ private fun GloamingApp() {
                     months = months,
                     calendarLoading = calendarLoading,
                     tonight = tonight,
+                    elements = elements,
                     outlook = outlook,
                     hourly = hourly,
                     timeline = timeline,
@@ -1403,11 +1410,28 @@ private fun GloamingApp() {
                         settings = settings.copy(setupDone = true)
                         saveSettings(settings)
                     },
+                    onCompassOffered = {
+                        settings = settings.copy(compassOfferedAt = it)
+                        saveSettings(settings)
+                    },
+                    onCompassChecked = {
+                        settings = settings.copy(compassCheckedAt = it)
+                        saveSettings(settings)
+                    },
+                    onCompassOffsetChange = {
+                        settings = settings.copy(compassOffsetDegrees = it)
+                        saveSettings(settings)
+                    },
+                    onNightVisionWhenFindingChange = {
+                        settings = settings.copy(nightVisionWhenFinding = it)
+                        saveSettings(settings)
+                    },
                 ),
                 modifier = Modifier.padding(padding).consumeWindowInsets(padding),
                 // A first look at the sky once the questions are answered, so
                 // Tonight is not empty the first time it is seen.
                 onSetupFinished = { checkNow() },
+                compass = compass,
             )
         }
     }
