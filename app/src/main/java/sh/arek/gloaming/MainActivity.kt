@@ -577,7 +577,6 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
             latitudeInput = fix.latitude.toString()
             longitudeInput = fix.longitude.toString()
             saveSettings(settings)
-            if (!fromOpen) locationNote = null
         }
     }
 
