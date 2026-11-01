@@ -228,6 +228,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alert now reads "passing overhead" and gives no bearing for the peak. The rise
   and set bearings say where to stand and are unchanged.
 
+- **The guide and the noctilucent alert no longer assume you are in Britain.**
+  Several entries gave directions and seasons for one place - "low in the
+  north", "late May to early August in Britain", "northern England" for how far
+  a Kp reaches, and the Plough and Polaris as the only way to find north. They
+  now say "low towards the pole" or give both hemispheres, give seasons for the
+  north and the south, describe how far a Kp reaches in magnetic latitude, and
+  point you to Find or any compass first, with the Southern Cross as the
+  southern signpost. The noctilucent channel's description says to look towards
+  the pole rather than north. Names of data sources such as AuroraWatch UK are
+  unchanged.
+
 ### Fixed
 
 - **Tonight no longer goes blank when you turn the phone, says when it is

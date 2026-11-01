@@ -55,8 +55,9 @@ object Guide {
     private val FINDING = GuideSection(
         title = "Finding your way round the sky",
         blurb = "Everything this app says about where to look is a direction and a " +
-            "height. These are the landmarks the rest of it points from, and the " +
-            "two of them worth learning first are the Plough and Polaris.",
+            "height. These are the landmarks the rest of it points from. Which are " +
+            "worth learning first depends on where you are: the Plough and Polaris " +
+            "in the northern hemisphere, the Southern Cross in the southern.",
         entries = listOf(
             GuideEntry(
                 "Degrees above the horizon",
@@ -69,18 +70,23 @@ object Guide {
             ),
             GuideEntry(
                 "North, north-east, and the rest",
-                "Which way to face. If you do not know which way north is, find the " +
-                    "Plough and follow its Pointers to Polaris - that is north, near " +
-                    "enough, and everything else follows from it. A phone compass will " +
-                    "do it too, though it is easily thrown off indoors, by a car, or by " +
-                    "anything magnetic in a pocket.",
+                "Which way to face. The quickest way is Find, which shows a bearing " +
+                    "against the way the phone is held, or any compass; they are " +
+                    "easily thrown off indoors, by a car, or by anything magnetic in a " +
+                    "pocket. Failing that, the stars will do it. In the northern " +
+                    "hemisphere, follow the Plough's Pointers to Polaris, which is " +
+                    "north near enough. In the southern, extend the Southern Cross's " +
+                    "long axis about four and a half times its length and drop " +
+                    "straight down to the horizon, which is south near enough. " +
+                    "Everything else follows from that.",
             ),
             GuideEntry(
                 "The Plough",
                 "Seven bright stars making a saucepan: four in the bowl, three in the " +
                     "handle. It is the part of Ursa Major anybody can actually find, it " +
-                    "never sets from Britain, and most directions in this app are " +
-                    "reachable from it. Americans call it the Big Dipper, and older " +
+                    "never sets from the middle and high latitudes of the northern " +
+                    "hemisphere, and drops out of sight altogether a long way south " +
+                    "of the equator. Americans call it the Big Dipper, and older " +
                     "books call it Charles's Wain.",
             ),
             GuideEntry(
@@ -96,11 +102,11 @@ object Guide {
                 "Polaris",
                 "The Pole Star: the one star that stays put. Everything else wheels " +
                     "round it through the night while Polaris sits over true north, at " +
-                    "a height above the horizon equal to your latitude - about 56 " +
-                    "degrees from Edinburgh, about 51 from London. It is not a " +
-                    "particularly bright star, which surprises people; what makes it " +
-                    "worth knowing is that it does not move. Find it with the Plough's " +
-                    "Pointers.",
+                    "a height above the horizon equal to your latitude: 45 degrees up at " +
+                    "latitude 45, on the horizon at the equator, and never seen from " +
+                    "the southern hemisphere. It is not a particularly bright star, " +
+                    "which surprises people; what makes it worth knowing is that it " +
+                    "does not move. Find it with the Plough's Pointers.",
             ),
             GuideEntry(
                 "Star-hopping",
@@ -114,8 +120,8 @@ object Guide {
             GuideEntry(
                 "The Summer Triangle",
                 "Three brilliant stars - Vega, Deneb and Altair - making a wide " +
-                    "triangle almost overhead on summer evenings from Britain, and " +
-                    "still up in the early autumn. Vega is the brightest and the " +
+                    "triangle high in the evening sky in the northern summer (the " +
+                    "southern winter), and still up in the early autumn. Vega is the brightest and the " +
                     "highest; Deneb sits in the Milky Way at the head of Cygnus; Altair " +
                     "is the lowest of the three, with a fainter star either side of it.",
             ),
@@ -130,8 +136,9 @@ object Guide {
             ),
             GuideEntry(
                 "The Square of Pegasus",
-                "Four stars in a large, almost empty square, high in the south on " +
-                    "autumn evenings. The emptiness is the useful part: from a properly " +
+                "Four stars in a large, almost empty square, high on autumn evenings " +
+                    "in the northern hemisphere (towards the south) and on spring " +
+                    "evenings in the southern (towards the north). The emptiness is the useful part: from a properly " +
                     "dark place you can count several stars inside it, from a suburb " +
                     "perhaps one, and from a town centre none - which makes it a decent " +
                     "test of how dark your sky actually is.",
@@ -140,7 +147,8 @@ object Guide {
                 "The Milky Way",
                 "Our own galaxy seen edge-on from inside it: a faint band of light " +
                     "across the sky, at its thickest and brightest towards Sagittarius, " +
-                    "low in the south on summer nights. It needs a properly dark sky " +
+                    "low towards the south on northern summer nights and high up on " +
+                    "southern winter ones. It needs a properly dark sky " +
                     "and twenty minutes of dark adaptation, and then it is unmistakable. " +
                     "If you have never seen it, that is a fact about where you have been " +
                     "standing rather than about your eyes.",
@@ -148,19 +156,21 @@ object Guide {
             GuideEntry(
                 "The Southern Cross",
                 "A small, tight cross of four stars, the landmark of the southern sky " +
-                    "and never visible from Britain. The two bright Pointers of " +
+                    "and never visible from most of the northern hemisphere. The two bright Pointers of " +
                     "Centaurus stand beside it. Its long axis aims roughly at the south " +
                     "celestial pole, which - unlike the north - has no bright star to " +
                     "mark it.",
             ),
             GuideEntry(
                 "Circumpolar",
-                "Close enough to the pole never to set. From Britain the Plough, " +
-                    "Cassiopeia and their neighbours are up every night of the year at " +
-                    "some hour and some angle, which is why the app names them together " +
-                    "on one line rather than giving each a row that would never change. " +
-                    "The further north you go the more of the sky is circumpolar; from " +
-                    "the equator none of it is.",
+                "Close enough to the pole never to set. From the middle northern " +
+                    "latitudes the Plough, Cassiopeia and their neighbours are up every " +
+                    "night of the year at some hour and some angle, and from the " +
+                    "southern hemisphere the Southern Cross and Centaurus do the same. " +
+                    "That is why the app names such patterns together on one line " +
+                    "rather than giving each a row that would never change. The nearer " +
+                    "you are to a pole the more of the sky is circumpolar; from the " +
+                    "equator none of it is.",
             ),
         ),
     )
@@ -199,8 +209,9 @@ object Guide {
                     "and planets are out and an aurora will show. Fully dark is " +
                     "astronomical darkness, the sun 18 degrees down, which is when faint " +
                     "things become possible at all - the Milky Way, a comet, most " +
-                    "meteors. Between May and August in Britain the second never " +
-                    "arrives, which is why a summer meteor shower disappoints.",
+                    "meteors. Above about 49 degrees of latitude, north or south, the " +
+                    "second never arrives for a few weeks around midsummer, which is " +
+                    "why a midsummer meteor shower disappoints there.",
             ),
             GuideEntry(
                 "Moonlight",
@@ -226,9 +237,13 @@ object Guide {
                 "Kp",
                 "A number from 0 to 9 for how disturbed the earth's magnetic field is " +
                     "worldwide, and the usual shorthand elsewhere for aurora chances. " +
-                    "Roughly: 5 is a minor storm and can bring it to Scotland, 6 or 7 " +
-                    "pushes it into northern England, and 8 or 9 - a handful of nights " +
-                    "a decade - takes it a long way further south. It is a three-hourly " +
+                    "Roughly: 5 is a minor storm and can bring it to about 60 degrees " +
+                    "magnetic latitude, 6 or 7 pushes it down to about 55, and 8 or 9 " +
+                    "- a handful of nights a decade - takes it a long way further from " +
+                    "the pole. Magnetic latitude is not the ordinary kind: the same Kp " +
+                    "reaches lower geographic latitudes in North America than in " +
+                    "Europe, and the picture is mirrored in the southern hemisphere. " +
+                    "It is a three-hourly " +
                     "global average, so it is a poor guide to what is happening here " +
                     "right now, which is why this app works from the shape of the oval " +
                     "instead.",
@@ -331,9 +346,11 @@ object Guide {
                 "Night-shining cloud: wisps of ice fifty miles up, so high that they " +
                     "catch sunlight long after everything below them is in darkness. " +
                     "Electric blue and rippled like sand on a beach, quite unlike " +
-                    "ordinary cloud. Summer only - late May to early August in Britain - " +
-                    "and always low in the north, between about one and two hours after " +
-                    "sunset.",
+                    "ordinary cloud. Summer only - late May to early August in the " +
+                    "northern hemisphere, late November to early February in the " +
+                    "southern - and always low towards the pole (north from the " +
+                    "northern hemisphere, south from the southern), between about one " +
+                    "and two hours after sunset.",
             ),
             GuideEntry(
                 "A pass",
@@ -398,7 +415,7 @@ object Guide {
                 "What an aurora actually looks like",
                 "Usually not like the photographs. A camera collects light for several " +
                     "seconds and your eye does not, so a modest aurora looks like a pale " +
-                    "grey-green arc low in the north, easy to mistake for cloud until " +
+                    "grey-green arc low towards the pole, easy to mistake for cloud until " +
                     "you notice the stars showing through it. Colour comes with strength " +
                     "- green first, red high up in a real storm - and the movement, when " +
                     "it starts, is the part no photograph conveys.",

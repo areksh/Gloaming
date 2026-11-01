@@ -25,6 +25,14 @@ import sh.arek.gloaming.work.EclipseService
 import sh.arek.gloaming.work.FollowEclipseReceiver
 
 /**
+ * What the noctilucent channel says about itself. A constant so a JVM test can
+ * read it: the channel is created only on a device.
+ */
+internal const val NOCTILUCENT_CHANNEL_DESCRIPTION =
+    "On summer nights when the sun sits at the right depth for high ice " +
+        "clouds to still be lit. A prompt to look towards the pole, not a forecast."
+
+/**
  * Posts a sky calendar notification.
  *
  * Three channels, matching the design's taxonomy, so somebody can keep eclipses
@@ -192,9 +200,7 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
                 EventChannel.Conjunctions ->
                     "When two bright planets come close together, or a planet is at its best " +
                         "for the year."
-                EventChannel.Noctilucent ->
-                    "On summer nights when the sun sits at the right depth for high ice " +
-                        "clouds to still be lit. A prompt to look north, not a forecast."
+                EventChannel.Noctilucent -> NOCTILUCENT_CHANNEL_DESCRIPTION
                 EventChannel.Comets ->
                     "When a comet bright enough for your threshold is up in a dark sky. " +
                         "A handful of times a decade for a good one, and quiet in between."
