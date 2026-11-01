@@ -243,7 +243,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   found by following the belt away from Aldebaran. Find offers the Southern
   Cross the way it offers the Plough, whenever it is up and before tonight is
   worked out, and a quiet night south of the equator suggests learning it.
-  Names of data sources such as AuroraWatch UK are unchanged.
+  The equinoxes and solstices in the calendar are worded for your hemisphere,
+  so the June solstice is the longest night in the south, not the shortest, and
+  the note on where midsummer loses full darkness says about 49 degrees from
+  the equator rather than 60. Names of data sources such as AuroraWatch UK are
+  unchanged.
 
 ### Fixed
 
