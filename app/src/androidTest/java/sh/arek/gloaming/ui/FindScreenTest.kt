@@ -40,6 +40,7 @@ import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
+import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.magneticDeclination
@@ -66,6 +67,7 @@ class FindScreenTest {
 
     private val now = 1_800_000_000_000L
     private val hour = 3_600_000L
+    private val minute = 60_000L
     private val latitude = 55.95
     private val longitude = -3.19
     private val located = UserSettings(latitude = latitude, longitude = longitude)
@@ -211,9 +213,9 @@ class FindScreenTest {
         val busy = (0 until 9).map {
             station.copy(
                 catalogue = 40000 + it,
-                risesAt = now + hour * (it + 1),
-                peaksAt = now + hour * (it + 1) + 300_000L,
-                setsAt = now + hour * (it + 1) + 600_000L,
+                risesAt = now + 3 * minute * (it + 1),
+                peaksAt = now + 3 * minute * (it + 1) + 300_000L,
+                setsAt = now + 3 * minute * (it + 1) + 600_000L,
             )
         }
         show(FakeCompassSource(), tonight = night(busy))
@@ -235,6 +237,65 @@ class FindScreenTest {
         compass.point(azimuth = 90.0, altitude = 0.0)
 
         instruction().assertTextEquals("Working out tonight...")
+    }
+
+    // --- only what can be seen now or very soon ---
+
+    private fun chipTags() = compose.onAllNodes(SemanticsMatcher("a chip") {
+        SemanticsProperties.TestTag in it.config && it.config[SemanticsProperties.TestTag].startsWith("find-chip:")
+    }).fetchSemanticsNodes().map { it.config[SemanticsProperties.TestTag] }
+
+    /** Sun high and the moon up, so the moon is all there is to point at. */
+    private fun dayWithMoon(): Long = (0 until 30 * 48).asSequence()
+        .map { now + it * hour / 2 }
+        .first {
+            SkyPositions.body(SkyBody.Moon, latitude, longitude, it).altitude in 3.0..60.0 &&
+                Twilight.sunAltitude(latitude, longitude, it) > 10.0
+        }
+
+    private fun dayWithoutMoon(): Long = (0 until 30 * 48).asSequence()
+        .map { now + it * hour / 2 }
+        .first {
+            SkyPositions.body(SkyBody.Moon, latitude, longitude, it).altitude < -10.0 &&
+                Twilight.sunAltitude(latitude, longitude, it) > 10.0
+        }
+
+    /** Well after dark, when the Plough is up. */
+    private fun dark(): Long = (0 until 48).asSequence()
+        .map { now + it * hour / 2 }
+        .first { Twilight.sunAltitude(latitude, longitude, it) < -20.0 }
+
+    @Test
+    fun inDaylightOnlyTheMoonIsOffered() {
+        show(FakeCompassSource(), initial = null, at = dayWithMoon())
+
+        assertEquals(listOf(findChipTag(FindTarget.Moon)), chipTags())
+        compose.onNodeWithTag(findChipTag(FindTarget.Moon)).assertIsSelected()
+    }
+
+    @Test
+    fun withNothingUpItNamesTheNextThing() {
+        show(FakeCompassSource(), initial = null, at = dayWithoutMoon())
+
+        val line = compose.onNodeWithTag(FIND_NOTHING_TAG)
+        line.assertIsDisplayed()
+        line.assert(SemanticsMatcher("names what is next") {
+            val text = it.config[SemanticsProperties.Text].joinToString("") { part -> part.text }
+            text.startsWith("Nothing to point at right now. Next up: ") && ", from " in text
+        })
+        assertEquals(emptyList<String>(), chipTags())
+    }
+
+    /** A chosen target that goes below the horizon stays chosen, and says when it is back. */
+    @Test
+    fun aChosenTargetThatHasSetStaysSelectedAndSaysWhenItIsBack() {
+        val at = dayWithoutMoon()
+        show(FakeCompassSource(), initial = FindTarget.Moon, at = at)
+
+        compose.onNodeWithTag(findChipTag(FindTarget.Moon)).assertIsSelected()
+        instruction().assert(SemanticsMatcher("says when it is next up") {
+            it.config[SemanticsProperties.Text].joinToString("") { part -> part.text }.startsWith("Not up until ")
+        })
     }
 
     @Test
@@ -264,7 +325,7 @@ class FindScreenTest {
 
     @Test
     fun offersThePloughAndTheChosenTarget() {
-        show(FakeCompassSource(), initial = FindTarget.Aurora)
+        show(FakeCompassSource(), initial = FindTarget.Aurora, at = dark())
 
         compose.onNodeWithTag(findChipTag(FindTarget.Pattern("Ursa Major"))).assertIsDisplayed()
         compose.onNodeWithTag(findChipTag(FindTarget.Aurora)).assertIsSelected()
@@ -273,7 +334,7 @@ class FindScreenTest {
     @Test
     fun pickingAChipAimsAtIt() {
         val compass = FakeCompassSource()
-        show(compass, initial = FindTarget.Aurora)
+        show(compass, initial = FindTarget.Aurora, at = dark())
         compass.point(azimuth = 0.0, altitude = 10.0)
 
         compose.onNodeWithTag(findChipTag(FindTarget.Pattern("Ursa Major"))).performClick()

@@ -68,10 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "Screen and reference" page.
 
 - **A Find tab points the way to what is up, with a compass check.** Once
-  outside, pick a planet, the moon, the Plough or another constellation, one
-  of Tonight's best satellite passes (the soonest six, not every pass) or the
-  aurora, hold the phone up with its top edge towards the
-  sky, and Find says which way to turn and tilt - "Turn right a little, then
+  outside, pick from what can be seen now or very soon, hold the phone up with
+  its top edge towards the sky, and Find says which way to turn and tilt - "Turn right a little, then
   tilt up." - until it says "There." and buzzes once. A view sixty degrees
   across shows the horizon, the target and a reticle, with an arrow at the edge
   when the target is off the view or not yet risen, and then Find gives its rise
@@ -88,6 +86,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Finding things, where the check can be run and the correction removed at any
   time. True north comes from the phone's own model of the Earth's field;
   nothing is fetched. A phone with no compass is told so.
+
+  Find offers only what can be seen: the moon whenever it is up, since it is
+  seen by day and is what the compass check aims at; a planet once it is ten
+  degrees up and the sun is well down; the Plough and other constellations once
+  the sky is properly dark; one of Tonight's best satellite passes once it is
+  under way or due within half an hour (the soonest six); and the aurora when
+  it is dark and the latest reading is current and at or above your threshold.
+  Nothing is offered for rising later. When nothing is up it says so and names
+  the next thing that will be: "Nothing to point at right now. Next up:
+  Jupiter, from 18:40." A target you picked stays picked after it sets, and
+  says when it is back.
 
 - **A new look, in light and dark.** Gloaming has its own palette now: a dark
   slate ground with the pink of the Belt of Venus as its accent by night, and a

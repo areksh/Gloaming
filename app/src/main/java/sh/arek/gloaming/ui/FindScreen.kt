@@ -69,6 +69,7 @@ import sh.arek.gloaming.domain.AlignBuzz
 import sh.arek.gloaming.domain.CompassCheck
 import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.FindTargets
+import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.domain.Guide
 import sh.arek.gloaming.domain.Pointing
 import sh.arek.gloaming.domain.TargetFix
@@ -116,6 +117,43 @@ private val EMPTY_NIGHT = TonightList(
     comets = emptyList(),
     noctilucent = null,
 )
+
+/** How a test finds the line shown when nothing is up to point at. */
+const val FIND_NOTHING_TAG = "find-nothing"
+
+private const val MINUTE_MILLIS = 60_000L
+
+/** What Find offers at one minute, and what comes next when that is nothing. */
+private class Offer(val targets: List<FindTarget>, val next: Pair<FindTarget, Long>?)
+
+private fun offerFor(
+    state: MainUiState,
+    list: TonightList,
+    latitude: Double,
+    longitude: Double,
+    now: Long,
+    handedIn: FindTarget.Pass?,
+): Offer {
+    val alert = state.alertState
+    val sky = FindTargets.skyAt(
+        latitude, longitude, now, alert.lastProbability, alert.lastPollAt, state.settings.threshold,
+    )
+    val targets = FindTargets.available(
+        list, now, handedIn,
+        fixOf = { FindTargets.fix(it, list, state.elements, latitude, longitude, now) },
+        sky = sky,
+    )
+    val next = if (targets.isEmpty()) {
+        FindTargets.nextUp(
+            list, now,
+            altitudeAt = { target, at -> FindTargets.altitudeAt(target, latitude, longitude, at) ?: -90.0 },
+            sunAt = { at -> Twilight.sunAltitude(latitude, longitude, at) },
+        )
+    } else {
+        null
+    }
+    return Offer(targets, next)
+}
 
 /**
  * Points the way to something in the sky.
@@ -195,29 +233,43 @@ private fun FindContent(
         }
 
         val list = state.tonight ?: EMPTY_NIGHT
-        val available = FindTargets.available(
-            list,
-            auroraKnown = state.alertState.lastProbability != null,
-            nowMillis = now,
-            handedIn = initial as? FindTarget.Pass,
-        )
+        val handedIn = initial as? FindTarget.Pass
+        // Worked out at most once a minute, keyed on the minute and on what it
+        // reads: nothing is visible or not visible faster than that, and the
+        // work must stay out of the per-second tick and the compass readings.
+        val offer = remember(
+            now / MINUTE_MILLIS, list, state.elements, latitude, longitude,
+            state.settings.threshold, state.alertState.lastProbability, state.alertState.lastPollAt, handedIn,
+        ) {
+            offerFor(state, list, latitude, longitude, now, handedIn)
+        }
+        val available = offer.targets
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
-        val asked = chosen?.let { FindTarget.decode(it) } ?: available.first()
-        // A pass handed in by a notification rises a second or so from
-        // tonight's own entry for it, so it is matched to that entry rather
-        // than standing beside it as a second chip.
-        val target = FindTargets.matching(asked, available) ?: asked
-        // A target opened from a row is offered even when tonight's list has
-        // moved on from it, so the chip it was opened on is still there.
-        val chips = if (target in available) available else listOf(target) + available
+        val asked = chosen?.let { FindTarget.decode(it) } ?: available.firstOrNull()
 
         Text(
             "Hold the phone up and point its top edge at the sky.",
             style = MaterialTheme.typography.bodyMedium,
             color = palette.muted,
         )
+        if (asked == null) {
+            Text(
+                nothingToPointAt(offer.next?.let { (target, at) -> chipLabel(target, list, Long.MAX_VALUE, state.elements) to at }),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.testTag(FIND_NOTHING_TAG),
+            )
+            return@Column
+        }
+        // A pass handed in by a notification rises a second or so from
+        // tonight's own entry for it, so it is matched to that entry rather
+        // than standing beside it as a second chip.
+        val target = FindTargets.matching(asked, available) ?: asked
+        // A target opened from a row, or chosen and since set, stays offered
+        // so the chip it was picked on is still there.
+        val chips = if (target in available) available else listOf(target) + available
+
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),

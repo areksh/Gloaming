@@ -178,3 +178,16 @@ fun chipLabel(
         FindTarget.Aurora -> "Aurora"
     }
 }
+
+/**
+ * What Find says when nothing is up to point at.
+ *
+ * [next] is the name of the soonest thing that will be, with the moment it
+ * qualifies; null when nothing comes within the search.
+ */
+fun nothingToPointAt(next: Pair<String, Long>?): String =
+    if (next == null) {
+        "Nothing to point at right now."
+    } else {
+        "Nothing to point at right now. Next up: ${next.first}, from ${clock(next.second)}."
+    }

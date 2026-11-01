@@ -6,6 +6,7 @@ import sh.arek.gloaming.astronomy.Constellation
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
+import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.satellites.LiveTracker
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
@@ -96,6 +97,14 @@ data class TargetFix(
     val riseAzimuth: Double?,
     val recognise: String,
 )
+
+/**
+ * What the sky is doing, as far as deciding what Find offers goes.
+ *
+ * @property sunAltitude degrees above the horizon, negative below.
+ * @property auroraNow whether a current reading is at or above the user's threshold.
+ */
+data class Sky(val sunAltitude: Double, val auroraNow: Boolean)
 
 /**
  * What can be found, and where it is now.
@@ -202,44 +211,168 @@ object FindTargets {
             if (it is FindTarget.Pass && target is FindTarget.Pass) kotlin.math.abs(it.risesAt - target.risesAt) else 0L
         }
 
+    /** A pass is offered from this long before it rises. */
+    const val PASS_LEAD_MILLIS = 30 * 60_000L
+
+    /** The sun must be lower than this (degrees) for a planet to be offered. */
+    const val PLANET_SUN_LIMIT = -6.0
+
+    /** The sun must be lower than this (degrees) for a pattern or the aurora to be offered. */
+    const val DARK_SUN_LIMIT = -12.0
+
+    /** How far ahead [nextUp] looks, and how finely: no finer than the rise search. */
+    private const val NEXT_UP_SPAN_MILLIS = SEARCH_SPAN_MILLIS
+    private const val NEXT_UP_STEP_MILLIS = SEARCH_STEP_MILLIS
+
+    /** Whether the sun is low enough for [target] to be seen. The moon is seen by day. */
+    private fun sunAllows(target: FindTarget, sunAltitude: Double): Boolean = when (target) {
+        FindTarget.Moon -> true
+        is FindTarget.Planet -> sunAltitude < PLANET_SUN_LIMIT
+        is FindTarget.Pattern -> sunAltitude < DARK_SUN_LIMIT
+        FindTarget.Aurora -> sunAltitude < DARK_SUN_LIMIT
+        is FindTarget.Pass -> true
+    }
+
+    /** Whether [target], at [altitude] degrees, is high enough to be worth pointing at. */
+    private fun highEnough(target: FindTarget, altitude: Double): Boolean = when (target) {
+        is FindTarget.Planet -> altitude >= Outlooks.PLANET_MIN_ALTITUDE
+        FindTarget.Moon, is FindTarget.Pattern -> altitude > 0.0
+        FindTarget.Aurora, is FindTarget.Pass -> true
+    }
+
+    /** The planets, the moon and the patterns that might be offered: everything with a place in the sky. */
+    private fun skyCandidates(list: TonightList): List<FindTarget> {
+        val patterns = list.constellations
+            .map { it.constellation.name }
+            .filter { it != PLOUGH }
+            .map { FindTarget.Pattern(it) }
+        return PLANETS.map { FindTarget.Planet(it) } + FindTarget.Moon +
+            FindTarget.Pattern(PLOUGH) + patterns
+    }
+
     /**
-     * Everything worth offering now, in the order the picker shows it.
+     * Everything that can be seen now or very soon, in the order the picker
+     * shows it.
      *
-     * Planets and the moon, then the Plough and up to three more patterns,
-     * then Tonight's best passes that have not finished (the next first, at
-     * most [MAX_PASSES]), then aurora when [auroraKnown] says there is a
-     * forecast to point at. Not every pass: the full list is long enough to
-     * make the picker unusable. A pass [handedIn] by a notification is always
-     * offered, beyond the limit if need be.
+     * Not what is merely up: the moon whenever it is above the horizon, since
+     * it is seen by day and is what the compass check aims at; a planet from
+     * [Outlooks.PLANET_MIN_ALTITUDE] once the sun is below [PLANET_SUN_LIMIT];
+     * the Plough and up to three more patterns above the horizon once the sun
+     * is below [DARK_SUN_LIMIT]; a pass under way or rising within
+     * [PASS_LEAD_MILLIS], the soonest [MAX_PASSES] of Tonight's best; and
+     * aurora when [Sky.auroraNow] and the sun is below [DARK_SUN_LIMIT].
+     * Nothing is offered for rising later: [nextUp] says what that is.
+     *
+     * [fixOf] places a target now; null means it cannot be, which a pass
+     * takes to mean it has set. A pass [handedIn] by a notification is always
+     * offered, beyond the limit and ahead of its time if need be.
      */
     fun available(
         list: TonightList,
-        auroraKnown: Boolean,
         nowMillis: Long,
-        handedIn: FindTarget.Pass? = null,
+        handedIn: FindTarget.Pass?,
+        fixOf: (FindTarget) -> TargetFix?,
+        sky: Sky,
     ): List<FindTarget> {
         val targets = mutableListOf<FindTarget>()
-        list.planets.forEach { targets += FindTarget.Planet(it.body) }
-        if ((list.moon?.upFraction ?: 0.0) > 0.0) targets += FindTarget.Moon
-        targets += FindTarget.Pattern(PLOUGH)
-        list.constellations
-            .map { it.constellation.name }
-            .filter { it != PLOUGH }
-            .take(MORE_PATTERNS)
-            .forEach { targets += FindTarget.Pattern(it) }
+        var morePatterns = MORE_PATTERNS
+        for (candidate in skyCandidates(list)) {
+            if (!sunAllows(candidate, sky.sunAltitude)) continue
+            val altitude = fixOf(candidate)?.position?.altitude ?: continue
+            if (!highEnough(candidate, altitude)) continue
+            if (candidate is FindTarget.Pattern && candidate.name != PLOUGH && morePatterns-- <= 0) continue
+            targets += candidate
+        }
         val coming = list.bestPasses
             .filter { it.setsAt > nowMillis }
             .sortedBy { it.risesAt }
             .map { FindTarget.Pass(it.catalogue, it.risesAt) }
-        val offered = coming.take(MAX_PASSES).toMutableList()
+        val offered = coming.filter { passSoon(fixOf(it), nowMillis) }.take(MAX_PASSES).toMutableList()
         if (handedIn != null && offered.none { same(it, handedIn) }) {
             // Tonight's own entry for it when it has one, so the chip carries
             // the rise the list uses; else the notification's.
             offered += coming.firstOrNull { same(it, handedIn) } ?: handedIn
         }
         targets += offered.sortedBy { it.risesAt }
-        if (auroraKnown) targets += FindTarget.Aurora
+        if (sky.auroraNow && sunAllows(FindTarget.Aurora, sky.sunAltitude)) targets += FindTarget.Aurora
         return targets
+    }
+
+    /** Whether a pass so placed is under way or about to be. */
+    private fun passSoon(fix: TargetFix?, nowMillis: Long): Boolean {
+        if (fix == null) return false
+        if (fix.position != null) return true
+        val rises = fix.risesAt ?: return false
+        return rises - nowMillis <= PASS_LEAD_MILLIS
+    }
+
+    /**
+     * The soonest thing that [available] would offer, with the moment it
+     * would, within a day; null when nothing does.
+     *
+     * Aurora is never named: when it will be strong enough is not known ahead.
+     * Bodies and patterns are stepped through at [altitudeAt] and [sunAt]
+     * (coarse, like the rise search, so "from" is a few minutes late at worst);
+     * a pass is named [PASS_LEAD_MILLIS] before it rises, or now if it is
+     * already under way. On a tie a body wins.
+     */
+    fun nextUp(
+        list: TonightList,
+        nowMillis: Long,
+        altitudeAt: (FindTarget, Long) -> Double,
+        sunAt: (Long) -> Double,
+    ): Pair<FindTarget, Long>? {
+        val until = nowMillis + NEXT_UP_SPAN_MILLIS
+        val candidates = skyCandidates(list)
+        val passes = list.bestPasses
+            .filter { it.setsAt > nowMillis }
+            .map { FindTarget.Pass(it.catalogue, it.risesAt) to maxOf(nowMillis, it.risesAt - PASS_LEAD_MILLIS) }
+            .filter { it.second <= until }
+            .minByOrNull { it.second }
+
+        var at = nowMillis
+        while (at <= until && (passes == null || at < passes.second)) {
+            val sun = sunAt(at)
+            candidates.firstOrNull { sunAllows(it, sun) && highEnough(it, altitudeAt(it, at)) }
+                ?.let { return it to at }
+            at += NEXT_UP_STEP_MILLIS
+        }
+        return passes
+    }
+
+    /**
+     * How high a planet, the moon or a pattern is at [atMillis], in degrees
+     * (negative below the horizon); null for anything else.
+     */
+    fun altitudeAt(target: FindTarget, latitude: Double, longitude: Double, atMillis: Long): Double? =
+        when (target) {
+            is FindTarget.Planet -> SkyPositions.body(target.body, latitude, longitude, atMillis).altitude
+            FindTarget.Moon -> SkyPositions.body(SkyBody.Moon, latitude, longitude, atMillis).altitude
+            is FindTarget.Pattern -> Constellations.WATCHED.firstOrNull { it.name == target.name }
+                ?.let { SkyPositions.fixed(it.raHours, it.dec, latitude, longitude, atMillis).altitude }
+            else -> null
+        }
+
+    /**
+     * The sky as [available] needs it at [nowMillis]: the sun's height, and
+     * whether aurora is worth looking for. The reading counts only while
+     * current (the same rule as the outlook's, [Outlooks.AURORA_READING_MAX_AGE_MILLIS])
+     * and at or above the user's [threshold].
+     */
+    fun skyAt(
+        latitude: Double,
+        longitude: Double,
+        nowMillis: Long,
+        probability: Int?,
+        polledAt: Long?,
+        threshold: Int,
+    ): Sky {
+        return Sky(
+            sunAltitude = Twilight.sunAltitude(latitude, longitude, nowMillis),
+            auroraNow = probability != null && polledAt != null &&
+                nowMillis - polledAt < Outlooks.AURORA_READING_MAX_AGE_MILLIS &&
+                probability >= threshold,
+        )
     }
 
     /**

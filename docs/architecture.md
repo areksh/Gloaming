@@ -543,7 +543,11 @@ is a file replacement.
   hour old is served from the cache on every open and every rotation.
 
   **Find points the phone at a target, from pure parts behind one sensor
-  seam.** `FindScreen` offers `domain.FindTargets.available` as chips, places
+  seam.** `FindScreen` offers `domain.FindTargets.available` as chips - only
+  what can be seen now or very soon, judged from each target's `fix` and a
+  `Sky` (the sun's height, and whether a current aurora reading meets the
+  threshold), worked out at most once a minute, with `nextUp` naming the
+  soonest to come when nothing is up - places
   the chosen one with `FindTargets.fix` once a second (the rise search behind
   it is memoised), and turns each compass reading into a direction with
   `Pointing.direction` - the phone's top edge, corrected by

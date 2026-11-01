@@ -362,4 +362,17 @@ class FindWordsTest {
     fun `names a pass the night no longer holds by its satellite number`() {
         assertEquals("Satellite 25544", chipLabel(FindTarget.Pass(25544, now + hour), night(), now))
     }
+
+    @Test
+    fun `says there is nothing to point at when nothing is coming either`() {
+        assertEquals("Nothing to point at right now.", nothingToPointAt(null))
+    }
+
+    @Test
+    fun `names the next thing up and from when`() {
+        assertEquals(
+            "Nothing to point at right now. Next up: Saturn, from ${clock(now + hour)}.",
+            nothingToPointAt("Saturn" to now + hour),
+        )
+    }
 }
