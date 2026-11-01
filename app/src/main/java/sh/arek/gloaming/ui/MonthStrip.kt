@@ -45,7 +45,13 @@ data class MonthStrip(
      * shades apart: with night vision on there is only one colour to shade with.
      */
     fun darkestWords(): String = when {
-        darkFrom == null || darkUntil == null -> "No dark nights this month"
+        darkFrom == null || darkUntil == null ->
+            // Untrue to say the month had none when its dark run is behind us.
+            if (nights.any { it.past && it.moonlight < MonthStrips.DARK_BELOW }) {
+                "No dark nights left this month"
+            } else {
+                "No dark nights this month"
+            }
         darkFrom == darkUntil -> "Darkest: $darkFrom $name"
         else -> "Darkest: $darkFrom-$darkUntil $name"
     }

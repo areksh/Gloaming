@@ -176,6 +176,35 @@ class MonthStripTest {
     }
 
     @Test
+    fun `says no dark nights are left once the dark run is behind us`() {
+        // Dark early on, bright from the 10th, and today is the 20th.
+        val cells = (1..31).map {
+            NightCell(it, if (it < 10) 0.05 else 0.8, false, past = it < 20, today = it == 20)
+        }
+        val strip = MonthStrip(2026, 12, "December", cells, null, null)
+
+        assertEquals("No dark nights left this month", strip.darkestWords())
+        assertTrue(strip.description(), strip.description().contains("No dark nights left this month."))
+    }
+
+    @Test
+    fun `on 20 December 2026 the dark nights ahead are the 30th and 31st`() {
+        // The run around the new moon is behind us; the next one starts after
+        // the full moon, so the strip must name that and not claim none.
+        val december = strips(from = at(2026, 12, 20)).single()
+
+        assertEquals("Darkest: 30-31 December", december.darkestWords())
+    }
+
+    @Test
+    fun `says no dark nights this month when the whole month had none`() {
+        val cells = (1..31).map { NightCell(it, 0.8, false, past = it < 20, today = it == 20) }
+        val strip = MonthStrip(2026, 12, "December", cells, null, null)
+
+        assertEquals("No dark nights this month", strip.darkestWords())
+    }
+
+    @Test
     fun `says which night is today`() {
         val cells = (1..31).map { NightCell(it, 0.5, false, today = it == 20) }
         val words = MonthStrip(2026, 12, "December", cells, null, null).description()
