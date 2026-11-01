@@ -228,9 +228,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that knew nothing of the night's events. Turning the phone threw it all away
   and started again. Now the night is worked out once, after the calendar, and
   kept while the app is running, so turning the phone or coming back to the
-  app shows it at once. While it is being worked out a progress bar and
+  app shows it at once - also when Gloaming follows the phone's location, where
+  turning the phone used to ask for a fresh position and start again whenever
+  it had moved a little. While it is being worked out a progress bar and
   "Updating..." sit under the status line, and before the first one is ready
   Tonight says "Working out tonight..." instead of showing nothing.
+
+- **Tonight follows the cloud and constellation settings straight away.**
+  Turning "Check cloud cover" or "Every constellation" on or off left
+  Tonight's opening sentence, its night and the widget as they were until the
+  next quarter of an hour or the next check. They are now worked out again as
+  soon as either changes.
 
 - **Taking location away in Android's settings is now noticed when you come
   back.** Turning location off for Gloaming, or allowing it only while the app

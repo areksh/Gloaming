@@ -394,6 +394,8 @@ is a file replacement.
   Opening the app detects the position when the cadence says it is due, read
   from the store rather than the screen's copy, and leaves the screen's note
   alone, so the answer from Android's settings page is not wiped on return.
+  The start of an activity rebuilt for a configuration change - a rotation -
+  is not an open and asks nothing.
   Every save from the screen goes through `LocationRefresh.keepNewerFix`, so a
   screen brought forward before a background refresh landed cannot write the
   older position back over the newer one.
@@ -499,8 +501,11 @@ is a file replacement.
   calendar. `ui.ScreenResults` holds them for the process instead, one
   instance from `Graph.screenResults`, as Compose state the screen reads. No
   ViewModel: it is a plain class, like the rest of the wiring. `MainActivity`
-  hands it a `CalendarKey` and a `TonightKey` - the values each result depends
-  on - with the work to do, and work starts only for a key that is neither
+  hands it a `CalendarKey` and a `TonightKey` - made from the settings by
+  their `of`, holding every setting the work reads (the comet settings in the
+  calendar's) and the position to `KEY_PRECISION_DEGREES`, about a kilometre,
+  so an approximate fix wandering does not start it all again; the work itself
+  uses the exact position - and work starts only for a key that is neither
   shown nor in flight, in the holder's own scope on the default dispatcher.
   So a rotation, mid-run or not, finds the result or the run where it left
   it, and reopening with nothing changed works nothing out. A new key cancels
@@ -508,7 +513,9 @@ is a file replacement.
   a result is published only if its run is still the newest. Tonight's work
   waits for the calendar of its own key, so it runs once per open and never
   against a year that is not there yet; a key for another grid cell takes the
-  old place's night down at once. Both keys carry `recalculation`, which Check
+  old place's night down at once. Work that throws ends its run, so nothing is
+  left updating for ever, and the scope's handler logs it rather than letting
+  it crash the app. Both keys carry `recalculation`, which Check
   now bumps once its check has landed, so it - and the pull to refresh that
   runs it - works both out again from scratch. The cloud forecast bumps the
   tonight key only when a fetch changed what is held, since a reading under an

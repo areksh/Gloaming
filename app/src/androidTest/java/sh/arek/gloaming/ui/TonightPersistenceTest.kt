@@ -1,5 +1,6 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -8,9 +9,10 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -20,8 +22,12 @@ import org.junit.Test
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.data.BootAware
+import sh.arek.gloaming.data.DeviceFix
+import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
+import sh.arek.gloaming.data.LocationSource
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.LocationGrantSource
 import sh.arek.gloaming.work.RealSchedule
 
 /**
@@ -64,6 +70,8 @@ class TonightPersistenceTest {
 
     @After
     fun putTheSettingsBack() {
+        Graph.locationGrantsOverride = null
+        Graph.locationSourceOverride = null
         BootAware.saveSettings(context, original)
         // The activity arms the poll at whatever the settings said, and Check
         // now re-arms it from its plan; both go back to the phone's own.
@@ -75,12 +83,19 @@ class TonightPersistenceTest {
     private fun headlineText(): String =
         headline().fetchSemanticsNode().config[SemanticsProperties.Text].joinToString("")
 
-    /** Until a night is up and nothing is being worked out. */
+    /**
+     * Until a night is up and nothing is being worked out.
+     *
+     * Idle first, and the screen read before the holder: the holder lives for
+     * the process, so a night left from an earlier test would otherwise
+     * satisfy the wait before this activity's effects had asked for anything.
+     */
     private fun awaitTheNight() {
+        compose.waitForIdle()
         compose.waitUntil(NIGHT_TIMEOUT_MILLIS) {
-            !results.tonightUpdating &&
-                results.outlook != null &&
-                compose.onAllNodesWithTag(OUTLOOK_HEADLINE_TAG).fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag(OUTLOOK_HEADLINE_TAG).fetchSemanticsNodes().isNotEmpty() &&
+                !results.tonightUpdating &&
+                results.outlook != null
         }
     }
 
@@ -152,6 +167,50 @@ class TonightPersistenceTest {
         }
     }
 
+    /**
+     * In automatic mode a rotation used to ask the phone for its position
+     * again, as every start did; a fix that wandered moved both keys and threw
+     * the night and the year away. Leaving and coming back is an open, and
+     * still asks. A fake source stands in for the phone's, answering with the
+     * position already stored so nothing else moves.
+     */
+    @Test
+    fun aRotationInAutomaticModeDoesNotAskThePhoneAgain() {
+        val stored = Graph.settings(context).read()
+        BootAware.saveSettings(
+            context,
+            stored.copy(locationMode = LocationMode.Automatic, locationCadence = LocationCadence.OnOpen),
+        )
+        Graph.locationGrantsOverride = object : LocationGrantSource {
+            override fun location() = true
+            override fun background() = false
+        }
+        val asked = AtomicInteger()
+        Graph.locationSourceOverride = object : LocationSource {
+            override suspend fun current(): DeviceFix {
+                asked.incrementAndGet()
+                return DeviceFix(stored.latitude!!, stored.longitude!!, 0f, System.currentTimeMillis())
+            }
+
+            override suspend fun fresh(timeoutMillis: Long): DeviceFix = current()
+        }
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            compose.waitUntil(ASK_TIMEOUT_MILLIS) { asked.get() == 1 }
+
+            scenario.recreate()
+            compose.waitForIdle()
+            // Away and back, which is an open, so the count has something
+            // later to be measured against.
+            scenario.moveToState(Lifecycle.State.CREATED)
+            scenario.moveToState(Lifecycle.State.RESUMED)
+            compose.waitUntil(ASK_TIMEOUT_MILLIS) { asked.get() >= 2 }
+            compose.waitForIdle()
+
+            assertEquals(2, asked.get())
+        }
+    }
+
     private companion object {
         /** A calendar and then a night, each the better part of ten seconds, with room. */
         const val NIGHT_TIMEOUT_MILLIS = 120_000L
@@ -161,6 +220,9 @@ class TonightPersistenceTest {
 
         /** More than a test's count takes, Check now included, so one begun clear of it ends clear. */
         const val BOUNDARY_MARGIN_MILLIS = 150_000L
+
+        /** A position asked of a fake source arrives at once; this is room for a slow start. */
+        const val ASK_TIMEOUT_MILLIS = 10_000L
 
         /** The screen reads its clock once a minute; this is past the tick that notices. */
         const val TICK_MARGIN_MILLIS = 65_000L

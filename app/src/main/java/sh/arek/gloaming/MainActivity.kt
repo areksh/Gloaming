@@ -11,6 +11,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -133,6 +134,17 @@ private const val DOWNLOADS_TICK_MILLIS = 500L
 
 /** The elements, as the transfer record labels them. */
 private const val ELEMENTS_LABEL = "Satellite elements"
+
+/**
+ * Set as the activity stops to be rebuilt for a configuration change, and
+ * taken by the first start of the one that replaces it, which is not an open.
+ *
+ * In memory rather than in saved state, because it is exactly as long-lived
+ * as the thing it marks: a rebuild for a configuration happens within the
+ * process, and a process started afresh is always a real open. Saved state is
+ * also written before `onStop` below Android 9, too early to know.
+ */
+private var recreatedForConfiguration = false
 
 /** Quiet hours from two typed times, or null if either is not a time. */
 private fun quietHoursFrom(from: String, until: String): QuietHours? {
@@ -539,7 +551,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
             detectingLocation = true
             if (!fromOpen) locationNote = null
             val fix = withContext(Dispatchers.IO) {
-                runCatching { AndroidLocationSource(context).current() }
+                runCatching { Graph.locationSource(context).current() }
                     .onFailure { Log.w("Gloaming", "could not read a position", it) }
                     .getOrNull()
             }
@@ -650,11 +662,28 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     // a phone opened often does not ask the system more than it was told to.
     // Read from the store rather than the screen's copy, which is brought
     // forward only on resume and so after this.
+    //
+    // A rotation is not an open. Asked again there, an approximate fix
+    // wanders, and a moved position works the year and the night out again.
+    val activity = LocalActivity.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && activity?.isChangingConfigurations == true) {
+                recreatedForConfiguration = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (recreatedForConfiguration) {
+                recreatedForConfiguration = false
+                return@repeatOnLifecycle
+            }
             val stored = settingsStore.read()
             if (stored.locationMode == LocationMode.Automatic &&
-                AndroidLocationSource.hasPermission(context) &&
+                Graph.locationGrants(context).location() &&
                 stored.locationCadence.isDue(stored.locationUpdatedAt, System.currentTimeMillis())
             ) {
                 detectLocation(fromOpen = true)
@@ -795,16 +824,11 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         }
     }
 
-    // Keyed on the location and the day: the calendar is deterministic and
-    // does not go stale within a day, so recomputing it on any other change
-    // would be work done for no different answer. The day is there because
-    // "today" is fixed when it is worked out; see CalendarKey.
-    val calendarKey = CalendarKey(
-        latitude = settings.latitude,
-        longitude = settings.longitude,
-        day = localDay(shownAt),
-        recalculation = results.recalculation,
-    )
+    // Keyed on the location, the comet settings and the day: the calendar is
+    // deterministic and does not go stale within a day, so recomputing it on
+    // any other change would be work done for no different answer. The day is
+    // there because "today" is fixed when it is worked out; see CalendarKey.
+    val calendarKey = CalendarKey.of(settings, day = localDay(shownAt), recalculation = results.recalculation)
     LaunchedEffect(calendarKey) {
         val user = settings
         val latitude = user.latitude
@@ -945,20 +969,12 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
     // The outlook is decided here too, from the same documents and the same
     // held forecast, so the sentence at the top cannot disagree with the night
     // beneath it.
-    val tonightKey = TonightKey(
+    val tonightKey = TonightKey.of(
+        settings,
         calendar = calendarKey,
-        latitude = settings.latitude,
-        longitude = settings.longitude,
-        // The comet settings reach the night through the calendar, which they
-        // already work out again; the threshold is the outlook's, for the
-        // aurora it judges.
-        cloudTolerance = settings.cloudTolerance,
-        minimumPassElevationDegrees = settings.minimumPassElevationDegrees,
-        threshold = settings.threshold,
         forecastVersion = results.forecastVersion,
         lastPollAt = alertState.lastPollAt,
         staleSlot = shownAt / TONIGHT_STALE_MILLIS,
-        recalculation = results.recalculation,
     )
     LaunchedEffect(tonightKey) {
         val user = settings
@@ -1267,29 +1283,24 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         settings = settings.copy(notifyAboutEveryEvent = it)
                         saveSettings(settings)
                     },
-                    // The four comet controls work the calendar out again as well
-                    // as saving, because all four change which comets belong in
-                    // the list and how they are described - unlike every other
-                    // setting here, which only changes when the app speaks.
+                    // The four comet controls change which comets belong in the
+                    // calendar and how they are described; CalendarKey holds all
+                    // four, so saving them is enough to work it out again.
                     onCometMagnitudeChange = {
                         settings = settings.copy(cometMagnitudeThreshold = it)
                         saveSettings(settings)
-                        results.recalculate()
                     },
                     onCometAltitudeChange = {
                         settings = settings.copy(minimumCometAltitudeDegrees = it)
                         saveSettings(settings)
-                        results.recalculate()
                     },
                     onCometStaleChange = {
                         settings = settings.copy(cometObservationStaleDays = it)
                         saveSettings(settings)
-                        results.recalculate()
                     },
                     onCometMoonChange = {
                         settings = settings.copy(cometMoonTolerance = it)
                         saveSettings(settings)
-                        results.recalculate()
                     },
                     onToggleStar = { event ->
                         val key = EventPlanner.starKey(event)

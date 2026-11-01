@@ -1,6 +1,8 @@
 package sh.arek.gloaming.ui
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -12,6 +14,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -20,6 +23,7 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.data.HourlyCover
+import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
 
@@ -29,33 +33,32 @@ class ScreenResultsTest {
 
     private val edinburgh = 55.95 to -3.19
 
-    /** A few hundred metres from [edinburgh], inside the same grid cell. */
-    private val edinburghNearby = 55.951 to -3.191
+    /** A few kilometres from [edinburgh]: another key, but the same grid cell. */
+    private val edinburghNearby = 55.98 to -3.25
 
     private val london = 51.5 to -0.12
+
+    private fun settings(place: Pair<Double, Double>? = edinburgh) =
+        UserSettings(latitude = place?.first, longitude = place?.second)
 
     private fun calendarKey(
         place: Pair<Double, Double>? = edinburgh,
         day: Long = 20_000L,
         recalculation: Int = 0,
-    ) = CalendarKey(place?.first, place?.second, day, recalculation)
+        user: UserSettings = settings(place),
+    ) = CalendarKey.of(user, day, recalculation)
 
     private fun tonightKey(
         place: Pair<Double, Double>? = edinburgh,
-        calendar: CalendarKey = calendarKey(place),
         threshold: Int = 30,
-        recalculation: Int = calendar.recalculation,
-    ) = TonightKey(
+        user: UserSettings = settings(place).copy(threshold = threshold),
+        calendar: CalendarKey = calendarKey(user = user),
+    ) = TonightKey.of(
+        settings = user,
         calendar = calendar,
-        latitude = place?.first,
-        longitude = place?.second,
-        cloudTolerance = 50,
-        minimumPassElevationDegrees = 20,
-        threshold = threshold,
         forecastVersion = 0,
         lastPollAt = null,
         staleSlot = 0L,
-        recalculation = recalculation,
     )
 
     private fun event(title: String) = SkyEvent(
@@ -94,7 +97,11 @@ class ScreenResultsTest {
      * test is simply abandoned with the scope.
      */
     private fun TestScope.results() =
-        ScreenResults(CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler)))
+        ScreenResults(CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler) + escaped))
+
+    /** What escaped the work, as the app's own handler would log it. */
+    private val escapes = mutableListOf<Throwable>()
+    private val escaped = CoroutineExceptionHandler { _, e -> escapes += e }
 
     /** Lands the calendar for [key] at once, with [events]. */
     private fun TestScope.land(
@@ -150,7 +157,7 @@ class ScreenResultsTest {
         results.ensureTonight(tonightKey(threshold = 30)) {
             try {
                 gate.await()
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 firstCancelled = true
                 throw e
             }
@@ -420,5 +427,146 @@ class ScreenResultsTest {
         assertEquals(1L, results.tonight?.darkFrom)
         assertFalse(results.tonightUpdating)
         assertEquals(2, results.tonightRuns)
+    }
+
+    // --- the keys hold what the work reads ---
+
+    /**
+     * Every setting `Tonight.of`, `Outlooks.of` and `NightTimeline.of` read,
+     * each changed on its own. The cloud gate went unnoticed once the forecast
+     * stopped bumping the key on every open.
+     */
+    @Test
+    fun `a change to any setting the night reads gives tonight a new key`() {
+        val base = settings()
+        val changes = mapOf<String, (UserSettings) -> UserSettings>(
+            "cloud gate" to { it.copy(cloudGateEnabled = !it.cloudGateEnabled) },
+            "cloud tolerance" to { it.copy(cloudTolerance = it.cloudTolerance + 10) },
+            "minimum pass elevation" to { it.copy(minimumPassElevationDegrees = it.minimumPassElevationDegrees + 5) },
+            "threshold" to { it.copy(threshold = it.threshold + 10) },
+            "every constellation" to { it.copy(showEveryConstellation = !it.showEveryConstellation) },
+            "comet magnitude" to { it.copy(cometMagnitudeThreshold = it.cometMagnitudeThreshold + 1) },
+            "comet altitude" to { it.copy(minimumCometAltitudeDegrees = it.minimumCometAltitudeDegrees + 5) },
+            "comet staleness" to { it.copy(cometObservationStaleDays = it.cometObservationStaleDays + 1) },
+            "comet moon" to { it.copy(cometMoonTolerance = it.cometMoonTolerance + 10) },
+        )
+        for ((name, change) in changes) {
+            assertNotEquals(name, tonightKey(user = base), tonightKey(user = change(base)))
+        }
+    }
+
+    @Test
+    fun `a change to any comet setting gives the calendar a new key`() {
+        val base = settings()
+        val changes = listOf<(UserSettings) -> UserSettings>(
+            { it.copy(cometMagnitudeThreshold = it.cometMagnitudeThreshold + 1) },
+            { it.copy(minimumCometAltitudeDegrees = it.minimumCometAltitudeDegrees + 5) },
+            { it.copy(cometObservationStaleDays = it.cometObservationStaleDays + 1) },
+            { it.copy(cometMoonTolerance = it.cometMoonTolerance + 10) },
+        )
+        for (change in changes) {
+            assertNotEquals(calendarKey(user = base), calendarKey(user = change(base)))
+        }
+    }
+
+    @Test
+    fun `turning the cloud gate on works tonight out again`() = runTest {
+        val results = results()
+        land(results)
+        val gateOff = settings().copy(cloudGateEnabled = false)
+
+        results.ensureTonight(tonightKey(user = gateOff)) { night(1) }
+        advanceUntilIdle()
+        results.ensureTonight(tonightKey(user = gateOff.copy(cloudGateEnabled = true))) { night(2) }
+        advanceUntilIdle()
+
+        assertEquals(2, results.tonightRuns)
+        assertEquals(2L, results.tonight?.darkFrom)
+    }
+
+    /**
+     * An approximate fix wanders a few hundred metres between asks, and a
+     * rotation in automatic mode used to ask again; each wander re-ran both.
+     */
+    @Test
+    fun `two positions inside one key step give equal keys`() {
+        val a = 55.9512 to -3.1912
+        val b = 55.9538 to -3.1888
+
+        assertEquals(calendarKey(a), calendarKey(b))
+        assertEquals(tonightKey(a), tonightKey(b))
+    }
+
+    @Test
+    fun `positions a key step apart give different keys`() {
+        val a = 55.95 to -3.19
+        val north = 55.95 + KEY_PRECISION_DEGREES to -3.19
+        val east = 55.95 to -3.19 + KEY_PRECISION_DEGREES
+
+        assertNotEquals(calendarKey(a), calendarKey(north))
+        assertNotEquals(calendarKey(a), calendarKey(east))
+        assertNotEquals(tonightKey(a), tonightKey(north))
+        assertNotEquals(tonightKey(a), tonightKey(east))
+    }
+
+    // --- late months, and work that throws ---
+
+    @Test
+    fun `a replaced run's months that finish late touch nothing of the newer run`() = runTest {
+        val results = results()
+        val gate = CompletableDeferred<Unit>()
+        val first = calendarKey(recalculation = 0)
+        val second = calendarKey(recalculation = 1)
+        val fresh = listOf(event("Fresh"))
+
+        results.ensureCalendar(
+            first,
+            events = { listOf(event("Old")) },
+            months = { withContext(NonCancellable) { gate.await() }; listOf(strip("old")) },
+        )
+        runCurrent()
+        results.ensureCalendar(second, events = { fresh }, months = { listOf(strip("new")) })
+        advanceUntilIdle()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(fresh, results.calendar)
+        assertEquals(listOf(strip("new")), results.months)
+        // The second key is still the one shown: asking for it again runs nothing.
+        results.ensureCalendar(second, events = { emptyList() }, months = { emptyList() })
+        advanceUntilIdle()
+        assertEquals(2, results.calendarRuns)
+        assertFalse(results.calendarLoading)
+    }
+
+    @Test
+    fun `tonight work that throws stops updating and a later key still runs`() = runTest {
+        val results = results()
+        land(results)
+
+        results.ensureTonight(tonightKey(threshold = 30)) { throw IllegalStateException("broken") }
+        advanceUntilIdle()
+
+        assertFalse(results.tonightUpdating)
+        assertEquals(listOf("broken"), escapes.map { it.message })
+
+        results.ensureTonight(tonightKey(threshold = 50)) { night(2) }
+        advanceUntilIdle()
+        assertEquals(2L, results.tonight?.darkFrom)
+        assertFalse(results.tonightUpdating)
+    }
+
+    @Test
+    fun `calendar work that throws still lets tonight run`() = runTest {
+        val results = results()
+
+        results.ensureCalendar(calendarKey(), events = { throw IllegalStateException("broken") }, months = { emptyList() })
+        results.ensureTonight(tonightKey()) { night(1) }
+        advanceUntilIdle()
+
+        assertFalse(results.calendarLoading)
+        assertEquals(1L, results.tonight?.darkFrom)
+        assertFalse(results.tonightUpdating)
+        assertEquals(listOf("broken"), escapes.map { it.message })
     }
 }

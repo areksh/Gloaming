@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.HourlyCover
+import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -29,21 +30,57 @@ class WorkedNight(
 )
 
 /**
+ * How finely the position is keyed, in degrees: about a kilometre.
+ *
+ * The work itself uses the exact position. An approximate fix wanders a few
+ * hundred metres between one ask and the next, and keying on it exactly made
+ * every wander - a rotation in automatic mode asks again - work the year and
+ * the night out from scratch, some twenty seconds, for passes and rise times
+ * that move by seconds over that distance. A wander across a step boundary
+ * still counts, as any rounding must; across a step it is rare.
+ */
+const val KEY_PRECISION_DEGREES = 0.01
+
+/** [degrees] to the nearest [KEY_PRECISION_DEGREES]. */
+private fun keyed(degrees: Double?): Double? =
+    degrees?.let { Math.round(it / KEY_PRECISION_DEGREES) * KEY_PRECISION_DEGREES }
+
+/**
  * What the year ahead is worked out from. The calendar is deterministic, so
- * the same key is the same answer and is never worked out twice.
+ * the same key is the same answer and is never worked out twice. Made with
+ * [of], which holds every setting the calendar reads.
  *
  * The day is there because "today" - the outlined night, the stubs for nights
  * gone, the events still ahead - is fixed when it is worked out, and a screen
  * left open past midnight would otherwise go on a day behind.
  */
 data class CalendarKey(
+    /** The position, to [KEY_PRECISION_DEGREES]. */
     val latitude: Double?,
     val longitude: Double?,
     /** [localDay] of the screen's clock. */
     val day: Long,
     /** [ScreenResults.recalculation] when the key was made. */
     val recalculation: Int,
-)
+    /** The comet settings, which decide which comets the calendar lists and how. */
+    val cometMagnitudeThreshold: Int,
+    val minimumCometAltitudeDegrees: Int,
+    val cometObservationStaleDays: Int,
+    val cometMoonTolerance: Int,
+) {
+    companion object {
+        fun of(settings: UserSettings, day: Long, recalculation: Int) = CalendarKey(
+            latitude = keyed(settings.latitude),
+            longitude = keyed(settings.longitude),
+            day = day,
+            recalculation = recalculation,
+            cometMagnitudeThreshold = settings.cometMagnitudeThreshold,
+            minimumCometAltitudeDegrees = settings.minimumCometAltitudeDegrees,
+            cometObservationStaleDays = settings.cometObservationStaleDays,
+            cometMoonTolerance = settings.cometMoonTolerance,
+        )
+    }
+}
 
 /**
  * How often tonight is worked out again while the screen is open.
@@ -55,21 +92,28 @@ data class CalendarKey(
 const val TONIGHT_STALE_MILLIS = 15 * 60_000L
 
 /**
- * What tonight is worked out from, beyond the documents on the device.
+ * What tonight is worked out from, beyond the documents on the device. Made
+ * with [of].
  *
  * The calendar it is worked out against is a key rather than the list, so
  * Tonight waits for that calendar instead of being worked out first against an
- * empty one and then again. The settings are the ones the night depends on
- * that nothing else here keys on: without them the card went on quoting a new
- * cloud tolerance against a gap worked out from the old one.
+ * empty one and then again; the comet settings `Tonight.of` reads arrive
+ * through it. The settings here are every other one that `Tonight.of`,
+ * `Outlooks.of` and `NightTimeline.of` read: one left out leaves the night
+ * decided from its old value - the card quoting a new cloud tolerance against
+ * a gap worked out from the old one, or the cloud gate turned on and the
+ * sentence still decided without it.
  */
 data class TonightKey(
     val calendar: CalendarKey,
+    /** The position, to [KEY_PRECISION_DEGREES]. */
     val latitude: Double?,
     val longitude: Double?,
+    val cloudGateEnabled: Boolean,
     val cloudTolerance: Int,
     val minimumPassElevationDegrees: Int,
     val threshold: Int,
+    val showEveryConstellation: Boolean,
     /** [ScreenResults.forecastVersion]: a fetched forecast that changed what is held. */
     val forecastVersion: Int,
     /** A check brings a new reading and possibly new elements, both of which the outlook reads. */
@@ -82,6 +126,29 @@ data class TonightKey(
     /** The place the night is about, at the grid's resolution. */
     val cell: GridCell?
         get() = if (latitude != null && longitude != null) GridCell.of(latitude, longitude) else null
+
+    companion object {
+        fun of(
+            settings: UserSettings,
+            calendar: CalendarKey,
+            forecastVersion: Int,
+            lastPollAt: Long?,
+            staleSlot: Long,
+        ) = TonightKey(
+            calendar = calendar,
+            latitude = keyed(settings.latitude),
+            longitude = keyed(settings.longitude),
+            cloudGateEnabled = settings.cloudGateEnabled,
+            cloudTolerance = settings.cloudTolerance,
+            minimumPassElevationDegrees = settings.minimumPassElevationDegrees,
+            threshold = settings.threshold,
+            showEveryConstellation = settings.showEveryConstellation,
+            forecastVersion = forecastVersion,
+            lastPollAt = lastPollAt,
+            staleSlot = staleSlot,
+            recalculation = calendar.recalculation,
+        )
+    }
 }
 
 /**
@@ -101,6 +168,10 @@ data class TonightKey(
  * point and so goes on to the end regardless, which is why every result is
  * published only if its run is still the newest: a late answer for old inputs
  * is dropped rather than shown over the new one.
+ *
+ * Work that throws ends its run as though it had answered nothing, and the
+ * exception goes on to [scope]'s handler; it never leaves a run marked in
+ * flight for ever.
  *
  * The properties are Compose state, so the screen follows them. They are
  * written from the caller's thread and from [scope]'s, always under one lock
@@ -213,26 +284,47 @@ class ScreenResults(private val scope: CoroutineScope) {
                 this.months = emptyList()
             }
             calendarJob = scope.launch {
-                calendarCount.incrementAndGet()
-                val worked = events()
-                synchronized(lock) {
-                    if (generation != calendarGeneration) return@launch
-                    Snapshot.withMutableSnapshot {
-                        calendar = worked
-                        calendarLoading = false
+                var published = false
+                try {
+                    calendarCount.incrementAndGet()
+                    val worked = events()
+                    synchronized(lock) {
+                        if (generation != calendarGeneration) return@launch
+                        publishEvents(key, worked)
+                        published = true
                     }
-                    landed.value = Landed(key, worked)
-                }
-                val strips = months(worked)
-                synchronized(lock) {
-                    if (generation != calendarGeneration) return@launch
-                    this@ScreenResults.months = strips
-                    calendarShown = key
-                    calendarInFlight = null
-                    calendarJob = null
+                    val strips = months(worked)
+                    synchronized(lock) {
+                        if (generation != calendarGeneration) return@launch
+                        this@ScreenResults.months = strips
+                        calendarShown = key
+                        calendarInFlight = null
+                        calendarJob = null
+                    }
+                } finally {
+                    // Work that threw: the exception goes on to the scope's
+                    // handler, but this run is over, and a Tonight waiting on
+                    // its events is let go with none - what the calendar's own
+                    // work answers when it fails - rather than left waiting.
+                    synchronized(lock) {
+                        if (generation == calendarGeneration && calendarInFlight == key) {
+                            if (!published) publishEvents(key, emptyList())
+                            calendarInFlight = null
+                            calendarJob = null
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /** Under [lock]. */
+    private fun publishEvents(key: CalendarKey, events: List<SkyEvent>) {
+        Snapshot.withMutableSnapshot {
+            calendar = events
+            calendarLoading = false
+        }
+        landed.value = Landed(key, events)
     }
 
     /**
@@ -278,23 +370,35 @@ class ScreenResults(private val scope: CoroutineScope) {
                 tonightUpdating = true
             }
             tonightJob = scope.launch {
-                val events = landed.filterNotNull().first { it.key == key.calendar }.events
-                tonightCount.incrementAndGet()
-                val worked = work(events)
-                synchronized(lock) {
-                    if (generation != tonightGeneration) return@launch
-                    Snapshot.withMutableSnapshot {
-                        tonight = worked?.list
-                        elements = worked?.elements
-                        outlook = worked?.report
-                        hourly = worked?.forecast.orEmpty()
-                        timeline = worked?.timeline
-                        tonightUpdating = false
+                try {
+                    val events = landed.filterNotNull().first { it.key == key.calendar }.events
+                    tonightCount.incrementAndGet()
+                    val worked = work(events)
+                    synchronized(lock) {
+                        if (generation != tonightGeneration) return@launch
+                        Snapshot.withMutableSnapshot {
+                            tonight = worked?.list
+                            elements = worked?.elements
+                            outlook = worked?.report
+                            hourly = worked?.forecast.orEmpty()
+                            timeline = worked?.timeline
+                            tonightUpdating = false
+                        }
+                        nightCell = key.cell
+                        tonightShown = key
+                        tonightInFlight = null
+                        tonightJob = null
                     }
-                    nightCell = key.cell
-                    tonightShown = key
-                    tonightInFlight = null
-                    tonightJob = null
+                } finally {
+                    // Work that threw: the night on show stays, but it is no
+                    // longer updating, and the same key may be asked for again.
+                    synchronized(lock) {
+                        if (generation == tonightGeneration && tonightInFlight == key) {
+                            tonightUpdating = false
+                            tonightInFlight = null
+                            tonightJob = null
+                        }
+                    }
                 }
             }
         }

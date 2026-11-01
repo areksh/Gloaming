@@ -1,7 +1,9 @@
 package sh.arek.gloaming
 
 import android.content.Context
+import android.util.Log
 import java.io.File
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -340,9 +342,13 @@ object Graph {
      */
     fun compass(context: Context): CompassSource = AndroidCompassSource(context.applicationContext)
 
-    /** The phone's own position, for the background refresh. See [AndroidLocationSource]. */
+    /** Replaced by instrumented tests only; null means the phone's own position. */
+    @Volatile
+    var locationSourceOverride: LocationSource? = null
+
+    /** The phone's own position, for the screen and the background refresh. See [AndroidLocationSource]. */
     fun locationSource(context: Context): LocationSource =
-        AndroidLocationSource(context.applicationContext)
+        locationSourceOverride ?: AndroidLocationSource(context.applicationContext)
 
     /**
      * Tonight and the year ahead as the screen shows them, one for the life of
@@ -352,8 +358,14 @@ object Graph {
      * should stop it.
      */
     private val screenResults by lazy {
-        ScreenResults(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+        // Logged rather than left to crash the app: the holder has already
+        // ended the run that threw (see ScreenResults).
+        val logged = CoroutineExceptionHandler { _, e ->
+            Log.w("Gloaming", "could not work out what the screen shows", e)
+        }
+        ScreenResults(CoroutineScope(SupervisorJob() + Dispatchers.Default + logged))
     }
 
+    /** One instance per process; [context] is taken only to match the other accessors. */
     fun screenResults(context: Context): ScreenResults = screenResults
 }
