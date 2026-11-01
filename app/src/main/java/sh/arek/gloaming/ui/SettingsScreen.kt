@@ -439,15 +439,19 @@ private fun ThresholdCard(
                 "Higher latitudes want a higher bar.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            // Beside the bar it limits. Gloaming waits at least this long
-            // before interrupting about the aurora again, and tells you about
-            // the best reading in that window rather than the first.
+            // Beside the bar it limits.
             IntervalRow(
                 "Aurora",
                 state.settings.auroraAlertIntervalMinutes,
                 onAuroraIntervalChange,
                 state,
                 state.recommendations?.auroraInterval,
+            )
+            Text(
+                "Gloaming waits at least this long before interrupting you about " +
+                    "the aurora again, and tells you about the best reading in that " +
+                    "window rather than the first.",
+                style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(4.dp))
             Text(
@@ -660,9 +664,9 @@ private fun InterruptionCard(
                 )
             }
             Text(
-                "Gloaming waits at least this long before interrupting you again on " +
-                    "each channel, and tells you about the best thing in that window " +
-                    "rather than the first.",
+                "For each kind of pass below, Gloaming waits at least this long " +
+                    "before interrupting you again, and tells you about the best pass " +
+                    "in that window rather than the first.",
                 style = MaterialTheme.typography.bodySmall,
             )
 

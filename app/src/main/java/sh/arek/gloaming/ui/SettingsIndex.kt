@@ -20,7 +20,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.BuildConfig
-import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.ui.theme.LocalPalette
 

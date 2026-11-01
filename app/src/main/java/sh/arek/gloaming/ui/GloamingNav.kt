@@ -68,8 +68,9 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  * outlives a visit to it.
  *
  * Each section owns its own scroll, which is why [TonightContent] and
- * [SettingsPageContent] emit loose children rather than columns of their own. [TonightScreen] is the one section that
- * brings its own column, because it pins the watch button under the scroll.
+ * [SettingsPageContent] emit loose children rather than columns of their own.
+ * [TonightScreen] is the one section that brings its own column, because it
+ * pins the watch button under the scroll.
  */
 @Composable
 fun GloamingNav(
