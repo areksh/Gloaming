@@ -135,6 +135,12 @@ class ScreensTest {
     private var exportedEvent: SkyEvent? = null
     private var cleared = 0
 
+    private val notStacked = setOf(
+        SettingsPage.BackgroundChecks,
+        SettingsPage.Notifications,
+        SettingsPage.Downloads,
+        SettingsPage.Guide,
+    )
 
     private fun show(
         settings: UserSettings = located,
@@ -216,42 +222,49 @@ class ScreensTest {
                 // the content, because these tests are about what it says.
                 WatchButton(state = state, actions = tonightActions)
 
-                SettingsContent(
-                    state = state,
-                    actions = UiActions(
-                        onThresholdChange = { threshold = it },
-                        onPreciseBeforeUnlockChange = { precise = it },
-                        onCloudToleranceChange = { cloudTolerance = it },
-                        onShowEveryConstellationChange = { everyConstellation = it },
-                        onLogRetentionChange = {
-                            logRetention = it
-                            shown = shown.copy(logRetentionDays = it)
-                        },
-                        onExportLog = { exported++ },
-                        onClearLog = { cleared++ },
-                        onAuroraIntervalChange = { auroraInterval = it },
-                        onIssIntervalChange = { issInterval = it },
-                        onFollowStationChange = { followStation = it },
-                        onPassLeadChange = { passLead = it },
-                        onMinimumElevationChange = { minimumElevation = it },
-                        onLiveLeadChange = { liveLead = it },
-                        onEventAlertsChange = { eventAlerts = it },
-                        onEventHeadsUpChange = { eventHeadsUp = it },
-                        onEventLeadChange = { eventLead = it },
-                        onNotifyEveryEventChange = { everyEvent = it },
-                        onCalendarSyncChange = { calendarSync = it },
-                        onAutomaticSettingsChange = { automatic = it },
-                        onClearVerdicts = { verdictsCleared++ },
-                        onCometMagnitudeChange = { cometMagnitude = it },
-                        onCometMoonChange = { cometMoon = it },
-                        onLocationModeChange = { locationMode = it },
-                        onLocationCadenceChange = {
-                            cadence = it
-                            shown = shown.copy(locationCadence = it)
-                        },
-                        onDetectLocation = { detected++ },
-                    ),
+                // Every page body stacked, as the one long Settings column was.
+                // Left out are the pages that repeat what Tonight and its
+                // checks sheet already say (SettingsPagesTest covers them) and
+                // the guide, whose own text would crowd the words these
+                // assertions look for (GloamingNavTest opens it).
+                val settingsActions = UiActions(
+                    onThresholdChange = { threshold = it },
+                    onPreciseBeforeUnlockChange = { precise = it },
+                    onCloudToleranceChange = { cloudTolerance = it },
+                    onShowEveryConstellationChange = { everyConstellation = it },
+                    onLogRetentionChange = {
+                        logRetention = it
+                        shown = shown.copy(logRetentionDays = it)
+                    },
+                    onExportLog = { exported++ },
+                    onClearLog = { cleared++ },
+                    onAuroraIntervalChange = { auroraInterval = it },
+                    onIssIntervalChange = { issInterval = it },
+                    onFollowStationChange = { followStation = it },
+                    onPassLeadChange = { passLead = it },
+                    onMinimumElevationChange = { minimumElevation = it },
+                    onLiveLeadChange = { liveLead = it },
+                    onEventAlertsChange = { eventAlerts = it },
+                    onEventHeadsUpChange = { eventHeadsUp = it },
+                    onEventLeadChange = { eventLead = it },
+                    onNotifyEveryEventChange = { everyEvent = it },
+                    onCalendarSyncChange = { calendarSync = it },
+                    onAutomaticSettingsChange = { automatic = it },
+                    onClearVerdicts = { verdictsCleared++ },
+                    onCometMagnitudeChange = { cometMagnitude = it },
+                    onCometMoonChange = { cometMoon = it },
+                    onLocationModeChange = { locationMode = it },
+                    onLocationCadenceChange = {
+                        cadence = it
+                        shown = shown.copy(locationCadence = it)
+                    },
+                    onDetectLocation = { detected++ },
                 )
+                for (page in SettingsPage.entries) {
+                    if (page in notStacked) continue
+                    SettingsPageContent(page = page, state = state, actions = settingsActions)
+                }
+                VersionFooter()
             }
         }
     }
@@ -693,7 +706,7 @@ class ScreensTest {
     fun offersAnIntervalForEveryChannel() {
         show()
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Aurora: at most every 6 hours", substring = true).assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertExists()
@@ -763,7 +776,7 @@ class ScreensTest {
     fun explainsWhyTheStationNeverAppearsAtHighLatitude() {
         show(settings = UserSettings(latitude = 69.6, longitude = 18.96))
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("never comes above your horizon", substring = true)
             .assertExists()
     }
@@ -773,7 +786,7 @@ class ScreensTest {
     fun saysNothingAboutCoverageWhereTheStationPasses() {
         show(settings = UserSettings(latitude = 55.95, longitude = -3.19))
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("The station's orbit reaches", substring = true)
             .assertDoesNotExist()
     }
@@ -786,7 +799,7 @@ class ScreensTest {
     fun hidesThePassIntervalsWhenPassesAreOff() {
         show(settings = UserSettings(passAlertsEnabled = false))
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Space station: at most every 6 hours", substring = true)
             .assertDoesNotExist()
     }
@@ -907,7 +920,7 @@ class ScreensTest {
     fun offersThePassTimingsAsSettings() {
         show()
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Tell me: 30 minutes before it is highest", substring = true)
             .performScrollTo()
             .assertExists()
@@ -934,7 +947,7 @@ class ScreensTest {
     fun hidesThePassTimingsWhenPassesAreOff() {
         show(settings = UserSettings(passAlertsEnabled = false))
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Tell me:", substring = true).assertDoesNotExist()
     }
 
@@ -1030,7 +1043,7 @@ class ScreensTest {
     fun offersAutomaticFollowingForTheStationOnly() {
         show()
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Follow every station pass", substring = true).assertExists()
         compose.onNodeWithText("Follow every bright satellite pass", substring = true)
             .assertDoesNotExist()
@@ -1050,7 +1063,7 @@ class ScreensTest {
     fun hidesAutomaticFollowingWhenPassesAreOff() {
         show(settings = UserSettings(passAlertsEnabled = false))
 
-        compose.onNodeWithText("How often at most").performScrollTo().assertExists()
+        compose.onNodeWithText("Satellite passes").performScrollTo().assertExists()
         compose.onNodeWithText("Follow every station pass", substring = true)
             .assertDoesNotExist()
     }
@@ -1060,7 +1073,7 @@ class ScreensTest {
     fun offersTheCalendarAndItsTwoLeads() {
         show()
 
-        compose.onNodeWithText("Sky calendar").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Dated events").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Notice ahead: 2 days").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Notice on the day: an hour before")
             .performScrollTo()
@@ -1075,7 +1088,7 @@ class ScreensTest {
     fun hidesTheCalendarLeadsWhenTheCalendarIsOff() {
         show(settings = located.copy(eventAlertsEnabled = false))
 
-        compose.onNodeWithText("Sky calendar").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Dated events").performScrollTo().assertIsDisplayed()
         compose.onAllNodesWithText("Notice ahead: 2 days").assertCountEquals(0)
     }
 

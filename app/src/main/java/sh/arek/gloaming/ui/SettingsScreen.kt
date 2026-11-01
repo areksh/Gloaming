@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.withLink
@@ -42,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import sh.arek.gloaming.BuildConfig
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
 import sh.arek.gloaming.data.LocationCadence
@@ -54,97 +54,102 @@ import sh.arek.gloaming.domain.Recommendation
 import sh.arek.gloaming.ui.theme.LocalPalette
 
 /**
- * Everything that is a setting rather than a state of the sky.
+ * The body of one Settings page: the controls the index row leads to.
  *
  * Emitted as loose children for the same reason [TonightContent] is: the
- * caller owns the scrolling.
+ * caller owns the scrolling, and the page's title and way back.
  */
 @Composable
-fun SettingsContent(
+fun SettingsPageContent(
+    page: SettingsPage,
     state: MainUiState,
     actions: UiActions = UiActions(),
 ) {
-    LocationCard(
-        state,
-        actions.onLatitudeChange,
-        actions.onLongitudeChange,
-        actions.onSave,
-        actions.onLocationModeChange,
-        actions.onLocationCadenceChange,
-        actions.onDetectLocation,
-    )
-    ThresholdCard(state, actions.onThresholdChange, actions.onAlertsEnabledChange)
-    SkyCard(state, actions.onCloudGateChange, actions.onCloudToleranceChange)
-    QuietHoursCard(
-        state,
-        actions.onQuietHoursEnabledChange,
-        actions.onQuietFromChange,
-        actions.onQuietUntilChange,
-        actions.onQuietHoursOverrideChange,
-    )
-    InterruptionCard(
-        state,
-        actions.onAuroraIntervalChange,
-        actions.onIssIntervalChange,
-        actions.onBrightIntervalChange,
-        actions.onTrainIntervalChange,
-        actions.onPassAlertsChange,
-        actions.onFollowStationChange,
-        actions.onPassLeadChange,
-        actions.onMinimumElevationChange,
-        actions.onLiveLeadChange,
-    )
-    CalendarCard(
-        state,
-        actions.onEventAlertsChange,
-        actions.onEventHeadsUpChange,
-        actions.onEventLeadChange,
-        actions.onEclipseFollowMaxChange,
-        actions.onNotifyEveryEventChange,
-        actions.onCalendarSyncChange,
-    )
-    CometCard(
-        state,
-        actions.onCometMagnitudeChange,
-        actions.onCometAltitudeChange,
-        actions.onCometStaleChange,
-        actions.onCometMoonChange,
-    )
-    ConstellationCard(state, actions.onShowEveryConstellationChange)
-    AutomaticSettingsCard(state, actions.onAutomaticSettingsChange)
-    VerdictsCard(state, actions.onClearVerdicts)
-    BeforeUnlockCard(state, actions.onBeforeUnlockChange, actions.onPreciseBeforeUnlockChange)
-    NightVisionCard(state, actions.onNightVisionChange)
-    LogCard(state, actions.onLogRetentionChange, actions.onExportLog, actions.onClearLog)
-    CreditsCard(state)
-    VersionFooter()
-}
+    when (page) {
+        SettingsPage.Location -> LocationCard(
+            state,
+            actions.onLatitudeChange,
+            actions.onLongitudeChange,
+            actions.onSave,
+            actions.onLocationModeChange,
+            actions.onLocationCadenceChange,
+            actions.onDetectLocation,
+        )
 
-/**
- * Which build this is, at the foot of the settings.
- *
- * Outside a card and last of everything, because it is not a setting and
- * nobody comes looking for it until something has gone wrong - at which point
- * it is the first thing worth quoting. There is nowhere else to read it: the
- * app is installed from an APK rather than a store, so no listing carries the
- * version and nothing updates it in the background, and a phone can sit on one
- * build for months without a word about it anywhere.
- *
- * Read from the build rather than written down here, so it cannot drift from
- * the APK it is printed in.
- */
-@Composable
-private fun VersionFooter() {
-    Text(
-        versionLine(
-            BuildConfig.VERSION_NAME,
-            BuildConfig.VERSION_CODE,
-            BuildConfig.GIT_COMMIT,
-            BuildConfig.GIT_MODIFIED,
-            BuildConfig.DEBUG,
-        ),
-        style = MaterialTheme.typography.bodySmall,
-    )
+        SettingsPage.BeforeFirstUnlock ->
+            BeforeUnlockCard(state, actions.onBeforeUnlockChange, actions.onPreciseBeforeUnlockChange)
+
+        SettingsPage.Aurora ->
+            ThresholdCard(
+                state,
+                actions.onThresholdChange,
+                actions.onAlertsEnabledChange,
+                actions.onAuroraIntervalChange,
+            )
+
+        SettingsPage.SatellitePasses -> InterruptionCard(
+            state,
+            actions.onIssIntervalChange,
+            actions.onBrightIntervalChange,
+            actions.onTrainIntervalChange,
+            actions.onPassAlertsChange,
+            actions.onFollowStationChange,
+            actions.onPassLeadChange,
+            actions.onMinimumElevationChange,
+            actions.onLiveLeadChange,
+        )
+
+        SettingsPage.DatedEvents -> CalendarCard(
+            state,
+            actions.onEventAlertsChange,
+            actions.onEventHeadsUpChange,
+            actions.onEventLeadChange,
+            actions.onEclipseFollowMaxChange,
+            actions.onNotifyEveryEventChange,
+        )
+
+        SettingsPage.Comets -> CometCard(
+            state,
+            actions.onCometMagnitudeChange,
+            actions.onCometAltitudeChange,
+            actions.onCometStaleChange,
+            actions.onCometMoonChange,
+        )
+
+        SettingsPage.Cloud ->
+            SkyCard(state, actions.onCloudGateChange, actions.onCloudToleranceChange)
+
+        SettingsPage.Constellations ->
+            ConstellationCard(state, actions.onShowEveryConstellationChange)
+
+        SettingsPage.QuietHours -> QuietHoursCard(
+            state,
+            actions.onQuietHoursEnabledChange,
+            actions.onQuietFromChange,
+            actions.onQuietUntilChange,
+            actions.onQuietHoursOverrideChange,
+        )
+
+        SettingsPage.BackgroundChecks ->
+            BackgroundChecksCard(state, actions.onRequestBatteryExemption)
+
+        SettingsPage.Notifications ->
+            NotificationsCard(state, actions.onRequestNotifications)
+
+        SettingsPage.Downloads -> DownloadsCard(state)
+
+        SettingsPage.Log ->
+            LogCard(state, actions.onLogRetentionChange, actions.onExportLog, actions.onClearLog)
+
+        SettingsPage.AutomaticSettings ->
+            AutomaticSettingsCard(state, actions.onAutomaticSettingsChange)
+
+        SettingsPage.YourAnswers -> VerdictsCard(state, actions.onClearVerdicts)
+        SettingsPage.NightVision -> NightVisionCard(state, actions.onNightVisionChange)
+        SettingsPage.Guide -> GuideContent()
+        SettingsPage.CalendarSync -> CalendarSyncCard(state, actions.onCalendarSyncChange)
+        SettingsPage.Credits -> CreditsCard(state)
+    }
 }
 
 @Composable
@@ -409,6 +414,7 @@ private fun ThresholdCard(
     state: MainUiState,
     onThresholdChange: (Int) -> Unit,
     onAlertsEnabledChange: (Boolean) -> Unit,
+    onAuroraIntervalChange: (Int) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -432,6 +438,16 @@ private fun ThresholdCard(
             Text(
                 "Higher latitudes want a higher bar.",
                 style = MaterialTheme.typography.bodySmall,
+            )
+            // Beside the bar it limits. Gloaming waits at least this long
+            // before interrupting about the aurora again, and tells you about
+            // the best reading in that window rather than the first.
+            IntervalRow(
+                "Aurora",
+                state.settings.auroraAlertIntervalMinutes,
+                onAuroraIntervalChange,
+                state,
+                state.recommendations?.auroraInterval,
             )
             Spacer(Modifier.height(4.dp))
             Text(
@@ -603,7 +619,9 @@ private fun QuietHoursCard(
 }
 
 /**
- * How often the app may interrupt, per channel.
+ * How often the app may interrupt about satellites, per channel, and the rest
+ * of what the Satellite passes page sets. The aurora's interval sits beside
+ * its bar on the Aurora page.
  *
  * The user's call, not the app's - the same reasoning as quiet hours. Three
  * separate answers because they are three different appetites: an aurora is
@@ -619,7 +637,6 @@ private fun QuietHoursCard(
 @Composable
 private fun InterruptionCard(
     state: MainUiState,
-    onAuroraIntervalChange: (Int) -> Unit,
     onIssIntervalChange: (Int) -> Unit,
     onBrightIntervalChange: (Int) -> Unit,
     onTrainIntervalChange: (Int) -> Unit,
@@ -631,7 +648,17 @@ private fun InterruptionCard(
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("How often at most", style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Satellite passes", style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = state.settings.passAlertsEnabled,
+                    onCheckedChange = onPassAlertsChange,
+                )
+            }
             Text(
                 "Gloaming waits at least this long before interrupting you again on " +
                     "each channel, and tells you about the best thing in that window " +
@@ -639,25 +666,6 @@ private fun InterruptionCard(
                 style = MaterialTheme.typography.bodySmall,
             )
 
-            IntervalRow(
-                "Aurora",
-                state.settings.auroraAlertIntervalMinutes,
-                onAuroraIntervalChange,
-                state,
-                state.recommendations?.auroraInterval,
-            )
-
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Satellite passes", style = MaterialTheme.typography.bodyMedium)
-                Switch(
-                    checked = state.settings.passAlertsEnabled,
-                    onCheckedChange = onPassAlertsChange,
-                )
-            }
             if (state.settings.passAlertsEnabled) {
                 IntervalRow(
                     "Space station",
@@ -1159,6 +1167,122 @@ private fun LogCard(
     }
 }
 
+/** The page's buttons, which ask Android for a grant rather than set a value. */
+const val ALLOW_BACKGROUND_CHECKS_TAG = "allow-background-checks"
+
+const val ALLOW_NOTIFICATIONS_TAG = "allow-notifications"
+
+/** The downloads page's report, apart from the checks sheet's, which has its own tag. */
+const val DOWNLOADS_PAGE_TAG = "downloads-page"
+
+/**
+ * Whether Android will let the background checks run while the phone sleeps.
+ *
+ * A requirement rather than a preference, and said so: without the exemption
+ * app standby defers the alarm for hours, while it still lists as pending and
+ * looks healthy. There is nothing here to switch off - the grant is Android's,
+ * and the app can only ask for it.
+ */
+@Composable
+private fun BackgroundChecksCard(state: MainUiState, onAllow: () -> Unit) {
+    val palette = LocalPalette.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Background checks", style = MaterialTheme.typography.titleMedium)
+            if (state.batteryExempt) {
+                Text(
+                    "Allowed. Gloaming can look at the sky while the phone sleeps, which " +
+                        "is when the aurora tends to happen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Text(
+                    "Not allowed. Android holds background checks until the phone next " +
+                        "wakes, which overnight means hours. Allowing them is required, " +
+                        "not optional.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.alarm,
+                    fontWeight = FontWeight.Bold,
+                )
+                Button(
+                    onClick = onAllow,
+                    modifier = Modifier.fillMaxWidth().testTag(ALLOW_BACKGROUND_CHECKS_TAG),
+                ) { Text("Allow background checks") }
+            }
+            if (state.powerSaveMode) {
+                Text(
+                    batterySaverNote(state.batteryExempt),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.alarm,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Whether Gloaming may post notifications, which is the only way it speaks.
+ *
+ * Each kind of alert also has its own switch in Android's notification
+ * settings, which is the place to silence one kind and keep the others.
+ */
+@Composable
+private fun NotificationsCard(state: MainUiState, onAllow: () -> Unit) {
+    val palette = LocalPalette.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Notifications", style = MaterialTheme.typography.titleMedium)
+            if (state.notificationsAllowed) {
+                Text(
+                    "On. Gloaming can tell you when there is something to look up for.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                Text(
+                    "Off. Without notification permission the app can watch the sky but " +
+                        "cannot tell you about it.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.alarm,
+                    fontWeight = FontWeight.Bold,
+                )
+                Button(
+                    onClick = onAllow,
+                    modifier = Modifier.fillMaxWidth().testTag(ALLOW_NOTIFICATIONS_TAG),
+                ) { Text("Allow notifications") }
+            }
+            Text(
+                "Each kind of alert has its own switch in Android's notification " +
+                    "settings, if you want to keep some and silence others.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+/**
+ * Everything the app has downloaded, held copy and last attempt, always.
+ *
+ * Unlike the report in the checks sheet, which stays quiet on an ordinary
+ * evening, this is the page somebody opens to look, so it says everything -
+ * including that there is nothing yet.
+ */
+@Composable
+private fun DownloadsCard(state: MainUiState) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Downloads", style = MaterialTheme.typography.titleMedium)
+            if (state.downloads.isEmpty() && !state.checking) {
+                Text(
+                    "Nothing downloaded yet. Pull Tonight down to check.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else {
+                DownloadLines(state, Modifier.testTag(DOWNLOADS_PAGE_TAG))
+            }
+        }
+    }
+}
+
 /**
  * Who the data came from, and under what terms the app may show it.
  *
@@ -1547,14 +1671,13 @@ private fun CalendarCard(
     onEventLeadChange: (Int) -> Unit,
     onEclipseFollowMaxChange: (Int) -> Unit,
     onNotifyEveryEventChange: (Boolean) -> Unit,
-    onCalendarSyncChange: (CalendarSync) -> Unit,
 ) {
     Card {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Sky calendar", style = MaterialTheme.typography.titleMedium)
+            Text("Dated events", style = MaterialTheme.typography.titleMedium)
             Text(
                 "Eclipses, meteor showers and close pairings of planets. Only the ones " +
                     "actually visible from where you are will interrupt; the rest are in " +
@@ -1630,9 +1753,19 @@ private fun CalendarCard(
                     onChange = onEclipseFollowMaxChange,
                 )
             }
+        }
+    }
+}
 
-            HorizontalDivider()
-            CalendarSyncControl(state, onCalendarSyncChange)
+/** Where starred events are written, on a page of its own. */
+@Composable
+private fun CalendarSyncCard(state: MainUiState, onChange: (CalendarSync) -> Unit) {
+    Card {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CalendarSyncControl(state, onChange)
         }
     }
 }

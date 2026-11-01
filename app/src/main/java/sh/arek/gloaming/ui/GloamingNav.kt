@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -30,6 +31,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.ui.theme.LocalPalette
 
@@ -45,9 +48,11 @@ enum class Section(val label: String, val tag: String) {
     Settings("Settings", "nav-settings"),
 }
 
-/** Reached by tag from a test: the temporary way into the guide from Settings. */
-const val GUIDE_ROW_TAG = "settings-guide"
-const val GUIDE_BACK_TAG = "guide-back"
+/** The way back from a Settings page to the index, reached by tag from a test. */
+const val SETTINGS_BACK_TAG = "settings-back"
+
+/** The heading of an open Settings page. */
+const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
 
 /**
  * The sections over one activity, behind a bottom bar.
@@ -56,14 +61,14 @@ const val GUIDE_BACK_TAG = "guide-back"
  * links and no new dependency, and `rememberSaveable` is enough to survive a
  * rotation.
  *
- * The guide is not a section. It reads the same every night, so it is a page
- * under Settings rather than a destination of its own; until Settings is an
- * index of pages, a "Guide to the words" row at the head of Settings shows it
- * in place.
+ * Settings is an index of pages, and the page is the one place a back stack
+ * is wanted: it is one nullable page, so there is nothing to trap or strand
+ * anybody. System Back on a page returns to the index. Choosing a section on
+ * the bar, Settings again included, lands on its index, so a page never
+ * outlives a visit to it.
  *
- * Each section owns its own scroll, which is why [TonightContent],
- * [GuideContent] and [SettingsContent] emit loose children
- * rather than columns of their own. [TonightScreen] is the one section that
+ * Each section owns its own scroll, which is why [TonightContent] and
+ * [SettingsPageContent] emit loose children rather than columns of their own. [TonightScreen] is the one section that
  * brings its own column, because it pins the watch button under the scroll.
  */
 @Composable
@@ -73,20 +78,23 @@ fun GloamingNav(
     modifier: Modifier = Modifier,
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
-    var showGuide by rememberSaveable { mutableStateOf(false) }
+    // The open Settings page by name: null is the index. A name rather than the
+    // enum so a saved state from a build with different pages restores to the
+    // index instead of failing.
+    var openPage by rememberSaveable { mutableStateOf<String?>(null) }
+    val page = SettingsPage.entries.firstOrNull { it.name == openPage }
     val sections = Section.entries
 
     // One scroll position per section, remembered out here rather than inside
     // the branch that uses it, so moving away and back returns to where the
     // reader was.
     val tonightScroll = rememberScrollState()
-    val guideScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
     val aheadScroll = rememberLazyListState()
     var starredOnly by rememberSaveable { mutableStateOf(false) }
 
-    // System Back leaves the guide for Settings rather than the app.
-    BackHandler(enabled = showGuide) { showGuide = false }
+    // System Back leaves a page for the index rather than the app.
+    BackHandler(enabled = page != null) { openPage = null }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -97,10 +105,10 @@ fun GloamingNav(
                     NavigationBarItem(
                         selected = selected == index,
                         // Choosing a section, Settings included, lands on its
-                        // index: the guide page never outlives a visit to it.
+                        // index: a page never outlives a visit to it.
                         onClick = {
                             selected = index
-                            showGuide = false
+                            openPage = null
                         },
                         icon = { SectionIcon(section) },
                         label = { Text(section.label) },
@@ -140,21 +148,25 @@ fun GloamingNav(
                 modifier = content.fillMaxSize(),
             )
 
-            Section.Settings -> if (showGuide) {
-                ScrollingSection(guideScroll, content) {
-                    TextButton(
-                        onClick = { showGuide = false },
-                        modifier = Modifier.testTag(GUIDE_BACK_TAG),
-                    ) { Text("Back to Settings") }
-                    GuideContent()
+            Section.Settings -> if (page == null) {
+                ScrollingSection(settingsScroll, content) {
+                    SettingsIndex(state = state, onOpen = { openPage = it.name })
                 }
             } else {
-                ScrollingSection(settingsScroll, content) {
+                // Its own scroll, made here so each page opens at the top.
+                ScrollingSection(rememberScrollState(), content) {
                     TextButton(
-                        onClick = { showGuide = true },
-                        modifier = Modifier.testTag(GUIDE_ROW_TAG),
-                    ) { Text("Guide to the words") }
-                    SettingsContent(state = state, actions = actions)
+                        onClick = { openPage = null },
+                        modifier = Modifier.testTag(SETTINGS_BACK_TAG),
+                    ) { Text("Back to Settings") }
+                    Text(
+                        page.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier
+                            .semantics { heading() }
+                            .testTag(SETTINGS_PAGE_TITLE_TAG),
+                    )
+                    SettingsPageContent(page = page, state = state, actions = actions)
                 }
             }
         }

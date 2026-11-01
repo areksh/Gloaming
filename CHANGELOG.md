@@ -131,6 +131,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Settings is grouped by question, and every row shows its current value.**
+  The one long column of cards is now an index: "Where you are", "What is
+  worth waking for", "When to leave you alone", "Is it working", "Learning
+  from your answers" and "Screen and reference", each row saying what it is
+  set to - "40% chance or more", "Every 6 hours" - and opening a page of its
+  own for the controls. Background checks, Notifications and Downloads are
+  pages now, so whether the app can alert you is answered where you look for
+  it; a row that is not working says so in bold as well as in colour, so it
+  still shows in night vision. The guide is a page here too, and Back returns
+  to the index.
+
 - **The CelesTrak breaker clears itself after two days.** It used to reset only
   by hand, so an unread alert left elements frozen for as long as nobody looked:
   on 2026-08-25 a 503 went unnoticed for seventeen hours, and a trip before a

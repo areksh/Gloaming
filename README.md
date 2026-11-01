@@ -111,7 +111,7 @@ deliberately not here: that is a catalogue, and Stellarium does it better.
 
 None of which helps if you do not know the words. "On the far side of Polaris
 from the Plough" is a perfectly good direction and useless to somebody who knows
-neither, so there is a guide, under Settings: the landmarks every direction in
+neither, so there is a guide, a page under "Screen and reference" in Settings: the landmarks every direction in
 the app is measured from, the vocabulary the rest of the app uses - magnitude,
 opposition, occultation, radiant, umbra - and the part nobody tells you, which
 is that your eyes take twenty minutes to adapt to the dark and an aurora rarely

@@ -82,11 +82,7 @@ fun ChecksSheet(state: MainUiState, actions: UiActions, onDismiss: () -> Unit) {
             // the useful warnings ignored.
             if (state.powerSaveMode) {
                 Text(
-                    "Battery saver is on. Gloaming is allowed to run in the background " +
-                        "anyway" +
-                        (if (state.batteryExempt) "" else " only once you allow background checks") +
-                        ", but battery saver is the first thing to suspect if " +
-                        "checks stop landing overnight. Watching tonight is not affected by it.",
+                    batterySaverNote(state.batteryExempt),
                     style = MaterialTheme.typography.bodySmall,
                     color = palette.alarm,
                 )
@@ -102,6 +98,16 @@ fun ChecksSheet(state: MainUiState, actions: UiActions, onDismiss: () -> Unit) {
         }
     }
 }
+
+/**
+ * What to say while battery saver is on, here and on the Background checks page.
+ */
+internal fun batterySaverNote(batteryExempt: Boolean): String =
+    "Battery saver is on. Gloaming is allowed to run in the background " +
+        "anyway" +
+        (if (batteryExempt) "" else " only once you allow background checks") +
+        ", but battery saver is the first thing to suspect if " +
+        "checks stop landing overnight. Watching tonight is not affected by it."
 
 /**
  * What the app has downloaded, how old what it holds is, and what went wrong.
@@ -124,10 +130,23 @@ fun ChecksSheet(state: MainUiState, actions: UiActions, onDismiss: () -> Unit) {
 @Composable
 private fun DownloadsReport(state: MainUiState) {
     if (!worthReporting(state.downloads, state.checking)) return
+
+    DownloadLines(state, Modifier.testTag(DOWNLOADS_CARD_TAG))
+}
+
+/**
+ * The downloads, line by line: what is in flight, then each document with its
+ * held copy and last attempt.
+ *
+ * A row that is wrong is bold as well as in the alarm colour, so it still
+ * stands out in night vision, where every colour is a red.
+ */
+@Composable
+internal fun DownloadLines(state: MainUiState, modifier: Modifier = Modifier) {
     val palette = LocalPalette.current
 
     Column(
-        modifier = Modifier.testTag(DOWNLOADS_CARD_TAG),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         // Indeterminate, and honestly so: these are half a dozen small
@@ -161,6 +180,7 @@ private fun DownloadsReport(state: MainUiState) {
                     text = line,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (row.alarming) palette.alarm else palette.muted,
+                    fontWeight = if (row.alarming) FontWeight.Bold else null,
                 )
             }
         }

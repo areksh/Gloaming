@@ -392,9 +392,16 @@ is a file replacement.
 
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
   is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
-  Settings); the guide is not one, and is reached from a row in Settings.
-  Settings is a scrolling column through `ScrollingSection`, which holds the
-  padding and spacing the sections share. Tonight brings its own column,
+  Settings); the guide is not one, and is a Settings page.
+  Settings is an index (`SettingsIndex.kt`): `SettingsGroup`s, six questions
+  in order, each listing its `SettingsPage`s as rows that show the page's
+  current value (`summary`, with `summaryAlarming` marking the ones that report
+  something broken, drawn in the alarm colour and in bold so night vision still
+  shows them). A page's body is `SettingsPageContent` in `SettingsScreen.kt`.
+  The page back stack is one nullable page held in `GloamingNav`: system Back
+  returns to the index, and choosing a section on the bar, Settings included,
+  lands on its index. Both are scrolling columns through `ScrollingSection`,
+  which holds the padding and spacing the sections share. Tonight brings its own column,
   `TonightScreen`, with the same figures: a `PullToRefreshBox` whose pull runs
   a check, over the scroll, and the Watch tonight button pinned beneath it
   rather than scrolled. Its head is `TonightHeader` - a banner while

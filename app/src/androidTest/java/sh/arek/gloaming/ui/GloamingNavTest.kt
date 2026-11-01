@@ -3,6 +3,7 @@ package sh.arek.gloaming.ui
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.activity.ComponentActivity
 import androidx.test.espresso.Espresso
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -59,6 +60,7 @@ class GloamingNavTest {
         settings: UserSettings = located,
         calendar: List<SkyEvent> = listOf(eclipse),
         calendarLoading: Boolean = false,
+        batteryExempt: Boolean = true,
     ) {
         compose.setContent {
             GloamingNav(
@@ -69,7 +71,7 @@ class GloamingNavTest {
                     longitudeInput = "-3.19",
                     quietFromInput = "23:00",
                     quietUntilInput = "07:00",
-                    batteryExempt = true,
+                    batteryExempt = batteryExempt,
                     notificationsAllowed = true,
                     nowMillis = 1_800_000_000_000L,
                     calendar = calendar,
@@ -121,22 +123,79 @@ class GloamingNavTest {
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
 
-        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Where you are").assertIsDisplayed()
+    }
+
+    /** Each row says what its page is currently set to, before it is opened. */
+    @Test
+    fun theIndexShowsEachRowsCurrentValue() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Aurora)).performScrollTo()
+        compose.onNodeWithText("30% chance or more").assertIsDisplayed()
+    }
+
+    /** A page that is not working says so on its row, not only once opened. */
+    @Test
+    fun theIndexSaysWhenBackgroundChecksAreNotAllowed() {
+        show(batteryExempt = false)
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onNodeWithText("Not allowed. Overnight alerts will arrive hours late")
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    /** A row opens its page, and the way back returns to the index. */
+    @Test
+    fun aSettingsRowOpensItsPageAndBackReturns() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Aurora)).performScrollTo().performClick()
+
+        compose.onNodeWithTag(SETTINGS_PAGE_TITLE_TAG).assertTextEquals("Aurora")
+        compose.onNodeWithText("Alert above: 30% local probability", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        compose.onNodeWithTag(SETTINGS_BACK_TAG).performClick()
+
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Aurora)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithTag(SETTINGS_PAGE_TITLE_TAG).assertCountEquals(0)
+    }
+
+    /** No page is a dead end: each opens, and each can be left for the index. */
+    @Test
+    fun everyPageOpensAndCanBeLeft() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        for (page in SettingsPage.entries) {
+            compose.onNodeWithTag(settingsRowTag(page)).performScrollTo().performClick()
+            compose.onNodeWithTag(SETTINGS_PAGE_TITLE_TAG).assertTextEquals(page.title)
+            compose.onNodeWithTag(SETTINGS_BACK_TAG).performClick()
+            compose.onAllNodesWithTag(SETTINGS_PAGE_TITLE_TAG).assertCountEquals(0)
+        }
     }
 
     /**
-     * The guide is reached from Settings, and is the same every night.
+     * The guide is a page under Settings, and is the same every night.
      *
      * It is the one screen here that needs no location, no forecast and no
      * network, which is why it is worth having somewhere to send a reader who
      * has not set any of that up yet.
      */
     @Test
-    fun theGuideIsReachedFromSettings() {
+    fun theGuideIsASettingsPage() {
         show()
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Guide)).performScrollTo().performClick()
 
         compose.onNodeWithText("Finding your way round the sky")
             .performScrollTo()
@@ -153,7 +212,7 @@ class GloamingNavTest {
         show(settings = UserSettings(), calendar = emptyList())
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Guide)).performScrollTo().performClick()
 
         compose.onNodeWithText("The Plough").performScrollTo().assertIsDisplayed()
     }
@@ -167,56 +226,58 @@ class GloamingNavTest {
         compose.onAllNodesWithTag("nav-guide").assertCountEquals(0)
     }
 
-    /** Leaving the guide returns to Settings, not to somewhere else. */
+    /** System Back from a page returns to the index rather than leaving the app. */
     @Test
-    fun theGuideReturnsToSettings() {
+    fun systemBackLeavesAPageForTheIndex() {
         show()
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
-        compose.onNodeWithTag(GUIDE_BACK_TAG).performClick()
-
-        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
-    }
-
-    /** System Back from the guide returns to Settings rather than leaving the app. */
-    @Test
-    fun systemBackLeavesTheGuideForSettings() {
-        show()
-
-        compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Guide)).performScrollTo().performClick()
         compose.waitForIdle()
         Espresso.pressBack()
 
-        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
-        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithTag(SETTINGS_BACK_TAG).assertCountEquals(0)
     }
 
-    /** Tapping Settings while the guide is open shows the Settings index again. */
+    /** Backing out of one page leaves the next row as openable as the first. */
     @Test
-    fun tappingSettingsWhileInTheGuideShowsTheIndex() {
+    fun aPageCanBeReopenedAfterSystemBack() {
         show()
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
-        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Aurora)).performScrollTo().performClick()
+        compose.waitForIdle()
+        Espresso.pressBack()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Comets)).performScrollTo().performClick()
 
-        compose.onNodeWithText("Location").performScrollTo().assertIsDisplayed()
-        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
+        compose.onNodeWithTag(SETTINGS_PAGE_TITLE_TAG).assertTextEquals("Comets")
     }
 
-    /** Leaving Settings for another section and returning does not reopen the guide. */
+    /** Tapping Settings while a page is open shows the Settings index again. */
     @Test
-    fun switchingSectionsResetsTheGuide() {
+    fun tappingSettingsWhileOnAPageShowsTheIndex() {
         show()
 
         compose.onNodeWithTag(Section.Settings.tag).performClick()
-        compose.onNodeWithTag(GUIDE_ROW_TAG).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Guide)).performScrollTo().performClick()
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo().assertIsDisplayed()
+        compose.onAllNodesWithTag(SETTINGS_BACK_TAG).assertCountEquals(0)
+    }
+
+    /** Leaving Settings for another section and returning does not reopen a page. */
+    @Test
+    fun switchingSectionsResetsTheOpenPage() {
+        show()
+
+        compose.onNodeWithTag(Section.Settings.tag).performClick()
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Guide)).performScrollTo().performClick()
         compose.onNodeWithTag(Section.Tonight.tag).performClick()
         compose.onNodeWithTag(Section.Settings.tag).performClick()
 
-        compose.onAllNodesWithTag(GUIDE_BACK_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(SETTINGS_BACK_TAG).assertCountEquals(0)
     }
 
     /**
