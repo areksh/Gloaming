@@ -99,11 +99,11 @@ class ScreenResultsTest {
      * `advanceUntilIdle` leaves alone. A run left waiting at the end of a
      * test is simply abandoned with the scope.
      */
-    private fun TestScope.results(snapshots: TonightSnapshots? = null) = ScreenResults(
+    private fun TestScope.results(snapshots: TonightSnapshots? = null, prefetch: Boolean = true) = ScreenResults(
         CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler) + escaped),
         snapshots = snapshots,
         clock = { NOW },
-    )
+    ).also { if (prefetch) it.prefetchSnapshot() }
 
     /** Keeps the snapshot in memory, and counts what was asked of it. */
     private class MemorySnapshots(var held: TonightSnapshot? = null) : TonightSnapshots {
@@ -655,23 +655,68 @@ class ScreenResultsTest {
     }
 
     @Test
-    fun `a snapshot never overwrites a night already worked out`() = runTest {
-        val snapshots = MemorySnapshots()
-        val results = results(snapshots)
+    fun `a snapshot read after a run has landed never overwrites it`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)), prefetch = false)
         land(results)
-        results.ensureTonight(tonightKey(threshold = 30)) { night(1) }
+        results.ensureTonight(tonightKey()) { night(1) }
         advanceUntilIdle()
-        snapshots.held = snapshot(7)
+
+        results.prefetchSnapshot()
+        advanceUntilIdle()
+
+        assertEquals(1L, results.tonight?.darkFrom)
+        assertFalse(results.tonightUpdating)
+    }
+
+    @Test
+    fun `a snapshot read while the first run is under way is shown, and the run then replaces it`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)), prefetch = false)
+        land(results)
         val gate = CompletableDeferred<Unit>()
-
-        results.ensureTonight(tonightKey(threshold = 50)) { gate.await(); night(2) }
+        results.ensureTonight(tonightKey()) { gate.await(); night(1) }
         runCurrent()
+        assertNull(results.tonight)
 
+        results.prefetchSnapshot()
+        runCurrent()
+        assertEquals(7L, results.tonight?.darkFrom)
+        assertTrue(results.tonightUpdating)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
         assertEquals(1L, results.tonight?.darkFrom)
     }
 
     @Test
-    fun `the snapshot is read only on the first ask`() = runTest {
+    fun `a first ask with no position does not stop a later one being seeded`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7)))
+        land(results, calendarKey(place = null))
+        val gate = CompletableDeferred<Unit>()
+        results.ensureTonight(tonightKey(place = null)) { gate.await(); null }
+        runCurrent()
+        assertNull(results.tonight)
+
+        land(results)
+        results.ensureTonight(tonightKey()) { gate.await(); night(8) }
+        runCurrent()
+
+        assertEquals(7L, results.tonight?.darkFrom)
+    }
+
+    @Test
+    fun `a snapshot is shown for whichever cell it matches, not only the usual one`() = runTest {
+        val results = results(MemorySnapshots(snapshot(7, cell = GridCell.of(london.first, london.second))))
+        land(results, calendarKey(london))
+        val gate = CompletableDeferred<Unit>()
+
+        results.ensureTonight(tonightKey(london)) { gate.await(); night(8) }
+        runCurrent()
+
+        assertEquals(7L, results.tonight?.darkFrom)
+    }
+
+    @Test
+    fun `the snapshot is read once, however many nights are asked for`() = runTest {
         val snapshots = MemorySnapshots()
         val results = results(snapshots)
         land(results)

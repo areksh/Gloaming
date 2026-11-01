@@ -22,8 +22,8 @@ import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
-import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.data.BootAware
 import sh.arek.gloaming.data.DeviceFix
 import sh.arek.gloaming.data.GridCell
 import sh.arek.gloaming.data.LocationCadence

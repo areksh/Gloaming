@@ -519,9 +519,12 @@ is a file replacement.
   seconds the first night takes, so each finished run also writes
   `tonight-snapshot.json` (`data.TonightSnapshots`: the list, outlook, hourly
   cover and timeline, keyed by grid cell and by the end of the night, written
-  by temporary file and rename) and the first ask of an empty holder seeds
-  from it when it is for the same cell and the night is not over, marked as
-  updating. It is never read over a night already worked out in the process.
+  by temporary file and rename) and the holder reads it in its own scope as it
+  is made (about 110 KB, a third of a second cold on a Pixel 8a, off the main
+  thread and outside the lock), then seeds from it when it is for the cell
+  asked for and the night is not over, marked as updating. It is never shown
+  over a night already worked out in the process, however late it is read,
+  and writes happen outside the lock, stamped so none lands out of order.
   The file lives in `Context.filesDir`, which is credential-encrypted, and
   never in device-encrypted storage: it is derived from the precise position,
   which `BootAware` keeps out of anything readable before first unlock. A

@@ -1,5 +1,6 @@
 package sh.arek.gloaming.data
 
+import android.util.Log
 import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -107,15 +108,19 @@ class FileTonightSnapshots(private val dir: File) : TonightSnapshots {
             dir.mkdirs()
             val temporary = File(dir, "$FILE_NAME.tmp")
             temporary.writeText(json.encodeToString(TonightSnapshot.serializer(), snapshot))
-            if (!temporary.renameTo(file)) temporary.delete()
-        }
+            if (!temporary.renameTo(file)) {
+                temporary.delete()
+                Log.w(TAG, "could not move the new snapshot into place")
+            }
+        }.onFailure { Log.w(TAG, "could not write the snapshot", it) }
     }
 
     override fun clear() {
-        runCatching { file.delete() }
+        runCatching { file.delete() }.onFailure { Log.w(TAG, "could not delete the snapshot", it) }
     }
 
     private companion object {
         const val FILE_NAME = "tonight-snapshot.json"
+        const val TAG = "Gloaming"
     }
 }

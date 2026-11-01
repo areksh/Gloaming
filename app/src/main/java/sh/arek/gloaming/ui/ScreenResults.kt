@@ -177,17 +177,15 @@ data class TonightKey(
  * flight for ever.
  *
  * A cold process has nothing to show for the twenty seconds the first night
- * takes, so the first [ensureTonight] seeds the holder from [snapshots], the
- * last night worked out, if it is for this cell and not yet over, and shows it
- * as updating. That happens once and only into an empty holder, so a snapshot
- * never replaces a night worked out in this process. Each run that lands
- * writes the next snapshot, under the same lock and generation check as its
- * publishing, so a replaced run writes nothing; a run with no night clears it.
- *
- * The properties are Compose state, so the screen follows them. They are
- * written from the caller's thread and from [scope]'s, always under one lock
- * and each run's results in one snapshot, so a frame never shows a list from
- * one run beside an outlook from another.
+ * takes, so [prefetchSnapshot] reads [snapshots], the last night worked out,
+ * in [scope] - never on the caller's thread, and not under the lock - and the
+ * night is shown, as updating, once it has been read and an [ensureTonight]
+ * has said which cell it is for: when the snapshot is for that cell and not
+ * yet over. It is shown only into an empty holder, so a snapshot never
+ * replaces a night worked out in this process, however late it is read. Each
+ * run that lands writes the next snapshot after its results are published,
+ * outside the lock; a replaced run writes nothing, and writes never go out of
+ * order. A run with no night clears it.
  */
 class ScreenResults(
     private val scope: CoroutineScope,
@@ -262,8 +260,16 @@ class ScreenResults(
     /** The grid cell the night on show was worked out for. */
     private var nightCell: GridCell? = null
 
-    /** Whether [snapshots] has been looked at: it is, once, by the first [ensureTonight]. */
-    private var seedTried = false
+    /** The snapshot read by [prefetchSnapshot], waiting for a cell to be asked for. */
+    private var kept: TonightSnapshot? = null
+    private var prefetched = false
+
+    /** The cell of the latest [ensureTonight]; null before the first, or for one with no position. */
+    private var askedCell: GridCell? = null
+
+    /** Stamps each snapshot write so that an older one, overtaken, is dropped. */
+    private val writeStamp = AtomicInteger()
+    private val writing = Any()
 
     /**
      * Works both out again from scratch, even with nothing they depend on
@@ -370,7 +376,8 @@ class ScreenResults(
                 }
                 return
             }
-            seedFromSnapshot(key)
+            askedCell = key.cell
+            seedFromSnapshot()
             tonightJob?.cancel()
             val generation = ++tonightGeneration
             tonightInFlight = key
@@ -393,7 +400,7 @@ class ScreenResults(
                     val events = landed.filterNotNull().first { it.key == key.calendar }.events
                     tonightCount.incrementAndGet()
                     val worked = work(events)
-                    synchronized(lock) {
+                    val persist = synchronized(lock) {
                         if (generation != tonightGeneration) return@launch
                         Snapshot.withMutableSnapshot {
                             tonight = worked?.list
@@ -407,8 +414,10 @@ class ScreenResults(
                         tonightShown = key
                         tonightInFlight = null
                         tonightJob = null
-                        keep(worked, key.cell)
+                        kept = null
+                        prepareKeep(worked, key.cell)
                     }
+                    persist?.invoke()
                 } finally {
                     // Work that threw: the night on show stays, but it is no
                     // longer updating, and the same key may be asked for again.
@@ -425,42 +434,73 @@ class ScreenResults(
     }
 
     /**
-     * Under [lock]. Shows the last night worked out, once, when the holder is
-     * empty and the snapshot is for this key's cell and a night not yet over.
+     * Reads the last night worked out, once, in [scope]. Called when the
+     * holder is made, so the read is under way before anything asks for a
+     * night. The decode takes no lock: it is the last stage that is locked.
      */
-    private fun seedFromSnapshot(key: TonightKey) {
-        if (seedTried) return
-        seedTried = true
-        val cell = key.cell ?: return
-        if (tonight != null) return
-        val kept = runCatching { snapshots?.read() }.getOrNull() ?: return
-        if (!kept.usable(cell, clock())) return
+    fun prefetchSnapshot() {
+        val store = snapshots ?: return
+        synchronized(lock) {
+            if (prefetched) return
+            prefetched = true
+        }
+        scope.launch {
+            val read = runCatching { store.read() }.getOrNull()
+            synchronized(lock) {
+                kept = read
+                seedFromSnapshot()
+            }
+        }
+    }
+
+    /**
+     * Under [lock]. Shows the snapshot read, once, when nothing has been
+     * shown or worked out yet and it is for the cell last asked for and a
+     * night not yet over. Tried again by each ask until a run lands, because
+     * the read can finish before or after the first ask, and the first ask can
+     * be for no position.
+     */
+    private fun seedFromSnapshot() {
+        val snapshot = kept ?: return
+        val cell = askedCell ?: return
+        if (tonight != null || tonightShown != null) return
+        if (!snapshot.usable(cell, clock())) return
+        kept = null
         Snapshot.withMutableSnapshot {
-            tonight = kept.list
-            outlook = kept.outlook
-            hourly = kept.hourly
-            timeline = kept.timeline
+            tonight = snapshot.list
+            outlook = snapshot.outlook
+            hourly = snapshot.hourly
+            timeline = snapshot.timeline
+            tonightUpdating = true
         }
         nightCell = cell
     }
 
-    /** Under [lock]. Keeps [worked] for the next cold start, or forgets the last one when there is none. */
-    private fun keep(worked: WorkedNight?, cell: GridCell?) {
-        val store = snapshots ?: return
-        runCatching {
-            if (worked == null || cell == null) {
-                store.clear()
-            } else {
-                store.write(
-                    TonightSnapshot.of(
-                        cell = cell,
-                        writtenAt = clock(),
-                        list = worked.list,
-                        outlook = worked.report,
-                        hourly = worked.forecast,
-                        timeline = worked.timeline,
-                    ),
-                )
+    /**
+     * Under [lock]. What to write for [worked] - or to clear, when there is no
+     * night - as work to do after the lock is let go. Stamped, so a write
+     * overtaken by a later run's is dropped rather than landing after it.
+     */
+    private fun prepareKeep(worked: WorkedNight?, cell: GridCell?): (() -> Unit)? {
+        val store = snapshots ?: return null
+        val stamp = writeStamp.incrementAndGet()
+        val snapshot = if (worked == null || cell == null) {
+            null
+        } else {
+            TonightSnapshot.of(
+                cell = cell,
+                writtenAt = clock(),
+                list = worked.list,
+                outlook = worked.report,
+                hourly = worked.forecast,
+                timeline = worked.timeline,
+            )
+        }
+        return {
+            synchronized(writing) {
+                if (stamp == writeStamp.get()) {
+                    if (snapshot == null) store.clear() else store.write(snapshot)
+                }
             }
         }
     }

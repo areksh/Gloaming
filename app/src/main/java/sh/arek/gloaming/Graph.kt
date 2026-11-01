@@ -2,6 +2,7 @@ package sh.arek.gloaming
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import java.io.File
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -371,7 +372,7 @@ object Graph {
         return ScreenResults(
             CoroutineScope(SupervisorJob() + Dispatchers.Default + logged),
             snapshots = tonightSnapshots(context),
-        )
+        ).also { it.prefetchSnapshot() }
     }
 
     /** One instance per process, made on first use. */
@@ -384,6 +385,7 @@ object Graph {
      * seeds itself from the snapshot again, as a cold start does. Instrumented
      * tests only; the old holder's run, if any, is left to finish unseen.
      */
+    @VisibleForTesting
     @Synchronized
     fun resetScreenResultsForTest() {
         screenResults = null
