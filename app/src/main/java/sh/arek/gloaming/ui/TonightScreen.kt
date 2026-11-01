@@ -111,6 +111,10 @@ fun TonightContent(
     TonightHeader(state, actions, onOpenChecks = { showChecks = true })
 
     val located = state.settings.hasLocation
+    // Never an empty night: the first one on an open takes several seconds.
+    if (located && state.tonight == null && state.tonightUpdating) {
+        Text(WORKING_OUT_TONIGHT, style = MaterialTheme.typography.bodyLarge, color = palette.muted)
+    }
     val timeline = state.timeline?.takeIf { located }?.let { drawn ->
         // The night is laid out every quarter of an hour; the line at now
         // follows the screen's own minute.

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +38,18 @@ const val ALERT_BANNER_TAG = "alert-banner"
 /** The opening sentence. */
 const val OUTLOOK_HEADLINE_TAG = "outlook-headline"
 
+/** The progress bar under the status line while tonight is being worked out. */
+const val TONIGHT_UPDATING_TAG = "tonight-updating"
+
+/** What the status line says under it while tonight is being worked out. */
+const val TONIGHT_UPDATING = "Updating..."
+
+/**
+ * What stands in for the night, here and on Find, while there is none yet to
+ * show because it is still being worked out.
+ */
+const val WORKING_OUT_TONIGHT = "Working out tonight..."
+
 /**
  * The head of Tonight: how fresh things are, the date, and the outlook.
  *
@@ -47,6 +60,9 @@ const val OUTLOOK_HEADLINE_TAG = "outlook-headline"
  * allowed, a banner goes above it, because then the app cannot do the one
  * thing it is for. The line stays under the banner: a phone that cannot alert
  * is exactly the one whose downloads and last error somebody wants to see.
+ *
+ * While tonight is being worked out, a progress bar and "Updating..." go
+ * under the status line.
  *
  * Then the outlook: one sentence, decided by [sh.arek.gloaming.domain.Outlooks]
  * and worded by [OutlookWords], with nothing in its place until it has been
@@ -73,8 +89,22 @@ fun TonightHeader(state: MainUiState, actions: UiActions, onOpenChecks: () -> Un
         )
     }
     StatusLine(state, onOpenChecks)
+    if (state.tonightUpdating) UpdatingLine()
 
     OutlookLines(state)
+}
+
+/**
+ * That tonight is being worked out, which takes several seconds on a phone.
+ * Without it a screen that had not changed yet read as one that never would.
+ */
+@Composable
+private fun UpdatingLine() {
+    val palette = LocalPalette.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        LinearProgressIndicator(Modifier.fillMaxWidth().testTag(TONIGHT_UPDATING_TAG))
+        Text(TONIGHT_UPDATING, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+    }
 }
 
 /**
@@ -165,7 +195,8 @@ private fun AlertBanner(title: String, body: String, action: String, onAction: (
  *
  * Without a location the sentence slot asks for one, which is the only true
  * thing it could say. With one but no outlook yet it is left empty: the
- * outlook is worked out off the main thread and lands a moment later.
+ * outlook is worked out off the main thread, and until it lands the line
+ * under the status line and the night beneath say so.
  */
 @Composable
 private fun OutlookLines(state: MainUiState) {

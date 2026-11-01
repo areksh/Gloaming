@@ -88,7 +88,7 @@ private fun degreesUp(altitude: Double): String {
  * turning will find it.
  */
 fun findInstruction(fix: TargetFix?, guidance: Guidance?, tonightKnown: Boolean): String {
-    if (fix == null) return if (tonightKnown) "That one has gone for tonight." else "Working out tonight..."
+    if (fix == null) return if (tonightKnown) "That one has gone for tonight." else WORKING_OUT_TONIGHT
     if (fix.position == null) {
         return fix.risesAt?.let { "Not up until ${clock(it)}." } ?: "Cannot be pointed at now."
     }

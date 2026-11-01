@@ -2,6 +2,9 @@ package sh.arek.gloaming
 
 import android.content.Context
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import sh.arek.gloaming.calendar.AndroidCalendarWriter
 import sh.arek.gloaming.data.AlertStateStore
 import sh.arek.gloaming.data.AndroidCompassSource
@@ -44,6 +47,7 @@ import sh.arek.gloaming.net.ReportingFetcher
 import sh.arek.gloaming.notify.AndroidAuroraNotifier
 import sh.arek.gloaming.notify.AndroidEventNotifier
 import sh.arek.gloaming.notify.AndroidPassNotifier
+import sh.arek.gloaming.ui.ScreenResults
 import sh.arek.gloaming.work.AndroidPassFollower
 import sh.arek.gloaming.work.StormService
 
@@ -339,4 +343,17 @@ object Graph {
     /** The phone's own position, for the background refresh. See [AndroidLocationSource]. */
     fun locationSource(context: Context): LocationSource =
         AndroidLocationSource(context.applicationContext)
+
+    /**
+     * Tonight and the year ahead as the screen shows them, one for the life of
+     * the process so a rotation or another open finds them rather than
+     * starting again. Their own scope, on the default dispatcher: a run is
+     * several seconds of arithmetic, and nothing about a screen going away
+     * should stop it.
+     */
+    private val screenResults by lazy {
+        ScreenResults(CoroutineScope(SupervisorJob() + Dispatchers.Default))
+    }
+
+    fun screenResults(context: Context): ScreenResults = screenResults
 }

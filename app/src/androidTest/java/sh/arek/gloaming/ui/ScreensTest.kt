@@ -157,6 +157,7 @@ class ScreensTest {
         locationNote: String? = null,
         backgroundLocationAllowed: Boolean = false,
         tonight: TonightList? = null,
+        tonightUpdating: Boolean = false,
         outlook: OutlookReport? = null,
         timeline: Timeline? = null,
         calendarName: String? = null,
@@ -197,6 +198,7 @@ class ScreensTest {
                     locationNote = locationNote,
                     backgroundLocationAllowed = backgroundLocationAllowed,
                     tonight = tonight,
+                    tonightUpdating = tonightUpdating,
                     outlook = outlook,
                     timeline = timeline,
                     calendarName = calendarName,
@@ -696,6 +698,46 @@ class ScreensTest {
         show(outlook = null)
 
         compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * A night being worked out again says so under the status line, and the
+     * one already worked out stays up meanwhile.
+     */
+    @Test
+    fun saysItIsUpdatingWhileTheNightIsWorkedOutAgain() {
+        show(
+            tonight = quietNight(),
+            tonightUpdating = true,
+            outlook = leftOut(Excluded("Aurora", null, Gate.Aurora, note = "32")),
+        )
+
+        compose.onNodeWithText(TONIGHT_UPDATING).assertIsDisplayed()
+        compose.onNodeWithTag(TONIGHT_UPDATING_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertIsDisplayed()
+        compose.onNodeWithText(WORKING_OUT_TONIGHT).assertDoesNotExist()
+    }
+
+    /**
+     * With nothing worked out yet the night says it is being worked out,
+     * rather than leaving an empty screen that reads as a broken app. That
+     * empty screen lasted up to a minute on every open.
+     */
+    @Test
+    fun saysItIsWorkingTonightOutWhenThereIsNothingToShowYet() {
+        show(tonight = null, tonightUpdating = true)
+
+        compose.onNodeWithText(WORKING_OUT_TONIGHT).assertIsDisplayed()
+        compose.onNodeWithText(TONIGHT_UPDATING).assertIsDisplayed()
+    }
+
+    @Test
+    fun saysNothingAboutUpdatingOnceTheNightHasLanded() {
+        show(tonight = quietNight(), tonightUpdating = false)
+
+        compose.onNodeWithText(TONIGHT_UPDATING).assertDoesNotExist()
+        compose.onNodeWithTag(TONIGHT_UPDATING_TAG).assertDoesNotExist()
+        compose.onNodeWithText(WORKING_OUT_TONIGHT).assertDoesNotExist()
     }
 
     /**

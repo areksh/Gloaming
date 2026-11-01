@@ -79,19 +79,25 @@ data class MainUiState(
     val logSizeBytes: Long = 0L,
     /**
      * The year ahead, already computed. Held rather than derived on the fly
-     * because a year takes a quarter of a second to work out, which is far too
-     * long to spend in a composition.
+     * because a year takes several seconds to work out on a phone, which is
+     * far too long to spend in a composition.
      */
     val calendar: List<SkyEvent> = emptyList(),
     /**
-     * A strip of shaded nights for each month of that year, worked out in the
-     * same pass so the two never disagree about which days have an event.
+     * A strip of shaded nights for each month of that year, worked out from
+     * the same events so the two never disagree about which days have one,
+     * and landing after them.
      */
     val months: List<MonthStrip> = emptyList(),
     /** True while that computation is in flight, so the tab can say so. */
     val calendarLoading: Boolean = false,
     /** What there is to see between now and dawn, once it has been worked out. */
     val tonight: TonightList? = null,
+    /**
+     * True while tonight is being worked out, which takes several seconds on
+     * a phone, so Tonight can say so rather than sit empty or stale.
+     */
+    val tonightUpdating: Boolean = false,
     /**
      * The satellite elements [tonight] was worked out from, so Find can follow
      * a pass across the sky from the same copy rather than reading the cache

@@ -163,6 +163,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Check now also works tonight and the calendar out again.** Pressing Check
+  now, or pulling Tonight down, used to fetch fresh data and recalculate only
+  what that data changed. It now works tonight and the year ahead out again
+  from scratch as well, even when nothing they depend on has changed, showing
+  "Updating..." meanwhile - so there is one button for "look again", rather
+  than a second one for recalculating.
+
 - **Update now asks the phone for a fresh position when its last one is old.**
   It used to read only the last position the phone had recorded, and when there
   was none it told you to open a map app. Now a recorded position under ten
@@ -212,6 +219,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and set bearings say where to stand and are unchanged.
 
 ### Fixed
+
+- **Tonight no longer goes blank when you turn the phone, says when it is
+  updating, and is worked out once when you open the app.** Opening Gloaming
+  showed an empty Tonight, with nothing to say anything was happening, for up
+  to a minute: the night was worked out twice, first without the calendar and
+  then again with it, and the first pass could briefly open with a sentence
+  that knew nothing of the night's events. Turning the phone threw it all away
+  and started again. Now the night is worked out once, after the calendar, and
+  kept while the app is running, so turning the phone or coming back to the
+  app shows it at once. While it is being worked out a progress bar and
+  "Updating..." sit under the status line, and before the first one is ready
+  Tonight says "Working out tonight..." instead of showing nothing.
 
 - **Taking location away in Android's settings is now noticed when you come
   back.** Turning location off for Gloaming, or allowing it only while the app
