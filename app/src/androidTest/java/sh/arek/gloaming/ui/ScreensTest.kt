@@ -41,6 +41,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.BuildConfig
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.Darkness
@@ -679,6 +680,7 @@ class ScreensTest {
                 excluded = emptyList(),
                 auroraProbability = 12,
                 threshold = 40,
+                poleward = Compass.North,
             ),
         )
 
@@ -1991,6 +1993,7 @@ class ScreensTest {
         excluded = excluded.toList(),
         auroraProbability = 12,
         threshold = 40,
+        poleward = Compass.North,
     )
 
     private fun term(name: String) = Guide.TERMS.first { it.term == name }

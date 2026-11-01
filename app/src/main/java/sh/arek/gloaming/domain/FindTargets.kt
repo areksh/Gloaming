@@ -1,6 +1,7 @@
 package sh.arek.gloaming.domain
 
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Constellation
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.SkyBody
@@ -109,8 +110,8 @@ object FindTargets {
     private const val PLOUGH = "Ursa Major"
     private const val MORE_PATTERNS = 3
 
-    /** Where aurora is looked for: due north, low down. */
-    private val AURORA_POSITION = AltAz(altitude = 10.0, azimuth = 0.0)
+    /** How high aurora is looked for: low down, over the poleward horizon. */
+    private const val AURORA_ALTITUDE = 10.0
 
     /** How many rise searches have run; read by tests to show the memo works. */
     @Volatile
@@ -247,15 +248,24 @@ object FindTargets {
         )
         is FindTarget.Pattern -> Constellations.WATCHED.firstOrNull { it.name == target.name }
             ?.let { patternFix(it, latitude, longitude, nowMillis) }
-        FindTarget.Aurora -> TargetFix(
+        FindTarget.Aurora -> auroraFix(latitude)
+        is FindTarget.Pass -> passFix(target, list, elements, latitude, longitude, nowMillis)
+    }
+
+    /** Aurora is looked for low over the horizon of the nearer pole: due north, or due south below the equator. */
+    private fun auroraFix(latitude: Double): TargetFix {
+        val towards = Compass.polewardOf(latitude)
+        val azimuth = if (towards == Compass.North) 0.0 else 180.0
+        val side = if (towards == Compass.North) "northern" else "southern"
+        return TargetFix(
             label = "Aurora",
-            position = AURORA_POSITION,
+            position = AltAz(altitude = AURORA_ALTITUDE, azimuth = azimuth),
             risesAt = null,
             riseAzimuth = null,
-            recognise = "North, low down. A pale glow or a faint arc along the northern horizon; " +
+            recognise = "${towards.label.replaceFirstChar { it.uppercaseChar() }}, low down. " +
+                "A pale glow or a faint arc along the $side horizon; " +
                 "a camera shows more of it than your eye will.",
         )
-        is FindTarget.Pass -> passFix(target, list, elements, latitude, longitude, nowMillis)
     }
 
     private fun patternFix(c: Constellation, latitude: Double, longitude: Double, nowMillis: Long) =

@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.Conditions
@@ -67,6 +68,7 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
         cloud: CloudCover?,
         threshold: Int?,
         clearUntil: Long?,
+        towards: Compass,
     ) {
         ensureChannel()
 
@@ -86,7 +88,7 @@ class AndroidAuroraNotifier(private val context: Context) : AuroraNotifier {
 
         // The same words the Tonight screen opens with, so the alert and the
         // screen it opens never tell two stories.
-        val outlook = OutlookWords.auroraAlert(likelihood.probability, clearUntil)
+        val outlook = OutlookWords.auroraAlert(likelihood.probability, clearUntil, towards)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_AURORA)
             .setSmallIcon(R.drawable.ic_notification_aurora)

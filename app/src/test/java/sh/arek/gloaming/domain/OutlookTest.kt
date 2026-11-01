@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.EventKind
@@ -227,6 +228,15 @@ class OutlookTest {
         val report = Outlooks.of(tonight(), input(settings = UserSettings()))
 
         assertEquals(Outlook.NoLocation, report.outlook)
+    }
+
+    @Test
+    fun `points the aurora and noctilucent clouds towards the nearer pole`() {
+        val north = Outlooks.of(tonight(), input())
+        val south = Outlooks.of(tonight(), input(settings = settings.copy(latitude = -45.87, longitude = 170.5)))
+
+        assertEquals(Compass.North, north.poleward)
+        assertEquals(Compass.South, south.poleward)
     }
 
     @Test

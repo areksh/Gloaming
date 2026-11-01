@@ -55,9 +55,9 @@ object OutlookWords {
         is Outlook.AuroraNow ->
             if (outlook.conditional) {
                 "If it is clear, aurora is likely now: ${outlook.probability}% here. " +
-                    "Look north, low down."
+                    "Look ${report.poleward.label}, low down."
             } else {
-                auroraAlert(outlook.probability, outlook.clearUntil)
+                auroraAlert(outlook.probability, outlook.clearUntil, report.poleward)
             }
         is Outlook.NoNight ->
             "It does not get properly dark tonight. " +
@@ -88,7 +88,8 @@ object OutlookWords {
             "It can fade within the hour. Watch tonight keeps checking every " +
                 "${StormMode.POLL_MINUTES} minutes."
         is Outlook.NoNight ->
-            "Noctilucent clouds are possible low in the north tonight.".takeIf { outlook.noctilucent }
+            "Noctilucent clouds are possible low in the ${report.poleward.label} tonight."
+                .takeIf { outlook.noctilucent }
         is Outlook.Overcast -> overcastFollow(outlook, nowMillis)
         is Outlook.GoOut ->
             if (moonSpoils(report) != null) stillWorthALook(outlook.picks) else auroraLine(report)
@@ -130,10 +131,13 @@ object OutlookWords {
             }
     }
 
-    /** The alert for an aurora that is likely and clear now; the same words as the headline. */
-    fun auroraAlert(probability: Int, clearUntil: Long?): String {
+    /**
+     * The alert for an aurora that is likely and clear now; the same words as
+     * the headline. [towards] is the observer's nearer pole.
+     */
+    fun auroraAlert(probability: Int, clearUntil: Long?, towards: Compass): String {
         val until = clearUntil?.let { ", while it stays clear until ${clock(it)}" } ?: ""
-        return "Aurora likely now: $probability% here. Look north, low down$until."
+        return "Aurora likely now: $probability% here. Look ${towards.label}, low down$until."
     }
 
     private fun goOut(outlook: Outlook.GoOut): String {

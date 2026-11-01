@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.EventKind
@@ -94,7 +95,7 @@ class TonightListsTest {
     )
 
     private fun report(vararg excluded: Excluded) =
-        OutlookReport(Outlook.Quiet(now, null, false), excluded.toList(), 12, 40)
+        OutlookReport(Outlook.Quiet(now, null, false), excluded.toList(), 12, 40, Compass.North)
 
     private fun timeline(vararg rows: TimelineRow) =
         Timeline(now - hour, now + 14 * hour, rows.toList(), emptyList(), emptyList(), now)

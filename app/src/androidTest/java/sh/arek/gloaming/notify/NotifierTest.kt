@@ -14,6 +14,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import sh.arek.gloaming.MainActivity
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.Visibility
@@ -101,7 +102,7 @@ class NotifierTest {
      */
     @Test
     fun tappingTheAlertOpensTheApp() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -123,7 +124,8 @@ class NotifierTest {
      */
     @Test
     fun theAlertAsksWhetherItWasWorthIt() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+        AndroidAuroraNotifier(context)
+            .notifyAurora(ovation(72), status, clear, threshold = 30, towards = Compass.North)
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -141,7 +143,8 @@ class NotifierTest {
      */
     @Test
     fun theAlertDoesNotCarryAThirdVerdictButton() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, threshold = 30)
+        AndroidAuroraNotifier(context)
+            .notifyAurora(ovation(72), status, clear, threshold = 30, towards = Compass.North)
 
         val labels = postedAlert()!!.notification.actions.orEmpty().map { it.title.toString() }
         assertEquals(
@@ -249,7 +252,7 @@ class NotifierTest {
     @Test
     fun anAuroraAlertCarriesFindItAimedAtTheAurora() {
         try {
-            AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+            AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
 
             val posted = postedAlert()
             assertNotNull("the alert was never posted", posted)
@@ -299,7 +302,7 @@ class NotifierTest {
 
     @Test
     fun postingCreatesTheAuroraChannel() {
-        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear)
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.North)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = manager.getNotificationChannel(AndroidAuroraNotifier.CHANNEL_AURORA)
@@ -317,7 +320,9 @@ class NotifierTest {
     fun theAlertOpensWithTheOutlookAndKeepsTheFiguresInTheExpandedText() {
         val until = 1_800_000_000_000L
         AndroidAuroraNotifier(context)
-            .notifyAurora(ovation(72), status, clear, threshold = 30, clearUntil = until)
+            .notifyAurora(
+                ovation(72), status, clear, threshold = 30, clearUntil = until, towards = Compass.North,
+            )
 
         val posted = postedAlert()
         assertNotNull("the alert was never posted", posted)
@@ -326,11 +331,24 @@ class NotifierTest {
         val expanded = extras.getCharSequence(android.app.Notification.EXTRA_BIG_TEXT).toString()
 
         // The spell's end reaches the words, in the exact form the screen uses.
-        val outlook = OutlookWords.auroraAlert(72, until)
+        val outlook = OutlookWords.auroraAlert(72, until, Compass.North)
         assertTrue(outlook, outlook.contains("while it stays clear until"))
         assertEquals(outlook, collapsed)
         assertTrue(expanded, expanded.startsWith("$outlook\n"))
         assertTrue(expanded, expanded.contains("Local probability 72%, clear"))
+    }
+
+    /** Below the equator the alert sends the observer south. */
+    @Test
+    fun theAlertSaysWhichWayToLookByHemisphere() {
+        AndroidAuroraNotifier(context).notifyAurora(ovation(72), status, clear, towards = Compass.South)
+
+        val posted = postedAlert()
+        assertNotNull("the alert was never posted", posted)
+        val collapsed = posted!!.notification.extras
+            .getCharSequence(android.app.Notification.EXTRA_TEXT).toString()
+        assertEquals(OutlookWords.auroraAlert(72, null, Compass.South), collapsed)
+        assertTrue(collapsed, collapsed.contains("Look south"))
     }
 
     /**
@@ -344,13 +362,14 @@ class NotifierTest {
     fun postingNeverThrows() {
         val notifier = AndroidAuroraNotifier(context)
 
-        notifier.notifyAurora(ovation(0), status, clear)
-        notifier.notifyAurora(ovation(100), status, CloudCover(100, 100, 100, 100))
-        notifier.notifyAurora(uk(60), status, null)
+        notifier.notifyAurora(ovation(0), status, clear, towards = Compass.North)
+        notifier.notifyAurora(ovation(100), status, CloudCover(100, 100, 100, 100), towards = Compass.North)
+        notifier.notifyAurora(uk(60), status, null, towards = Compass.North)
         notifier.notifyAurora(
             ovation(55),
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
+            towards = Compass.North,
         )
         // No Kp, no Bz, no cloud and no threshold: every field the verdict
         // record wants is absent, which is the state a first poll after a
@@ -360,6 +379,7 @@ class NotifierTest {
             status.copy(aurorawatch = null, kp = null, solarWind = null),
             null,
             threshold = null,
+            towards = Compass.North,
         )
     }
 }

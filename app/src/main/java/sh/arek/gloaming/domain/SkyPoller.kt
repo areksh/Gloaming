@@ -1,6 +1,7 @@
 package sh.arek.gloaming.domain
 
 import java.util.Calendar
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.aurora.Likelihood
@@ -35,6 +36,7 @@ interface AuroraNotifier {
      *   what it meant on the night.
      * @param clearUntil where the clear spell now under way ends, or null when
      *   the forecast holds none - the alert then says nothing about cloud.
+     * @param towards which way to look: the observer's nearer pole.
      */
     fun notifyAurora(
         likelihood: Likelihood,
@@ -42,6 +44,7 @@ interface AuroraNotifier {
         cloud: CloudCover?,
         threshold: Int? = null,
         clearUntil: Long? = null,
+        towards: Compass,
     )
 }
 
@@ -187,6 +190,7 @@ class SkyPoller(
 
         notifier.notifyAurora(
             likelihood, status, cloud, user.threshold, clearUntil(user, latitude, longitude, at),
+            towards = Compass.polewardOf(latitude),
         )
         return Attempt(
             PollOutcome.Notified(probability),

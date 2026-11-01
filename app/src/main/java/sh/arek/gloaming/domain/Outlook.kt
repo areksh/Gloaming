@@ -2,6 +2,7 @@ package sh.arek.gloaming.domain
 
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
@@ -154,12 +155,15 @@ sealed interface Outlook {
  *
  * [auroraProbability] is the reading only while it is young enough to act on,
  * so the wording never quotes a figure from hours ago as if it were now.
+ * [poleward] is the way to the observer's nearer pole, where the aurora and
+ * noctilucent clouds are looked for; north where there is no position.
  */
 data class OutlookReport(
     val outlook: Outlook,
     val excluded: List<Excluded>,
     val auroraProbability: Int?,
     val threshold: Int,
+    val poleward: Compass,
 )
 
 /**
@@ -268,6 +272,7 @@ object Outlooks {
             excluded = excluded,
             auroraProbability = input.auroraProbability.takeIf { auroraFresh },
             threshold = settings.threshold,
+            poleward = settings.latitude?.let(Compass::polewardOf) ?: Compass.North,
         )
 
         if (settings.latitude == null || settings.longitude == null) {

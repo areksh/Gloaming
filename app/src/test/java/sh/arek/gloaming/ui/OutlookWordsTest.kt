@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
@@ -51,7 +52,8 @@ class OutlookWordsTest {
         excluded: List<Excluded> = emptyList(),
         aurora: Int? = null,
         threshold: Int = 40,
-    ) = OutlookReport(outlook, excluded, aurora, threshold)
+        poleward: Compass = Compass.North,
+    ) = OutlookReport(outlook, excluded, aurora, threshold, poleward)
 
     private fun planet(body: SkyBody, peakAt: Long, altitude: Double = 60.0, azimuth: Double = 180.0) =
         PlanetTonight(body, altitude, peakAt, azimuth, 0.5, null, null)
@@ -270,6 +272,37 @@ class OutlookWordsTest {
         assertEquals(
             "If it is clear, aurora is likely now: 65% here. Look north, low down.",
             OutlookWords.headline(r),
+        )
+    }
+
+    /** Below the equator the aurora is the aurora australis, low in the south. */
+    @Test
+    fun `aurora now sends an observer below the equator south`() {
+        val clear = report(
+            Outlook.AuroraNow(65, at("2026-12-14T01:30:00Z"), conditional = false),
+            poleward = Compass.South,
+        )
+        val conditional = report(Outlook.AuroraNow(65, null, conditional = true), poleward = Compass.South)
+
+        assertEquals(
+            "Aurora likely now: 65% here. Look south, low down, while it stays clear until 01:30.",
+            OutlookWords.headline(clear),
+        )
+        assertEquals(
+            "If it is clear, aurora is likely now: 65% here. Look south, low down.",
+            OutlookWords.headline(conditional),
+        )
+    }
+
+    @Test
+    fun `noctilucent clouds are looked for towards the nearer pole`() {
+        assertEquals(
+            "Noctilucent clouds are possible low in the north tonight.",
+            OutlookWords.follow(report(Outlook.NoNight(noctilucent = true)), now),
+        )
+        assertEquals(
+            "Noctilucent clouds are possible low in the south tonight.",
+            OutlookWords.follow(report(Outlook.NoNight(noctilucent = true), poleward = Compass.South), now),
         )
     }
 
@@ -579,8 +612,13 @@ class OutlookWordsTest {
     fun `the alert is the aurora headline`() {
         assertEquals(
             "Aurora likely now: 65% here. Look north, low down, while it stays clear until 01:30.",
-            OutlookWords.auroraAlert(65, at("2026-12-14T01:30:00Z")),
+            OutlookWords.auroraAlert(65, at("2026-12-14T01:30:00Z"), Compass.North),
         )
-        assertEquals("Aurora likely now: 65% here. Look north, low down.", OutlookWords.auroraAlert(65, null))
+        assertEquals("Aurora likely now: 65% here. Look north, low down.", OutlookWords.auroraAlert(65, null, Compass.North))
+    }
+
+    @Test
+    fun `the alert sends an observer below the equator south`() {
+        assertEquals("Aurora likely now: 65% here. Look south, low down.", OutlookWords.auroraAlert(65, null, Compass.South))
     }
 }

@@ -21,4 +21,13 @@ class CompassTest {
         assertEquals(Compass.West, Compass.of(-90.0))
         assertEquals(Compass.South, Compass.of(-180.0))
     }
+
+    /** The aurora and noctilucent clouds lie towards the nearer pole. */
+    @Test
+    fun `points to the nearer pole, north on the equator itself`() {
+        assertEquals(Compass.North, Compass.polewardOf(55.95))
+        assertEquals(Compass.North, Compass.polewardOf(0.0))
+        assertEquals(Compass.South, Compass.polewardOf(-0.1))
+        assertEquals(Compass.South, Compass.polewardOf(-45.87))
+    }
 }

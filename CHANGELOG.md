@@ -124,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is. Otherwise, and once the night is over, it says how old the reading is. The
   aurora alert's text now reads "Aurora likely now: 70% here. Look north, low
   down, while it stays clear until 02:00." with the probability source, cloud,
-  Kp and Bz moved behind the expand. The sentence is kept with the whole-degree
+  Kp and Bz moved behind the expand; below the equator it, Tonight and Find send
+  you south instead. The sentence is kept with the whole-degree
   grid cell it describes - in storage the phone can read before it is unlocked
   only while Alert before unlock is on, so the widget can show it then, and
   otherwise beside the location you typed; turning that option off deletes the

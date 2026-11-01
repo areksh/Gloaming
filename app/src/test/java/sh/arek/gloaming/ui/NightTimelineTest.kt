@@ -8,6 +8,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
@@ -86,7 +87,7 @@ class NightTimelineTest {
     )
 
     private fun report(outlook: Outlook = Outlook.NoLocation, excluded: List<Excluded> = emptyList()) =
-        OutlookReport(outlook, excluded, null, 40)
+        OutlookReport(outlook, excluded, null, 40, Compass.North)
 
     private fun build(
         list: TonightList,

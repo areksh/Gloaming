@@ -156,6 +156,17 @@ class FindTargetsTest {
         assertEquals(0.0, spot.azimuth, 0.0)
         assertEquals(10.0, spot.altitude, 0.0)
         assertEquals("North, low down", aurora.recognise.substringBefore('.'))
+        assertTrue(aurora.recognise, aurora.recognise.contains("northern horizon"))
+    }
+
+    @Test
+    fun `puts aurora low in the south for an observer below the equator`() {
+        val aurora = FindTargets.fix(FindTarget.Aurora, tonight(), elements, -45.87, 170.5, now)!!
+
+        assertEquals(180.0, aurora.position!!.azimuth, 0.0)
+        assertEquals(10.0, aurora.position.altitude, 0.0)
+        assertEquals("South, low down", aurora.recognise.substringBefore('.'))
+        assertTrue(aurora.recognise, aurora.recognise.contains("southern horizon"))
     }
 
     @Test

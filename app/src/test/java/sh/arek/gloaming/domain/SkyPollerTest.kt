@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.aurora.Likelihood
 import sh.arek.gloaming.aurora.OvalGrid
@@ -105,13 +106,18 @@ class SkyPollerTest {
         /** When the clear spell each alert was told about ends, if it was told of one. */
         val clearUntils = mutableListOf<Long?>()
 
+        /** Which way each alert said to look. */
+        val towards = mutableListOf<Compass>()
+
         override fun notifyAurora(
             likelihood: Likelihood,
             status: SkyStatus,
             cloud: CloudCover?,
             threshold: Int?,
             clearUntil: Long?,
+            towards: Compass,
         ) {
+            this.towards += towards
             clearUntils += clearUntil
             notified += likelihood.probability
             sources += likelihood.source
@@ -214,6 +220,24 @@ class SkyPollerTest {
 
         assertEquals(PollOutcome.Notified(70), result.outcome)
         assertEquals(listOf(70), notifier.notified)
+    }
+
+    @Test
+    fun `tells the aurora alert which way to look, by hemisphere`() = runTest {
+        val northern = Notifier()
+        val southern = Notifier()
+
+        poller(70, settingsAt(), State(), northern).poll()
+        poller(
+            70,
+            Settings(UserSettings(latitude = -45.87, longitude = 170.5, threshold = 30)),
+            State(),
+            southern,
+            gridCell = -46 to 171,
+        ).poll()
+
+        assertEquals(listOf(Compass.North), northern.towards)
+        assertEquals(listOf(Compass.South), southern.towards)
     }
 
     @Test
