@@ -48,6 +48,7 @@ private const val KEY_MINIMUM_ELEVATION = "minimum_pass_elevation_degrees"
 private const val KEY_LIVE_LEAD = "live_follow_lead_minutes"
 private const val KEY_LIVE_MAX = "live_follow_max_minutes"
 private const val KEY_LOG_RETENTION = "log_retention_days"
+private const val KEY_SETUP_DONE = "setup_done"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -287,6 +288,13 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 KEY_COMET_MOON,
                 UserSettings.DEFAULT_COMET_MOON_TOLERANCE,
             ),
+            // Absent means an install from before setup existed, which has
+            // been used only if it was given a position.
+            setupDone = if (prefs.contains(KEY_SETUP_DONE)) {
+                prefs.getBoolean(KEY_SETUP_DONE, false)
+            } else {
+                latitude != UNSET && longitude != UNSET
+            },
         )
     }
 
@@ -369,6 +377,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             putInt(KEY_COMET_ALTITUDE, settings.minimumCometAltitudeDegrees)
             putInt(KEY_COMET_STALE, settings.cometObservationStaleDays)
             putInt(KEY_COMET_MOON, settings.cometMoonTolerance)
+            putBoolean(KEY_SETUP_DONE, settings.setupDone)
         }.apply()
     }
 
@@ -439,6 +448,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_QUIET_END,
     KEY_QUIET_OVERRIDE,
     KEY_QUIET_START,
+    KEY_SETUP_DONE,
     KEY_STARRED_EVENTS,
     KEY_THRESHOLD,
     KEY_TRAIN_INTERVAL,

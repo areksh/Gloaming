@@ -52,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Tonight, with Share and Export. The kinds sit behind one "Showing 9 of 14
   kinds" button, and a "Starred only" chip narrows the list to what you have
   starred.
+- **A first-run setup asks for location, notifications and background
+  checks.** Opening Gloaming for the first time now walks through three
+  short steps - where you are (typed in or asked of the phone), whether it
+  may send notifications, and whether it may check the sky while the phone
+  sleeps - each with a Skip. Before, you landed on an empty Tonight and had
+  to find those controls in Settings. Anything skipped is still reported by
+  the banners on Tonight, and the same controls remain in Settings. Phones
+  that already hold a position are not asked again.
 - **A bottom bar.** Tonight, Ahead and Settings now sit on a bar at the foot
   of the screen, within thumb's reach. The calendar is now called Ahead, and
   the guide is no longer a tab of its own: it moves under Settings, as "Guide

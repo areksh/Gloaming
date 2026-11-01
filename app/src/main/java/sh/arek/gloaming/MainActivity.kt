@@ -84,7 +84,7 @@ import sh.arek.gloaming.share.ics
 import sh.arek.gloaming.share.icsFileName
 import sh.arek.gloaming.share.shareText
 import sh.arek.gloaming.ui.DownloadRow
-import sh.arek.gloaming.ui.GloamingNav
+import sh.arek.gloaming.ui.GloamingRoot
 import sh.arek.gloaming.ui.downloadRows
 import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.MonthStrip
@@ -999,7 +999,7 @@ private fun GloamingApp() {
             modifier = Modifier.fillMaxSize(),
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
-            GloamingNav(
+            GloamingRoot(
                 state = MainUiState(
                     settings = settings,
                     alertState = alertState,
@@ -1399,8 +1399,15 @@ private fun GloamingApp() {
                             )
                         }
                     },
+                    onSetupDone = {
+                        settings = settings.copy(setupDone = true)
+                        saveSettings(settings)
+                    },
                 ),
                 modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+                // A first look at the sky once the questions are answered, so
+                // Tonight is not empty the first time it is seen.
+                onSetupFinished = { checkNow() },
             )
         }
     }

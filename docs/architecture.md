@@ -390,6 +390,17 @@ is a file replacement.
   each row on Tonight's timeline opens (`helpTopic` picks the entries), so a
   term is worded once and shown in two places.
 
+  **First run is a setup flow, not a screen of its own.** `GloamingRoot`
+  (`Setup.kt`) shows `SetupFlow` until `UserSettings.setupDone`, and
+  `GloamingNav` after. The flow is three steps (`SetupStep`: location,
+  notifications - left out below Android 13 - and background checks), each
+  the Settings page for the same question rather than a copy of it, each
+  skippable; the step is `rememberSaveable` and system Back on a later step
+  goes to the one before. `setupDone` is stored with the other settings, and a
+  store with no record of it reads as "has a location", so an install from
+  before setup existed is not asked again. The device-encrypted mirror carries
+  it along and nothing reads it there.
+
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
   is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Ahead,
   Settings); the guide is not one, and is a Settings page.

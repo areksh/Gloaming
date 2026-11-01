@@ -125,6 +125,7 @@ class PreferenceStoresTest {
         minimumCometAltitudeDegrees = 25,
         cometObservationStaleDays = 30,
         cometMoonTolerance = 25,
+        setupDone = true,
     )
 
     @Test
@@ -219,6 +220,30 @@ class PreferenceStoresTest {
         assertNull(settings.quietHours)
         assertEquals(false, settings.quietHoursOverride)
         assertEquals(false, settings.nightVision)
+    }
+
+    @Test
+    fun `an existing install with a location counts as set up`() {
+        val prefs = FakeSharedPreferences()
+        // What an install from before first-run setup holds: a position, and
+        // no setup key at all.
+        PreferencesSettingsStore(prefs).write(UserSettings(latitude = 55.95, longitude = -3.19))
+        prefs.edit().remove("setup_done").apply()
+
+        assertTrue(PreferencesSettingsStore(prefs).read().setupDone)
+    }
+
+    @Test
+    fun `a fresh install is not set up`() {
+        assertEquals(false, settingsStore().read().setupDone)
+    }
+
+    @Test
+    fun `an explicit not-yet-set-up survives a location being saved`() {
+        val store = settingsStore()
+        store.write(UserSettings(latitude = 55.95, longitude = -3.19, setupDone = false))
+
+        assertEquals(false, store.read().setupDone)
     }
 
     @Test

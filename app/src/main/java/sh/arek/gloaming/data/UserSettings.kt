@@ -469,6 +469,17 @@ data class UserSettings(
      * recommending it.
      */
     val cometMoonTolerance: Int = DEFAULT_COMET_MOON_TOLERANCE,
+
+    /**
+     * Whether first-run setup has been walked through or skipped.
+     *
+     * Holds no position, so it lives wherever the rest of the settings do and
+     * the device-encrypted mirror carries it along unread: nothing that runs
+     * before first unlock consults it. A store with no record of it reads as
+     * [hasLocation], so an install from before setup existed, which had to be
+     * given a position to be of any use, is not walked through it again.
+     */
+    val setupDone: Boolean = false,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 

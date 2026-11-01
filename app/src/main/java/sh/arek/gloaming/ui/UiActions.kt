@@ -69,4 +69,5 @@ data class UiActions(
     val onPollNow: () -> Unit = {},
     val onRequestBatteryExemption: () -> Unit = {},
     val onRequestNotifications: () -> Unit = {},
+    val onSetupDone: () -> Unit = {},
 )
