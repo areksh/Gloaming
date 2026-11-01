@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -23,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.LocationCadence
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.NoCompass
 
 /** What first-run setup asks about, in the order it asks. */
@@ -85,6 +90,36 @@ fun SetupFlow(
         }
     }
 
+    // Background updates are offered at the moment the phone's location is
+    // switched on - the grant has just been given, and the reason for the next
+    // one is fresh. Only a change seen here counts: a switch that was already
+    // on when setup opened (a rotation, a restart) has been offered nothing.
+    val explainer = rememberCadenceExplainer(
+        state.backgroundLocationAllowed,
+        actions.onLocationCadenceChange,
+    )
+    val automatic = state.settings.locationMode == LocationMode.Automatic
+    var wasAutomatic by rememberSaveable { mutableStateOf(automatic) }
+    var offering by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(automatic) {
+        if (automatic && !wasAutomatic && step == SetupStep.Location &&
+            state.settings.locationCadence !is LocationCadence.Every
+        ) {
+            offering = true
+        }
+        wasAutomatic = automatic
+    }
+    if (offering) {
+        BackgroundUpdatesOffer(
+            onAccept = {
+                offering = false
+                explainer.pick(LocationCadence.Every(1))
+            },
+            onDecline = { offering = false },
+        )
+    }
+    CadenceExplainerDialog(explainer)
+
     val done = when (step) {
         SetupStep.Location -> state.settings.hasLocation
         SetupStep.Notifications -> state.notificationsAllowed
@@ -115,6 +150,37 @@ fun SetupFlow(
             ) { Text(if (last) "Skip and finish" else "Skip") }
         }
     }
+}
+
+const val OFFER_ACCEPT_TAG = "background-offer-accept"
+const val OFFER_DECLINE_TAG = "background-offer-decline"
+
+/**
+ * Asks once whether the position may be kept up to date in the background,
+ * leaving it off - the default - unless the answer is yes.
+ */
+@Composable
+internal fun BackgroundUpdatesOffer(onAccept: () -> Unit, onDecline: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDecline,
+        title = { Text("Keep your location up to date?") },
+        text = {
+            Text(
+                "Gloaming can refresh your position in the background, so alerts stay " +
+                    "right when you travel without opening the app.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onAccept, modifier = Modifier.testTag(OFFER_ACCEPT_TAG)) {
+                Text("Every hour")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDecline, modifier = Modifier.testTag(OFFER_DECLINE_TAG)) {
+                Text("Not now")
+            }
+        },
+    )
 }
 
 /**

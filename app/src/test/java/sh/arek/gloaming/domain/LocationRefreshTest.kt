@@ -36,10 +36,6 @@ class LocationRefreshTest {
             RefreshSkip.NotBackground,
             skip(due.copy(locationCadence = LocationCadence.OnOpen)),
         )
-        assertEquals(
-            RefreshSkip.NotBackground,
-            skip(due.copy(locationCadence = LocationCadence.Manual)),
-        )
         // The cadence is named ahead of a missing grant: it is the reason the
         // user can act on, and the grant does not matter for it.
         assertEquals(
@@ -108,7 +104,6 @@ class LocationRefreshTest {
     @Test
     fun `no alarm for cadences that do not run in the background`() {
         assertNull(LocationRefresh.nextAt(due.copy(locationCadence = LocationCadence.OnOpen), now))
-        assertNull(LocationRefresh.nextAt(due.copy(locationCadence = LocationCadence.Manual), now))
     }
 
     @Test

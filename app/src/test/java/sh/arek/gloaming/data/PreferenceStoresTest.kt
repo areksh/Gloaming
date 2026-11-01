@@ -277,6 +277,14 @@ class PreferenceStoresTest {
     }
 
     @Test
+    fun `reads a stored manual cadence as each time the app opens`() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putString("location_cadence", "manual").apply()
+
+        assertEquals(LocationCadence.OnOpen, PreferencesSettingsStore(prefs).read().locationCadence)
+    }
+
+    @Test
     fun `clamps stored interval hours to one through forty-eight`() {
         val prefs = FakeSharedPreferences()
         prefs.edit().putString("location_cadence", "every").putInt("location_cadence_hours", 500).apply()

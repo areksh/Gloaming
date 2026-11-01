@@ -1171,7 +1171,7 @@ class ScreensTest {
 
     /**
      * The promise is specific and has to be on the screen where it is made, not
-     * only in the store listing: roughly, and never the GPS, whichever cadence
+     * only in the store listing: roughly, and never logged, whichever cadence
      * is chosen.
      */
     @Test
@@ -1181,19 +1181,22 @@ class ScreensTest {
         compose.onNodeWithText("Approximate only", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
-        compose.onNodeWithText("never turns the GPS on", substring = true)
+        compose.onNodeWithText("Gloaming never logs where you are", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
     }
 
     /** A preset is reported as a request: asking Android for more is the caller's job. */
     @Test
-    fun choosingEverySixHoursAsksForThatCadence() {
-        show(settings = located.copy(locationMode = LocationMode.Automatic))
+    fun choosingEveryHourAsksForThatCadence() {
+        show(
+            settings = located.copy(locationMode = LocationMode.Automatic),
+            backgroundLocationAllowed = true,
+        )
 
-        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "6").performScrollTo().performClick()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().performClick()
 
-        assertEquals(LocationCadence.Every(6), cadence)
+        assertEquals(LocationCadence.Every(1), cadence)
     }
 
     @Test
@@ -1201,13 +1204,29 @@ class ScreensTest {
         show(
             settings = located.copy(
                 locationMode = LocationMode.Automatic,
+                locationCadence = LocationCadence.Every(1),
+            ),
+        )
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsNotSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsNotSelected()
+    }
+
+    /** An interval the presets miss is the custom row's, and its number is shown. */
+    @Test
+    fun marksAStoredCustomIntervalOnTheCustomRowWithItsNumber() {
+        show(
+            settings = located.copy(
+                locationMode = LocationMode.Automatic,
                 locationCadence = LocationCadence.Every(24),
             ),
         )
 
-        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "24").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().assertIsNotSelected()
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsNotSelected()
-        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().assertIsNotSelected()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().assertTextContains("24")
     }
 
     /**
@@ -1217,7 +1236,10 @@ class ScreensTest {
      */
     @Test
     fun aCustomIntervalIsSentOnDoneOnceValid() {
-        show(settings = located.copy(locationMode = LocationMode.Automatic))
+        show(
+            settings = located.copy(locationMode = LocationMode.Automatic),
+            backgroundLocationAllowed = true,
+        )
 
         compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().performClick()
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("3")
@@ -1239,9 +1261,21 @@ class ScreensTest {
         compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
 
         assertEquals(null, cadence)
-        compose.onNodeWithText("Enter a whole number of hours between 1 and 48.")
+        compose.onNodeWithText("Enter a whole number of hours between 2 and 48", substring = true)
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    /** One hour has a row of its own, so the field does not take it. */
+    @Test
+    fun oneHourTypedIntoTheCustomFieldIsNeverSent() {
+        show(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").performScrollTo().performClick()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextReplacement("1")
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
+
+        assertEquals(null, cadence)
     }
 
     /** The cadence changed without anybody touching it, so the card says why. */
@@ -1260,26 +1294,17 @@ class ScreensTest {
         ).performScrollTo().assertIsDisplayed()
     }
 
-    private val allTheTimeWarning = "Android will ask you to allow location all the time. " +
-        "Choose approximate there too; Gloaming never asks for more."
-
-    /** Warned before Android's own prompt arrives, so the system page is no surprise. */
+    /**
+     * The warning about Android's page used to sit on the card all the time;
+     * it is said in the dialog that comes up when an interval is picked, where
+     * it cannot be gone before it is read.
+     */
     @Test
-    fun warnsOfTheAllTheTimePromptBeforeItIsAllowed() {
+    fun carriesNoStandingWarningOfTheAllTheTimePrompt() {
         show(settings = located.copy(locationMode = LocationMode.Automatic))
 
-        compose.onNodeWithText(allTheTimeWarning).performScrollTo().assertIsDisplayed()
-    }
-
-    /** Once it has been answered yes there is nothing left for Android to ask. */
-    @Test
-    fun saysNothingOfThePromptOnceItIsAllowed() {
-        show(
-            settings = located.copy(locationMode = LocationMode.Automatic),
-            backgroundLocationAllowed = true,
-        )
-
-        compose.onAllNodesWithText(allTheTimeWarning).assertCountEquals(0)
+        compose.onAllNodesWithText("Android will ask you to allow location all the time", substring = true)
+            .assertCountEquals(0)
     }
 
     @Test

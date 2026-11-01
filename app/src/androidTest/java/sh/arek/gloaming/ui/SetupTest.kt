@@ -18,6 +18,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.LocationCadence
+import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
 
 /**
@@ -38,6 +40,7 @@ class SetupTest {
     private var finished = 0
     private var recorded = 0
     private var asked = mutableListOf<String>()
+    private var cadences = mutableListOf<LocationCadence>()
 
     private fun stateOf(
         settings: UserSettings = UserSettings(),
@@ -77,6 +80,7 @@ class SetupTest {
                     onRequestNotifications = { asked += "notifications" },
                     onRequestBatteryExemption = { asked += "battery" },
                     onSetupDone = { recorded++ },
+                    onLocationCadenceChange = { cadences += it },
                 ),
                 onFinished = { finished++ },
                 steps = steps,
@@ -90,7 +94,7 @@ class SetupTest {
         show()
 
         compose.onNodeWithText("Step 1 of 3").assertIsDisplayed()
-        compose.onNodeWithText("Ask the phone").assertIsDisplayed()
+        compose.onNodeWithText("Use this phone's location").assertIsDisplayed()
         compose.onNodeWithTag(SETUP_NEXT_TAG).performClick()
 
         compose.onNodeWithText("Step 2 of 3").assertIsDisplayed()
@@ -104,6 +108,72 @@ class SetupTest {
 
         assertEquals(1, recorded)
         assertEquals(1, finished)
+    }
+
+    @Test
+    fun theLocationStepShowsTheBackgroundUpdatesOnceThePhoneIsAsked() {
+        state = stateOf(settings = located.copy(locationMode = LocationMode.Automatic))
+        show()
+
+        compose.onNodeWithText("Use this phone's location").assertIsDisplayed()
+        compose.onNodeWithText("Background updates").assertIsDisplayed()
+    }
+
+    /**
+     * Reached by changing the state the way the grant callback does: the offer
+     * follows the switch coming on, which is all that callback changes.
+     */
+    @Test
+    fun offersBackgroundUpdatesWhenThePhonesLocationIsSwitchedOn() {
+        state = stateOf(settings = located)
+        show()
+        compose.onNodeWithText("Keep your location up to date?").assertDoesNotExist()
+
+        state = state.copy(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithText("Keep your location up to date?").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Gloaming can refresh your position in the background, so alerts stay right " +
+                "when you travel without opening the app.",
+        ).assertIsDisplayed()
+        compose.onNodeWithTag(OFFER_ACCEPT_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(OFFER_DECLINE_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun decliningTheOfferLeavesBackgroundUpdatesOff() {
+        state = stateOf(settings = located)
+        show()
+        state = state.copy(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(OFFER_DECLINE_TAG).performClick()
+
+        compose.onNodeWithText("Keep your location up to date?").assertDoesNotExist()
+        assertEquals(emptyList<LocationCadence>(), cadences)
+    }
+
+    @Test
+    fun acceptingTheOfferExplainsBeforeAskingForEveryHour() {
+        state = stateOf(settings = located)
+        show()
+        state = state.copy(settings = located.copy(locationMode = LocationMode.Automatic))
+
+        compose.onNodeWithTag(OFFER_ACCEPT_TAG).performClick()
+
+        compose.onNodeWithText("Allow all the time", substring = true).assertIsDisplayed()
+        assertEquals(emptyList<LocationCadence>(), cadences)
+
+        compose.onNodeWithTag(CADENCE_EXPLAINER_CONTINUE_TAG).performClick()
+
+        assertEquals(listOf<LocationCadence>(LocationCadence.Every(1)), cadences)
+    }
+
+    @Test
+    fun offersNothingWhenThePhoneWasAlreadyBeingAsked() {
+        state = stateOf(settings = located.copy(locationMode = LocationMode.Automatic))
+        show()
+
+        compose.onNodeWithText("Keep your location up to date?").assertDoesNotExist()
     }
 
     @Test

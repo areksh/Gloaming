@@ -236,7 +236,8 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
                 LocationMode.Manual
             },
             locationCadence = when (prefs.getString(KEY_LOCATION_CADENCE, null)) {
-                "manual" -> LocationCadence.Manual
+                // A stored "manual", from before Update now stopped being a
+                // cadence, reads as the default like any other value unknown here.
                 "every" -> LocationCadence.Every(
                     prefs.getInt(KEY_LOCATION_CADENCE_HOURS, LocationCadence.MIN_HOURS)
                         .coerceIn(LocationCadence.MIN_HOURS, LocationCadence.MAX_HOURS),
@@ -354,10 +355,6 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             when (val cadence = settings.locationCadence) {
                 LocationCadence.OnOpen -> {
                     putString(KEY_LOCATION_CADENCE, "open")
-                    remove(KEY_LOCATION_CADENCE_HOURS)
-                }
-                LocationCadence.Manual -> {
-                    putString(KEY_LOCATION_CADENCE, "manual")
                     remove(KEY_LOCATION_CADENCE_HOURS)
                 }
                 is LocationCadence.Every -> {

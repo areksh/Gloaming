@@ -28,10 +28,12 @@ mattered.
 ## Decision
 
 The user may choose to have the approximate position refreshed in the
-background, on a cadence they pick: every hour, every six, once a day, or a
-whole number of hours from one to forty-eight. It is off unless chosen. The
-default stays "each time you open Gloaming", and typing the position in stays
-first-class.
+background, on a cadence they pick: every hour, or a whole number of hours
+from two to forty-eight. It is off unless chosen. The default stays off - the
+position is read each time you open Gloaming and when Update now is pressed,
+which always works - and typing the position in stays first-class.
+Picking an interval is explained in a dialog before Android's own page
+appears, and setup offers hourly updates when the location is first allowed.
 
 - **Coarse only, still.** `ACCESS_BACKGROUND_LOCATION` extends the coarse grant
   in time, not in precision. `ACCESS_FINE_LOCATION` remains undeclared, and
@@ -53,7 +55,7 @@ first-class.
   alarm, and the boot receiver arms it again after unlock.
 - **A withdrawn grant ends it plainly.** If the background permission has been
   taken away in the system settings, the next wake puts the cadence back to
-  "each time you open Gloaming" and records that it did, so the screen can say
+  off, so it is read only when the app is opened, and records that it did, so the screen can say
   why rather than leave the change to be noticed.
   The app does the same when it is opened, since the grant is as often
   withdrawn while it is closed: an interval without the background grant goes

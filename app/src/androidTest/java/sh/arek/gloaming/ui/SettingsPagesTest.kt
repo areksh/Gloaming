@@ -4,13 +4,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
@@ -135,6 +143,99 @@ class SettingsPagesTest {
 
         compose.onNodeWithText("Nothing downloaded yet", substring = true).assertIsDisplayed()
         compose.onNodeWithTag(DOWNLOADS_PAGE_TAG).assertDoesNotExist()
+    }
+
+    // --- the location controls ---
+
+    private var shown by mutableStateOf(
+        MainUiState(
+            settings = UserSettings(
+                latitude = 55.95,
+                longitude = -3.19,
+                locationMode = LocationMode.Automatic,
+            ),
+            alertState = AlertState(),
+            latitudeInput = "55.95",
+            longitudeInput = "-3.19",
+            quietFromInput = "23:00",
+            quietUntilInput = "07:00",
+            batteryExempt = true,
+            notificationsAllowed = true,
+            nowMillis = 1_800_000_000_000L,
+        ),
+    )
+
+    /** The page and the index row for it, following the cadence the page reports. */
+    private fun showLocation(backgroundLocationAllowed: Boolean) {
+        shown = shown.copy(backgroundLocationAllowed = backgroundLocationAllowed)
+        compose.setContent {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+                SettingsPageContent(
+                    page = SettingsPage.Location,
+                    state = shown,
+                    actions = UiActions(
+                        onLocationCadenceChange = {
+                            shown = shown.copy(
+                                settings = shown.settings.copy(locationCadence = it),
+                            )
+                        },
+                    ),
+                )
+                SettingsIndex(shown, onOpen = {})
+            }
+        }
+    }
+
+    @Test
+    fun theLocationCardHasASwitchAndThreeBackgroundUpdateRows() {
+        showLocation(backgroundLocationAllowed = true)
+
+        compose.onNodeWithText("Use this phone's location").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(LOCATION_MODE_SWITCH_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Background updates").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Off - when I open Gloaming").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Every hour").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Every ").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(" hours").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun typingThreeHoursAndPressingDoneReadsBackInTheIndexSummary() {
+        showLocation(backgroundLocationAllowed = true)
+
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performScrollTo().performTextInput("3")
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).performImeAction()
+
+        compose.onNodeWithTag(settingsRowTag(SettingsPage.Location)).performScrollTo()
+            .assertTextContains("Approximate, from the phone. Every 3 hours", substring = true)
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "custom").assertIsSelected()
+        compose.onNodeWithTag(CADENCE_HOURS_FIELD_TAG).assertTextContains("3")
+    }
+
+    @Test
+    fun pickingEveryHourWithoutTheBackgroundGrantExplainsFirstAndCancelLeavesItOff() {
+        showLocation(backgroundLocationAllowed = false)
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().performClick()
+
+        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertIsDisplayed()
+        compose.onNodeWithTag(CADENCE_EXPLAINER_CONTINUE_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(CADENCE_EXPLAINER_CANCEL_TAG).performClick()
+
+        compose.onNodeWithText(CADENCE_EXPLAINER_TEXT).assertDoesNotExist()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "open").performScrollTo().assertIsSelected()
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").assertIsNotSelected()
+    }
+
+    @Test
+    fun continuingFromTheExplainerReportsTheCadencePicked() {
+        showLocation(backgroundLocationAllowed = false)
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().performClick()
+        compose.onNodeWithTag(CADENCE_EXPLAINER_CONTINUE_TAG).performClick()
+
+        compose.onNodeWithTag(CADENCE_TAG_PREFIX + "1").performScrollTo().assertIsSelected()
     }
 
     // --- coming back to the real activity after Android's settings changed ---

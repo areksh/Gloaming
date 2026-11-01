@@ -98,22 +98,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and later) has been removed to make this possible, since the palette is now
   the app's own.
 
-- **You choose how often the phone's approximate position is refreshed.** A
-  detected position used to be read only when asked, so a phone carried to a
-  dark site went on being judged at home - darkness, cloud and every pass -
-  until somebody pressed the button. The location card now offers each time
-  Gloaming opens (the default), every hour, every 6 hours, once a day, any whole
-  number of hours from one to forty-eight, or only on Update now, and says when
-  the position was last updated. The intervals refresh it on an alarm of their
-  own: one coarse fix per wake, from the platform's fused provider where there
-  is one (Android 12 and later), then the network provider, then GPS, never
-  logged and never sent. They need Android's "Allow all the time" location
-  grant, which is asked for only when one is picked, and the card warns that
-  Android's page will offer precise location too; if it is refused, or later
-  taken away, the app goes back to refreshing when it is opened and the card
-  says why. A refresh due while the phone is locked after a reboot waits for the
-  unlock. ADR-0016 records why the app now declares a permission it once
-  promised never to.
+- **You choose whether the phone keeps its approximate position up to date in
+  the background.** A detected position used to be read only when asked, so a
+  phone carried to a dark site went on being judged at home - darkness, cloud
+  and every pass - until somebody pressed the button. The location card now has
+  a "Use this phone's location" switch, with the position, when it was last
+  updated and Update now under it, and a "Background updates" choice below:
+  off (the position is read when Gloaming opens, the default), every hour, or
+  every so many hours from 2 to 48, typed into the row. The intervals refresh
+  it on an alarm of their own: one coarse fix per wake, from the platform's
+  fused provider where there is one (Android 12 and later), then the network
+  provider, then GPS, never logged and never sent. They need Android's "Allow
+  all the time" location grant. Picking an interval first shows a dialog saying
+  what Android will ask and to leave "Use precise location" off, because
+  Android's own page replaces the app on screen and a warning drawn on the card
+  could not be read; and setup offers hourly updates as soon as the location is
+  allowed. If the grant is refused, or later taken away, the app goes back to
+  refreshing when it is opened and the card says why. A refresh due while the
+  phone is locked after a reboot waits for the unlock. A "Only on Update now"
+  choice no longer exists: the button always works, and a phone that had it
+  chosen now refreshes when Gloaming opens. ADR-0016 records why the app now
+  declares a permission it once promised never to.
 
 - **The widget and the aurora alert now open with tonight's outlook.** The
   widget's second line used to say how long ago the reading was taken; while it
@@ -210,15 +215,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Taking location away in Android's settings is now noticed when you come
   back.** Turning location off for Gloaming, or allowing it only while the app
-  is in use, left the settings claiming what no longer worked: "Ask the phone"
-  stayed on, and an interval stayed chosen with no warning. Coming back now puts
-  the interval back to "Each time you open Gloaming" with the red line saying
-  why, or turns "Ask the phone" off and keeps the position it had, with a note
-  saying so (ADR-0016).
+  is in use, left the settings claiming what no longer worked: "Use this phone's
+  location" stayed on, and an interval stayed chosen with no warning. Coming
+  back now puts background updates back to off with the red line saying why, or
+  turns the switch off and keeps the position it had, with a note saying so
+  (ADR-0016).
 
 - **The note on the Location page no longer disappears.** "Location permission
-  was declined" was written to a part of the page that is hidden once "Ask the
-  phone" is off, which is exactly what a refusal does, and a note was lost when
+  was declined" was written to a part of the page that is hidden once the
+  location switch is off, which is exactly what a refusal does, and a note was lost when
   Android rebuilt the app while you were on its settings page. Both now stay
   until you do something else.
 

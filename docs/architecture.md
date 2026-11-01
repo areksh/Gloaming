@@ -327,7 +327,7 @@ is a file replacement.
   aurora reading, and `WidgetContent.of` quotes it only until a newer check
   lands. The aurora alert does not read it; its sentence comes from the poll's
   own reading. `LocationCadence` is the stored choice of how often a detected
-  position is refreshed (ADR-0016).
+  position is refreshed: `OnOpen`, the default, or `Every(hours)` (ADR-0016).
 - **satellites:** `Elements` (deserialising `sats.json`), `PassFinder` (the
   horizon-crossing search over the vendored propagator, which offers no search
   of its own), and `PassDescription` (qualitative buckets - never a magnitude).
@@ -372,15 +372,22 @@ is a file replacement.
   the app, while automatic without the location grant goes back to typed in
   with a note.
 
-  The cadence is picked on the settings screen's location card, which reports
-  the choice and leaves the asking to `MainActivity`: an interval without the
-  background grant asks Android for it first - one request for both grants on
+  The location card is a "Use this phone's location" switch with the position,
+  when it was updated and Update now under it, and a "Background updates"
+  choice below that: off, every hour, or a typed number of hours from 2 to 48
+  (`parseCustomHours`). The card reports the choice and leaves the asking to
+  `MainActivity`; an interval picked while the background grant is missing is
+  first held behind a dialog (`CadenceExplainer`) saying what Android will ask,
+  since Android's own page replaces the app on screen and a line on the card
+  could not be read there, and first-run setup offers hourly updates the moment
+  the switch comes on. An interval without the
+  background grant asks Android for it next - one request for both grants on
   API 29, coarse and then background on its own from API 30 (which Android
   answers with its settings page), nothing below 29 - as
   `AndroidLocationSource.backgroundRequest` works out. `domain.CadenceRequest`
   decides each step: a pick made while a request is still with Android is
   dropped, since Android answers a second one at once with nothing granted; a
-  refused background grant stores "each time you open Gloaming" and says so,
+  refused background grant stores off and says so,
   and a refused coarse grant goes back to typing it in, as the switch does.
   The interval being asked for survives the activity being rebuilt meanwhile.
   The custom number of hours is sent on Done or when the field loses focus,

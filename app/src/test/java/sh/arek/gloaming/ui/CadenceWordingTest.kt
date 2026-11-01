@@ -41,8 +41,8 @@ class CadenceWordingTest {
     // --- cadence ---
 
     @Test
-    fun `says opening the app as opening Gloaming`() {
-        assertEquals("Each time you open Gloaming", describeCadence(LocationCadence.OnOpen))
+    fun `says opening the app as background updates being off`() {
+        assertEquals("Off - when I open Gloaming", describeCadence(LocationCadence.OnOpen))
     }
 
     @Test
@@ -60,11 +60,6 @@ class CadenceWordingTest {
     @Test
     fun `says twenty-four hours as once a day`() {
         assertEquals("Once a day", describeCadence(LocationCadence.Every(24)))
-    }
-
-    @Test
-    fun `names the button for a refresh only on request`() {
-        assertEquals("Only when you tap Update now", describeCadence(LocationCadence.Manual))
     }
 
     // --- last updated ---

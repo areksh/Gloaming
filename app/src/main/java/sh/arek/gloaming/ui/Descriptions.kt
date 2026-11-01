@@ -564,8 +564,7 @@ fun describeMissingElements(everChecked: Boolean, failure: String?): SatellitesN
 
 /** How often the phone's position is refreshed, as the location card offers it. */
 fun describeCadence(cadence: LocationCadence): String = when (cadence) {
-    LocationCadence.OnOpen -> "Each time you open Gloaming"
-    LocationCadence.Manual -> "Only when you tap Update now"
+    LocationCadence.OnOpen -> "Off - when I open Gloaming"
     is LocationCadence.Every -> when (cadence.hours) {
         1 -> "Every hour"
         24 -> "Once a day"

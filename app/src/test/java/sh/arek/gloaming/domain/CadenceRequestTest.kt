@@ -22,10 +22,6 @@ class CadenceRequestTest {
             CadencePick.Store,
             CadenceRequest.onPick(LocationCadence.OnOpen, inFlight = false, missing = listOf(background)),
         )
-        assertEquals(
-            CadencePick.Store,
-            CadenceRequest.onPick(LocationCadence.Manual, inFlight = false, missing = listOf(background)),
-        )
     }
 
     @Test

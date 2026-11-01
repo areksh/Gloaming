@@ -139,7 +139,7 @@ class SettingsSummaryTest {
             locationCadence = LocationCadence.OnOpen,
         )
         assertEquals(
-            "Approximate, from the phone. Each time you open Gloaming",
+            "Approximate, from the phone. Off - when I open Gloaming",
             summary(SettingsPage.Location, state(settings)),
         )
     }

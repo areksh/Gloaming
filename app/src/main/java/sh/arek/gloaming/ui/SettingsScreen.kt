@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +23,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,9 +31,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.LinkAnnotation
@@ -48,11 +53,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import sh.arek.gloaming.astronomy.Darkness
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.CUSTOM_MIN_HOURS
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.data.parseCustomHours
 import sh.arek.gloaming.domain.AlertDecision
 import sh.arek.gloaming.domain.PollingPolicy
 import sh.arek.gloaming.domain.Recommendation
@@ -181,8 +188,8 @@ private fun LocationCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Location", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Everything the app works out depends on where you are. Type it in, or let " +
-                    "the phone say - whichever suits, and you can change your mind here at " +
+                "Everything the app works out depends on where you are. Let the phone say, " +
+                    "or type it in - whichever suits, and you can change your mind here at " +
                     "any time.",
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -192,7 +199,7 @@ private fun LocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Ask the phone", style = MaterialTheme.typography.bodyMedium)
+                Text("Use this phone's location", style = MaterialTheme.typography.bodyMedium)
                 Switch(
                     checked = automatic,
                     onCheckedChange = {
@@ -270,13 +277,13 @@ private fun LocationCard(
 }
 
 /**
- * How often a detected position is refreshed: the presets, then any whole
- * number of hours.
+ * Background updates: off, every hour, or every so many hours typed in.
  *
  * Each choice is reported rather than acted on. A background cadence needs a
  * grant Android asks for in its own words, and the caller owns that exchange
  * and decides what is stored if the answer is no - so what is marked here is
- * always the cadence in force, not the last one tapped.
+ * always the cadence in force, not the last one tapped. An interval picked
+ * while the grant is missing is explained first; see [CadenceExplainer].
  */
 @Composable
 private fun CadenceChoice(
@@ -284,55 +291,67 @@ private fun CadenceChoice(
     onLocationCadenceChange: (LocationCadence) -> Unit,
 ) {
     val cadence = state.settings.locationCadence
-    val storedCustom = cadence is LocationCadence.Every && cadence !in LocationCadence.PRESETS
+    val explainer = rememberCadenceExplainer(state.backgroundLocationAllowed, onLocationCadenceChange)
+    // What the field shows when nobody is typing in it: the interval in force
+    // if it is one the field owns, and nothing otherwise.
+    val storedText = (cadence as? LocationCadence.Every)
+        ?.takeIf { it !in LocationCadence.PRESETS }?.hours?.toString().orEmpty()
+    val storedCustom = storedText.isNotEmpty()
     var customOpen by remember { mutableStateOf(storedCustom) }
-    var customInput by remember {
-        mutableStateOf((cadence as? LocationCadence.Every)?.hours?.toString().orEmpty())
-    }
-    val customHours = LocationCadence.parseHours(customInput)
+    var customInput by remember { mutableStateOf(storedText) }
+    val customHours = parseCustomHours(customInput)
     // What the field last sent, so finishing twice - Done, then the focus
     // leaving - asks once. Cleared by any edit, so a retyped answer is sent.
     var customSent by remember { mutableStateOf<Int?>(null) }
     var customFocused by remember { mutableStateOf(false) }
+    val customFocus = remember { FocusRequester() }
     fun commitCustom() {
         val hours = customHours ?: return
         if (hours == customSent) return
         customSent = hours
-        onLocationCadenceChange(LocationCadence.Every(hours))
+        explainer.pick(LocationCadence.Every(hours))
+    }
+    // Back to the interval in force once an answer has been settled: a pick
+    // that was cancelled or refused leaves the cadence as it was, and the field
+    // would otherwise go on showing a number that is not running.
+    LaunchedEffect(cadence, explainer.pending) {
+        if (explainer.pending == null && !customFocused) {
+            customInput = storedText
+            customSent = null
+            customOpen = storedCustom
+        }
     }
     // Custom stays marked while somebody is typing into it, even through a
     // number that happens to be a preset. Once an answer has been sent it
-    // follows the cadence in force: a refused grant puts that back to opening
-    // the app, and the field would otherwise go on claiming a cadence that is
-    // not running.
+    // follows the cadence in force.
     val customSelected = storedCustom ||
         (customOpen && (cadence is LocationCadence.Every || customSent == null))
 
-    Text("How often", style = MaterialTheme.typography.bodyMedium)
+    Text("Background updates", style = MaterialTheme.typography.titleSmall)
     for (option in LocationCadence.PRESETS) {
         CadenceRow(
             label = describeCadence(option),
-            detail = cadenceDetail(option),
             selected = !customSelected && cadence == option,
             tag = CADENCE_TAG_PREFIX + cadenceTagSuffix(option),
             onClick = {
                 customOpen = false
-                onLocationCadenceChange(option)
+                explainer.pick(option)
             },
         )
     }
-    CadenceRow(
-        label = "Custom",
-        detail = null,
-        selected = customSelected,
-        tag = CADENCE_TAG_PREFIX + "custom",
-        onClick = {
-            customInput = (cadence as? LocationCadence.Every)?.hours?.toString().orEmpty()
-            customSent = null
-            customOpen = true
-        },
-    )
-    if (customSelected) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(
+            selected = customSelected,
+            onClick = {
+                customSent = null
+                customOpen = true
+                customFocus.requestFocus()
+            },
+            modifier = Modifier
+                .semantics { contentDescription = "Every number of hours you type" }
+                .testTag(CADENCE_TAG_PREFIX + "custom"),
+        )
+        Text("Every ", style = MaterialTheme.typography.bodyMedium)
         // Sent when the typing is finished, never per keystroke: "12" passes
         // through "1" on the way, and each value sent can bring up Android's
         // own prompt for the background grant.
@@ -341,32 +360,32 @@ private fun CadenceChoice(
             onValueChange = {
                 customInput = it
                 customSent = null
+                customOpen = true
             },
-            label = { Text("Hours") },
             singleLine = true,
-            isError = customHours == null,
-            supportingText = if (customHours == null) {
-                {
-                    Text(
-                        "Enter a whole number of hours between ${LocationCadence.MIN_HOURS} " +
-                            "and ${LocationCadence.MAX_HOURS}.",
-                    )
-                }
-            } else {
-                null
-            },
+            isError = customInput.isNotBlank() && customHours == null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
                 imeAction = ImeAction.Done,
             ),
             keyboardActions = KeyboardActions(onDone = { commitCustom() }),
             modifier = Modifier
-                .fillMaxWidth()
+                .width(80.dp)
+                .focusRequester(customFocus)
                 .onFocusChanged {
                     if (customFocused && !it.isFocused) commitCustom()
                     customFocused = it.isFocused
                 }
                 .testTag(CADENCE_HOURS_FIELD_TAG),
+        )
+        Text(" hours", style = MaterialTheme.typography.bodyMedium)
+    }
+    if (customInput.isNotBlank() && customHours == null) {
+        Text(
+            "Enter a whole number of hours between $CUSTOM_MIN_HOURS and " +
+                "${LocationCadence.MAX_HOURS}, or choose Every hour.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
         )
     }
 
@@ -378,22 +397,12 @@ private fun CadenceChoice(
             color = LocalPalette.current.alarm,
         )
     }
-    // Said before any interval is picked, because picking one is what brings
-    // up Android's page, and that page offers precise location too.
-    if (!state.backgroundLocationAllowed) {
-        Text(
-            "Android will ask you to allow location all the time. Choose approximate " +
-                "there too; Gloaming never asks for more.",
-            style = MaterialTheme.typography.bodySmall,
-            color = LocalPalette.current.alarm,
-        )
-    }
+    CadenceExplainerDialog(explainer)
 }
 
 @Composable
 private fun CadenceRow(
     label: String,
-    detail: String?,
     selected: Boolean,
     tag: String,
     onClick: () -> Unit,
@@ -406,24 +415,12 @@ private fun CadenceRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
-        Column(Modifier.padding(start = 8.dp)) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        }
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
     }
-}
-
-/** Why somebody would pick a cadence, where the label alone does not say. */
-private fun cadenceDetail(cadence: LocationCadence): String? = when (cadence) {
-    LocationCadence.OnOpen -> "Enough if you mostly watch from home."
-    LocationCadence.Every(6) -> "Keeps alerts right when you travel without opening the app."
-    LocationCadence.Every(24) -> "Keeps up with you on trips, using less battery."
-    else -> null
 }
 
 private fun cadenceTagSuffix(cadence: LocationCadence): String = when (cadence) {
     LocationCadence.OnOpen -> "open"
-    LocationCadence.Manual -> "manual"
     is LocationCadence.Every -> cadence.hours.toString()
 }
 
@@ -819,14 +816,14 @@ private fun InterruptionCard(
  */
 @OptIn(ExperimentalLayoutApi::class)
 /** The location controls, which sit beside sentences rather than values. */
-const val LOCATION_MODE_SWITCH_TAG = "location-mode-switch"
+const val LOCATION_MODE_SWITCH_TAG = "location-switch"
 const val LOG_RETENTION_CUSTOM_TAG = "log-retention-custom"
 const val LOG_RETENTION_FIELD_TAG = "log-retention-field"
 const val EVERY_EVENT_SWITCH_TAG = "every-event-switch"
 const val DETECT_LOCATION_TAG = "detect-location"
-/** A cadence row: the prefix, then "open", "manual", "custom" or its hours. */
+/** A cadence row: the prefix, then "open", "custom" or its hours. */
 const val CADENCE_TAG_PREFIX = "cadence:"
-const val CADENCE_HOURS_FIELD_TAG = "cadence-hours-field"
+const val CADENCE_HOURS_FIELD_TAG = "cadence-custom-hours"
 
 /** How a chip in a [ChoiceRow] is reached from a test. */
 fun choiceTag(label: String, rendered: String): String = "choice:$label:$rendered"

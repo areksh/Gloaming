@@ -84,13 +84,4 @@ class LocationGrantsTest {
         assertSame(before, result.settings)
         assertNull(result.note)
     }
-
-    @Test
-    fun `only-when-asked cadence without the background grant is left alone`() {
-        val before = settings(cadence = LocationCadence.Manual)
-
-        val result = LocationGrants.reconcile(before, locationGranted = true, backgroundGranted = false)
-
-        assertSame(before, result.settings)
-    }
 }

@@ -31,38 +31,27 @@ class LocationCadenceTest {
     }
 
     @Test
-    fun `manual is never due`() {
-        assertFalse(LocationCadence.Manual.isDue(null, now))
-        assertFalse(LocationCadence.Manual.isDue(now - 1000 * hour, now))
-    }
-
-    @Test
     fun `only intervals run in the background`() {
         assertTrue(LocationCadence.Every(1).runsInBackground)
         assertFalse(LocationCadence.OnOpen.runsInBackground)
-        assertFalse(LocationCadence.Manual.runsInBackground)
     }
 
     @Test
-    fun `custom hours are whole numbers from one to forty-eight`() {
-        assertEquals(1, LocationCadence.parseHours("1"))
-        assertEquals(48, LocationCadence.parseHours("48"))
-        assertNull(LocationCadence.parseHours("0"))
-        assertNull(LocationCadence.parseHours("49"))
-        assertNull(LocationCadence.parseHours("1.5"))
-        assertNull(LocationCadence.parseHours(""))
+    fun `custom hours are whole numbers from two to forty-eight`() {
+        assertNull(parseCustomHours("1"))
+        assertEquals(2, parseCustomHours("2"))
+        assertEquals(48, parseCustomHours("48"))
+        assertNull(parseCustomHours("49"))
+        assertNull(parseCustomHours("0"))
+        assertNull(parseCustomHours("1.5"))
+        assertNull(parseCustomHours(""))
+        assertEquals(3, parseCustomHours(" 3 "))
     }
 
     @Test
-    fun `the presets run from each open to manual`() {
+    fun `the presets are off and every hour`() {
         assertEquals(
-            listOf(
-                LocationCadence.OnOpen,
-                LocationCadence.Every(1),
-                LocationCadence.Every(6),
-                LocationCadence.Every(24),
-                LocationCadence.Manual,
-            ),
+            listOf(LocationCadence.OnOpen, LocationCadence.Every(1)),
             LocationCadence.PRESETS,
         )
     }
