@@ -69,23 +69,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A Find tab points the way to what is up, with a compass check.** Once
   outside, pick from what can be seen now or very soon, hold the phone up with
-  its top edge towards the sky, and Find says which way to turn and tilt - "Turn right a little, then
-  tilt up." - until it says "There." and buzzes once. A view sixty degrees
-  across shows the horizon, the target and a reticle, with an arrow at the edge
-  when the target is off the view or not yet risen, and then Find gives its rise
-  time. Beneath, where it is in words, which way the phone is facing, and how to
-  recognise it. The screen stays on while Find is open, and Find alone turns red
-  on black and dims the screen (Night vision when finding, on by default),
-  putting the brightness back when you leave it. Find it on a row of Tonight's
-  night opens Find aimed at that row, and so does Find it on an alert about a
-  pass, the aurora, or an eclipse or other event of the moon. When the phone
-  says its compass is unsure, Find offers a check, at most once a week: the
-  figure of eight that lets the phone relearn north, with its accuracy climbing
-  as you go, then, with the moon up, Line up, which corrects the compass on the
-  moon because Gloaming knows exactly where it is. Both live under Settings,
-  Finding things, where the check can be run and the correction removed at any
-  time. True north comes from the phone's own model of the Earth's field;
-  nothing is fetched. A phone with no compass is told so.
+  its top edge towards the sky, and Find says which way to turn and tilt - "Turn
+  right a little, then tilt up." - until it says "There." and buzzes once. A
+  view sixty degrees across shows the horizon, the target and a reticle, with an
+  arrow at the edge when the target is off the view or not yet risen, and then
+  Find gives its rise time. Beneath, where it is in words, which way the phone
+  is facing, and how to recognise it. The screen stays on while Find is open,
+  and Find alone turns red on black and dims the screen (Night vision when
+  finding, on by default), putting the brightness back when you leave it. Find
+  it on a row of Tonight's night opens Find aimed at that row, and so does Find
+  it on an alert about a pass, the aurora, or an eclipse or other event of the
+  moon. When the phone says its compass is unsure, Find offers a check, at most
+  once a week: the figure of eight that lets the phone relearn north, with its
+  accuracy climbing as you go, then, with the moon up, Line up, which corrects
+  the compass on the moon because Gloaming knows exactly where it is. Both live
+  under Settings, Finding things, where the check can be run and the correction
+  removed at any time. True north comes from the phone's own model of the
+  Earth's field; nothing is fetched. A phone with no compass is told so.
 
   Find offers only what can be seen: the moon whenever it is up, since it is
   seen by day and is what the compass check aims at; a planet once it is ten
@@ -253,24 +253,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Tonight no longer goes blank when you turn the phone, says when it is
   updating, and is worked out once when you open the app.** Opening Gloaming
-  showed an empty Tonight, with nothing to say anything was happening, for up
-  to a minute: the night was worked out twice, first without the calendar and
-  then again with it, and the first pass could briefly open with a sentence
-  that knew nothing of the night's events. Turning the phone threw it all away
-  and started again. Now the night is worked out once, and kept while the app
-  is running, so turning the phone or coming back to the
-  app shows it at once - also when Gloaming follows the phone's location, where
-  turning the phone used to ask for a fresh position and start again whenever
-  it had moved a little. While it is being worked out a progress bar and
-  "Updating..." sit under the status line, and before the first one is ready
-  Tonight says "Working out tonight..." instead of showing nothing. And when
-  the app is opened afresh, Tonight opens straight onto the last night it
-  worked out - for the same place, while that night is still on - marked
-  "Updating..." until the new one arrives, instead of an empty screen for about
-  twenty seconds. That copy stays on the phone, unreadable until it is first
-  unlocked, because it is worked out from your exact position, and is never
-  shown for another place or once that night is over.
-  The night also no longer waits for the year ahead to be worked out: it
+  showed an empty Tonight, with nothing to say anything was happening, for up to
+  a minute: the night was worked out twice, first without the calendar and then
+  again with it, and the first pass could briefly open with a sentence that knew
+  nothing of the night's events. Turning the phone threw it all away and started
+  again. Now the night is worked out once, and kept while the app is running, so
+  turning the phone or coming back to the app shows it at once - also when
+  Gloaming follows the phone's location, where turning the phone used to ask for
+  a fresh position and start again whenever it had moved a little. While it is
+  being worked out a progress bar and "Updating..." sit under the status line,
+  and before the first one is ready Tonight says "Working out tonight..."
+  instead of showing nothing. And when the app is opened afresh, Tonight opens
+  straight onto the last night it worked out - for the same place, while that
+  night is still on - marked "Updating..." until the new one arrives, instead of
+  an empty screen for about twenty seconds. That copy stays on the phone,
+  unreadable until it is first unlocked, because it is worked out from your
+  exact position, and is never shown for another place or once that night is
+  over. The night also no longer waits for the year ahead to be worked out: it
   works out the next three weeks of events for itself, so a fresh Tonight lands
   in about half the time.
 

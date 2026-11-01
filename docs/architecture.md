@@ -233,13 +233,14 @@ freeze one in place.
 
 Recreated as a Compose project matching Sec. 7: `minSdk 24`,
 `compileSdk`/`targetSdk 37`, JDK 21, Kotlin 2.4.x, Compose BOM 2026.06.x, AGP 9.
-No Play Services anywhere; `LocationManager` only (the platform's own fused provider where it exists, never Play Services),
-with manual location entry as a first-class input and the app fully functional
-with location permission permanently denied (Sec. 7, Sec. 11). Detecting the
-position is offered as of 2026-08-25 and is coarse - see Sec. 7 of the sourcing
-document for its limits and why each one holds. As of 2026-10-31 the user may
-also choose to have it refreshed in the background on a cadence of their own
-(ADR-0016); otherwise it is read when the app is opened or when asked.
+No Play Services anywhere; `LocationManager` only (the platform's own fused
+provider where it exists, never Play Services), with manual location entry as a
+first-class input and the app fully functional with location permission
+permanently denied (Sec. 7, Sec. 11). Detecting the position is offered as of
+2026-08-25 and is coarse - see Sec. 7 of the sourcing document for its limits
+and why each one holds. As of 2026-10-31 the user may also choose to have it
+refreshed in the background on a cadence of their own (ADR-0016); otherwise it
+is read when the app is opened or when asked.
 
 Note on the build: AGP 9 has built-in Kotlin support, so the
 `org.jetbrains.kotlin.android` plugin is not applied (AGP rejects it). Only
@@ -494,117 +495,116 @@ is a file replacement.
   Export live there); the kinds sit behind one "Showing N of 14 kinds" button.
 
   **Tonight and the year ahead outlive the activity.** On a Pixel 8a the
-  calendar's events take about ten seconds, the month strips as long again,
-  and a night about nine (seven of them the pass sweep). Held as `remember`
-  state they went with every rotation and were started again from nothing,
-  and the night was worked out twice on every open, first against an empty
-  calendar. `ui.ScreenResults` holds them for the process instead, one
-  instance from `Graph.screenResults`, as Compose state the screen reads. No
-  ViewModel: it is a plain class, like the rest of the wiring. `MainActivity`
-  hands it a `CalendarKey` and a `TonightKey` - made from the settings by
-  their `of`, each holding every setting its work reads and the position to
-  `KEY_PRECISION_DEGREES`, about a kilometre, so an approximate fix wandering does not start it all again; the work itself
-  uses the exact position - and work starts only for a key that is neither
-  shown nor in flight, in the holder's own scope on the default dispatcher.
-  So a rotation, mid-run or not, finds the result or the run where it left
-  it, and reopening with nothing changed works nothing out. A new key cancels
-  the run in flight; the sweep cannot be cancelled and runs on regardless, so
-  a result is published only if its run is still the newest. Tonight does
-  not wait for the calendar: it works its own events out
-  (`astronomy.TonightEvents`) over 22 days rather than the year, because
-  `Tonight.of` lists only the events whose window overlaps tonight and the
-  longest window, an opposition's, opens three weeks before its date, so the
-  year scan's ten seconds bought nothing a 22-day scan does not. For that
+  calendar's events take about ten seconds, the month strips as long again, and
+  a night about nine (seven of them the pass sweep). Held as `remember` state
+  they went with every rotation and were started again from nothing, and the
+  night was worked out twice on every open, first against an empty calendar.
+  `ui.ScreenResults` holds them for the process instead, one instance from
+  `Graph.screenResults`, as Compose state the screen reads. No ViewModel: it is
+  a plain class, like the rest of the wiring. `MainActivity` hands it a
+  `CalendarKey` and a `TonightKey` - made from the settings by their `of`, each
+  holding every setting its work reads and the position to
+  `KEY_PRECISION_DEGREES`, about a kilometre, so an approximate fix wandering
+  does not start it all again; the work itself uses the exact position - and
+  work starts only for a key that is neither shown nor in flight, in the
+  holder's own scope on the default dispatcher. So a rotation, mid-run or not,
+  finds the result or the run where it left it, and reopening with nothing
+  changed works nothing out. A new key cancels the run in flight; the sweep
+  cannot be cancelled and runs on regardless, so a result is published only if
+  its run is still the newest. Tonight does not wait for the calendar: it works
+  its own events out (`astronomy.TonightEvents`) over 22 days rather than the
+  year, because `Tonight.of` lists only the events whose window overlaps tonight
+  and the longest window, an opposition's, opens three weeks before its date, so
+  the year scan's ten seconds bought nothing a 22-day scan does not. For that
   reason the `TonightKey` holds the comet settings itself, and
-  `TonightEventsTest` holds the two scans equal over the scenario catalogue
-  and sampled nights through a year at three latitudes. A key for another grid cell takes
-  the old place's night down at once. Work that throws ends its run, so
-  nothing is left updating for ever, and the scope's handler logs it rather than letting
-  it crash the app. A cold process would otherwise show nothing for the twenty
-  seconds the first night takes, so each finished run also writes
+  `TonightEventsTest` holds the two scans equal over the scenario catalogue and
+  sampled nights through a year at three latitudes. A key for another grid cell
+  takes the old place's night down at once. Work that throws ends its run, so
+  nothing is left updating for ever, and the scope's handler logs it rather than
+  letting it crash the app. A cold process would otherwise show nothing for the
+  twenty seconds the first night takes, so each finished run also writes
   `tonight-snapshot.json` (`data.TonightSnapshots`: the list, outlook, hourly
-  cover and timeline, keyed by grid cell and by the end of the night, written
-  by temporary file and rename) and the holder reads it in its own scope as it
-  is made (about 110 KB, a third of a second cold on a Pixel 8a, off the main
-  thread and outside the lock), then seeds from it when it is for the cell
-  asked for and the night is not over, marked as updating. It is never shown
-  over a night already worked out in the process, however late it is read,
-  and writes happen outside the lock, stamped so none lands out of order.
-  The file lives in `Context.filesDir`, which is credential-encrypted, and
-  never in device-encrypted storage: it is derived from the precise position,
-  which `BootAware` keeps out of anything readable before first unlock. A
-  version or decode mismatch drops it, and so does a run with no position.
-  The satellite elements are not kept, so until the run lands Find says
-  "Working out tonight..." for a target it cannot place rather than that it
-  has gone. Both keys carry `recalculation`, which Check
-  now bumps once its check has landed, so it - and the pull to refresh that
-  runs it - works both out again from scratch. The cloud forecast bumps the
-  tonight key only when a fetch changed what is held, since a reading under an
-  hour old is served from the cache on every open and every rotation.
+  cover and timeline, keyed by grid cell and by the end of the night, written by
+  temporary file and rename) and the holder reads it in its own scope as it is
+  made (about 110 KB, a third of a second cold on a Pixel 8a, off the main
+  thread and outside the lock), then seeds from it when it is for the cell asked
+  for and the night is not over, marked as updating. It is never shown over a
+  night already worked out in the process, however late it is read, and writes
+  happen outside the lock, stamped so none lands out of order. The file lives in
+  `Context.filesDir`, which is credential-encrypted, and never in
+  device-encrypted storage: it is derived from the precise position, which
+  `BootAware` keeps out of anything readable before first unlock. A version or
+  decode mismatch drops it, and so does a run with no position. The satellite
+  elements are not kept, so until the run lands Find says "Working out
+  tonight..." for a target it cannot place rather than that it has gone. Both
+  keys carry `recalculation`, which Check now bumps once its check has landed,
+  so it - and the pull to refresh that runs it - works both out again from
+  scratch. The cloud forecast bumps the tonight key only when a fetch changed
+  what is held, since a reading under an hour old is served from the cache on
+  every open and every rotation.
 
-  **Find points the phone at a target, from pure parts behind one sensor
-  seam.** `FindScreen` offers `domain.FindTargets.available` as chips - only
-  what can be seen now or very soon, judged by the sun's height and a
-  `Sky` (and whether a current aurora reading meets the threshold),
-  by altitude alone for a planet, the moon or a pattern (no rise search),
-  and for a pass by whether it is under way or rises within
-  `FindTargets.PASS_LEAD_MILLIS` (30 minutes), worked out at most once a minute, with `nextUp` naming the
-  soonest to come when nothing is up - places
-  the chosen one with `FindTargets.fix` once a second (the rise search behind
-  it is memoised), and turns each compass reading into a direction with
-  `Pointing.direction` - the phone's top edge, corrected by
+  **Find points the phone at a target, from pure parts behind one sensor seam.**
+  `FindScreen` offers `domain.FindTargets.available` as chips - only what can be
+  seen now or very soon, judged by the sun's height and a `Sky` (and whether a
+  current aurora reading meets the threshold), by altitude alone for a planet,
+  the moon or a pattern (no rise search), and for a pass by whether it is under
+  way or rises within `FindTargets.PASS_LEAD_MILLIS` (30 minutes), worked out at
+  most once a minute, with `nextUp` naming the soonest to come when nothing is
+  up - places the chosen one with `FindTargets.fix` once a second (the rise
+  search behind it is memoised), and turns each compass reading into a direction
+  with `Pointing.direction` - the phone's top edge, corrected by
   `data.magneticDeclination` (the platform's `GeomagneticField`, so nothing is
-  fetched) and the user's stored `compassOffsetDegrees` - and into guidance
-  with `Guide.of` and `GuideWords`. The view is one `Canvas` sixty degrees
-  across, heard by TalkBack as the instruction and where; the instruction line
-  is a polite live region. The words are pure functions in `FindWords.kt`
+  fetched) and the user's stored `compassOffsetDegrees` - and into guidance with
+  `Guide.of` and `GuideWords`. The view is one `Canvas` sixty degrees across,
+  heard by TalkBack as the instruction and where; the instruction line is a
+  polite live region. The words are pure functions in `FindWords.kt`
   (`whereLine`, `findInstruction`, `chipLabel`, `lineUpRefusal`, and
   `findTarget`, which maps a timeline row to what Find can point at), so they
   are tested on the JVM. Readings come through `data.CompassSource`
-  (`CompassSensor.kt`): `AndroidCompassSource` registers the rotation vector
-  for attitude and the magnetometer for its calibration status when its flow
-  is collected and unregisters in `awaitClose`, and the screen collects it
-  with `collectAsStateWithLifecycle` at `RESUMED`, so the sensors are held only
-  while Find (or the Compass settings page) is composed and the app is in
-  front. `GloamingNav` takes the source as a parameter, defaulting to
-  `NoCompass`, which is what lets every UI test run without a real sensor; a
-  phone with no rotation vector is told so instead of shown a pointer. Find
-  keeps the screen on through the view's `keepScreenOn` (restoring the
-  previous value), and buzzes on coming within `Guide.ALIGNED_DEGREES`,
-  re-arming only past `AlignBuzz.REARM_DEGREES` so a wavering hand does not
-  buzz on every crossing. With `nightVisionWhenFinding` on it wraps itself
-  alone in the night-vision theme and dims the window through `DimScreen`
-  (`DimScreen.kt`, shared with the app-wide night vision in `MainActivity`),
-  which restores the brightness it found when Find is left.
-  `CompassCheck.shouldOffer` opens `CompassSheet` on a low or unreliable
-  reading at most once a week, stamping `compassOfferedAt`; the sheet shows the
-  accuracy live, Done stamps `compassCheckedAt`, and Line up, offered while the
-  moon is up, stores `CompassCheck.offsetFromMoon` or says why it refused.
-  Find it on a row's sheet switches to Find aimed at that row; `GloamingNav`
-  holds the target as its encoded string. Find it on a notification
-  (`notify/FindIt.kt`) sends the same string as an extra to `MainActivity`,
-  which is `singleTop` so a second tap while the app is open reaches
-  `onNewIntent`; it hands the string to `GloamingNav` and clears it once shown,
-  ignores one it cannot decode, and drops it while setup is unfinished or when
-  the launch came from Recents, which on Android 11 and below hands back the
-  intent that created the task. Passes and the aurora always carry the action;
-  an event does where `findTarget` (shared with the row mapping) gives it a
-  target. `findTargetFrom`, called from `MainActivity`, is the one place a
-  handed-in target is read. The satellite elements Tonight was
-  worked out from ride along in `MainUiState.elements`, so a pass is followed
-  from the same copy without reading the cache on the main thread. A pass is
-  found in tonight's list where it is there, and otherwise in its own
-  satellite's elements over `FindTargets.PASS_MATCH_MILLIS` either side of its
-  rise, memoised: Tonight's list is rebuilt from now onwards and `PassFinder`
-  leaves out a pass already under way, so once a pass has risen only the
-  elements still hold it. Two passes of one satellite rising within that
-  tolerance are the same target (`FindTargets.same`), which is how a
-  notification's rise, from the poller's own search grid, selects tonight's
-  chip rather than adding a second. Find offers only Tonight's best passes
-  that are under way or rise within `PASS_LEAD_MILLIS` (30 minutes), soonest first and at most `FindTargets.MAX_PASSES`, since
-  every pass made the picker too long to use; a pass handed in by a
-  notification is always offered, beyond the limit if need be. Until tonight has been worked out, a pass
-  that cannot be placed reads "Working out tonight..." rather than gone.
+  (`CompassSensor.kt`): `AndroidCompassSource` registers the rotation vector for
+  attitude and the magnetometer for its calibration status when its flow is
+  collected and unregisters in `awaitClose`, and the screen collects it with
+  `collectAsStateWithLifecycle` at `RESUMED`, so the sensors are held only while
+  Find (or the Compass settings page) is composed and the app is in front.
+  `GloamingNav` takes the source as a parameter, defaulting to `NoCompass`,
+  which is what lets every UI test run without a real sensor; a phone with no
+  rotation vector is told so instead of shown a pointer. Find keeps the screen
+  on through the view's `keepScreenOn` (restoring the previous value), and
+  buzzes on coming within `Guide.ALIGNED_DEGREES`, re-arming only past
+  `AlignBuzz.REARM_DEGREES` so a wavering hand does not buzz on every crossing.
+  With `nightVisionWhenFinding` on it wraps itself alone in the night-vision
+  theme and dims the window through `DimScreen` (`DimScreen.kt`, shared with the
+  app-wide night vision in `MainActivity`), which restores the brightness it
+  found when Find is left. `CompassCheck.shouldOffer` opens `CompassSheet` on a
+  low or unreliable reading at most once a week, stamping `compassOfferedAt`;
+  the sheet shows the accuracy live, Done stamps `compassCheckedAt`, and Line
+  up, offered while the moon is up, stores `CompassCheck.offsetFromMoon` or says
+  why it refused. Find it on a row's sheet switches to Find aimed at that row;
+  `GloamingNav` holds the target as its encoded string. Find it on a
+  notification (`notify/FindIt.kt`) sends the same string as an extra to
+  `MainActivity`, which is `singleTop` so a second tap while the app is open
+  reaches `onNewIntent`; it hands the string to `GloamingNav` and clears it once
+  shown, ignores one it cannot decode, and drops it while setup is unfinished or
+  when the launch came from Recents, which on Android 11 and below hands back
+  the intent that created the task. Passes and the aurora always carry the
+  action; an event does where `findTarget` (shared with the row mapping) gives
+  it a target. `findTargetFrom`, called from `MainActivity`, is the one place a
+  handed-in target is read. The satellite elements Tonight was worked out from
+  ride along in `MainUiState.elements`, so a pass is followed from the same copy
+  without reading the cache on the main thread. A pass is found in tonight's
+  list where it is there, and otherwise in its own satellite's elements over
+  `FindTargets.PASS_MATCH_MILLIS` either side of its rise, memoised: Tonight's
+  list is rebuilt from now onwards and `PassFinder` leaves out a pass already
+  under way, so once a pass has risen only the elements still hold it. Two
+  passes of one satellite rising within that tolerance are the same target
+  (`FindTargets.same`), which is how a notification's rise, from the poller's
+  own search grid, selects tonight's chip rather than adding a second. Find
+  offers only Tonight's best passes that are under way or rise within
+  `PASS_LEAD_MILLIS` (30 minutes), soonest first and at most
+  `FindTargets.MAX_PASSES`, since every pass made the picker too long to use; a
+  pass handed in by a notification is always offered, beyond the limit if need
+  be. Until tonight has been worked out, a pass that cannot be placed reads
+  "Working out tonight..." rather than gone.
 
 ### Manifest verification
 
