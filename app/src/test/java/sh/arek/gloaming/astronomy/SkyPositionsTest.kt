@@ -8,7 +8,7 @@ class SkyPositionsTest {
 
     private val edinburgh = 55.95 to -3.19
 
-    // 2026-11-01 17:00 UTC, the middle of a long night in Edinburgh.
+    // 2026-11-01 17:00 UTC, the start of a long night in Edinburgh.
     private val evening = 1_793_552_400_000L
 
     private fun at(millis: Long = evening, place: Pair<Double, Double> = edinburgh, body: SkyBody) =
@@ -17,9 +17,9 @@ class SkyPositionsTest {
     @Test
     fun `agrees with the planet's own peak`() {
         val night = evening..(evening + 10L * 3_600_000)
+        // Saturn is an evening planet that autumn, so it must be in the list.
         val saturn = Planets.tonight(edinburgh.first, edinburgh.second, night)
-            .firstOrNull { it.body == SkyBody.Saturn }
-            ?: Planets.tonight(edinburgh.first, edinburgh.second, night).first()
+            .single { it.body == SkyBody.Saturn }
 
         val now = at(saturn.peakAt, body = saturn.body)
 
@@ -81,7 +81,7 @@ class SkyPositionsTest {
 
     @Test
     fun `azimuth runs clockwise from north`() {
-        // An hour of right ascension past the meridian is west of it.
+        // A right ascension the meridian has already passed is west of it.
         val west = SkyPositions.fixed(gmstJ2000 - 3.0, 0.0, 0.0, 0.0, j2000)
         val east = SkyPositions.fixed(gmstJ2000 + 3.0, 0.0, 0.0, 0.0, j2000)
 
