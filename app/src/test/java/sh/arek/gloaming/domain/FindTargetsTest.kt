@@ -120,7 +120,12 @@ class FindTargetsTest {
         sky: Sky = dark,
         handedIn: FindTarget.Pass? = null,
         fixOf: (FindTarget) -> TargetFix? = everythingAt(30.0),
-    ) = FindTargets.available(list, at, handedIn, fixOf, sky)
+    ) = FindTargets.available(
+        list, at, handedIn,
+        altitudeOf = { fixOf(it)?.position?.altitude },
+        passFixOf = { fixOf(it) },
+        sky = sky,
+    )
 
     private fun offeredPasses(
         list: TonightList,
@@ -706,6 +711,17 @@ class FindTargetsTest {
             ),
             kinds,
         )
+    }
+
+    @Test
+    fun `deciding what to offer runs no rise search`() {
+        // Dusk: planets and the moon include some below the horizon.
+        val sky = FindTargets.skyAt(latitude, longitude, now, null, null, threshold = 40)
+        FindTargets.forget()
+
+        FindTargets.availableAt(tonight(constellations = listOf("Orion")), elements, latitude, longitude, now, null, sky)
+
+        assertEquals(0, FindTargets.scans)
     }
 
     // --- the sky ---

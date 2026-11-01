@@ -263,22 +263,25 @@ object FindTargets {
      * aurora when [Sky.auroraNow] and the sun is below [DARK_SUN_LIMIT].
      * Nothing is offered for rising later: [nextUp] says what that is.
      *
-     * [fixOf] places a target now; null means it cannot be, which a pass
-     * takes to mean it has set. A pass [handedIn] by a notification is always
+     * [altitudeOf] gives a body's or pattern's height now, null where it
+     * cannot be worked out; it is all a body needs, so no rise is searched
+     * for. [passFixOf] places a pass now; null means it cannot be, which is
+     * taken to mean it has set. A pass [handedIn] by a notification is always
      * offered, beyond the limit and ahead of its time if need be.
      */
     fun available(
         list: TonightList,
         nowMillis: Long,
         handedIn: FindTarget.Pass?,
-        fixOf: (FindTarget) -> TargetFix?,
+        altitudeOf: (FindTarget) -> Double?,
+        passFixOf: (FindTarget.Pass) -> TargetFix?,
         sky: Sky,
     ): List<FindTarget> {
         val targets = mutableListOf<FindTarget>()
         var morePatterns = MORE_PATTERNS
         for (candidate in skyCandidates(list)) {
             if (!sunAllows(candidate, sky.sunAltitude)) continue
-            val altitude = fixOf(candidate)?.position?.altitude ?: continue
+            val altitude = altitudeOf(candidate) ?: continue
             if (!highEnough(candidate, altitude)) continue
             if (candidate is FindTarget.Pattern && candidate.name != PLOUGH && morePatterns-- <= 0) continue
             targets += candidate
@@ -287,7 +290,7 @@ object FindTargets {
             .filter { it.setsAt > nowMillis }
             .sortedBy { it.risesAt }
             .map { FindTarget.Pass(it.catalogue, it.risesAt) }
-        val offered = coming.filter { passSoon(fixOf(it), nowMillis) }.take(MAX_PASSES).toMutableList()
+        val offered = coming.filter { passSoon(passFixOf(it), nowMillis) }.take(MAX_PASSES).toMutableList()
         if (handedIn != null && offered.none { same(it, handedIn) }) {
             // Tonight's own entry for it when it has one, so the chip carries
             // the rise the list uses; else the notification's.
@@ -297,6 +300,29 @@ object FindTargets {
         if (sky.auroraNow && sunAllows(FindTarget.Aurora, sky.sunAltitude)) targets += FindTarget.Aurora
         return targets
     }
+
+    /**
+     * [available] for a place, working heights out with [altitudeAt] and placing passes with [fix].
+     *
+     * Bodies are judged by their height alone: nothing is offered for rising
+     * later, so the rise search [fix] runs for a body below the horizon is
+     * never wanted here, and would displace the remembered rise of the target
+     * being followed.
+     */
+    fun availableAt(
+        list: TonightList,
+        elements: SatellitesDocument?,
+        latitude: Double,
+        longitude: Double,
+        nowMillis: Long,
+        handedIn: FindTarget.Pass?,
+        sky: Sky,
+    ): List<FindTarget> = available(
+        list, nowMillis, handedIn,
+        altitudeOf = { altitudeAt(it, latitude, longitude, nowMillis) },
+        passFixOf = { fix(it, list, elements, latitude, longitude, nowMillis) },
+        sky = sky,
+    )
 
     /** Whether a pass so placed is under way or about to be. */
     private fun passSoon(fix: TargetFix?, nowMillis: Long): Boolean {

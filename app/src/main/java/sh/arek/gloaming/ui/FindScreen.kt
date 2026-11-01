@@ -60,7 +60,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.hypot
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.data.CompassReading
 import sh.arek.gloaming.data.CompassSource
@@ -69,6 +71,7 @@ import sh.arek.gloaming.domain.AlignBuzz
 import sh.arek.gloaming.domain.CompassCheck
 import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.FindTargets
+import sh.arek.gloaming.domain.Sky
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.domain.Guide
 import sh.arek.gloaming.domain.Pointing
@@ -123,36 +126,11 @@ const val FIND_NOTHING_TAG = "find-nothing"
 
 private const val MINUTE_MILLIS = 60_000L
 
-/** What Find offers at one minute, and what comes next when that is nothing. */
-private class Offer(val targets: List<FindTarget>, val next: Pair<FindTarget, Long>?)
-
-private fun offerFor(
-    state: MainUiState,
-    list: TonightList,
-    latitude: Double,
-    longitude: Double,
-    now: Long,
-    handedIn: FindTarget.Pass?,
-): Offer {
+private fun skyFor(state: MainUiState, latitude: Double, longitude: Double, now: Long): Sky {
     val alert = state.alertState
-    val sky = FindTargets.skyAt(
+    return FindTargets.skyAt(
         latitude, longitude, now, alert.lastProbability, alert.lastPollAt, state.settings.threshold,
     )
-    val targets = FindTargets.available(
-        list, now, handedIn,
-        fixOf = { FindTargets.fix(it, list, state.elements, latitude, longitude, now) },
-        sky = sky,
-    )
-    val next = if (targets.isEmpty()) {
-        FindTargets.nextUp(
-            list, now,
-            altitudeAt = { target, at -> FindTargets.altitudeAt(target, latitude, longitude, at) ?: -90.0 },
-            sunAt = { at -> Twilight.sunAltitude(latitude, longitude, at) },
-        )
-    } else {
-        null
-    }
-    return Offer(targets, next)
 }
 
 /**
@@ -237,13 +215,33 @@ private fun FindContent(
         // Worked out at most once a minute, keyed on the minute and on what it
         // reads: nothing is visible or not visible faster than that, and the
         // work must stay out of the per-second tick and the compass readings.
-        val offer = remember(
+        val available = remember(
             now / MINUTE_MILLIS, list, state.elements, latitude, longitude,
             state.settings.threshold, state.alertState.lastProbability, state.alertState.lastPollAt, handedIn,
         ) {
-            offerFor(state, list, latitude, longitude, now, handedIn)
+            FindTargets.availableAt(
+                list, state.elements, latitude, longitude, now, handedIn, skyFor(state, latitude, longitude, now),
+            )
         }
-        val available = offer.targets
+        // The search a day ahead is for the empty state only, and runs off the
+        // main thread: the line is shown at once and the next-up part follows.
+        val nothingOffered = available.isEmpty()
+        val next by produceState<Pair<FindTarget, Long>?>(
+            null, nothingOffered, now / MINUTE_MILLIS, list, latitude, longitude,
+        ) {
+            value = if (nothingOffered) {
+                val at = now
+                withContext(Dispatchers.Default) {
+                    FindTargets.nextUp(
+                        list, at,
+                        altitudeAt = { target, t -> FindTargets.altitudeAt(target, latitude, longitude, t) ?: -90.0 },
+                        sunAt = { t -> Twilight.sunAltitude(latitude, longitude, t) },
+                    )
+                }
+            } else {
+                null
+            }
+        }
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
@@ -256,7 +254,7 @@ private fun FindContent(
         )
         if (asked == null) {
             Text(
-                nothingToPointAt(offer.next?.let { (target, at) -> chipLabel(target, list, Long.MAX_VALUE, state.elements) to at }),
+                nothingToPointAt(next?.let { (target, at) -> chipLabel(target, list, Long.MAX_VALUE, state.elements) to at }),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.testTag(FIND_NOTHING_TAG),
             )
