@@ -62,7 +62,8 @@ const val WORKING_OUT_TONIGHT = "Working out tonight..."
  * is exactly the one whose downloads and last error somebody wants to see.
  *
  * While tonight is being worked out, a progress bar and "Updating..." go
- * under the status line.
+ * under the status line - the bar alone while there is no night yet, since
+ * the body then says "Working out tonight..." itself.
  *
  * Then the outlook: one sentence, decided by [sh.arek.gloaming.domain.Outlooks]
  * and worded by [OutlookWords], with nothing in its place until it has been
@@ -89,21 +90,31 @@ fun TonightHeader(state: MainUiState, actions: UiActions, onOpenChecks: () -> Un
         )
     }
     StatusLine(state, onOpenChecks)
-    if (state.tonightUpdating) UpdatingLine()
+    // With no night yet the body says "Working out tonight..." in its place,
+    // and the same thing said twice, one line apart, reads as two things.
+    if (state.tonightUpdating) UpdatingLine(words = !workingOutTonight(state))
 
     OutlookLines(state)
 }
 
 /**
+ * Whether the body stands "Working out tonight..." in for a night it does not
+ * have yet: one is being worked out for a position, and none is held.
+ */
+fun workingOutTonight(state: MainUiState): Boolean =
+    state.settings.hasLocation && state.tonight == null && state.tonightUpdating
+
+/**
  * That tonight is being worked out, which takes several seconds on a phone.
  * Without it a screen that had not changed yet read as one that never would.
+ * [words] is false where the body already says so.
  */
 @Composable
-private fun UpdatingLine() {
+private fun UpdatingLine(words: Boolean) {
     val palette = LocalPalette.current
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         LinearProgressIndicator(Modifier.fillMaxWidth().testTag(TONIGHT_UPDATING_TAG))
-        Text(TONIGHT_UPDATING, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+        if (words) Text(TONIGHT_UPDATING, style = MaterialTheme.typography.bodySmall, color = palette.muted)
     }
 }
 

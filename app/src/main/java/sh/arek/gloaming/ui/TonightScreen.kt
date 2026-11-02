@@ -112,7 +112,7 @@ fun TonightContent(
 
     val located = state.settings.hasLocation
     // Never an empty night: the first one on an open takes several seconds.
-    if (located && state.tonight == null && state.tonightUpdating) {
+    if (workingOutTonight(state)) {
         Text(WORKING_OUT_TONIGHT, style = MaterialTheme.typography.bodyLarge, color = palette.muted)
     }
     val timeline = state.timeline?.takeIf { located }?.let { drawn ->
