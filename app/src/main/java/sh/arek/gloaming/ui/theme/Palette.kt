@@ -9,10 +9,10 @@ import androidx.compose.ui.graphics.lerp
  *
  * Screens read these from [LocalPalette] instead of reaching for Material's
  * scheme, because the design needs roles Material has no name for (the sky
- * ramp, the cloud hatch, the rows dimmed behind cloud). The Material scheme is
+ * ramp, the cloud hatch, the rows dimmed as unseen). The Material scheme is
  * derived from the same values so stock components agree with them.
  *
- * @property dim rows behind cloud: still legible, visibly set back.
+ * @property dim rows that will not be seen: still legible, visibly set back.
  * @property sky the night column's backdrop at sun altitude 0, -6, -12, -18
  *   degrees and below; read it through [skyColour].
  * @property hatch the cloud pattern, the text colour at partial alpha.
@@ -63,7 +63,7 @@ object Palettes {
         accent = Color(0xFF9C3D63),
         onAccent = Color(0xFFFFFFFF),
         alarm = Color(0xFF8A5A00),
-        dim = Color(0xFF8A90A6),
+        dim = Color(0xFF656B83),
         sky = DaySky,
         hatch = Color(0xFF1A1E30).copy(alpha = 0.42f),
     )
@@ -81,7 +81,7 @@ object Palettes {
         accent = NightRed,
         onAccent = NightBlack,
         alarm = NightRed,
-        dim = Color(0xFF7A0000),
+        dim = NightRedDim,
         sky = listOf(
             Color(0xFF9A0000),
             Color(0xFF6A0000),

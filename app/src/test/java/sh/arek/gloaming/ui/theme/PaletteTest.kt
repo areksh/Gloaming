@@ -50,6 +50,26 @@ class PaletteTest {
         }
     }
 
+    /**
+     * A dimmed row is set back, not hidden: it says what the cloud is costing,
+     * and that has to be read to be worth saying. By day it meets the text
+     * floor; in night vision, which ranks its reds by brightness alone, it is
+     * no dimmer than the muted red, the dimmest the spec gives to words. It
+     * had been 1.8 to 1 there, and 2.8 to 1 in the light theme.
+     */
+    @Test
+    fun `dimmed rows stay readable and below the text`() {
+        for (name in listOf("dark", "light")) {
+            val p = all.getValue(name)
+            assertTrue("$name dim", contrast(p.dim, p.ground) >= 4.5)
+        }
+        val night = Palettes.Night
+        assertTrue("night dim", contrast(night.dim, night.ground) >= contrast(night.muted, night.ground))
+        for ((name, p) in all) {
+            assertTrue("$name dim below text", contrast(p.dim, p.ground) < contrast(p.text, p.ground))
+        }
+    }
+
     @Test
     fun `night vision carries no green or blue anywhere`() {
         val p = Palettes.Night
