@@ -728,7 +728,9 @@ class ScreensTest {
         show(tonight = null, tonightUpdating = true)
 
         compose.onNodeWithText(WORKING_OUT_TONIGHT).assertIsDisplayed()
-        compose.onNodeWithText(TONIGHT_UPDATING).assertIsDisplayed()
+        compose.onNodeWithTag(TONIGHT_UPDATING_TAG).assertIsDisplayed()
+        // Said once: "Updating..." one line above it said the same again.
+        compose.onNodeWithText(TONIGHT_UPDATING).assertDoesNotExist()
     }
 
     @Test
@@ -1903,6 +1905,42 @@ class ScreensTest {
         val bounds = drawn.rows.map { compose.onNodeWithTag(timelineRowTag(it)).getUnclippedBoundsInRoot() }
         for ((above, below) in bounds.zipWithNext()) {
             assertTrue("$above then $below", below.top >= above.bottom)
+        }
+    }
+
+    /**
+     * Written after a night at five past midnight showed Now above the rows
+     * at 23:00, drawn over them: a crowded evening had pushed those rows down
+     * past the line, which stayed at its time on the axis. Now belongs between
+     * the last row before it and the first after, and covers neither.
+     */
+    @Test
+    fun nowSitsBetweenTheRowsEitherSideOfItAfterACrowdedEvening() {
+        val sunset = now - 7 * hour
+        val evening = (1..10).map { i ->
+            row(sunset + i * 10 * 60_000L, "Evening row $i", RowSubject.Twilight, detail = "A line of detail")
+        }
+        val before = row(now - 65 * 60_000L, "Moonset", RowSubject.Moon)
+        val after = row(now + 55 * 60_000L, "First light", RowSubject.Twilight)
+        val drawn = Timeline(
+            startMillis = sunset,
+            endMillis = now + 7 * hour,
+            rows = listOf(row(sunset, "Sunset", RowSubject.Twilight)) + evening +
+                listOf(before, after, row(now + 7 * hour, "Sunrise", RowSubject.Twilight)),
+            cloud = emptyList(),
+            lanes = emptyList(),
+            nowMillis = now,
+        )
+        show(tonight = quietNight(), timeline = drawn)
+
+        val marker = compose.onNodeWithTag(TIMELINE_NOW_TAG).getUnclippedBoundsInRoot()
+        for (row in drawn.rows) {
+            val bounds = compose.onNodeWithTag(timelineRowTag(row)).getUnclippedBoundsInRoot()
+            if (row.atMillis <= now) {
+                assertTrue("${row.title} at $bounds runs into now at $marker", bounds.bottom <= marker.top)
+            } else {
+                assertTrue("${row.title} at $bounds runs into now at $marker", bounds.top >= marker.bottom)
+            }
         }
     }
 

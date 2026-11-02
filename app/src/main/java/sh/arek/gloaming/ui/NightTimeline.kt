@@ -16,7 +16,10 @@ import sh.arek.gloaming.domain.PickKind
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitePass
 
-/** How loudly a row speaks: dimmed behind cloud, strong where the outlook sends you out. */
+/**
+ * How loudly a row speaks: dimmed where it will not be seen - behind cloud, or
+ * a pass in the earth's shadow - strong where the outlook sends you out.
+ */
 enum class RowTone { Normal, Dim, Strong }
 
 /** How a lane is drawn, so the moon and two planets can run side by side without a key. */
@@ -93,6 +96,13 @@ object NightTimeline {
     private const val CLOUDY_PERCENT: Int = 50
 
     /**
+     * The verdicts that mean it will not be seen at all, which a row says by
+     * being dimmed: behind cloud, or a pass in the earth's shadow. The rest -
+     * low, in twilight, already over - are things a row can still be true of.
+     */
+    private val UNSEEN = setOf(Gate.Cloud, Gate.Sunlit)
+
+    /**
      * Null when there is no sunset or no sunrise to bound the night - the
      * midnight sun, the polar night, or no position at all. A night with
      * no civil darkness but a sunset and sunrise still has a timeline.
@@ -124,7 +134,7 @@ object NightTimeline {
         if (end <= start) return null
 
         val picks = (report.outlook as? Outlook.GoOut)?.picks.orEmpty()
-        val cloudy = report.excluded.filter { it.gate == Gate.Cloud }
+        val unseen = report.excluded.filter { it.gate in UNSEEN }
 
         fun toneOf(picked: Boolean, dimmed: Boolean) = when {
             picked -> RowTone.Strong
@@ -144,7 +154,7 @@ object NightTimeline {
 
         for (pass in list.bestPasses) {
             val picked = picks.any { it.kind == PickKind.Pass && it.subject == pass.name && it.atMillis == pass.peaksAt }
-            val dimmed = cloudy.any { it.subject == pass.name && it.atMillis == pass.peaksAt }
+            val dimmed = unseen.any { it.subject == pass.name && it.atMillis == pass.peaksAt }
             row(
                 pass.peaksAt,
                 "${pass.name}, ${pass.peakElevation.roundToInt()} degrees high",
@@ -162,7 +172,7 @@ object NightTimeline {
         for (planet in list.planets) {
             val name = planet.body.label
             val picked = picks.any { it.kind == PickKind.Planet && it.subject == name }
-            val dimmed = cloudy.any { it.subject == name }
+            val dimmed = unseen.any { it.subject == name }
             val tone = toneOf(picked, dimmed)
             val subject = RowSubject.Planet(planet)
             planet.risesAt?.let { row(it, "$name rises", subject, tone = tone) }
@@ -178,7 +188,7 @@ object NightTimeline {
 
         for (event in list.events) {
             val picked = picks.any { it.kind == PickKind.Event && it.subject == event.title && it.event?.at == event.at }
-            val dimmed = cloudy.any { it.subject == event.title && it.atMillis == event.at }
+            val dimmed = unseen.any { it.subject == event.title && it.atMillis == event.at }
             row(event.at, event.title, RowSubject.Event(event), tone = toneOf(picked, dimmed))
         }
 
@@ -203,8 +213,8 @@ object NightTimeline {
 
     /**
      * Every quarter of an hour from sunset to sunrise, both ends included.
-     * Fine enough that the twilight bands blend rather than step at 56 dp an
-     * hour, and few enough to work out with the rest of the night.
+     * Fine enough that the twilight bands blend rather than step at 56 dp or
+     * more an hour, and few enough to work out with the rest of the night.
      */
     private fun sunSamples(latitude: Double, longitude: Double, start: Long, end: Long): List<SunSample> {
         val times = generateSequence(start) { it + SUN_STEP_MILLIS }.takeWhile { it < end }.toList() + end
@@ -272,17 +282,50 @@ object NightTimeline {
     }
 
     /**
-     * Top offsets that keep rows apart while holding each as near its time as it can.
-     *
-     * [idealTops] must be in row order. A row is only ever pushed down, to
-     * exactly [gap] below the one above it, never up past its own time.
+     * Something placed beside the axis: a row, or the label at now. [lead] is
+     * how far below its top the point is that sits on its moment - the middle
+     * of a row's first line, the middle of the label.
      */
-    fun layout(idealTops: List<Int>, heights: List<Int>, gap: Int): List<Int> {
-        val tops = IntArray(idealTops.size)
-        for (i in idealTops.indices) {
-            tops[i] = if (i == 0) idealTops[0] else maxOf(idealTops[i], tops[i - 1] + heights[i - 1] + gap)
+    data class Slot(val atMillis: Long, val lead: Int, val height: Int)
+
+    /** The axis that came of placing the slots, and each slot's top, in their order. */
+    data class Placed(val axis: NightAxis, val tops: List<Int>)
+
+    /**
+     * Places [slots], which must be in time order, and draws the axis through
+     * them, so the sky column, the cloud, the lanes and the line at now stay
+     * level with the rows that name them.
+     *
+     * An hour is [hourPx] tall wherever the slots leave room. Where one would
+     * overlap the slot above it - closer than [gap] - it is pushed down to
+     * clear it, and the axis stretches with it: the time after it is measured
+     * from where it was pushed to, never from where it would have been. So an
+     * hour is never shorter than [hourPx], only longer where the night is
+     * crowded.
+     *
+     * Before this the rows were pushed and the axis was not. A crowded evening
+     * left them hours below their moments by morning, and now, drawn at its
+     * moment on the axis, sat among the rows at 23:00 at five past midnight.
+     */
+    fun place(startMillis: Long, slots: List<Slot>, hourPx: Float, pad: Int, gap: Int): Placed {
+        if (slots.isEmpty()) return Placed(NightAxis(longArrayOf(startMillis), floatArrayOf(pad.toFloat()), hourPx), emptyList())
+        val perMilli = hourPx / HOUR_MILLIS
+        val ys = FloatArray(slots.size)
+        val tops = IntArray(slots.size)
+        for (i in slots.indices) {
+            val slot = slots[i]
+            ys[i] = if (i == 0) {
+                maxOf(pad + (slot.atMillis - startMillis) * perMilli, slot.lead.toFloat())
+            } else {
+                val above = slots[i - 1]
+                maxOf(
+                    ys[i - 1] + (slot.atMillis - above.atMillis) * perMilli,
+                    (tops[i - 1] + above.height + gap + slot.lead).toFloat(),
+                )
+            }
+            tops[i] = (ys[i] - slot.lead).roundToInt()
         }
-        return tops.toList()
+        return Placed(NightAxis(LongArray(slots.size) { slots[it].atMillis }, ys, hourPx), tops.toList())
     }
 
     private fun cloudSpans(hourly: List<HourlyCover>, start: Long, end: Long): List<CloudSpan> =
@@ -328,5 +371,33 @@ object NightTimeline {
             }
         }
         return lanes
+    }
+}
+
+/**
+ * Where each moment of the night falls down the drawing, in pixels: straight
+ * between the knots [NightTimeline.place] put at each row, and [hourPx] an
+ * hour beyond them. Two knots at one moment are a step, which that moment
+ * reads at the top of.
+ */
+class NightAxis internal constructor(
+    private val times: LongArray,
+    private val ys: FloatArray,
+    private val hourPx: Float,
+) {
+    fun y(atMillis: Long): Float {
+        val perMilli = hourPx / (60 * 60 * 1000f)
+        if (atMillis <= times.first()) return ys.first() - (times.first() - atMillis) * perMilli
+        if (atMillis > times.last()) return ys.last() + (atMillis - times.last()) * perMilli
+        // The first knot at or after the moment; the one before it is the last before.
+        var lo = 0
+        var hi = times.lastIndex
+        while (lo < hi) {
+            val mid = (lo + hi) / 2
+            if (times[mid] < atMillis) lo = mid + 1 else hi = mid
+        }
+        if (times[lo] == atMillis) return ys[lo]
+        val fraction = (atMillis - times[lo - 1]).toFloat() / (times[lo] - times[lo - 1])
+        return ys[lo - 1] + (ys[lo] - ys[lo - 1]) * fraction
     }
 }

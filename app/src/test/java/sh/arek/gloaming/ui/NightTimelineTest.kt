@@ -224,6 +224,20 @@ class NightTimelineTest {
         assertEquals(listOf(RowTone.Dim, RowTone.Strong, RowTone.Normal), rows.map { it.tone })
     }
 
+    /**
+     * A pass in the earth's shadow cannot be seen at all, which is what a dim
+     * row says; drawn like a visible one, it read as a reason to look up.
+     */
+    @Test
+    fun `dims a pass in the earth's shadow as well as one behind cloud`() {
+        val shadowed = pass("SL-16 R/B", "2026-12-14T19:00:00Z")
+        val report = report(excluded = listOf(Excluded("SL-16 R/B", shadowed.peaksAt, Gate.Sunlit)))
+
+        val row = build(list(passes = listOf(shadowed)), report)!!.rows.single { it.subject is RowSubject.Pass }
+
+        assertEquals(RowTone.Dim, row.tone)
+    }
+
     @Test
     fun `matches an event on its own moment and a planet on its name alone`() {
         val event = SkyEvent(
@@ -376,23 +390,79 @@ class NightTimelineTest {
         assertEquals("Tonight from sunset at 15:40 to sunrise at 08:40.", NightTimeline.summary(timeline))
     }
 
+    private val hour = 3_600_000L
+
+    /** Slots a row each, with the middle of the first line 10 below the top. */
+    private fun slots(vararg at: Pair<Long, Int>) = at.map { (millis, height) -> NightTimeline.Slot(millis, 10, height) }
+
     @Test
-    fun `layout keeps a row at its time when there is room`() {
-        assertEquals(listOf(0, 100, 300), NightTimeline.layout(listOf(0, 100, 300), listOf(50, 50, 50), 8))
+    fun `places rows at their times, an hour apart by the hour, when there is room`() {
+        val placed = NightTimeline.place(0, slots(0L to 40, hour to 40, 3 * hour to 40), 100f, 10, 4)
+
+        assertEquals(listOf(0, 100, 300), placed.tops)
+        assertEquals(10f, placed.axis.y(0))
+        assertEquals(160f, placed.axis.y(hour + hour / 2))
     }
 
     @Test
-    fun `layout pushes a colliding row down by exactly the overlap`() {
-        // The second wants 40 but the first ends at 50 and a gap of 8 follows.
-        assertEquals(listOf(0, 58, 200), NightTimeline.layout(listOf(0, 40, 200), listOf(50, 50, 50), 8))
+    fun `pushes a crowded row down by exactly the overlap`() {
+        // The second wants its top at 50 but the first ends at 80 and a gap of 4 follows.
+        val placed = NightTimeline.place(0, slots(0L to 80, hour / 2 to 40), 100f, 10, 4)
+
+        assertEquals(listOf(0, 84), placed.tops)
+    }
+
+    /**
+     * The point of the axis: where a row is pushed, the hours after it are
+     * measured from where it went, so the drawing beside every later row is
+     * still of that row's moment.
+     */
+    @Test
+    fun `stretches the axis where rows crowd and keeps every row on its moment`() {
+        val placed = NightTimeline.place(
+            0,
+            slots(0L to 80, hour / 4 to 80, hour / 2 to 80, 2 * hour to 40),
+            100f, 10, 4,
+        )
+
+        assertEquals(listOf(0, 84, 168, 318), placed.tops)
+        // Each row's first line sits on the axis at its own moment.
+        assertEquals(listOf(10f, 94f, 178f, 328f), listOf(0L, hour / 4, hour / 2, 2 * hour).map { placed.axis.y(it) })
+        // After the crowd an hour is an hour again.
+        assertEquals(100f, placed.axis.y(3 * hour) - placed.axis.y(2 * hour))
     }
 
     @Test
-    fun `layout never moves a row up`() {
-        val tops = NightTimeline.layout(listOf(0, 10, 20, 500), listOf(30, 30, 30, 30), 4)
+    fun `never makes an hour shorter than the hour`() {
+        val placed = NightTimeline.place(0, slots(0L to 200, hour / 10 to 30, 5 * hour to 30), 50f, 10, 4)
+        val ys = (0..60).map { placed.axis.y(it * hour / 10) }
 
-        assertEquals(listOf(0, 34, 68, 500), tops)
-        listOf(0, 10, 20, 500).forEachIndexed { i, ideal -> assertTrue(tops[i] >= ideal) }
+        for ((earlier, later) in ys.zipWithNext()) assertTrue("$earlier then $later", later - earlier >= 5f - 0.001f)
+    }
+
+    @Test
+    fun `two rows at one moment are a step the moment reads at the top of`() {
+        val placed = NightTimeline.place(0, slots(0L to 40, hour to 40, hour to 40, 2 * hour to 40), 100f, 10, 4)
+
+        assertEquals(listOf(0, 100, 144, 244), placed.tops)
+        assertEquals(110f, placed.axis.y(hour))
+        assertEquals(204f, placed.axis.y(hour + hour / 2))
+    }
+
+    @Test
+    fun `keeps the first row on the page when it falls right at the top`() {
+        val placed = NightTimeline.place(0, listOf(NightTimeline.Slot(0, 14, 44)), 100f, 10, 4)
+
+        assertEquals(listOf(0), placed.tops)
+        assertEquals(14f, placed.axis.y(0))
+    }
+
+    @Test
+    fun `an empty night is an hour an hour from the pad`() {
+        val placed = NightTimeline.place(0, emptyList(), 100f, 10, 4)
+
+        assertEquals(emptyList<Int>(), placed.tops)
+        assertEquals(210f, placed.axis.y(2 * hour))
     }
 
     /**

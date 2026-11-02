@@ -31,18 +31,19 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
-import kotlin.math.roundToInt
 import kotlin.math.sin
 import sh.arek.gloaming.satellites.SatellitePass
 import sh.arek.gloaming.ui.theme.Palette
@@ -54,7 +55,14 @@ const val TIMELINE_TAG = "timeline"
 /** One row, by its moment and its words; stable for as long as the row is. */
 fun timelineRowTag(row: TimelineRow): String = "row:${row.atMillis}:${row.title}"
 
-/** One hour of the night is always this tall, so a glance reads durations. */
+/** The label at now, beside the rows. */
+const val TIMELINE_NOW_TAG = "timeline-now"
+
+/**
+ * One hour of the night is at least this tall, so a glance reads durations;
+ * where the rows crowd it stretches rather than let them drift off their
+ * times ([NightTimeline.place]).
+ */
 private val HOUR_HEIGHT = 56.dp
 
 /** Room above sunset and below sunrise for the rows that sit on them. */
@@ -71,17 +79,29 @@ private val FIRST_LINE_MIDDLE = ROW_PADDING + 10.dp
 private val HATCH_SPACING = 5.dp
 private val HATCH_STROKE = 1.5.dp
 
+private val NOW_STROKE = 2.dp
+
+/** How far left of the rows the label at now starts, so it sits over their times. */
+private val NOW_LABEL_INSET = 8.dp
+
+private enum class Part { Rows, Now, Sky }
+
 /**
  * Tonight from sunset at the top to sunrise at the bottom, at [HOUR_HEIGHT] an
- * hour.
+ * hour or more.
  *
  * The drawing - the sky column shaded by how far down the sun is, the cloud
  * hatched over it, the moon and up to two planets as lanes, and the line at
  * now - is one `Canvas` that a screen reader hears as a single sentence
  * ([NightTimeline.summary]). The rows are real nodes laid over it, each one
- * tappable, placed at their times and nudged down only where they would
- * collide ([NightTimeline.layout]), so TalkBack reads the night as a list in
- * time order.
+ * tappable, so TalkBack reads the night as a list in time order.
+ *
+ * The rows are placed first and the drawing follows them: where rows would
+ * collide they are pushed apart and the hours there stretch to match
+ * ([NightTimeline.place]), so everything level with a row - cloud, lanes, the
+ * sky's colour - is of that row's moment. Now is placed as one of the rows,
+ * so its line falls between the row before it and the row after, crossing
+ * neither.
  *
  * Nothing here is said by colour alone, because night vision has only red to
  * give: a row behind cloud is dimmed, one the outlook sends you out for is
@@ -101,58 +121,72 @@ fun NightTimelineView(
     Column(modifier.testTag(TIMELINE_TAG), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Key(timeline, palette)
 
-        Layout(
-            content = {
-                Canvas(Modifier.clearAndSetSemantics { contentDescription = summary }) {
-                    drawNight(timeline, palette)
-                }
+        // Subcomposed because the drawing is of the axis the rows' heights make.
+        SubcomposeLayout { constraints ->
+            val width = constraints.maxWidth
+            val rowStart = ROWS_START.roundToPx()
+            val rowConstraints = Constraints(maxWidth = (width - rowStart).coerceAtLeast(0))
+            val rows = subcompose(Part.Rows) {
                 for (row in timeline.rows) {
                     TimelineRowView(row, now, palette, onClick = { onRow(row) })
                 }
-                // Read as part of the drawing's sentence, so silent here.
-                if (now != null) {
+            }.map { it.measure(rowConstraints) }
+
+            val label = now?.let { at ->
+                subcompose(Part.Now) {
+                    // Read as part of the drawing's sentence, so silent here.
                     Text(
-                        "${clock(now)} Now",
+                        "${clock(at)} Now",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = palette.accent,
                         modifier = Modifier
-                            .clearAndSetSemantics {}
+                            .clearAndSetSemantics { testTag = TIMELINE_NOW_TAG }
                             .background(palette.ground)
                             .padding(horizontal = 8.dp),
                     )
+                }.single().measure(Constraints())
+            }
+
+            val lead = FIRST_LINE_MIDDLE.roundToPx()
+            val slots = timeline.rows.mapIndexed { i, row -> NightTimeline.Slot(row.atMillis, lead, rows[i].height) }
+            // After every row at or before now, before every row after it.
+            val nowSlot = if (now != null && label != null) NightTimeline.Slot(now, label.height / 2, label.height) else null
+            val nowIndex = nowSlot?.let { at -> timeline.rows.count { it.atMillis <= at.atMillis } }
+            val placed = NightTimeline.place(
+                timeline.startMillis,
+                if (nowSlot == null || nowIndex == null) slots else slots.take(nowIndex) + nowSlot + slots.drop(nowIndex),
+                HOUR_HEIGHT.toPx(),
+                END_PAD.roundToPx(),
+                ROW_GAP.roundToPx(),
+            )
+            val rowTops = if (nowIndex == null) placed.tops else placed.tops.filterIndexed { i, _ -> i != nowIndex }
+            val labelTop = nowIndex?.let { placed.tops[it] }
+            // The label's own middle, not the axis at now: a row at that very
+            // minute takes the top of the step and now sits below it.
+            val nowY = if (label != null && labelTop != null) labelTop + label.height / 2f else null
+
+            val height = maxOf(
+                ceil(placed.axis.y(timeline.endMillis) + END_PAD.toPx()).toInt(),
+                rows.indices.maxOfOrNull { rowTops[it] + rows[it].height } ?: 0,
+                if (label != null && labelTop != null) labelTop + label.height else 0,
+            )
+            val sky = subcompose(Part.Sky) {
+                Canvas(Modifier.clearAndSetSemantics { contentDescription = summary }) {
+                    drawNight(timeline, placed.axis, nowY, palette)
                 }
-            },
-        ) { measurables, constraints ->
-            val width = constraints.maxWidth
-            val pad = END_PAD.roundToPx()
-            val hour = HOUR_HEIGHT.toPx()
-            fun y(t: Long): Int = pad + ((t - timeline.startMillis) / HOUR_MILLIS * hour).roundToInt()
+            }.single().measure(Constraints.fixed(width, height))
 
-            val skyHeight = y(timeline.endMillis) + pad
-            val canvas = measurables.first().measure(Constraints.fixed(width, skyHeight))
-
-            val rowStart = ROWS_START.roundToPx()
-            val rowConstraints = Constraints(maxWidth = (width - rowStart).coerceAtLeast(0))
-            val rows = measurables.subList(1, 1 + timeline.rows.size).map { it.measure(rowConstraints) }
-            val ideal = timeline.rows.map { (y(it.atMillis) - FIRST_LINE_MIDDLE.roundToPx()).coerceAtLeast(0) }
-            val tops = NightTimeline.layout(ideal, rows.map { it.height }, ROW_GAP.roundToPx())
-
-            val nowLabel = if (now != null) measurables.last().measure(Constraints()) else null
-            val bottom = rows.indices.maxOfOrNull { tops[it] + rows[it].height } ?: 0
-
-            layout(width, maxOf(skyHeight, bottom)) {
-                canvas.place(0, 0)
-                rows.forEachIndexed { i, placeable -> placeable.place(rowStart, tops[i]) }
-                if (nowLabel != null && now != null) {
-                    nowLabel.place(rowStart - 8.dp.roundToPx(), y(now) - nowLabel.height / 2)
+            layout(width, height) {
+                sky.place(0, 0)
+                rows.forEachIndexed { i, placeable -> placeable.place(rowStart, rowTops[i]) }
+                if (label != null && labelTop != null) {
+                    label.place(rowStart - NOW_LABEL_INSET.roundToPx(), labelTop)
                 }
             }
         }
     }
 }
-
-private const val HOUR_MILLIS = 3_600_000.0
 
 /** Where each kind of lane runs, to the right of the sky column. */
 private fun laneX(style: LaneStyle): Dp = when (style) {
@@ -161,10 +195,8 @@ private fun laneX(style: LaneStyle): Dp = when (style) {
     LaneStyle.Dotted -> 55.dp
 }
 
-private fun DrawScope.drawNight(timeline: Timeline, palette: Palette) {
-    val pad = END_PAD.toPx()
-    val hour = HOUR_HEIGHT.toPx()
-    fun y(t: Long): Float = pad + ((t - timeline.startMillis) / HOUR_MILLIS * hour).toFloat()
+private fun DrawScope.drawNight(timeline: Timeline, axis: NightAxis, nowY: Float?, palette: Palette) {
+    fun y(t: Long): Float = axis.y(t)
 
     val top = y(timeline.startMillis)
     val bottom = y(timeline.endMillis)
@@ -195,25 +227,10 @@ private fun DrawScope.drawNight(timeline: Timeline, palette: Palette) {
 
     for (lane in timeline.lanes) {
         val x = laneX(lane.style).toPx()
-        val from = Offset(x, y(lane.fromMillis))
-        val until = Offset(x, y(lane.untilMillis))
-        when (lane.style) {
-            LaneStyle.Solid -> drawLine(palette.text, from, until, 4.dp.toPx(), StrokeCap.Round)
-            LaneStyle.Dashed -> drawLine(
-                palette.muted, from, until, 3.dp.toPx(),
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
-            )
-            LaneStyle.Dotted -> drawLine(
-                palette.muted, from, until, 3.dp.toPx(), StrokeCap.Round,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, 5.dp.toPx())),
-            )
-        }
+        laneLine(lane.style, palette, Offset(x, y(lane.fromMillis)), Offset(x, y(lane.untilMillis)))
     }
 
-    timeline.nowMillis?.let {
-        val at = y(it)
-        drawLine(palette.accent, Offset(0f, at), Offset(size.width, at), 2.dp.toPx())
-    }
+    nowY?.let { drawLine(palette.accent, Offset(0f, it), Offset(size.width, it), NOW_STROKE.toPx()) }
 }
 
 /**
@@ -273,17 +290,25 @@ private fun DrawScope.hatchSwatch(palette: Palette) {
 
 private fun DrawScope.laneSwatch(style: LaneStyle, palette: Palette) {
     val x = size.width / 2
-    val from = Offset(x, 0f)
-    val until = Offset(x, size.height)
+    laneLine(style, palette, Offset(x, 0f), Offset(x, size.height))
+}
+
+/**
+ * One lane's line, in the drawing and in the key alike, so the key cannot
+ * show a mark the drawing does not. A dash is more than twice as long as the
+ * line is wide: the key's had been a 3 dp square, and beside the dots it was
+ * the same mark, which in night vision's one red left two planets alike.
+ */
+private fun DrawScope.laneLine(style: LaneStyle, palette: Palette, from: Offset, until: Offset) {
     when (style) {
         LaneStyle.Solid -> drawLine(palette.text, from, until, 4.dp.toPx(), StrokeCap.Round)
         LaneStyle.Dashed -> drawLine(
             palette.muted, from, until, 3.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.dp.toPx())),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(7.dp.toPx(), 4.dp.toPx())),
         )
         LaneStyle.Dotted -> drawLine(
             palette.muted, from, until, 3.dp.toPx(), StrokeCap.Round,
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, 4.dp.toPx())),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(0.1f, 5.dp.toPx())),
         )
     }
 }
