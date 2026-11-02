@@ -445,8 +445,8 @@ is a file replacement.
   the device-zone clock and date strings the screens share.
 
   **Navigation is a bottom bar, and each section scrolls itself.** `GloamingNav`
-  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Find,
-  Ahead, Settings); the guide is not one, and is a Settings page.
+  is a `Scaffold` with a `NavigationBar` over the `Section`s (Tonight, Sky,
+  Find, Ahead, Settings); the guide is not one, and is a Settings page.
   Settings is an index (`SettingsIndex.kt`): `SettingsGroup`s, seven questions
   in order, each listing its `SettingsPage`s as rows that show the page's
   current value (`summary`, with `summaryAlarming` marking the ones that report
@@ -487,7 +487,26 @@ is a file replacement.
   the polar night, the midnight sun - there is no timeline, and the darkness
   thresholds are said in words in its place. A row opens `RowSheet` - the detail the
   old cards carried, the caveat, the guide's notes, Share and Export for a
-  dated event. `TonightLists` works out the two lists beneath: "Also up
+  dated event. `RowSheet` is `SubjectSheet` with a timeline row's own heading:
+  the sheet is about a `RowSubject` (which includes `Constellation`, never a
+  timeline row) and is headed by `heading(subject)`, worded as the row is
+  (`passTitle`, `passEnds`, `planetPeakTitle`), so Sky and a notification open
+  the same sheet. A pass's sheet says the whole pass in `describePassDetail`:
+  each end, its highest point, when it goes into or comes out of the earth's
+  shadow, and what kind of object it is.
+
+  **Sky (`SkyScreen`) is everything up tonight, uncut.** Tonight is the
+  shortlist; Sky lists every pass in `TonightList.passes` (three hundred is an
+  ordinary night), every planet, every constellation (`TonightList.everyConstellation`,
+  kept beside the shortlist and empty in a snapshot from before it was) with
+  the ones that never set apart, and the moon, events and comets. The grouping
+  is `domain/SkyList.of`, a pure function: passes under the local hour they are
+  highest in (the time each row says), filtered by channel chips, with the ones
+  already set folded under one "Earlier tonight" row. It is a `LazyColumn` for
+  Ahead's reason, with sticky hour headers. Every row opens `SubjectSheet` with
+  Find it, which hands Find the subject; `FindTargets.available` offers any
+  handed-in target whatever its height or the pattern limit, and Find says when
+  one below the horizon rises. `TonightLists` works out the two lists beneath: "Also up
   tonight" (whatever is up with no row and was not set aside) and "Not worth
   it tonight" (the outlook's exclusions in `OutlookWords.excluded`, then the
   satellites when there are none to list, saying whether the sky is empty or
@@ -618,7 +637,25 @@ is a file replacement.
   `PASS_LEAD_MILLIS` (30 minutes), soonest first and at most
   `FindTargets.MAX_PASSES`, since every pass made the picker too long to use; a
   pass handed in by a notification is always offered, beyond the limit if need
-  be. Until tonight has been worked out, a pass that cannot be placed reads
+  be, and so is any other target handed in from a sheet. Tonight's best passes
+  (`Tonight.best`) are the station first and then the highest of the night,
+  six in all, plus the pass the poller last announced (`AnnouncedPass`, from
+  `AlertState.lastPassCatalogue` and `lastPassPeakAt`, matched within
+  `PassPlanner.SAME_PASS_TOLERANCE_MILLIS`) until it sets: the poller announces
+  the soonest pass and the list keeps the highest, and without it the pass an
+  alert spoke about was on no screen. It is part of `TonightKey`, so a new
+  announcement works tonight out again.
+
+  **A notification's tap opens what it was about.** Pass alerts, the live pass
+  tracker and event alerts carry a `SubjectRef` (`domain/SubjectRef.kt`:
+  a pass by catalogue and rise, an event by `EventPlanner.starKey`) in their
+  content intent (`notify/ShowIt.kt`, data scheme `gloaming-show`, beside Find
+  it's `gloaming-find`). `MainActivity` takes it as it takes a Find target
+  (`showSubjectFrom`: read once, dropped before setup or from Recents) and
+  `GloamingNav` holds it until tonight is known, then lands where
+  `ui/Shown.resolve` says: the subject's sheet over Sky; Sky with a line saying
+  the pass has finished or is no longer listed; or Ahead with a later night's
+  event open. The eclipse tracker and the aurora still open the app as it was. Until tonight has been worked out, a pass that cannot be placed reads
   "Working out tonight..." rather than gone.
 
 ### Manifest verification

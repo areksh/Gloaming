@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A Sky tab lists everything up tonight.** Tonight is the shortlist; Sky,
+  second on the bar, is the whole of it: every satellite pass of the night under
+  the hour it is highest in, with chips to show or hide the space station,
+  bright satellites and Starlink trains, and the passes already gone folded
+  away; every planet; every constellation, the ones that never set from here in
+  their own group; and the moon, events and comets. Any row opens its detail,
+  and Find it points the phone at it, even a pattern Find's own picker had no
+  room for or one still below the horizon. A pass's detail now says when it
+  goes into or comes out of the earth's shadow, which decides whether it can be
+  seen at all.
+
+- **Tapping a notification opens what it was about.** A pass alert, the live
+  pass tracker and an event alert open that pass or event's detail, instead of
+  the app on whatever tab it was last left on. A pass that has since set says
+  when it finished; an event on a later night opens on Ahead.
+
 - **Tonight opens with one sentence about the night.** Under the date, a single
   line says whether tonight is worth going out for and when - "Cloudy until
   23:40, then three clear hours. Go out at midnight for Saturn and Tiangong." -
@@ -255,6 +271,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "up here". Names of data sources such as AuroraWatch UK are unchanged.
 
 ### Fixed
+
+- **A pass alert's pass now appears on Tonight.** Alerts announce the soonest
+  bright pass and Tonight listed the six highest of the night, so on a busy
+  night the pass a notification spoke about was on no screen. It is now listed
+  on Tonight, and offered on Find, until it sets.
 
 - **Tonight no longer goes blank when you turn the phone, says when it is
   updating, and is worked out once when you open the app.** Opening Gloaming
