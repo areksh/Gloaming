@@ -21,6 +21,14 @@ import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.encode
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
+import sh.arek.gloaming.domain.SubjectRef
+import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.PassChannel
+import sh.arek.gloaming.satellites.SatellitePass
 import org.junit.Rule
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
@@ -52,6 +60,10 @@ class GloamingNavTest {
     private var initialFind by mutableStateOf<String?>(null)
     private var initialFindShown = 0
 
+    /** What an incoming intent asked to show, as the activity would hand it over. */
+    private var initialShow by mutableStateOf<String?>(null)
+    private var initialShowShown = 0
+
     private val eclipse = SkyEvent(
         kind = EventKind.SolarEclipse,
         at = 1_800_000_000_000L,
@@ -73,12 +85,15 @@ class GloamingNavTest {
         calendarLoading: Boolean = false,
         batteryExempt: Boolean = true,
         compass: CompassSource = NoCompass,
+        tonight: TonightList? = null,
     ) {
         compose.setContent {
             GloamingNav(
                 compass = compass,
                 initialFind = initialFind,
                 onInitialFindShown = { initialFindShown++ },
+                initialShow = initialShow,
+                onInitialShowShown = { initialShowShown++ },
                 state = MainUiState(
                     settings = settings,
                     alertState = AlertState(),
@@ -91,6 +106,7 @@ class GloamingNavTest {
                     nowMillis = 1_800_000_000_000L,
                     calendar = calendar,
                     calendarLoading = calendarLoading,
+                    tonight = tonight,
                 ),
                 actions = UiActions(
                     onCalendarSyncChange = { calendarSync = it },
@@ -119,6 +135,68 @@ class GloamingNavTest {
 
         compose.onNodeWithTag(Section.Tonight.tag).assertIsSelected()
         compose.onNodeWithTag(WATCH_BUTTON_TAG).assertIsDisplayed()
+    }
+
+    private val shownAt = 1_800_000_000_000L
+
+    private fun passRising(at: Long) = SatellitePass(
+        28499, "ARIANE 5 R/B", PassChannel.Bright, at, 13.0, at + 360_000L, 75.0, 288.0,
+        at + 780_000L, 202.0, 697.0, true, null, null,
+    )
+
+    private fun nightWith(pass: SatellitePass) = TonightList(
+        darkFrom = shownAt - 3_600_000L,
+        darkUntil = shownAt + 36_000_000L,
+        passes = listOf(pass),
+        bestPasses = emptyList(),
+        events = emptyList(),
+        comets = emptyList(),
+        noctilucent = null,
+    )
+
+    /** A pass alert's tap: Sky, with that pass's sheet open over it. */
+    @Test
+    fun aShownPassOpensItsSheetOnSky() {
+        val pass = passRising(shownAt + 600_000L)
+        initialShow = SubjectRef.Pass(pass.catalogue, pass.risesAt).encode()
+        show(tonight = nightWith(pass))
+
+        compose.onNodeWithTag(Section.Sky.tag).assertIsSelected()
+        compose.onNodeWithTag(ROW_SHEET_TAG).assertIsDisplayed()
+        compose.onNode(hasText("ARIANE 5 R/B", substring = true) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG)))
+            .assertIsDisplayed()
+    }
+
+    /** A tap after the pass has gone says so, rather than opening on nothing. */
+    @Test
+    fun aFinishedPassSaysSo() {
+        val pass = passRising(shownAt - 3_600_000L)
+        initialShow = SubjectRef.Pass(pass.catalogue, pass.risesAt).encode()
+        show(tonight = nightWith(pass))
+
+        compose.onNodeWithTag(Section.Sky.tag).assertIsSelected()
+        compose.onNodeWithTag(SKY_NOTE_TAG).assertTextContains("finished at", substring = true)
+    }
+
+    /** A heads-up for another night lands on the calendar, with that event open. */
+    @Test
+    fun aLaterEventOpensAhead() {
+        initialShow = SubjectRef.Event(EventPlanner.starKey(eclipse)).encode()
+        show(tonight = nightWith(passRising(shownAt + 600_000L)))
+
+        compose.onNodeWithTag(Section.Ahead.tag).assertIsSelected()
+        compose.onNodeWithTag(ROW_SHEET_TAG).assertIsDisplayed()
+        compose.onNode(hasText(eclipse.title) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG))).assertIsDisplayed()
+    }
+
+    @Test
+    fun aShownSubjectIsHandledOnce() {
+        val pass = passRising(shownAt + 600_000L)
+        initialShow = SubjectRef.Pass(pass.catalogue, pass.risesAt).encode()
+        show(tonight = nightWith(pass))
+
+        compose.waitForIdle()
+        assertEquals(1, initialShowShown)
     }
 
     /**

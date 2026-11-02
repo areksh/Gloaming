@@ -80,6 +80,8 @@ import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
 import sh.arek.gloaming.domain.AnnouncedPass
 import sh.arek.gloaming.domain.Tonight
+import sh.arek.gloaming.domain.showSubjectFrom
+import sh.arek.gloaming.notify.ShowIt
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.domain.findTargetFrom
 import sh.arek.gloaming.net.TransferState
@@ -166,6 +168,12 @@ class MainActivity : ComponentActivity() {
     private var pendingFind by mutableStateOf<String?>(null)
 
     /**
+     * What a notification's tap was about, encoded as a `SubjectRef`, until
+     * the screen has shown it. As [pendingFind], for the same reasons.
+     */
+    private var pendingShow by mutableStateOf<String?>(null)
+
+    /**
      * `singleTop` so tapping "Find it" while the app is already in front lands
      * here rather than stacking a second copy.
      */
@@ -173,6 +181,21 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         takeFindTarget(intent)
+        takeShowSubject(intent)
+    }
+
+    /**
+     * Moves the subject out of [intent] and into [pendingShow], as
+     * [takeFindTarget] does for Find, so a rotation does not reopen it.
+     */
+    private fun takeShowSubject(intent: Intent) {
+        val extra = intent.getStringExtra(ShowIt.EXTRA_SHOW_SUBJECT) ?: return
+        intent.removeExtra(ShowIt.EXTRA_SHOW_SUBJECT)
+        pendingShow = showSubjectFrom(
+            extra,
+            setupDone = Graph.settings(this).read().setupDone,
+            launchedFromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0,
+        )?.encode()
     }
 
     /**
@@ -210,9 +233,19 @@ class MainActivity : ComponentActivity() {
 
         // Only on a fresh start: after a rotation or process death the intent
         // is the original one, and its target has already been used.
-        if (savedInstanceState == null) takeFindTarget(intent)
+        if (savedInstanceState == null) {
+            takeFindTarget(intent)
+            takeShowSubject(intent)
+        }
 
-        setContent { GloamingApp(initialFind = pendingFind, onInitialFindShown = { pendingFind = null }) }
+        setContent {
+            GloamingApp(
+                initialFind = pendingFind,
+                onInitialFindShown = { pendingFind = null },
+                initialShow = pendingShow,
+                onInitialShowShown = { pendingShow = null },
+            )
+        }
     }
 }
 
@@ -298,7 +331,12 @@ private fun granted(context: Context, permission: String): Boolean =
  * setting and the settings are read here.
  */
 @androidx.compose.runtime.Composable
-private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
+private fun GloamingApp(
+    initialFind: String?,
+    onInitialFindShown: () -> Unit,
+    initialShow: String?,
+    onInitialShowShown: () -> Unit,
+) {
     val context = LocalContext.current
     val settingsStore = remember { Graph.settings(context) }
     val stateStore = remember { Graph.alertState(context) }
@@ -1517,6 +1555,8 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                 compass = compass,
                 initialFind = initialFind,
                 onInitialFindShown = onInitialFindShown,
+                initialShow = initialShow,
+                onInitialShowShown = onInitialShowShown,
             )
         }
     }

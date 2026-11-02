@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.NoCompass
 import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.SubjectRef
 import sh.arek.gloaming.domain.decode
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.ui.theme.LocalPalette
@@ -89,6 +91,12 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  *   anything else is ignored and the app opens as it would have. Either way
  *   [onInitialFindShown] is called, so the caller can forget it and the same
  *   notification tapped again aims Find again.
+ * @param initialShow what a notification's tap was about, encoded as a
+ *   `SubjectRef`, already read by `showSubjectFrom` in `MainActivity`. It
+ *   lands where [resolve] says: that subject's sheet over Sky, Sky with a line
+ *   saying why it cannot be shown, or Ahead with a later event open. Held
+ *   until tonight is known, since a cold start has none for a moment, then
+ *   [onInitialShowShown] is called.
  * @param findClock the time Find works from; a parameter so a test can hold
  *   it still, since what Find offers depends on what is up in the real sky.
  */
@@ -100,6 +108,8 @@ fun GloamingNav(
     compass: CompassSource = NoCompass,
     initialFind: String? = null,
     onInitialFindShown: () -> Unit = {},
+    initialShow: String? = null,
+    onInitialShowShown: () -> Unit = {},
     findClock: () -> Long = { System.currentTimeMillis() },
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
@@ -131,6 +141,38 @@ fun GloamingNav(
             }
             onInitialFindShown()
         }
+    }
+
+    // Where a notification's tap landed: the sheet to open over Sky, the line
+    // to say there instead, or the event to open on Ahead. Held only until
+    // each is shown.
+    var skyOpen by remember { mutableStateOf<RowSubject?>(null) }
+    var skyNote by remember { mutableStateOf<String?>(null) }
+    var aheadOpen by remember { mutableStateOf<String?>(null) }
+
+    val tonightKnown = state.tonight != null || !state.settings.hasLocation
+    LaunchedEffect(initialShow, tonightKnown) {
+        if (initialShow == null || !tonightKnown) return@LaunchedEffect
+        SubjectRef.decode(initialShow)?.let { ref ->
+            openPage = null
+            val settings = state.settings
+            when (val shown = resolve(ref, state.tonight, state.elements, settings.latitude, settings.longitude, state.nowMillis)) {
+                is Shown.Sheet -> {
+                    skyNote = null
+                    skyOpen = shown.subject
+                    selected = Section.Sky.ordinal
+                }
+                is Shown.Finished -> {
+                    skyNote = shown.note
+                    selected = Section.Sky.ordinal
+                }
+                is Shown.Later -> {
+                    aheadOpen = shown.starKey
+                    selected = Section.Ahead.ordinal
+                }
+            }
+        }
+        onInitialShowShown()
     }
 
     // System Back leaves a page for the index rather than the app.
@@ -177,6 +219,8 @@ fun GloamingNav(
                 onStarredOnlyChange = { starredOnly = it },
                 modifier = content.fillMaxSize(),
                 listState = aheadScroll,
+                initialOpen = aheadOpen,
+                onInitialOpenShown = { aheadOpen = null },
             )
 
             // Tonight scrolls itself too, with the watch button pinned under
@@ -199,6 +243,9 @@ fun GloamingNav(
                 actions = actions,
                 listState = skyScroll,
                 modifier = content.fillMaxSize(),
+                openSubject = skyOpen,
+                onSubjectShown = { skyOpen = null },
+                note = skyNote,
                 onFindIt = { target ->
                     findTarget = target.encode()
                     selected = Section.Find.ordinal

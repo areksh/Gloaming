@@ -20,6 +20,7 @@ import sh.arek.gloaming.domain.EventNotifier
 import sh.arek.gloaming.data.Conditions
 import sh.arek.gloaming.data.VerdictChannel
 import sh.arek.gloaming.domain.EventPlanner
+import sh.arek.gloaming.domain.SubjectRef
 import sh.arek.gloaming.ui.findTarget
 import sh.arek.gloaming.work.EclipseService
 import sh.arek.gloaming.work.FollowEclipseReceiver
@@ -56,7 +57,9 @@ class AndroidEventNotifier(private val context: Context) : EventNotifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(event.detail))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setContentIntent(openApp())
+            .setContentIntent(
+                ShowIt.pendingIntent(context, SubjectRef.Event(EventPlanner.starKey(event)), notificationId(event, phase)),
+            )
             .apply { followEclipse(event)?.let { addAction(0, "Follow it", it) } }
             .apply {
                 findTarget(event)?.let { addFindIt(context, it, notificationId(event, phase)) }

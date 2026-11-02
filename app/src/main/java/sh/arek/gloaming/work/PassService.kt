@@ -24,6 +24,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import sh.arek.gloaming.Graph
 import sh.arek.gloaming.MainActivity
+import sh.arek.gloaming.notify.ShowIt
+import sh.arek.gloaming.domain.SubjectRef
 import sh.arek.gloaming.R
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.domain.PassPlanner
@@ -187,7 +189,11 @@ class PassService : Service() {
 
         while (scope.isActive) {
             val now = System.currentTimeMillis()
-            update(LivePass.describe(tracker.fixAt(now), pass, now), pass.name)
+            update(
+                LivePass.describe(tracker.fixAt(now), pass, now),
+                pass.name,
+                SubjectRef.Pass(pass.catalogue, pass.risesAt),
+            )
 
             if (now > pass.setsAt + LINGER_MILLIS) return
             if (now - startedAt > capMillis) {
@@ -211,15 +217,16 @@ class PassService : Service() {
         }
     }
 
-    private fun update(text: String, name: String) {
+    private fun update(text: String, name: String, subject: SubjectRef) {
         runCatching {
             getSystemService(NotificationManager::class.java)
-                ?.notify(NOTIFICATION_ID, notification(text, name))
+                ?.notify(NOTIFICATION_ID, notification(text, name, subject))
         }
     }
 
-    private fun notification(text: String, name: String): Notification {
-        val open = PendingIntent.getActivity(
+    /** [subject], once known, is what a tap opens: the followed pass's sheet. */
+    private fun notification(text: String, name: String, subject: SubjectRef? = null): Notification {
+        val open = subject?.let { ShowIt.pendingIntent(this, it, 0) } ?: PendingIntent.getActivity(
             this,
             0,
             Intent(this, MainActivity::class.java),

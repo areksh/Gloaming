@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,11 +94,22 @@ fun AheadScreen(
     onStarredOnlyChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyListState = rememberLazyListState(),
+    initialOpen: String? = null,
+    onInitialOpenShown: () -> Unit = {},
 ) {
     val events = state.calendar
     val starred = state.settings.starredEvents
     val hiddenKinds = state.settings.hiddenEventKinds
     var opened by remember { mutableStateOf<SkyEvent?>(null) }
+
+    // An event a notification's tap was about, by its star key, opened once
+    // the calendar holds it: on a cold start it is still being worked out.
+    LaunchedEffect(initialOpen, events) {
+        if (initialOpen == null) return@LaunchedEffect
+        val event = events.firstOrNull { EventPlanner.starKey(it) == initialOpen } ?: return@LaunchedEffect
+        opened = event
+        onInitialOpenShown()
+    }
     var choosingKinds by rememberSaveable { mutableStateOf(false) }
 
     // A lazy list rather than loose children in the tab's scrolling column,

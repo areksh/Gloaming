@@ -188,8 +188,8 @@ internal fun BackgroundUpdatesOffer(onAccept: () -> Unit, onDecline: () -> Unit)
 
 /**
  * What the app shows: first-run setup until it has been walked through or
- * skipped, and the navigation after. [initialFind] is passed on to the
- * navigation; see [GloamingNav].
+ * skipped, and the navigation after. [initialFind] and [initialShow] are
+ * passed on to the navigation; see [GloamingNav].
  */
 @Composable
 fun GloamingRoot(
@@ -200,13 +200,20 @@ fun GloamingRoot(
     compass: CompassSource = NoCompass,
     initialFind: String? = null,
     onInitialFindShown: () -> Unit = {},
+    initialShow: String? = null,
+    onInitialShowShown: () -> Unit = {},
 ) {
     if (state.settings.setupDone) {
-        GloamingNav(state, actions, modifier, compass, initialFind, onInitialFindShown)
+        GloamingNav(
+            state, actions, modifier, compass, initialFind, onInitialFindShown,
+            initialShow = initialShow,
+            onInitialShowShown = onInitialShowShown,
+        )
     } else {
         // Setup comes first: a target handed in before it is done is dropped
         // rather than kept, so it cannot surprise anybody when setup ends.
         LaunchedEffect(initialFind) { if (initialFind != null) onInitialFindShown() }
+        LaunchedEffect(initialShow) { if (initialShow != null) onInitialShowShown() }
         SetupFlow(state, actions, onFinished = onSetupFinished, modifier = modifier)
     }
 }

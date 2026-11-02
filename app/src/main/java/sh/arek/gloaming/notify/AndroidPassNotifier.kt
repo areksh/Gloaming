@@ -15,6 +15,7 @@ import sh.arek.gloaming.MainActivity
 import sh.arek.gloaming.R
 import sh.arek.gloaming.domain.FindTarget
 import sh.arek.gloaming.domain.PassNotifier
+import sh.arek.gloaming.domain.SubjectRef
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.PassDescription
 import sh.arek.gloaming.satellites.describeTrain
@@ -78,7 +79,12 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(detail))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
-            .setContentIntent(openApp())
+            // A tap opens this pass's sheet, wherever the app was: before,
+            // it opened the app on its last tab, and a pass outside Tonight's
+            // best was then on no screen at all.
+            .setContentIntent(
+                ShowIt.pendingIntent(context, SubjectRef.Pass(pass.catalogue, pass.risesAt), pass.catalogue),
+            )
             .addAction(0, "Follow it", followPass(pass))
             .addFindIt(context, FindTarget.Pass(pass.catalogue, pass.risesAt), pass.catalogue)
             // Alongside "Follow it" rather than instead of it. A pass verdict
@@ -133,13 +139,6 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-    private fun openApp(): PendingIntent = PendingIntent.getActivity(
-        context,
-        REQUEST_OPEN,
-        Intent(context, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
 
     /**
      * Passes are routine, so the channels are deliberately quieter than the
@@ -173,6 +172,5 @@ class AndroidPassNotifier(private val context: Context) : PassNotifier {
 
     private companion object {
         /** Distinct from the aurora notifier's and storm mode's. */
-        const val REQUEST_OPEN = 3
     }
 }
