@@ -66,9 +66,28 @@ class TonightWordingTest {
         assertEquals("60% cloud, high and thin", describeCloud(cloud))
     }
 
+    /**
+     * The total is the layers overlapping, not one of them, so it sits above
+     * the high cloud as soon as there is any other cloud at all. A sky that is
+     * mostly cirrus with a scrap of low cloud is still high and thin.
+     */
     @Test
-    fun `quotes the total when the cloud is in the way`() {
+    fun `calls cirrus high and thin when a little low cloud lifts the total`() {
+        val cloud = CloudCover(total = 64, low = 10, mid = 0, high = 60)
+
+        assertEquals("64% cloud, high and thin", describeCloud(cloud))
+    }
+
+    @Test
+    fun `says when the cloud is low and thick`() {
         val cloud = CloudCover(total = 60, low = 55, mid = 20, high = 10)
+
+        assertEquals("60% cloud, low and thick", describeCloud(cloud))
+    }
+
+    @Test
+    fun `quotes the total when the cloud is mostly mid-level`() {
+        val cloud = CloudCover(total = 60, low = 10, mid = 55, high = 10)
 
         assertEquals("60% cloud", describeCloud(cloud))
     }

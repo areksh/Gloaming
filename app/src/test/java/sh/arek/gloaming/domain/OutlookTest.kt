@@ -299,6 +299,32 @@ class OutlookTest {
         )
     }
 
+    /**
+     * A bright pass is judged on the cover that matters to it, but the reason
+     * it was set aside quotes the forecast as everything else on screen does.
+     * "Forecast 60% cloud" under a sky the rest of the app calls 85% is a
+     * second, private definition of cloud.
+     */
+    @Test
+    fun `a pass under cloud quotes the forecast total, not the weighted cover`() {
+        val iss = pass(at("2026-12-13T19:12:00Z"))
+        val hourly = hours("2026-12-13T16:00:00Z", 10, 10, 10, 10, 10, 10, 10, 10)
+            .map {
+                if (it.atMillis == at("2026-12-13T19:00:00Z")) {
+                    it.copy(total = 85, low = 60, mid = 0, high = 70)
+                } else {
+                    it
+                }
+            }
+
+        val report = Outlooks.of(tonight(passes = listOf(iss)), input(hourly = hourly))
+
+        assertEquals(
+            listOf(Excluded("ISS (ZARYA)", iss.peaksAt, Gate.Cloud, "85")),
+            report.excluded,
+        )
+    }
+
     @Test
     fun `an hour missing from the forecast fails the cloud gate`() {
         val iss = pass(at("2026-12-14T03:12:00Z"))

@@ -274,22 +274,34 @@ internal fun describePercent(percent: Int): String = "$percent per cent"
  *
  * Where the cloud is matters as much as how much: high cirrus at 60% still
  * shows a strong aurora, low stratus at 60% does not.
+ *
+ * Judged on the layers against each other, never against the total. The total
+ * is the layers overlapping, so it sits above the high cloud as soon as there
+ * is any other cloud at all, and a test of "high is all of it" only ever
+ * passed on a sky with nothing else in it.
+ *
+ * Mid-level cloud gets the bare total: it blocks as well as low cloud does,
+ * but "mid-level" is not a word anyone looking up would use.
  */
 fun describeCloud(cloud: CloudCover?): String {
     if (cloud == null) return "cloud cover unknown"
     val blocking = cloud.low + cloud.mid
+    val total = "${cloud.total}% cloud"
     return when {
         cloud.total <= CLEAR_PERCENT -> "clear"
-        cloud.high >= cloud.total && blocking <= THIN_PERCENT ->
-            "${cloud.total}% cloud, high and thin"
-        else -> "${cloud.total}% cloud"
+        blocking <= THIN_PERCENT && cloud.high > blocking -> "$total, high and thin"
+        cloud.low > THIN_PERCENT && cloud.low >= maxOf(cloud.mid, cloud.high) -> "$total, low and thick"
+        else -> total
     }
 }
 
 /** At or below this the sky is called clear rather than given a number. */
 private const val CLEAR_PERCENT = 15
 
-/** How much low and mid cloud may be present before "high and thin" is a lie. */
+/**
+ * How much low and mid cloud may be present before "high and thin" is a lie,
+ * and how much low cloud there must be before it is worth naming.
+ */
 private const val THIN_PERCENT = 25
 
 /**

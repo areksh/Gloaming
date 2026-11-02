@@ -65,7 +65,7 @@ enum class DarknessShortfall {
  *
  * [note] carries what the wording needs and the gate alone does not say:
  * for [Gate.Visibility] the event's own reason; for [Gate.Cloud] the forecast
- * cover at its hour, for [Gate.Moon] the moon's illumination, for
+ * total at its hour (not the weighted cover it may have failed on), for [Gate.Moon] the moon's illumination, for
  * [Gate.Height] a pass's peak elevation or a planet's altitude when it was
  * judged (floored), and for [Gate.Aurora] the probability, each as a whole
  * number (percent or degrees). Null for the rest, and for a cloud failure
@@ -705,12 +705,10 @@ object Outlooks {
             is Visibility.NotFromHere -> visibility.reason
             else -> null
         }
-        Gate.Cloud -> hourAt(candidate.at, night)?.let {
-            // The figure that failed: the total for a faint thing under thin
-            // cloud, otherwise the cover as it matters to a bright one.
-            val tolerance = night.input.settings.cloudTolerance
-            if (candidate.faint && it.effective <= tolerance) it.total else it.effective
-        }?.toString()
+        // The forecast total, whichever figure failed. A bright thing is judged
+        // on the weighted cover, but that is a private number: quoted as
+        // "% cloud" it disagrees with every other place the app gives one.
+        Gate.Cloud -> hourAt(candidate.at, night)?.total?.toString()
         Gate.Moon -> (illumination(night) * 100).roundToInt().toString()
         // Floored, so "only 14 degrees up" is never more than the truth.
         Gate.Height -> (

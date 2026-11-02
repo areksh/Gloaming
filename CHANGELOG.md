@@ -272,6 +272,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The cloud now says which kind it is.** The guide promised the app would
+  say whether cloud was high and thin or low and thick, but "high and thin"
+  only appeared when there was no other cloud at all - the forecast's total
+  counts every layer, so a scrap of low cloud put it above the cirrus and the
+  wording never fired. It is now judged on the layers against each other, and
+  low cloud is named too: "64% cloud, high and thin", "60% cloud, low and
+  thick".
+
+- **A pass set aside for cloud quotes the forecast.** "Forecast 60% cloud when
+  it crosses" could sit under a sky the rest of the app called 85%: a bright
+  pass is judged on cloud weighted for how thin it is, and that weighted figure
+  was what got quoted. The reason now gives the forecast total.
+
 - **A pass alert's pass now appears on Tonight.** Alerts announce the soonest
   bright pass and Tonight listed the six highest of the night, so on a busy
   night the pass a notification spoke about was on no screen. It is now listed
