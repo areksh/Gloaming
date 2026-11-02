@@ -320,6 +320,17 @@ class SkyCalendarTest {
     }
 
     /**
+     * A title heads its entry on Ahead, so it starts with a capital - "eta
+     * Aquariids at their best" and "southern Taurids at their best" did not.
+     */
+    @Test
+    fun `starts every title with a capital`() {
+        for (event in SkyCalendar.events(latitude, longitude, at("2026-08-25T00:00:00Z"), 400)) {
+            assertTrue(event.title, event.title.first().isUpperCase())
+        }
+    }
+
+    /**
      * The screen computes this on demand, so it has to be quick enough not to
      * need a spinner. Measured rather than assumed - the eclipse searches are
      * iterative and there is no other signal that one has gone quadratic.

@@ -170,7 +170,7 @@ object Showers {
             activeUntil = "28 May",
         ),
         Shower(
-            name = "southern delta Aquariids",
+            name = "Southern delta Aquariids",
             solarLongitude = 125.0,
             radiantRightAscension = 22.70,
             radiantDeclination = -16.3,
@@ -220,7 +220,7 @@ object Showers {
             activeUntil = "7 November",
         ),
         Shower(
-            name = "southern Taurids",
+            name = "Southern Taurids",
             solarLongitude = 223.0,
             radiantRightAscension = 3.53,
             radiantDeclination = 15.0,
@@ -230,7 +230,7 @@ object Showers {
             activeUntil = "20 November",
         ),
         Shower(
-            name = "northern Taurids",
+            name = "Northern Taurids",
             solarLongitude = 230.0,
             radiantRightAscension = 3.87,
             radiantDeclination = 22.7,

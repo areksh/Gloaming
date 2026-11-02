@@ -764,7 +764,8 @@ object SkyCalendar {
             at = peak.bestAt,
             from = night?.first ?: peak.peaksAt,
             until = night?.last ?: peak.peaksAt,
-            title = "${peak.shower.name} at their best",
+            // A Greek letter is lower case in a shower's name, but not to start a title.
+            title = "${peak.shower.name.replaceFirstChar { it.uppercase() }} at their best",
             detail = buildString {
                 if (peak.hourlyRateFromHere > 0) {
                     append("Perhaps ${peak.hourlyRateFromHere} an hour from here at its best, ")
