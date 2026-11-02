@@ -1653,7 +1653,7 @@ class ScreensTest {
         compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("ISS (ZARYA), 68 degrees high").assertIsDisplayed()
         openRow(row)
-        inSheet("68 degrees south", substring = true)
+        inSheet("68 degrees up in the south", substring = true)
     }
 
     /** An empty sky is an answer, not a blank. */

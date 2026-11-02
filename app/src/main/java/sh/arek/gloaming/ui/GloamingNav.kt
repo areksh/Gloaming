@@ -246,6 +246,9 @@ fun GloamingNav(
                 openSubject = skyOpen,
                 onSubjectShown = { skyOpen = null },
                 note = skyNote,
+                // The screen's own clock, as Tonight reads it, so what Sky
+                // folds away as gone agrees with the rest of the app.
+                nowMillis = state.nowMillis,
                 onFindIt = { target ->
                     findTarget = target.encode()
                     selected = Section.Find.ordinal

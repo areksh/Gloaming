@@ -189,6 +189,18 @@ class GloamingNavTest {
         compose.onNode(hasText(eclipse.title) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG))).assertIsDisplayed()
     }
 
+    /** Sky folds what has set by the screen's own clock, the one Tonight reads. */
+    @Test
+    fun skyFoldsAPassThatHasSetByTheScreensClock() {
+        val gone = passRising(shownAt - 3_600_000L)
+        show(tonight = nightWith(gone))
+
+        compose.onNodeWithTag(Section.Sky.tag).performClick()
+
+        compose.onNodeWithTag(SKY_EARLIER_TAG).assertIsDisplayed()
+        compose.onAllNodesWithTag(skyRowTag(RowSubject.Pass(gone))).assertCountEquals(0)
+    }
+
     @Test
     fun aShownSubjectIsHandledOnce() {
         val pass = passRising(shownAt + 600_000L)
