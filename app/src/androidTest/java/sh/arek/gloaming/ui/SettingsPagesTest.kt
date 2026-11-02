@@ -264,6 +264,9 @@ class SettingsPagesTest {
      * Stores [claimed] over the phone's own settings, keeping its position so
      * nothing of the owner's is lost, and remembers what was there. Read and
      * written the way the app does; never cleared.
+     *
+     * Setup is marked done: on a fresh install it is not, the activity opens
+     * on first-run setup, and there is no Settings tab to reach the page by.
      */
     private fun claim(mode: LocationMode, cadence: LocationCadence) {
         val original = Graph.settings(targetContext).read()
@@ -276,6 +279,7 @@ class SettingsPagesTest {
                 locationMode = mode,
                 locationCadence = cadence,
                 backgroundLocationRevoked = false,
+                setupDone = true,
             ),
         )
     }
