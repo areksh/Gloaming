@@ -546,6 +546,15 @@ class TonightTest {
         assertEquals(emptyList<String>(), full.constellationsAlwaysUp)
     }
 
+    /** The Sky tab lists every pattern, whatever the shortlist was cut to. */
+    @Test
+    fun `keeps every constellation although the shortlist is cut`() {
+        val list = tonight("2027-01-15T22:00:00Z")
+
+        assertTrue(list.everyConstellation.size >= list.constellations.size + list.constellationsAlwaysUp.size)
+        assertTrue(list.everyConstellation.any { it.isCircumpolar })
+    }
+
     private fun pass(
         name: String,
         rises: String,

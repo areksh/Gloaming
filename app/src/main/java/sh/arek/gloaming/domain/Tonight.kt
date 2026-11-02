@@ -127,6 +127,12 @@ data class TonightList(
      */
     val constellationsAlwaysUp: List<String> = emptyList(),
     /**
+     * Every pattern up tonight, before [constellations] is cut to the ones
+     * worth leading with and the ones that never set are put in a sentence.
+     * The Sky tab lists them all. Empty in a snapshot from before it was kept.
+     */
+    val everyConstellation: List<ConstellationTonight> = emptyList(),
+    /**
      * Whether the device actually holds the orbital elements.
      *
      * Without this, "no elements" and "no passes" are the same empty list, and
@@ -305,6 +311,7 @@ object Tonight {
             } else {
                 everyConstellation.filter { it.isCircumpolar }.map { it.constellation.name }
             },
+            everyConstellation = everyConstellation,
             elementsHeld = satellites != null,
             clearSpell = clearSpell,
             nextClearSpell = nextClearSpell,
