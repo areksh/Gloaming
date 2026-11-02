@@ -15,12 +15,12 @@ import sh.arek.gloaming.satellites.SatellitePass
  *
  * Tonight answers "what is worth going out for"; this answers "what is up
  * there", so nothing is cut. Three hundred passes is an ordinary night, which
- * is why they are grouped by the hour they rise in rather than listed flat,
+ * is why they are grouped by the hour they are highest in rather than listed flat,
  * and why the ones already gone are folded away rather than leading.
  *
  * @property earlierPasses passes that have set, earliest first.
  * @property passHours the passes still to come or under way, each under the
- *   start of the local hour it rises in.
+ *   start of the local hour it is highest in, by when it is highest.
  * @property seasonal the patterns that rise and set, by when each is highest.
  * @property alwaysUp the patterns that never set from here, by name: the same
  *   every night, so the order of the night says nothing about them.
@@ -46,8 +46,12 @@ data class SkyList(
         ): SkyList {
             val shown = list.passes.filter { it.channel in channels }.sortedBy { it.risesAt }
             val (gone, ahead) = shown.partition { it.setsAt <= nowMillis }
+            // Under the hour each is highest in, since that is the time its
+            // row says; by rise, one rising at 18:58 would read "19:03" under
+            // a heading of 18:00.
             val hours = ahead
-                .groupBy { Instant.ofEpochMilli(it.risesAt).atZone(zone).truncatedTo(ChronoUnit.HOURS).toInstant().toEpochMilli() }
+                .sortedBy { it.peaksAt }
+                .groupBy { Instant.ofEpochMilli(it.peaksAt).atZone(zone).truncatedTo(ChronoUnit.HOURS).toInstant().toEpochMilli() }
                 .toList()
                 .sortedBy { it.first }
 

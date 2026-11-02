@@ -71,8 +71,18 @@ class SkyListTest {
 
     private val now = at("2026-11-02T18:00:00Z")
 
+    /** Each row says when the pass is highest, so that is the hour it sits under. */
     @Test
-    fun `groups the passes still to come by the hour they rise in`() {
+    fun `groups a pass under the hour it is highest in, not the hour it rises in`() {
+        val late = pass("2026-11-02T18:56:00Z") // highest 19:01
+
+        val sky = SkyList.of(night(passes = listOf(late)), now, every, utc)
+
+        assertEquals(listOf(at("2026-11-02T19:00:00Z")), sky.passHours.map { it.first })
+    }
+
+    @Test
+    fun `groups the passes still to come by the hour they peak in`() {
         val list = night(
             passes = listOf(
                 pass("2026-11-02T18:24:00Z"),
@@ -95,7 +105,7 @@ class SkyListTest {
         val sky = SkyList.of(night(passes = listOf(gone, underWay)), now, every, utc)
 
         assertEquals(listOf(gone), sky.earlierPasses)
-        assertEquals(listOf(at("2026-11-02T17:00:00Z") to listOf(underWay)), sky.passHours)
+        assertEquals(listOf(at("2026-11-02T18:00:00Z") to listOf(underWay)), sky.passHours)
     }
 
     @Test

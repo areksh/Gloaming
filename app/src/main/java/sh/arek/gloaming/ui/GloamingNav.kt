@@ -50,6 +50,7 @@ import sh.arek.gloaming.ui.theme.LocalPalette
  */
 enum class Section(val label: String, val tag: String) {
     Tonight("Tonight", "nav-tonight"),
+    Sky("Sky", "nav-sky"),
     Find("Find", "nav-find"),
     Ahead("Ahead", "nav-ahead"),
     Settings("Settings", "nav-settings"),
@@ -115,6 +116,7 @@ fun GloamingNav(
     val tonightScroll = rememberScrollState()
     val settingsScroll = rememberScrollState()
     val aheadScroll = rememberLazyListState()
+    val skyScroll = rememberLazyListState()
     var starredOnly by rememberSaveable { mutableStateOf(false) }
     // What Find is aimed at, encoded, so Find it on a row can open it on that
     // row and a target picked on Find is still chosen after a visit elsewhere.
@@ -190,6 +192,19 @@ fun GloamingNav(
                 },
             )
 
+            // Sky is a lazy list like the calendar, for the same reason and
+            // more of it: a night of passes is hundreds of rows.
+            Section.Sky -> SkyScreen(
+                state = state,
+                actions = actions,
+                listState = skyScroll,
+                modifier = content.fillMaxSize(),
+                onFindIt = { target ->
+                    findTarget = target.encode()
+                    selected = Section.Find.ordinal
+                },
+            )
+
             // Find scrolls itself, and listens to the compass only while it
             // is the section shown.
             Section.Find -> FindScreen(
@@ -232,6 +247,7 @@ private fun SectionIcon(section: Section) {
     androidx.compose.material3.Icon(
         imageVector = when (section) {
             Section.Tonight -> Icons.moon
+            Section.Sky -> Icons.stars
             Section.Find -> Icons.compass
             Section.Ahead -> Icons.calendar
             Section.Settings -> Icons.sliders
@@ -262,6 +278,32 @@ private object Icons {
         arcTo(8.5f, 8.5f, 0f, true, true, 9.5f, 4f)
         arcTo(6.5f, 6.5f, 0f, false, false, 20f, 14.5f)
         close()
+    }
+
+    /** Three stars of different sizes: everything up there. */
+    val stars = icon("stars") {
+        moveTo(9f, 4f)
+        lineTo(10.5f, 8.5f)
+        lineTo(15f, 10f)
+        lineTo(10.5f, 11.5f)
+        lineTo(9f, 16f)
+        lineTo(7.5f, 11.5f)
+        lineTo(3f, 10f)
+        lineTo(7.5f, 8.5f)
+        close()
+        moveTo(17f, 13f)
+        lineTo(17.8f, 15.2f)
+        lineTo(20f, 16f)
+        lineTo(17.8f, 16.8f)
+        lineTo(17f, 19f)
+        lineTo(16.2f, 16.8f)
+        lineTo(14f, 16f)
+        lineTo(16.2f, 15.2f)
+        close()
+        moveTo(18f, 4f)
+        verticalLineTo(8f)
+        moveTo(16f, 6f)
+        horizontalLineTo(20f)
     }
 
     val compass = icon("compass") {

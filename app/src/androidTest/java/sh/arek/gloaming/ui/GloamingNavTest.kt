@@ -168,7 +168,7 @@ class GloamingNavTest {
     fun offersFourSectionsInOrder() {
         show()
 
-        assertEquals(listOf("Tonight", "Find", "Ahead", "Settings"), Section.entries.map { it.label })
+        assertEquals(listOf("Tonight", "Sky", "Find", "Ahead", "Settings"), Section.entries.map { it.label })
         for (section in Section.entries) {
             compose.onNodeWithTag(section.tag).assertIsDisplayed()
         }
