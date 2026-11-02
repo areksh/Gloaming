@@ -345,7 +345,10 @@ is a file replacement.
   `astronomy.SkyPositions`, which places a body or a fixed point at an instant
   for Find; `Outlook`, which decides Tonight's opening sentence from the same
   documents by putting every candidate through the gates in order and keeping
-  the picks and the exclusions; and the adaptive-polling scheduler policy.
+  the picks and the exclusions (a planet, up for hours, is judged at its
+  highest moment of the darkness left and, where cloud hides that, at its
+  highest clear hour that passes every gate); and the adaptive-polling
+  scheduler policy.
 - **scheduling:** `AlarmManager.setWindow()` or chained `OneTimeWorkRequest`s
   (WorkManager's 15-minute floor is too coarse in both directions, Sec. 9.3);
   every scheduled wake is jittered - spread either side of the requested time
@@ -462,7 +465,7 @@ is a file replacement.
   the last error, the downloads report, battery saver); then the date and the
   outlook. While tonight is being worked out a progress bar and "Updating..."
   sit under the status line, and with no night yet the body says "Working out
-  tonight..." rather than nothing. The outlook is decided in the same
+  tonight..." rather than nothing, under the bar alone. The outlook is decided in the same
   off-main-thread pass as the tonight list, from the same held documents and
   the held hourly forecast, so the sentence and the night beneath it cannot
   disagree. The
@@ -471,11 +474,16 @@ is a file replacement.
   latter young for ever. The same pass lays the night out as a `Timeline`
   (`NightTimeline.of`: rows, cloud spans, lanes and the sun's altitude every
   quarter hour, matching rows to the outlook's picks and exclusions so a row's
-  weight is the outlook's verdict). Under the header, `NightTimelineView` draws
-  it at 56 dp an hour: one `Canvas` for the sky column, hatching, lanes and
-  the now line, heard by a screen reader as `NightTimeline.summary`, with the
-  rows as real tappable nodes over it placed by `NightTimeline.layout`, so
-  TalkBack reads them in time order. With no sunset or sunrise to bound it -
+  weight is the outlook's verdict: dimmed where it will not be seen - behind
+  cloud, or a pass in the earth's shadow). Under the header, `NightTimelineView` draws
+  it at 56 dp an hour or more: one `Canvas` for the sky column, hatching, lanes
+  and the now line, heard by a screen reader as `NightTimeline.summary`, with
+  the rows as real tappable nodes over it, so TalkBack reads them in time
+  order. The rows are placed first and the drawing follows them:
+  `NightTimeline.place` pushes a row clear of the one above and stretches the
+  axis with it, never shrinks an hour, and places now as one of the rows, so
+  the cloud and lanes beside a row are of that row's moment and the now line
+  falls between rows rather than across them. With no sunset or sunrise to bound it -
   the polar night, the midnight sun - there is no timeline, and the darkness
   thresholds are said in words in its place. A row opens `RowSheet` - the detail the
   old cards carried, the caveat, the guide's notes, Share and Export for a
@@ -555,10 +563,14 @@ is a file replacement.
   most once a minute, with `nextUp` naming the soonest to come when nothing is
   up - places the chosen one with `FindTargets.fix` once a second (the rise
   search behind it is memoised), and turns each compass reading into a direction
-  with `Pointing.direction` - the phone's top edge, corrected by
-  `data.magneticDeclination` (the platform's `GeomagneticField`, so nothing is
-  fetched) and the user's stored `compassOffsetDegrees` - and into guidance with
-  `Guide.of` and `GuideWords`. The view is one `Canvas` sixty degrees across,
+  with `Pointing.direction` - the phone's top edge, aimed like a pointer, or
+  out of its back when the stored `findAim` has Find looked through like a
+  window (a choice made on Find itself, and the hold Line up is read in too),
+  corrected by `data.magneticDeclination` (the platform's `GeomagneticField`,
+  so nothing is fetched) and the user's stored `compassOffsetDegrees` - and into
+  guidance with `Guide.of` and `GuideWords`. The view is one `Canvas` sixty
+  degrees across, turned by `Pointing.roll` when looked through so its horizon
+  stays level with the real one,
   heard by TalkBack as the instruction and where; the instruction line is a
   polite live region. The words are pure functions in `FindWords.kt`
   (`whereLine`, `findInstruction`, `chipLabel`, `lineUpRefusal`, and
