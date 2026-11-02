@@ -4,6 +4,7 @@ import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.data.Answer
 import sh.arek.gloaming.data.CalendarSync
+import sh.arek.gloaming.data.FindAim
 import sh.arek.gloaming.data.LocationCadence
 import sh.arek.gloaming.data.LocationMode
 import sh.arek.gloaming.data.WatchDuration
@@ -77,4 +78,6 @@ data class UiActions(
     /** The compass correction is now this many degrees, from Line up or a reset. */
     val onCompassOffsetChange: (Double) -> Unit = {},
     val onNightVisionWhenFindingChange: (Boolean) -> Unit = {},
+    /** Find is to take the way the phone points like this from now on. */
+    val onFindAimChange: (FindAim) -> Unit = {},
 )

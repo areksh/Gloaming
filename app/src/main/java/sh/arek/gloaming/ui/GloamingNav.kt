@@ -88,6 +88,8 @@ const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
  *   anything else is ignored and the app opens as it would have. Either way
  *   [onInitialFindShown] is called, so the caller can forget it and the same
  *   notification tapped again aims Find again.
+ * @param findClock the time Find works from; a parameter so a test can hold
+ *   it still, since what Find offers depends on what is up in the real sky.
  */
 @Composable
 fun GloamingNav(
@@ -97,6 +99,7 @@ fun GloamingNav(
     compass: CompassSource = NoCompass,
     initialFind: String? = null,
     onInitialFindShown: () -> Unit = {},
+    findClock: () -> Long = { System.currentTimeMillis() },
 ) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     // The open Settings page by name: null is the index. A name rather than the
@@ -196,6 +199,7 @@ fun GloamingNav(
                 initial = findTarget?.let { FindTarget.decode(it) },
                 modifier = content.fillMaxSize(),
                 onTargetChange = { findTarget = it.encode() },
+                clock = findClock,
             )
 
             Section.Settings -> if (page == null) {

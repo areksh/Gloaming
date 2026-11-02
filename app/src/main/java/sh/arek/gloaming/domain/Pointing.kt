@@ -7,32 +7,70 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.data.FindAim
 
 /**
- * Which way the phone's top edge points, from the rotation sensor.
+ * Which way the phone points, from the rotation sensor, held either of the
+ * two ways [FindAim] names: aimed by its top edge like a pointer, or looked
+ * through like a window, out of its back.
  *
  * Pure arithmetic with no Android types, so it is tested on the JVM.
  */
 object Pointing {
     /**
-     * The direction of the device's +Y axis (its top edge) in the sky.
+     * How close to straight up or down a window may look before it has no up
+     * to turn the drawing to: the vertical, seen end on, is a point.
+     */
+    private const val NO_ROLL_BELOW = 1e-3
+
+    /**
+     * Where the phone points in the sky.
      *
      * [rotation] is the 9-element row-major matrix that
      * `SensorManager.getRotationMatrixFromVector` produces: world X east, Y
-     * north, Z up, and device X right, Y top edge, Z out of the screen. The
-     * top edge in world coordinates is the matrix's second column, so its
-     * east and north parts give the azimuth and its up part the altitude.
+     * north, Z up, and device X right, Y top edge, Z out of the screen, so
+     * each column is one device axis in world coordinates. Aimed by the top
+     * edge, the direction is the second column (+Y); looked through, it is
+     * the third reversed (-Z), out of the back, and rolling the phone in its
+     * own plane leaves it alone. Its east and north parts give the azimuth
+     * and its up part the altitude.
      *
      * The sensor's azimuth is from magnetic north; [declinationDegrees]
      * (east positive) brings it to true north, and [offsetDegrees] is the
      * user's own correction from a compass check. The azimuth is returned in
      * 0..360.
      */
-    fun direction(rotation: FloatArray, declinationDegrees: Double, offsetDegrees: Double): AltAz {
-        val magnetic = Math.toDegrees(atan2(rotation[1].toDouble(), rotation[4].toDouble()))
+    fun direction(rotation: FloatArray, aim: FindAim, declinationDegrees: Double, offsetDegrees: Double): AltAz {
+        val (east, north, up) = when (aim) {
+            FindAim.TopEdge -> Triple(rotation[1], rotation[4], rotation[7])
+            FindAim.LookThrough -> Triple(-rotation[2], -rotation[5], -rotation[8])
+        }
+        val magnetic = Math.toDegrees(atan2(east.toDouble(), north.toDouble()))
         val azimuth = wrap360(magnetic + declinationDegrees + offsetDegrees)
-        val altitude = Math.toDegrees(asin(rotation[7].toDouble().coerceIn(-1.0, 1.0)))
+        val altitude = Math.toDegrees(asin(up.toDouble().coerceIn(-1.0, 1.0)))
         return AltAz(altitude, azimuth)
+    }
+
+    /**
+     * How far to turn the drawing of the sky, in degrees clockwise on the
+     * screen, so that looked through, its up is the sky's up however the
+     * phone is rolled. Measured from the device's own top edge, before the
+     * screen's rotation is allowed for.
+     *
+     * World up in device coordinates is the matrix's third row; its part in
+     * the screen's plane is the way up looks on the screen. Turned clockwise,
+     * the phone sees the horizon tilt anticlockwise, and this is negative by
+     * as much. Looking straight up or down there is no such way, and it is 0.
+     *
+     * Always 0 aimed by the top edge: the screen is not a window then, and
+     * its up is where the top edge points, not the sky's.
+     */
+    fun roll(rotation: FloatArray, aim: FindAim): Double {
+        if (aim == FindAim.TopEdge) return 0.0
+        val right = rotation[6].toDouble()
+        val top = rotation[7].toDouble()
+        if (abs(right) < NO_ROLL_BELOW && abs(top) < NO_ROLL_BELOW) return 0.0
+        return Math.toDegrees(atan2(right, top))
     }
 }
 

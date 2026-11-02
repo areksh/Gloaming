@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.data.CompassReading
+import sh.arek.gloaming.data.FindAim
 import sh.arek.gloaming.data.magneticDeclination
 import sh.arek.gloaming.domain.CompassAccuracy
 import sh.arek.gloaming.domain.CompassCheck
@@ -172,9 +173,12 @@ private fun LineUp(reading: CompassReading?, state: MainUiState, actions: UiActi
     var result by remember { mutableStateOf<String?>(null) }
 
     Text("Then fine-tune on the moon", style = MaterialTheme.typography.titleSmall)
+    // Lined up the same way Find is aimed, so the correction is for the hold
+    // it will be used with.
+    val aim = state.settings.findAim
     if (sky == null || sky.first.altitude <= 0.0) {
         Text(
-            "Once the moon is up, point the top of the phone at it and tap Line up. Gloaming " +
+            "Once the moon is up, ${lineUpHold(aim, "it")} and tap Line up. Gloaming " +
                 "knows exactly where it is, so it can correct what the compass gets wrong.",
             style = MaterialTheme.typography.bodySmall,
             color = palette.muted,
@@ -182,8 +186,8 @@ private fun LineUp(reading: CompassReading?, state: MainUiState, actions: UiActi
         return
     }
     Text(
-        "Point the top of the phone at the moon and tap Line up. Gloaming knows exactly where " +
-            "it is, so it can correct what the compass gets wrong.",
+        "${lineUpHold(aim, "the moon").replaceFirstChar { it.uppercase() }} and tap Line up. " +
+            "Gloaming knows exactly where it is, so it can correct what the compass gets wrong.",
         style = MaterialTheme.typography.bodySmall,
         color = palette.muted,
     )
@@ -191,7 +195,7 @@ private fun LineUp(reading: CompassReading?, state: MainUiState, actions: UiActi
     OutlinedButton(
         onClick = {
             val current = state.settings.compassOffsetDegrees
-            val pointing = reading?.let { Pointing.direction(it.rotation, declination, current) }
+            val pointing = reading?.let { Pointing.direction(it.rotation, aim, declination, current) }
             val next = pointing?.let { CompassCheck.offsetFromMoon(it, moon, current) }
             result = if (next == null) {
                 lineUpRefusal(moon)
@@ -205,6 +209,12 @@ private fun LineUp(reading: CompassReading?, state: MainUiState, actions: UiActi
     result?.let {
         Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag(LINE_UP_RESULT_TAG))
     }
+}
+
+/** How to hold the phone on [moon] for Line up, the way Find is aimed. */
+internal fun lineUpHold(aim: FindAim, moon: String): String = when (aim) {
+    FindAim.TopEdge -> "point the top of the phone at $moon"
+    FindAim.LookThrough -> "hold the phone up in front of $moon, so it is straight behind the middle of the phone,"
 }
 
 /**

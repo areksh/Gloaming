@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.data.FindAim
 
 class PointingTest {
 
@@ -22,18 +23,35 @@ class PointingTest {
         val p = Math.toRadians(pitch)
         val rz = doubleArrayOf(cos(h), sin(h), 0.0, -sin(h), cos(h), 0.0, 0.0, 0.0, 1.0)
         val rx = doubleArrayOf(1.0, 0.0, 0.0, 0.0, cos(p), -sin(p), 0.0, sin(p), cos(p))
-        return FloatArray(9) { i ->
-            val row = i / 3
-            val col = i % 3
-            (0 until 3).sumOf { k -> rz[row * 3 + k] * rx[k * 3 + col] }.toFloat()
-        }
+        return times(rz, rx)
+    }
+
+    /**
+     * Held up and looked through: its back towards [heading] at [altitude],
+     * screen towards the holder, and rolled clockwise by [roll] as the holder
+     * sees it.
+     */
+    private fun held(heading: Double, altitude: Double, roll: Double = 0.0): FloatArray {
+        val r = Math.toRadians(roll)
+        // Clockwise in the screen's own plane, seen from in front of it.
+        val rz = doubleArrayOf(cos(r), sin(r), 0.0, -sin(r), cos(r), 0.0, 0.0, 0.0, 1.0)
+        return times(matrix(heading, 90.0 + altitude).map { it.toDouble() }.toDoubleArray(), rz)
+    }
+
+    private fun times(a: DoubleArray, b: DoubleArray): FloatArray = FloatArray(9) { i ->
+        val row = i / 3
+        val col = i % 3
+        (0 until 3).sumOf { k -> a[row * 3 + k] * b[k * 3 + col] }.toFloat()
     }
 
     private fun direction(
         rotation: FloatArray,
         declination: Double = 0.0,
         offset: Double = 0.0,
-    ) = Pointing.direction(rotation, declination, offset)
+        aim: FindAim = FindAim.TopEdge,
+    ) = Pointing.direction(rotation, aim, declination, offset)
+
+    private fun through(rotation: FloatArray) = direction(rotation, aim = FindAim.LookThrough)
 
     private fun turn(fromAz: Double, toAz: Double) =
         Guide.of(AltAz(10.0, fromAz), AltAz(10.0, toAz)).turnDegrees
@@ -85,6 +103,76 @@ class PointingTest {
     fun `wraps a negative correction up from the small side`() {
         val d = direction(matrix(5.0, 10.0), offset = -15.0)
         assertEquals(350.0, d.azimuth, 1e-3)
+    }
+
+    // --- looked through, out of the back
+
+    /**
+     * Looked through like a window the phone points out of its back: held up
+     * to be read, it looks at the horizon, where top-edge aiming had it at
+     * the zenith.
+     */
+    @Test
+    fun `looked through upright with its back to the north it looks north at the horizon`() {
+        val d = through(matrix(0.0, 90.0))
+        assertEquals(0.0, d.azimuth, 1e-3)
+        assertEquals(0.0, d.altitude, 1e-3)
+    }
+
+    @Test
+    fun `looked through flat on a table screen up it looks at the ground beneath`() {
+        assertEquals(-90.0, through(matrix(0.0, 0.0)).altitude, 1e-3)
+    }
+
+    @Test
+    fun `looked through tipped back forty five degrees facing south it looks south at forty five`() {
+        val d = through(matrix(180.0, 135.0))
+        assertEquals(180.0, d.azimuth, 1e-3)
+        assertEquals(45.0, d.altitude, 1e-3)
+    }
+
+    @Test
+    fun `looked through rolling the phone does not move where it looks`() {
+        val d = through(held(heading = 120.0, altitude = 30.0, roll = 35.0))
+        assertEquals(120.0, d.azimuth, 1e-3)
+        assertEquals(30.0, d.altitude, 1e-3)
+    }
+
+    @Test
+    fun `looked through adds the declination and the offset`() {
+        val d = direction(held(90.0, 30.0), declination = 3.0, offset = -1.5, aim = FindAim.LookThrough)
+        assertEquals(91.5, d.azimuth, 1e-3)
+        assertEquals(30.0, d.altitude, 1e-3)
+    }
+
+    // --- which way is up in the drawing
+
+    @Test
+    fun `looked through level the sky is drawn the right way up`() {
+        assertEquals(0.0, Pointing.roll(held(heading = 200.0, altitude = 20.0), FindAim.LookThrough), 1e-3)
+    }
+
+    /**
+     * Turned clockwise, the real horizon tilts the other way across the
+     * screen, so the drawing turns back by as much and stays level with it.
+     */
+    @Test
+    fun `looked through rolled clockwise the sky is turned back anticlockwise`() {
+        assertEquals(-35.0, Pointing.roll(held(200.0, 20.0, roll = 35.0), FindAim.LookThrough), 1e-3)
+        assertEquals(50.0, Pointing.roll(held(10.0, 60.0, roll = -50.0), FindAim.LookThrough), 1e-3)
+        assertEquals(-90.0, Pointing.roll(held(0.0, 0.0, roll = 90.0), FindAim.LookThrough), 1e-3)
+    }
+
+    @Test
+    fun `looked through straight up or down there is no up to turn to`() {
+        assertEquals(0.0, Pointing.roll(matrix(40.0, 0.0), FindAim.LookThrough), 0.0)
+        assertEquals(0.0, Pointing.roll(matrix(40.0, 180.0), FindAim.LookThrough), 0.0)
+    }
+
+    /** Aimed by the top edge the screen is not a window, and the drawing is never turned. */
+    @Test
+    fun `aimed by the top edge the drawing is never turned`() {
+        assertEquals(0.0, Pointing.roll(held(200.0, 20.0, roll = 35.0), FindAim.TopEdge), 0.0)
     }
 
     @Test

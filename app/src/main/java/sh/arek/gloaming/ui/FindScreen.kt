@@ -18,6 +18,9 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
@@ -44,6 +47,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
@@ -66,6 +70,7 @@ import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.data.CompassReading
 import sh.arek.gloaming.data.CompassSource
+import sh.arek.gloaming.data.FindAim
 import sh.arek.gloaming.data.magneticDeclination
 import sh.arek.gloaming.domain.AlignBuzz
 import sh.arek.gloaming.domain.CompassCheck
@@ -94,6 +99,15 @@ const val FIND_WHERE_TAG = "find-where"
 
 /** Check compass, on Find and on the Compass settings page. */
 const val CHECK_COMPASS_TAG = "check-compass"
+
+/** The choice of how the phone is aimed, one segment per [FindAim]. */
+fun findAimTag(aim: FindAim): String = "find-aim:${aim.name}"
+
+/** How to hold the phone, said above the view for the way it is aimed. */
+internal fun aimLine(aim: FindAim): String = when (aim) {
+    FindAim.TopEdge -> "Aim the phone's top edge at the sky like a pointer, screen tipped up towards you."
+    FindAim.LookThrough -> "Hold the phone up in front of you and look through it, as if it were a window."
+}
 
 /** How a test reaches the chip for one target. */
 fun findChipTag(target: FindTarget): String = "find-chip:${target.encode()}"
@@ -256,10 +270,11 @@ private fun FindContent(
         }
 
         Text(
-            "Hold the phone up and point its top edge at the sky.",
+            aimLine(state.settings.findAim),
             style = MaterialTheme.typography.bodyMedium,
             color = palette.muted,
         )
+        AimChoice(state.settings.findAim, actions.onFindAimChange)
         if (asked == null) {
             Text(
                 if (!findTonightKnown(state.tonight, state.tonightUpdating, state.elements)) {
@@ -343,10 +358,24 @@ private fun Guided(
     // the words, which change far less often than the readings do - so a
     // reading redraws the view and does not recompose this function.
     val offsetDegrees = state.settings.compassOffsetDegrees
+    val aim = state.settings.findAim
     val position = fix?.position
-    val pointing = remember(declination, offsetDegrees) {
+    val pointing = remember(declination, offsetDegrees, aim) {
         derivedStateOf {
-            reading.value?.let { Pointing.direction(it.rotation, declination, offsetDegrees) }
+            reading.value?.let { Pointing.direction(it.rotation, aim, declination, offsetDegrees) }
+        }
+    }
+    // The roll is from the device's top edge; the screen's up is a quarter
+    // turn round from it for each quarter the display is rotated.
+    val displayQuarters = LocalView.current.display?.rotation ?: 0
+    val roll = remember(aim, displayQuarters) {
+        derivedStateOf {
+            val rotation = reading.value?.rotation
+            if (rotation == null || aim != FindAim.LookThrough) {
+                0f
+            } else {
+                (Pointing.roll(rotation, aim) - 90.0 * displayQuarters).toFloat()
+            }
         }
     }
     val guidance = remember(position) {
@@ -406,6 +435,7 @@ private fun Guided(
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         FindView(
             pointing = { pointing.value },
+            roll = { roll.value },
             fix = fix,
             aligned = { aligned.value },
             palette = palette,
@@ -505,6 +535,24 @@ private fun KeepScreenOn() {
 }
 
 /**
+ * The two ways of holding the phone, side by side, so either can be tried
+ * where the sky is: neither is the obvious one to everybody.
+ */
+@Composable
+private fun AimChoice(aim: FindAim, onChange: (FindAim) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        FindAim.entries.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == aim,
+                onClick = { onChange(option) },
+                shape = SegmentedButtonDefaults.itemShape(index, FindAim.entries.size),
+                modifier = Modifier.testTag(findAimTag(option)),
+            ) { Text(option.label) }
+        }
+    }
+}
+
+/**
  * The view: sixty degrees of sky around where the phone points.
  *
  * The horizon is a dashed line with the ground shaded below it. The target is
@@ -513,10 +561,15 @@ private fun KeepScreenOn() {
  * on the horizon for a target not up. The reticle is drawn thicker when lined
  * up, so the state reads by shape and not by colour alone, which night vision
  * would take away.
+ *
+ * [roll] turns the sky - horizon, ground, target and arrow - clockwise by so
+ * many degrees, so that looked through, it stays level with the real one
+ * however the phone is rolled. The reticle is the phone's own and stays put.
  */
 @Composable
 private fun FindView(
     pointing: () -> AltAz?,
+    roll: () -> Float,
     fix: TargetFix?,
     aligned: () -> Boolean,
     palette: Palette,
@@ -541,20 +594,22 @@ private fun FindView(
             val perDegree = radius / HALF_VIEW_DEGREES
 
             drawCircle(palette.raised, radius, center)
-            if (pointing != null) {
+            if (pointing != null) rotate(roll(), center) {
                 clipPath(circle) {
+                    // Wider than the view, so the ground still fills the
+                    // circle when the drawing is turned.
                     val horizonY = center.y + pointing.altitude.toFloat() * perDegree
-                    if (horizonY < size.height) {
+                    if (horizonY < 2 * size.height) {
                         drawRect(
                             palette.ground,
-                            topLeft = Offset(0f, horizonY.coerceAtLeast(0f)),
-                            size = Size(size.width, size.height),
+                            topLeft = Offset(-size.width, horizonY.coerceAtLeast(-size.height)),
+                            size = Size(3 * size.width, 3 * size.height),
                         )
                     }
                     drawLine(
                         palette.muted,
-                        Offset(0f, horizonY),
-                        Offset(size.width, horizonY),
+                        Offset(-size.width, horizonY),
+                        Offset(2 * size.width, horizonY),
                         strokeWidth = 1.2.dp.toPx(),
                         pathEffect = dash,
                     )

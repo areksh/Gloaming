@@ -53,6 +53,7 @@ private const val KEY_COMPASS_OFFERED_AT = "compass_offered_at"
 private const val KEY_COMPASS_CHECKED_AT = "compass_checked_at"
 private const val KEY_COMPASS_OFFSET = "compass_offset_degrees"
 private const val KEY_NIGHT_VISION_FINDING = "night_vision_when_finding"
+private const val KEY_FIND_AIM = "find_aim"
 
 private const val KEY_LAST_ALERT_AT = "last_alert_at"
 private const val KEY_LAST_ALERT_PROBABILITY = "last_alert_probability"
@@ -307,6 +308,9 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             compassCheckedAt = if (compassCheckedAt == UNSET) null else compassCheckedAt,
             compassOffsetDegrees = if (compassOffset == UNSET) 0.0 else Double.fromBits(compassOffset),
             nightVisionWhenFinding = prefs.getBoolean(KEY_NIGHT_VISION_FINDING, true),
+            // By name, as the calendar choice is, so a reordering cannot move it.
+            findAim = FindAim.entries.firstOrNull { it.name == prefs.getString(KEY_FIND_AIM, null) }
+                ?: FindAim.TopEdge,
         )
     }
 
@@ -398,6 +402,7 @@ class PreferencesSettingsStore(private val prefs: SharedPreferences) : SettingsS
             }
             putLong(KEY_COMPASS_OFFSET, settings.compassOffsetDegrees.toRawBits())
             putBoolean(KEY_NIGHT_VISION_FINDING, settings.nightVisionWhenFinding)
+            putString(KEY_FIND_AIM, settings.findAim.name)
         }.apply()
     }
 
@@ -450,6 +455,7 @@ internal val SETTINGS_KEYS = listOf(
     KEY_EVENT_LEAD,
     KEY_EVERY_CONSTELLATION,
     KEY_EVERY_EVENT,
+    KEY_FIND_AIM,
     KEY_FOLLOW_STATION,
     KEY_HIDDEN_KINDS,
     KEY_ISS_INTERVAL,

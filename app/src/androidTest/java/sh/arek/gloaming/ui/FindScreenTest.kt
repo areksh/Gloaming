@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
@@ -43,6 +44,7 @@ import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.AlertState
+import sh.arek.gloaming.data.FindAim
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.magneticDeclination
 import sh.arek.gloaming.domain.CompassAccuracy
@@ -77,12 +79,14 @@ class FindScreenTest {
     private var checkedAt: Long? = null
     private var offset: Double? = null
     private var nightVisionWhenFinding: Boolean? = null
+    private var aim: FindAim? = null
 
     private val actions = UiActions(
         onCompassOffered = { offeredAt = it },
         onCompassChecked = { checkedAt = it },
         onCompassOffsetChange = { offset = it },
         onNightVisionWhenFindingChange = { nightVisionWhenFinding = it },
+        onFindAimChange = { aim = it },
     )
 
     private val station = SatellitePass(
@@ -177,6 +181,51 @@ class FindScreenTest {
         compass.point(azimuth = 0.0, altitude = 10.0)
 
         instruction().assertTextEquals("There.")
+    }
+
+    /**
+     * Looked through, the phone points out of its back: held up with the back
+     * towards the aurora's spot it is lined up, where aimed by its top edge
+     * the same hold would be pointing at the sky overhead.
+     */
+    @Test
+    fun looksThroughThePhoneWhenAimedThatWay() {
+        val compass = FakeCompassSource()
+        show(compass, settings = located.copy(findAim = FindAim.LookThrough))
+
+        compass.point(azimuth = 0.0, altitude = 10.0, aim = FindAim.LookThrough)
+
+        instruction().assertTextEquals("There.")
+    }
+
+    @Test
+    fun aimedByTheTopEdgeTheSameHoldIsNotLinedUp() {
+        val compass = FakeCompassSource()
+        show(compass)
+
+        compass.point(azimuth = 0.0, altitude = 10.0, aim = FindAim.LookThrough)
+
+        // Its top edge is 80 degrees up and leaning south, away from the aurora.
+        instruction().assertTextEquals("Turn round, then tilt down.")
+    }
+
+    @Test
+    fun saysHowToHoldThePhoneForTheWayItIsAimed() {
+        val compass = FakeCompassSource()
+        show(compass, settings = located.copy(findAim = FindAim.LookThrough))
+
+        compose.onNodeWithText(aimLine(FindAim.LookThrough)).assertIsDisplayed()
+        compose.onNodeWithTag(findAimTag(FindAim.LookThrough)).assertIsSelected()
+        compose.onNodeWithTag(findAimTag(FindAim.TopEdge)).assertIsNotSelected()
+    }
+
+    @Test
+    fun theAimChoiceIsReported() {
+        show(FakeCompassSource())
+
+        compose.onNodeWithTag(findAimTag(FindAim.LookThrough)).performClick()
+
+        assertEquals(FindAim.LookThrough, aim)
     }
 
     /** No turning finds a pass that has not risen; the time it comes up is the answer. */
@@ -649,11 +698,21 @@ class FindScreenTest {
         compose.onNodeWithTag(FIND_IT_TAG).assertDoesNotExist()
     }
 
-    /** The sensor is registered while Find is on screen and let go as soon as it is not. */
+    /**
+     * The sensor is registered while Find is on screen and let go as soon as it is not.
+     *
+     * Find listens only while it has something to point at, and on the real
+     * clock that was whatever the sky over Edinburgh held as the test ran: in
+     * the evening twilight, nothing, and the test failed. Held at a dark hour
+     * the Plough, which never sets there, is always offered.
+     */
     @Test
     fun listensToTheCompassOnlyWhileFindIsShown() {
         val compass = FakeCompassSource()
-        compose.setContent { GloamingNav(state = state(), actions = actions, compass = compass) }
+        val dark = now + 14 * hour
+        compose.setContent {
+            GloamingNav(state = state(nowMillis = dark), actions = actions, compass = compass, findClock = { dark })
+        }
         compose.waitForIdle()
         assertEquals(0, compass.listeners)
 

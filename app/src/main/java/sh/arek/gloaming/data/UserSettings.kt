@@ -97,6 +97,25 @@ enum class CalendarSync(val label: String) {
     DeviceCalendar("Your default calendar"),
 }
 
+/**
+ * How Find takes the way the phone points: two ways of holding it, and
+ * people reach for either.
+ */
+enum class FindAim(val label: String) {
+    /**
+     * Aimed like a pointer, or the sights on a gun: the top edge at the
+     * target, the screen tipped up towards the holder. The default, and how
+     * Find has always worked.
+     */
+    TopEdge("Top edge"),
+
+    /**
+     * Looked through like a window: held up in front of the holder, screen
+     * towards them, its back to the target, as star maps are.
+     */
+    LookThrough("Look through"),
+}
+
 enum class LocationMode {
     /** Typed in. The default, and the one that always works. */
     Manual,
@@ -501,6 +520,9 @@ data class UserSettings(
 
     /** Whether the red night-vision palette is used while finding something. */
     val nightVisionWhenFinding: Boolean = true,
+
+    /** How Find takes the way the phone points. */
+    val findAim: FindAim = FindAim.TopEdge,
 ) {
     val hasLocation: Boolean get() = latitude != null && longitude != null
 

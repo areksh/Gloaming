@@ -130,6 +130,7 @@ class PreferenceStoresTest {
         compassCheckedAt = 1_800_100_000_000L,
         compassOffsetDegrees = -7.5,
         nightVisionWhenFinding = false,
+        findAim = FindAim.LookThrough,
     )
 
     @Test
@@ -245,6 +246,7 @@ class PreferenceStoresTest {
         assertNull(settings.compassCheckedAt)
         assertEquals(0.0, settings.compassOffsetDegrees, 0.0)
         assertTrue(settings.nightVisionWhenFinding)
+        assertEquals(FindAim.TopEdge, settings.findAim)
     }
 
     @Test

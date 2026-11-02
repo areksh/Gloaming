@@ -1502,6 +1502,10 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                         settings = settings.copy(nightVisionWhenFinding = it)
                         saveSettings(settings)
                     },
+                    onFindAimChange = {
+                        settings = settings.copy(findAim = it)
+                        saveSettings(settings)
+                    },
                 ),
                 modifier = Modifier.padding(padding).consumeWindowInsets(padding),
                 // A first look at the sky once the questions are answered, so
