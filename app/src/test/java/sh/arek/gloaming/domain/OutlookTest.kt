@@ -134,10 +134,11 @@ class OutlookTest {
         name: String = "ISS (ZARYA)",
         elevation: Double = 60.0,
         sunlitAtPeak: Boolean = true,
+        channel: PassChannel = PassChannel.Iss,
     ) = SatellitePass(
         catalogue = 25544,
         name = name,
-        channel = PassChannel.Iss,
+        channel = channel,
         risesAt = peaksAt - 4 * MINUTE,
         riseAzimuth = 225.0,
         peaksAt = peaksAt,
@@ -785,7 +786,7 @@ class OutlookTest {
     }
 
     @Test
-    fun `names at most two things, best first`() {
+    fun `names the best thing, and the rest under it in time order`() {
         val jupiter = conjunction(at("2026-12-13T22:00:00Z"))
         val iss = pass(at("2026-12-13T19:12:00Z"))
         val saturn = planet(SkyBody.Saturn, at("2026-12-13T18:00:00Z"))
@@ -795,9 +796,10 @@ class OutlookTest {
             input(),
         )
 
+        val goOut = report.outlook as Outlook.GoOut
         assertEquals(
-            listOf(PickKind.Event, PickKind.Pass),
-            (report.outlook as Outlook.GoOut).picks.map { it.kind },
+            listOf(PickKind.Event) to listOf(PickKind.Planet, PickKind.Pass),
+            goOut.picks.map { it.kind } to goOut.alsoTonight.map { it.kind },
         )
     }
 
@@ -1254,5 +1256,118 @@ class OutlookTest {
         const val MINUTE = 60_000L
         const val HOUR = 60 * MINUTE
         const val DAY = 24 * HOUR
+    }
+
+    // ---- which picks the headline names
+
+    private fun rocketBody(peaksAt: Long, name: String = "H-2A R/B", elevation: Double = 60.0) =
+        pass(peaksAt, name = name, elevation = elevation, channel = PassChannel.Bright)
+
+    private fun goOut(report: OutlookReport) = report.outlook as Outlook.GoOut
+
+    private fun subjects(picks: List<Pick>) = picks.map { it.subject }
+
+    /**
+     * The night that started this: a rocket body before dawn headed the
+     * night, and Saturn high in a clear evening went unnamed.
+     */
+    @Test
+    fun `a planet in a clear evening heads the night over a rocket body before dawn`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+        val rocket = rocketBody(at("2026-12-14T05:41:00Z"))
+
+        val report = Outlooks.of(tonight(passes = listOf(rocket), planets = listOf(saturn)), input())
+
+        assertEquals(
+            listOf("Saturn") to listOf("H-2A R/B"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    @Test
+    fun `the station outranks a planet in the same half of the night`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T19:00:00Z"))
+        val iss = pass(at("2026-12-13T22:00:00Z"))
+
+        val report = Outlooks.of(tonight(passes = listOf(iss), planets = listOf(saturn)), input())
+
+        assertEquals(
+            listOf("ISS (ZARYA)") to listOf("Saturn"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    /** Most people decide at dusk whether to go out at all. */
+    @Test
+    fun `a planet in the evening heads the night over the station before dawn`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+        val iss = pass(at("2026-12-14T03:00:00Z"))
+        val train = pass(at("2026-12-14T04:00:00Z"), name = "STARLINK-9001", channel = PassChannel.Trains)
+
+        val report = Outlooks.of(tonight(passes = listOf(iss, train), planets = listOf(saturn)), input())
+
+        assertEquals(
+            listOf("Saturn") to listOf("ISS (ZARYA)", "STARLINK-9001"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    /** A shower or an eclipse is worth staying up for; a planet is there again tomorrow. */
+    @Test
+    fun `a real event after midnight still heads the night over an evening planet`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+        val geminids = shower(at = at("2026-12-14T02:00:00Z"))
+
+        val report = Outlooks.of(tonight(events = listOf(geminids), planets = listOf(saturn)), input())
+
+        assertEquals(
+            listOf("Geminids at their best") to listOf("Saturn"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    /** One sentence is one trip out: a second thing joins it only inside the hour. */
+    @Test
+    fun `a second thing joins the headline only within the hour`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+        val mars = planet(SkyBody.Mars, at("2026-12-13T20:40:00Z"))
+        val jupiter = planet(SkyBody.Jupiter, at("2026-12-14T02:00:00Z"))
+
+        val report = Outlooks.of(tonight(planets = listOf(jupiter, saturn, mars)), input())
+
+        assertEquals(
+            listOf("Saturn", "Mars") to listOf("Jupiter"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    /** Most people decide at dusk whether to go out at all. */
+    @Test
+    fun `of two things as good the evening one leads`() {
+        val mars = planet(SkyBody.Mars, at("2026-12-14T04:00:00Z"))
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+
+        val report = Outlooks.of(tonight(planets = listOf(mars, saturn)), input())
+
+        assertEquals(
+            listOf("Saturn") to listOf("Mars"),
+            subjects(goOut(report).picks) to subjects(goOut(report).alsoTonight),
+        )
+    }
+
+    /** The best two of the rest, said in the order they happen. */
+    @Test
+    fun `the rest names at most two, in time order`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T20:00:00Z"))
+        val low = rocketBody(at("2026-12-14T02:00:00Z"), name = "Low R/B", elevation = 40.0)
+        val high = rocketBody(at("2026-12-14T04:00:00Z"), name = "High R/B", elevation = 80.0)
+        val middle = rocketBody(at("2026-12-14T03:00:00Z"), name = "Middle R/B", elevation = 60.0)
+
+        val report = Outlooks.of(
+            tonight(passes = listOf(low, high, middle), planets = listOf(saturn)),
+            input(),
+        )
+
+        assertEquals(listOf("Middle R/B", "High R/B"), subjects(goOut(report).alsoTonight))
     }
 }

@@ -347,8 +347,13 @@ is a file replacement.
   documents by putting every candidate through the gates in order and keeping
   the picks and the exclusions (a planet, up for hours, is judged at its
   highest moment of the darkness left and, where cloud hides that, at its
-  highest clear hour that passes every gate); and the adaptive-polling
-  scheduler policy.
+  highest clear hour that passes every gate). The picks are ranked - the
+  aurora and events at any hour, then the rest evening-first and, within a
+  half of the night, the station and Starlink trains over planets over other
+  bright passes - and the headline names one trip out: the best pick and
+  whatever else is up within the hour of it. The best two of the rest go to
+  `GoOut.alsoTonight`, said with their times in the line under it. Last, the
+  adaptive-polling scheduler policy.
 - **scheduling:** `AlarmManager.setWindow()` or chained `OneTimeWorkRequest`s
   (WorkManager's 15-minute floor is too coarse in both directions, Sec. 9.3);
   every scheduled wake is jittered - spread either side of the requested time

@@ -15,7 +15,7 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
 
-/** What kind of thing a recommendation is. Also the order they are named in. */
+/** What kind of thing a recommendation is. How they rank is [Outlooks]' tiers, not this order. */
 enum class PickKind { Aurora, Event, Pass, Planet }
 
 /**
@@ -132,8 +132,11 @@ sealed interface Outlook {
     data class Overcast(val nextClear: ClearSpell?, val missed: Pick?) : Outlook
 
     /**
-     * At least one thing worth going out for, best first, at most
-     * [Outlooks.MAX_PICKS]. [clearFrom] and [clearUntil] are the run of clear
+     * At least one thing worth going out for. [picks] is one trip out: the
+     * best thing tonight and, at most [Outlooks.MAX_PICKS] in all, what is up
+     * within the hour of it, in time order. [alsoTonight] is the best of the
+     * rest, at most [Outlooks.MAX_ALSO], in time order, for the line under the
+     * headline. [clearFrom] and [clearUntil] are the run of clear
      * hours around the first pick, only with a forecast that says so;
      * [conditional] when there is none to say it. [clearUnderway] is whether
      * that run has already begun and [clearAllNight] whether it covers all the
@@ -152,6 +155,7 @@ sealed interface Outlook {
         val clearUnderway: Boolean = false,
         val clearAllNight: Boolean = false,
         val clearEarlier: ClearSpell? = null,
+        val alsoTonight: List<Pick> = emptyList(),
     ) : Outlook
 
     /**
@@ -231,6 +235,12 @@ object Outlooks {
 
     /** How many things one sentence names. */
     const val MAX_PICKS = 2
+
+    /** How many more the line under it names. */
+    const val MAX_ALSO = 2
+
+    /** How far from the best thing a second may be and still be the same trip out. */
+    const val OUTING_MILLIS = 60 * 60 * 1000L
 
     /** What the aurora is called in a [Pick] or an [Excluded]. */
     const val AURORA_SUBJECT = "Aurora"
@@ -357,13 +367,16 @@ object Outlooks {
         }
 
         if (picks.isNotEmpty()) {
+            val best = ranked(picks, list)
+            val outing = outing(best)
             // The clear hours around the first thing named, not the night's
             // first clear hours: "clear 18:00 to 19:00, go out at 23:00" would
             // be two true halves making a false sentence.
-            val run = night.runAt(picks.first().atMillis)
+            val run = night.runAt(outing.first().atMillis)
             return report(
                 Outlook.GoOut(
-                    picks = picks.take(MAX_PICKS),
+                    picks = outing,
+                    alsoTonight = (best - outing.toSet()).take(MAX_ALSO).sortedBy { it.atMillis },
                     clearFrom = run?.from,
                     clearUntil = run?.until,
                     conditional = !cloudGate,
@@ -383,6 +396,56 @@ object Outlooks {
             ),
             excluded,
         )
+    }
+
+    /**
+     * Best first.
+     *
+     * The aurora, then events - a shower, an eclipse, a comet - lead at any
+     * hour: they are what is worth staying up for. Everything else is there
+     * again tomorrow or soon, so the first half of the darkness comes before
+     * the second, because the evening is when people decide whether to go out
+     * at all: a planet at 20:00 should not lose to the station at 03:00.
+     *
+     * Within a half, by tier: the station or a train of Starlinks, then a
+     * planet - there for hours, bright whenever somebody looks - then a rocket
+     * body that is a faint dot for four minutes. Then the order they were
+     * found in, which is already best first among passes.
+     */
+    private fun ranked(picks: List<Pick>, list: TonightList): List<Pick> {
+        val from = list.darkFrom
+        val until = list.darkUntil
+        val middle = if (from != null && until != null) from + (until - from) / 2 else null
+        return picks.sortedWith(
+            compareBy<Pick> { worthStayingUpFor(it) }
+                .thenBy { middle != null && it.atMillis >= middle }
+                .thenBy { tier(it) },
+        )
+    }
+
+    private fun worthStayingUpFor(pick: Pick): Int = when (pick.kind) {
+        PickKind.Aurora -> 0
+        PickKind.Event -> 1
+        PickKind.Pass, PickKind.Planet -> 2
+    }
+
+    private fun tier(pick: Pick): Int = when (pick.kind) {
+        PickKind.Aurora, PickKind.Event -> 0
+        PickKind.Pass -> if (pick.pass?.channel == PassChannel.Bright) 2 else 0
+        PickKind.Planet -> 1
+    }
+
+    /**
+     * One trip out: the best thing, and the next best that is up within the
+     * hour of it. Two things hours apart are two trips, and a sentence naming
+     * both would send somebody out for the second long before it is there.
+     */
+    private fun outing(best: List<Pick>): List<Pick> {
+        val first = best.first()
+        val near = best.drop(1)
+            .filter { Math.abs(it.atMillis - first.atMillis) <= OUTING_MILLIS }
+            .take(MAX_PICKS - 1)
+        return (listOf(first) + near).sortedBy { it.atMillis }
     }
 
     /** Whether the forecast has at least one hour inside what is left of tonight's darkness. */

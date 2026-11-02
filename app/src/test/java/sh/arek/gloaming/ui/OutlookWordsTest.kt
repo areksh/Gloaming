@@ -86,8 +86,9 @@ class OutlookWordsTest {
         underway: Boolean = false,
         allNight: Boolean = false,
         earlier: ClearSpell? = null,
+        also: List<Pick> = emptyList(),
     ) = Outlook.GoOut(
-        picks, from?.let(::at), until?.let(::at), conditional, underway, allNight, earlier,
+        picks, from?.let(::at), until?.let(::at), conditional, underway, allNight, earlier, also,
     )
 
     // ---- headline and follow
@@ -682,6 +683,63 @@ class OutlookWordsTest {
         assertEquals(
             "Aurora possible now: 30% here. Look north, low down.",
             OutlookWords.headline(report(Outlook.AuroraNow(30, null, conditional = false))),
+        )
+    }
+
+    // ---- what else tonight holds
+
+    @Test
+    fun `the rest of the night is named under the headline with its times`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-13T20:00:00Z")),
+                from = "2026-12-13T19:00:00Z",
+                until = "2026-12-14T07:50:00Z",
+                underway = true,
+                allNight = true,
+                also = listOf(passPick("H-2A R/B", "2026-12-14T05:41:00Z")),
+            ),
+        )
+
+        assertEquals("Clear all night. Go out at 20:00 for Saturn.", OutlookWords.headline(r))
+        assertEquals("Also tonight: H-2A R/B at 05:41.", OutlookWords.follow(r, now))
+    }
+
+    @Test
+    fun `the rest comes before the aurora reading`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-13T20:00:00Z")),
+                conditional = true,
+                also = listOf(
+                    planetPick(SkyBody.Mars, "2026-12-13T23:00:00Z"),
+                    passPick("H-2A R/B", "2026-12-14T05:41:00Z"),
+                ),
+            ),
+            aurora = 12,
+        )
+
+        assertEquals(
+            "Also tonight: Mars at 23:00 and H-2A R/B at 05:41. " +
+                "Aurora 12%, well under the 40% that would wake you.",
+            OutlookWords.follow(r, now),
+        )
+    }
+
+    @Test
+    fun `under a moon that hides a shower the rest follows what is still worth a look`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Jupiter, "2026-12-13T22:00:00Z", altitude = 62.0)),
+                conditional = true,
+                also = listOf(planetPick(SkyBody.Mars, "2026-12-14T03:00:00Z")),
+            ),
+            excluded = listOf(Excluded("Leonids at their best", at("2026-12-14T01:00:00Z"), Gate.Moon, "92")),
+        )
+
+        assertEquals(
+            "Jupiter is still worth a look, high in the south around 22:00. Also tonight: Mars at 03:00.",
+            OutlookWords.follow(r, now),
         )
     }
 }

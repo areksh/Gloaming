@@ -151,7 +151,8 @@ object NightTimeline {
         val end = sun.risesAt ?: return null
         if (end <= start) return null
 
-        val picks = (report.outlook as? Outlook.GoOut)?.picks.orEmpty()
+        // Everything recommended, the headline's and the line under it's.
+        val picks = (report.outlook as? Outlook.GoOut)?.let { it.picks + it.alsoTonight }.orEmpty()
         val unseen = report.excluded.filter { it.gate in UNSEEN }
 
         fun toneOf(picked: Boolean, dimmed: Boolean) = when {

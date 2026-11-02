@@ -93,8 +93,14 @@ object OutlookWords {
             "Noctilucent clouds are possible low in the ${report.poleward.label} tonight."
                 .takeIf { outlook.noctilucent }
         is Outlook.Overcast -> overcastFollow(outlook, nowMillis)
+        // Under a spoiling moon the headline names nothing, so what it set
+        // aside comes first; otherwise what else is on comes before the reading.
         is Outlook.GoOut ->
-            if (moonSpoils(report) != null) stillWorthALook(outlook.picks) else auroraLine(report)
+            if (moonSpoils(report) != null) {
+                sentences(stillWorthALook(outlook.picks), alsoTonight(outlook.alsoTonight))
+            } else {
+                sentences(alsoTonight(outlook.alsoTonight), auroraLine(report))
+            }
         is Outlook.Quiet -> auroraLine(report)
     }
 
@@ -244,6 +250,18 @@ object OutlookWords {
             "it is ${moon.note}% lit and up."
     }
 
+    /**
+     * "Also tonight: Mars at 23:00 and H-2A R/B at 05:41." Each with its own
+     * time: they are what the headline's one trip out does not cover.
+     */
+    private fun alsoTonight(picks: List<Pick>): String? {
+        if (picks.isEmpty()) return null
+        return "Also tonight: ${joined(picks.map { "${pickName(it)} ${at(it.atMillis)}" })}."
+    }
+
+    private fun sentences(vararg parts: String?): String? =
+        parts.filterNotNull().joinToString(" ").ifEmpty { null }
+
     private fun stillWorthALook(picks: List<Pick>): String? {
         if (picks.isEmpty()) return null
         val names = names(picks)
@@ -321,11 +339,11 @@ object OutlookWords {
         return minute <= MIDNIGHT_MARGIN_MINUTES || minute >= 24 * 60 - MIDNIGHT_MARGIN_MINUTES
     }
 
+    private fun names(picks: List<Pick>): String = joined(picks.map { pickName(it) })
+
     /** Two names joined by "and", or by a comma where a name has its own "and" in it. */
-    private fun names(picks: List<Pick>): String {
-        val named = picks.map { pickName(it) }
-        return named.joinToString(if (named.any { " and " in it }) ", and " else " and ")
-    }
+    private fun joined(named: List<String>): String =
+        named.joinToString(if (named.any { " and " in it }) ", and " else " and ")
 
     /**
      * What a pick is called in a sentence. Eclipse and occultation titles are
