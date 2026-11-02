@@ -139,6 +139,9 @@ sealed interface Outlook {
      * that run has already begun and [clearAllNight] whether it covers all the
      * darkness still to come: "cloudy until" and "clear all night" are
      * different sentences, and the times alone cannot tell them apart.
+     * [clearEarlier] is tonight's first clear spell where it comes before
+     * that run, so "cloudy until" is never said over hours the forecast has
+     * clear.
      */
     @Serializable
     data class GoOut(
@@ -148,6 +151,7 @@ sealed interface Outlook {
         val conditional: Boolean,
         val clearUnderway: Boolean = false,
         val clearAllNight: Boolean = false,
+        val clearEarlier: ClearSpell? = null,
     ) : Outlook
 
     /**
@@ -365,6 +369,7 @@ object Outlooks {
                     conditional = !cloudGate,
                     clearUnderway = run?.underway ?: false,
                     clearAllNight = run?.allNight ?: false,
+                    clearEarlier = night.spell?.takeIf { run != null && it.from < run.from },
                 ),
                 excluded,
             )
@@ -510,18 +515,53 @@ object Outlooks {
             Candidate(pick, it.peaksAt, it.peaksAt, faint = false)
         }
 
-        val planets = list.planets.map {
-            val from = it.risesAt ?: list.darkFrom ?: now
-            val until = it.setsAt ?: list.darkUntil ?: Long.MAX_VALUE
+        val planets = list.planets.map { planet ->
             val start = maxOf(now, list.darkFrom ?: now)
             val end = list.darkUntil ?: Long.MAX_VALUE
-            val at = if (start <= end) it.peakAt.coerceIn(start, end) else it.peakAt
-            val pick = Pick(PickKind.Planet, it.body.label, at, planet = it)
-            Candidate(pick, from, until, faint = false)
+            val best = if (start <= end) planet.peakAt.coerceIn(start, end) else planet.peakAt
+            planetCandidate(planet, best, list, now).let { atBest ->
+                if (cloud(atBest, night) == null) atBest else clearMoment(planet, atBest, start, end, list, night)
+            }
         }
 
         return listOfNotNull(aurora) + events + passes + planets
     }
+
+    private fun planetCandidate(planet: PlanetTonight, at: Long, list: TonightList, now: Long): Candidate {
+        val from = planet.risesAt ?: list.darkFrom ?: now
+        val until = planet.setsAt ?: list.darkUntil ?: Long.MAX_VALUE
+        val pick = Pick(PickKind.Planet, planet.body.label, at, planet = planet)
+        return Candidate(pick, from, until, faint = false)
+    }
+
+    /**
+     * A planet whose best moment is under cloud, judged instead at the best
+     * moment the forecast leaves clear.
+     *
+     * A planet is up for hours, not at one moment, and cloud over its highest
+     * hour alone used to set it aside for the whole night. Each hour of what
+     * is left of the darkness is tried as it starts - or from now, for the
+     * hour under way - since a forecast hour says nothing finer, and the
+     * moment the planet is highest of those that pass every gate, cloud
+     * included, is the one judged. Where none does, the planet keeps [atBest]
+     * and the cloud there is the reason given, so the exclusion names its
+     * best moment rather than some low one.
+     */
+    private fun clearMoment(
+        planet: PlanetTonight,
+        atBest: Candidate,
+        start: Long,
+        end: Long,
+        list: TonightList,
+        night: Night,
+    ): Candidate =
+        night.input.hourly
+            .filter { it.atMillis + HOUR_MILLIS > start && it.atMillis < end }
+            .sortedBy { it.atMillis }
+            .map { planetCandidate(planet, maxOf(it.atMillis, start), list, night.now) }
+            .filter { failures(it, night).isEmpty() }
+            .maxByOrNull { night.input.planetAltitude(planet.body, it.at) }
+            ?: atBest
 
     /**
      * When to judge a shower.

@@ -265,9 +265,14 @@ class OutlookTest {
             90, 90, 90, 90, 90, 90, 10, 10, 10, 10, 90, 90, 90, 90, 90, 90,
         )
 
+        // Jupiter has sunk below ten degrees by the time it clears.
+        val sinking: (SkyBody, Long) -> Double = { body, t ->
+            if (body == SkyBody.Jupiter && t >= at("2026-12-13T21:00:00Z")) 6.0 else 30.0
+        }
+
         val report = Outlooks.of(
             tonight(clearSpell = spell, planets = listOf(jupiter, saturn)),
-            input(hourly = hourly),
+            input(hourly = hourly, planetAltitude = sinking),
         )
 
         assertEquals(
@@ -920,6 +925,68 @@ class OutlookTest {
         assertEquals(listOf("Jupiter" to darkFrom), goOut.picks.map { it.subject to it.atMillis })
     }
 
+    /** Saturn at 40 degrees at 23:00, five lower for every hour either side. */
+    private val saturnArc: (SkyBody, Long) -> Double = { _, t ->
+        40.0 - 5.0 * Math.abs(t - at("2026-12-13T23:00:00Z")) / HOUR
+    }
+
+    /**
+     * A planet is up for hours, not at one moment. Cloud over its highest
+     * hour alone used to set it aside for the night - "Not worth it" under a
+     * timeline whose other hours were clear and had it well up.
+     */
+    @Test
+    fun `a planet whose highest hour is cloudy is judged at its best clear hour`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"), altitude = 40.0)
+        // Cloudy 23:00 to midnight only.
+        val hourly = hours("2026-12-13T16:00:00Z", 10, 10, 10, 10, 10, 10, 10, 90, 10, 10, 10, 10, 10, 10, 10, 10)
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn)),
+            input(hourly = hourly, planetAltitude = saturnArc),
+        )
+
+        assertEquals(emptyList<Excluded>(), report.excluded)
+        val goOut = report.outlook as Outlook.GoOut
+        // 22:00 and midnight are both an hour from the peak; the earlier is named.
+        assertEquals(
+            listOf(Pick(PickKind.Planet, "Saturn", at("2026-12-13T22:00:00Z"), planet = saturn)),
+            goOut.picks,
+        )
+    }
+
+    @Test
+    fun `a planet in a clear hour after its peak is judged as that hour starts`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"), altitude = 40.0)
+        // Cloudy until 02:00.
+        val hourly = hours("2026-12-13T16:00:00Z", 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 10, 10, 10, 10, 10, 10)
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn)),
+            input(hourly = hourly, planetAltitude = saturnArc),
+        )
+
+        val goOut = report.outlook as Outlook.GoOut
+        assertEquals(listOf("Saturn" to at("2026-12-14T02:00:00Z")), goOut.picks.map { it.subject to it.atMillis })
+    }
+
+    @Test
+    fun `a planet only clear while it is low is still set aside on the cloud at its best`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"), altitude = 40.0)
+        // Clear only 16:00 to 17:00, when it is 5 degrees up.
+        val hourly = hours("2026-12-13T16:00:00Z", 10, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90)
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn)),
+            input(now = darkFrom, hourly = hourly, planetAltitude = saturnArc),
+        )
+
+        assertEquals(
+            listOf(Excluded("Saturn", saturn.peakAt, Gate.Cloud, "90")),
+            report.excluded,
+        )
+    }
+
     @Test
     fun `an aurora without a forecast is conditional`() {
         val report = Outlooks.of(
@@ -986,6 +1053,37 @@ class OutlookTest {
             at("2026-12-13T22:00:00Z") to at("2026-12-14T02:00:00Z"),
             goOut.clearFrom to goOut.clearUntil,
         )
+    }
+
+    /**
+     * "Cloudy until 22:00" over a timeline whose first row is "Clear until
+     * 19:00" is a false sentence; the earlier spell goes with the outlook so
+     * the words can say both.
+     */
+    @Test
+    fun `go out carries the earlier clear spell when the pick is in a later one`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T23:00:00Z"))
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn), clearSpell = firstRun),
+            input(hourly = twoRuns),
+        )
+
+        assertEquals(firstRun, (report.outlook as Outlook.GoOut).clearEarlier)
+    }
+
+    @Test
+    fun `go out carries no earlier spell when the pick is in the first`() {
+        val saturn = planet(SkyBody.Saturn, at("2026-12-13T18:30:00Z"))
+
+        val report = Outlooks.of(
+            tonight(planets = listOf(saturn), clearSpell = firstRun),
+            input(hourly = twoRuns),
+        )
+
+        val goOut = report.outlook as Outlook.GoOut
+        assertEquals(firstRun.from to firstRun.until, goOut.clearFrom to goOut.clearUntil)
+        assertNull(goOut.clearEarlier)
     }
 
     @Test

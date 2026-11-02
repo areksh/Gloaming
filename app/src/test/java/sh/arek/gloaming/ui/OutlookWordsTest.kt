@@ -85,8 +85,9 @@ class OutlookWordsTest {
         conditional: Boolean = false,
         underway: Boolean = false,
         allNight: Boolean = false,
+        earlier: ClearSpell? = null,
     ) = Outlook.GoOut(
-        picks, from?.let(::at), until?.let(::at), conditional, underway, allNight,
+        picks, from?.let(::at), until?.let(::at), conditional, underway, allNight, earlier,
     )
 
     // ---- headline and follow
@@ -115,6 +116,49 @@ class OutlookWordsTest {
             OutlookWords.headline(r),
         )
         assertEquals("Aurora 12%, well under the 40% that would wake you.", OutlookWords.follow(r, now))
+    }
+
+    /**
+     * The pick's clear run is not the night's first. "Cloudy until 04:00" here
+     * sat over a timeline that opened with "Clear until 22:00".
+     */
+    @Test
+    fun `a later spell after one under way says both rather than cloudy until`() {
+        val r = report(
+            goOut(
+                listOf(passPick("H-2A R/B", "2026-12-14T05:41:00Z")),
+                from = "2026-12-14T04:00:00Z",
+                until = "2026-12-14T06:00:00Z",
+                earlier = ClearSpell(now, at("2026-12-13T22:00:00Z"), underway = true, allNight = false),
+            ),
+        )
+
+        assertEquals(
+            "Clear until 22:00, and again from 04:00 to 06:00. Go out from 04:00 for H-2A R/B.",
+            OutlookWords.headline(r),
+        )
+    }
+
+    @Test
+    fun `a later spell after one still to come names both`() {
+        val r = report(
+            goOut(
+                listOf(planetPick(SkyBody.Saturn, "2026-12-14T02:00:00Z")),
+                from = "2026-12-14T01:00:00Z",
+                until = "2026-12-14T03:00:00Z",
+                earlier = ClearSpell(
+                    at("2026-12-13T20:00:00Z"),
+                    at("2026-12-13T21:00:00Z"),
+                    underway = false,
+                    allNight = false,
+                ),
+            ),
+        )
+
+        assertEquals(
+            "Clear from 20:00 to 21:00, and again from 01:00 to 03:00. Go out from 01:00 for Saturn.",
+            OutlookWords.headline(r),
+        )
     }
 
     @Test

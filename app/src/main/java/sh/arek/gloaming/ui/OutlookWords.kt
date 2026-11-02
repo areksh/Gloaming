@@ -166,10 +166,25 @@ object OutlookWords {
                 "Clear until ${clock(until)}. ${goClause(outlook.picks, at(first)).capital()}."
             else -> {
                 val start = if (nearMidnight(from)) "at midnight" else "from ${clock(from)}"
-                "Cloudy until ${clock(from)}, then ${hours(until - from)}. " +
+                "${laterSpell(outlook.clearEarlier, from, until)} " +
                     "${goClause(outlook.picks, start).capital()}."
             }
         }
+    }
+
+    /**
+     * The weather up to a clear run that starts later on. "Cloudy until" only
+     * where nothing before it is clear: with an earlier spell, that is said
+     * first and the run is the second.
+     */
+    private fun laterSpell(earlier: ClearSpell?, from: Long, until: Long): String {
+        earlier ?: return "Cloudy until ${clock(from)}, then ${hours(until - from)}."
+        val first = if (earlier.underway) {
+            "Clear until ${clock(earlier.until)}"
+        } else {
+            "Clear from ${clock(earlier.from)} to ${clock(earlier.until)}"
+        }
+        return "$first, and again from ${clock(from)} to ${clock(until)}."
     }
 
     /**
