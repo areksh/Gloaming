@@ -3,6 +3,7 @@ package sh.arek.gloaming.ui
 import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyEvent
 import sh.arek.gloaming.astronomy.SunTimes
@@ -40,7 +41,24 @@ sealed interface RowSubject {
     data class Planet(val planet: PlanetTonight) : RowSubject
     @Serializable
     data class Event(val event: SkyEvent) : RowSubject
+    /** A pattern: never a timeline row, but listed on Sky and opened from there. */
+    @Serializable
+    data class Constellation(val seen: ConstellationTonight) : RowSubject
 }
+
+/** How a pass is headed, on its timeline row and on its sheet alike. */
+internal fun passTitle(pass: SatellitePass): String = "${pass.name}, ${pass.peakElevation.roundToInt()} degrees high"
+
+/** The line under a pass's heading: the two ends of it. */
+internal fun passEnds(pass: SatellitePass): String =
+    "Rises ${Compass.of(pass.riseAzimuth).label}, sets ${Compass.of(pass.setAzimuth).label}"
+
+/** How a planet's highest moment is headed, on its row and on its sheet alike. */
+internal fun planetPeakTitle(planet: PlanetTonight): String =
+    "${planet.body.label} highest, ${planet.peakAltitude.roundToInt()} degrees"
+
+/** The line under a planet's heading: which way to face. */
+internal fun planetPeakDetail(planet: PlanetTonight): String = "In the ${Compass.of(planet.peakAzimuth).label}"
 
 @Serializable
 data class TimelineRow(
@@ -157,9 +175,9 @@ object NightTimeline {
             val dimmed = unseen.any { it.subject == pass.name && it.atMillis == pass.peaksAt }
             row(
                 pass.peaksAt,
-                "${pass.name}, ${pass.peakElevation.roundToInt()} degrees high",
+                passTitle(pass),
                 RowSubject.Pass(pass),
-                "Rises ${Compass.of(pass.riseAzimuth).label}, sets ${Compass.of(pass.setAzimuth).label}",
+                passEnds(pass),
                 toneOf(picked, dimmed),
             )
         }
@@ -178,9 +196,9 @@ object NightTimeline {
             planet.risesAt?.let { row(it, "$name rises", subject, tone = tone) }
             row(
                 planet.peakAt,
-                "$name highest, ${planet.peakAltitude.roundToInt()} degrees",
+                planetPeakTitle(planet),
                 subject,
-                "In the ${Compass.of(planet.peakAzimuth).label}",
+                planetPeakDetail(planet),
                 tone,
             )
             planet.setsAt?.let { row(it, "$name sets", subject, tone = tone) }

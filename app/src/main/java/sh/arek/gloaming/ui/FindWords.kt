@@ -30,6 +30,7 @@ fun findTarget(subject: RowSubject): FindTarget? = when (subject) {
     is RowSubject.Pass -> FindTarget.Pass(subject.pass.catalogue, subject.pass.risesAt)
     is RowSubject.Planet -> FindTarget.Planet(subject.planet.body)
     is RowSubject.Event -> findTarget(subject.event)
+    is RowSubject.Constellation -> FindTarget.Pattern(subject.seen.constellation.name)
 }
 
 /**

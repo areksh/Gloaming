@@ -43,7 +43,30 @@ fun helpTopic(subject: RowSubject): HelpTopic? = when (subject) {
     is RowSubject.Pass -> HelpTopic.Satellites
     is RowSubject.Planet -> HelpTopic.Planets
     is RowSubject.Event -> if (subject.event.kind == EventKind.Comet) HelpTopic.Comets else HelpTopic.Events
+    is RowSubject.Constellation -> HelpTopic.Constellations
 }
+
+/** What a sheet is headed with: when, what, and the line under it. */
+data class SheetHeading(val time: String, val title: String, val detail: String?)
+
+/**
+ * A subject's heading wherever its sheet is opened from, worded as its
+ * timeline row is so the two never read differently. Null for the twilight
+ * and the clear spell, which are only ever opened from a row of their own.
+ */
+fun heading(subject: RowSubject): SheetHeading? = when (subject) {
+    RowSubject.Twilight, RowSubject.Clear -> null
+    RowSubject.Moon -> SheetHeading(TONIGHT_TIME, "The moon", null)
+    is RowSubject.Pass -> SheetHeading(clock(subject.pass.peaksAt), passTitle(subject.pass), passEnds(subject.pass))
+    is RowSubject.Planet -> SheetHeading(
+        clock(subject.planet.peakAt), planetPeakTitle(subject.planet), planetPeakDetail(subject.planet),
+    )
+    is RowSubject.Event -> SheetHeading(clock(subject.event.at), subject.event.title, null)
+    is RowSubject.Constellation -> SheetHeading(clock(subject.seen.peakAt), subject.seen.constellation.name, null)
+}
+
+/** The moon has no one moment; its sheet is about the night. */
+private const val TONIGHT_TIME = "Tonight"
 
 /**
  * One row, said in full: what it is, the detail the row had no room for, why
@@ -59,10 +82,25 @@ fun helpTopic(subject: RowSubject): HelpTopic? = when (subject) {
  * @param findIt the way to point the phone at this row's subject, where there
  *   is one: a [FindItButton].
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RowSheet(
     row: TimelineRow,
+    state: MainUiState,
+    actions: UiActions,
+    onDismiss: () -> Unit,
+    findIt: (@Composable () -> Unit)? = null,
+) = SubjectSheet(SheetHeading(row.time, row.title, row.detail), row.subject, state, actions, onDismiss, findIt)
+
+/**
+ * A subject said in full, wherever it was opened from: a row on Tonight, a
+ * row on Sky, or a notification. [RowSheet] is this with a timeline row's own
+ * heading.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SubjectSheet(
+    heading: SheetHeading,
+    subject: RowSubject,
     state: MainUiState,
     actions: UiActions,
     onDismiss: () -> Unit,
@@ -83,13 +121,13 @@ fun RowSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(row.time, style = MaterialTheme.typography.labelLarge, color = palette.muted)
-                Text(row.title, style = MaterialTheme.typography.titleLarge)
+                Text(heading.time, style = MaterialTheme.typography.labelLarge, color = palette.muted)
+                Text(heading.title, style = MaterialTheme.typography.titleLarge)
             }
-            row.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            heading.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
             val tonight = state.tonight
-            when (val subject = row.subject) {
+            when (subject) {
                 RowSubject.Twilight -> tonight?.let { DarknessLines(it) }
                 RowSubject.Clear -> tonight?.let { Cloud(it, state.settings.cloudTolerance) }
                 RowSubject.Moon -> tonight?.moon?.let { moon ->
@@ -100,14 +138,15 @@ fun RowSheet(
                     Said(describeMoonlight(moon))
                     describeMoonTimes(moon)?.let { Said(it) }
                 }
-                is RowSubject.Pass -> Said(describePassLine(subject.pass))
+                is RowSubject.Pass -> describePassDetail(subject.pass).forEach { Said(it) }
                 is RowSubject.Planet -> Said(describePlanet(subject.planet))
                 is RowSubject.Event -> Event(subject.event, state.nowMillis, actions)
+                is RowSubject.Constellation -> Said(describeConstellation(subject.seen))
             }
 
             findIt?.invoke()
 
-            helpTopic(row.subject)?.let { HelpNotes(it) }
+            helpTopic(subject)?.let { HelpNotes(it) }
         }
     }
 }

@@ -19,7 +19,9 @@ import sh.arek.gloaming.domain.deviceLocalMinuteOfDay
 import sh.arek.gloaming.net.Transfer
 import sh.arek.gloaming.net.TransferState
 import sh.arek.gloaming.satellites.IssCoverage
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
+import sh.arek.gloaming.satellites.describeTrain
 
 /**
  * The sentences the screens are made of, apart from the screens themselves.
@@ -418,6 +420,39 @@ internal fun describePassLine(pass: SatellitePass): String =
     "${clock(pass.risesAt)}  ${pass.name} - rises ${Compass.of(pass.riseAzimuth).label}, " +
         "highest ${pass.peakElevation.roundToInt()} degrees ${Compass.of(pass.peakAzimuth).label} " +
         "at ${clock(pass.peaksAt)}"
+
+/**
+ * One pass said in full, for its sheet: each end of it and its highest point,
+ * where the sunlight on it starts or stops, and what kind of object it is.
+ *
+ * The shadow is the line that matters most and the one a row never has room
+ * for. A pass is only seen while sunlight is on it, so one in the earth's
+ * shadow at its highest can be straight overhead and still invisible.
+ */
+internal fun describePassDetail(pass: SatellitePass): List<String> {
+    val lines = mutableListOf(
+        "Rises ${Compass.of(pass.riseAzimuth).label} at ${clock(pass.risesAt)}.",
+        "Highest at ${clock(pass.peaksAt)}, ${pass.peakElevation.roundToInt()} degrees up " +
+            "in the ${Compass.of(pass.peakAzimuth).label}.",
+        "Sets ${Compass.of(pass.setAzimuth).label} at ${clock(pass.setsAt)}.",
+    )
+    pass.leavesShadowAt?.let { lines += "Comes out of the earth's shadow at ${clock(it)}." }
+    pass.entersShadowAt?.let { lines += "Goes into the earth's shadow at ${clock(it)}, and fades out there." }
+    if (!pass.sunlitAtPeak && pass.entersShadowAt == null && pass.leavesShadowAt == null) {
+        lines += "In the earth's shadow the whole way, so it will not be seen."
+    }
+    val members = pass.members
+    lines += when (pass.channel) {
+        PassChannel.Iss -> "The space station."
+        PassChannel.Bright -> "A bright satellite or rocket body."
+        PassChannel.Trains -> if (members != null) {
+            describeTrain(members, Compass.of(pass.riseAzimuth), clock(pass.risesAt), clock(pass.setsAt))
+        } else {
+            "A train of Starlink satellites, one after another along the same path."
+        }
+    }
+    return lines
+}
 
 /**
  * One planet in one line: how high, which way, when, and how bright.

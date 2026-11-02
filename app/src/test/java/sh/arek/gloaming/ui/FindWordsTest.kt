@@ -6,6 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.astronomy.ConstellationTonight
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
@@ -77,6 +79,15 @@ class FindWordsTest {
     @Test
     fun `points at the planet a planet row is about`() {
         assertEquals(FindTarget.Planet(SkyBody.Jupiter), findTarget(RowSubject.Planet(jupiter)))
+    }
+
+    @Test
+    fun `points at the pattern a constellation row is about`() {
+        val orion = ConstellationTonight(
+            Constellations.WATCHED.first { it.name == "Orion" }, 30.0, now, 180.0, false, false,
+        )
+
+        assertEquals(FindTarget.Pattern("Orion"), findTarget(RowSubject.Constellation(orion)))
     }
 
     @Test
