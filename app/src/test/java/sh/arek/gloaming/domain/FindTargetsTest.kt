@@ -118,7 +118,7 @@ class FindTargetsTest {
         list: TonightList = tonight(),
         at: Long = now,
         sky: Sky = dark,
-        handedIn: FindTarget.Pass? = null,
+        handedIn: FindTarget? = null,
         fixOf: (FindTarget) -> TargetFix? = everythingAt(30.0),
     ) = FindTargets.available(
         list, at, handedIn,
@@ -462,6 +462,46 @@ class FindTargetsTest {
 
         assertEquals(7, offered.size)
         assertTrue(offered.any { it.catalogue == 1007 })
+    }
+
+    /** Find it on Sky's sheet for a pattern the picker has no room for. */
+    @Test
+    fun `offers a handed-in pattern beyond the three more`() {
+        val list = tonight(constellations = listOf("Orion", "Cygnus", "Lyra", "Taurus", "Cassiopeia"))
+
+        val patterns = offered(list, handedIn = FindTarget.Pattern("Cassiopeia")).filterIsInstance<FindTarget.Pattern>()
+
+        assertTrue(patterns.map { it.name }.toString(), FindTarget.Pattern("Cassiopeia") in patterns)
+    }
+
+    /** Find says when it rises; it is not left out for being down. */
+    @Test
+    fun `offers a handed-in pattern that is below the horizon`() {
+        val handed = FindTarget.Pattern("Scorpius")
+        val fixOf: (FindTarget) -> TargetFix? = { if (it == handed) placed(-20.0) else placed(30.0) }
+
+        assertTrue(handed in offered(handedIn = handed, fixOf = fixOf))
+    }
+
+    @Test
+    fun `does not offer a handed-in target twice`() {
+        val offered = offered(handedIn = FindTarget.Pattern("Ursa Major"))
+
+        assertEquals(1, offered.count { it == FindTarget.Pattern("Ursa Major") })
+    }
+
+    @Test
+    fun `resolvePass finds a pass whose rise moved by five minutes`() {
+        val asked = FindTarget.Pass(pass.catalogue, pass.risesAt + 5 * 60_000L)
+
+        val found = FindTargets.resolvePass(asked, tonight(passes = listOf(pass)), elements, latitude, longitude)
+
+        assertEquals(pass, found)
+    }
+
+    @Test
+    fun `resolvePass is null for a pass nobody knows`() {
+        assertNull(FindTargets.resolvePass(FindTarget.Pass(99999, pass.risesAt), tonight(), elements, latitude, longitude))
     }
 
     @Test

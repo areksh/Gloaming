@@ -228,7 +228,7 @@ private fun FindContent(
         }
 
         val list = state.tonight ?: EMPTY_NIGHT
-        val handedIn = initial as? FindTarget.Pass
+        val handedIn = initial
         // Worked out at most once a minute, keyed on the minute and on what it
         // reads: nothing is visible or not visible faster than that, and the
         // work must stay out of the per-second tick and the compass readings.

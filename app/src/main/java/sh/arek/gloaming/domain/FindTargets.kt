@@ -281,13 +281,14 @@ object FindTargets {
      * [altitudeOf] gives a body's or pattern's height now, null where it
      * cannot be worked out; it is all a body needs, so no rise is searched
      * for. [passFixOf] places a pass now; null means it cannot be, which is
-     * taken to mean it has set. A pass [handedIn] by a notification is always
-     * offered, beyond the limit and ahead of its time if need be.
+     * taken to mean it has set. A target [handedIn] - by a notification, or
+     * by Find it on a sheet - is always offered: a pass beyond the limit and
+     * ahead of its time if need be, anything else whatever its height.
      */
     fun available(
         list: TonightList,
         nowMillis: Long,
-        handedIn: FindTarget.Pass?,
+        handedIn: FindTarget?,
         altitudeOf: (FindTarget) -> Double?,
         passFixOf: (FindTarget.Pass) -> TargetFix?,
         sky: Sky,
@@ -301,12 +302,16 @@ object FindTargets {
             if (candidate is FindTarget.Pattern && candidate.name !in SIGNPOSTS && morePatterns-- <= 0) continue
             targets += candidate
         }
+        // Anything else Find was handed - a pattern from Sky beyond the three
+        // more, a planet below the horizon - is offered whatever its height:
+        // somebody asked for it by name, and Find says when it rises.
+        if (handedIn != null && handedIn !is FindTarget.Pass && handedIn !in targets) targets += handedIn
         val coming = list.bestPasses
             .filter { it.setsAt > nowMillis }
             .sortedBy { it.risesAt }
             .map { FindTarget.Pass(it.catalogue, it.risesAt) }
         val offered = coming.filter { passSoon(passFixOf(it), nowMillis) }.take(MAX_PASSES).toMutableList()
-        if (handedIn != null && offered.none { same(it, handedIn) }) {
+        if (handedIn is FindTarget.Pass && offered.none { same(it, handedIn) }) {
             // Tonight's own entry for it when it has one, so the chip carries
             // the rise the list uses; else the notification's.
             offered += coming.firstOrNull { same(it, handedIn) } ?: handedIn
@@ -330,7 +335,7 @@ object FindTargets {
         latitude: Double,
         longitude: Double,
         nowMillis: Long,
-        handedIn: FindTarget.Pass?,
+        handedIn: FindTarget?,
         sky: Sky,
     ): List<FindTarget> = available(
         list, nowMillis, handedIn,
@@ -531,10 +536,7 @@ object FindTargets {
         // list is rebuilt from the start of the window onwards, which leaves
         // out a pass already under way, so once one has risen it is only in
         // the elements.
-        val pass: SatellitePass? = list.passes
-            .filter { same(FindTarget.Pass(it.catalogue, it.risesAt), target) }
-            .minByOrNull { kotlin.math.abs(it.risesAt - target.risesAt) }
-            ?: elements?.let { passFromElements(target, it, latitude, longitude) }
+        val pass = resolvePass(target, list, elements, latitude, longitude)
         if (pass == null || pass.setsAt <= nowMillis) return null
 
         val label = pass.name
@@ -563,6 +565,23 @@ object FindTargets {
      * answer is remembered, so the screen placing the target every second
      * searches once rather than every tick.
      */
+    /**
+     * The pass [target] names: Tonight's own entry for it where there is one,
+     * matched within [PASS_MATCH_MILLIS] of its rise, and otherwise searched
+     * for in the [elements] - a pass already under way when the list was
+     * worked out is in the elements alone. Null when neither knows it.
+     */
+    fun resolvePass(
+        target: FindTarget.Pass,
+        list: TonightList,
+        elements: SatellitesDocument?,
+        latitude: Double,
+        longitude: Double,
+    ): SatellitePass? = list.passes
+        .filter { same(FindTarget.Pass(it.catalogue, it.risesAt), target) }
+        .minByOrNull { kotlin.math.abs(it.risesAt - target.risesAt) }
+        ?: elements?.let { passFromElements(target, it, latitude, longitude) }
+
     private fun passFromElements(
         target: FindTarget.Pass,
         elements: SatellitesDocument,
