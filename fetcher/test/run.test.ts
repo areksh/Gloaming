@@ -41,7 +41,7 @@ const config = {
   visualUrl: "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=CSV",
   starlinkUrl:
     "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=csv",
-  userAgent: "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
+  userAgent: "Gloaming/0.1 (+https://github.com/areksh/Gloaming)",
 };
 
 const now = () => new Date("2026-08-22T18:00:00Z");

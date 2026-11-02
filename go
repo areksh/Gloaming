@@ -50,7 +50,7 @@
 #                      suite against R8's output, and both overnight harnesses,
 #                      about an hour with the phone plugged in), then the
 #                      version bump, the changelog, the tag, and the release
-#                      published to Codeberg. It asks before anything leaves
+#                      published to GitHub. It asks before anything leaves
 #                      the machine, and the phone's own location and threshold
 #                      are put back after the harnesses have seeded over them.
 #                      Without a version, build the signed, shrunk release APK
@@ -566,63 +566,73 @@ run_on_device() {
     fi
 }
 
-# ---------------------------------------------------------------- Codeberg --
+# ------------------------------------------------------------------ GitHub --
 #
 # Releases are published through the API rather than the web UI, so that
 # cutting one is a command rather than a sequence of steps that can be left
 # half-done - a tag pushed with no release on it, or a release with last week's
 # APK still attached, are both worse than nothing.
+#
+# curl and jq rather than the gh CLI: the calls are four, the API is stable,
+# and one more tool to install and log in to on the releasing machine is one
+# more thing to have drifted by the time a release is due.
 
-CODEBERG_API="https://codeberg.org/api/v1"
-TOKEN_FILE="secrets/codeberg-token.txt"
-TOKEN_PLACEHOLDER="paste-your-codeberg-token-here"
-CODEBERG_TOKEN_VALUE=""
-CODEBERG_REPO=""
+GITHUB_API="https://api.github.com"
+GITHUB_UPLOADS="https://uploads.github.com"
+TOKEN_FILE="secrets/github-token.txt"
+TOKEN_PLACEHOLDER="paste-your-github-token-here"
+GITHUB_TOKEN_VALUE=""
+GITHUB_REPO=""
 
 # Everything the publishing path needs, resolved once and in the calling shell.
 # Not inside a command substitution: `die` there exits the subshell, the caller
 # carries on with an empty token, and the first thing it learns is a 401.
-require_codeberg() {
+require_github() {
     command -v curl >/dev/null 2>&1 || die "curl is not on PATH"
     command -v jq >/dev/null 2>&1 \
         || die "jq is not on PATH, and the publishing path reads the API's JSON with it"
 
     # The remote rather than a hardcoded name, so a fork publishes to the fork.
-    CODEBERG_REPO=$(git config --get remote.origin.url 2>/dev/null \
-        | sed -e 's#^ssh://git@codeberg\.org/##' \
-              -e 's#^git@codeberg\.org:##' \
-              -e 's#^https://codeberg\.org/##' \
-              -e 's#\.git$##')
-    [ -n "$CODEBERG_REPO" ] || die "no origin remote to publish to"
+    # A remote that is not on GitHub at all is refused here rather than turned
+    # into a repository name the API then reports as not found.
+    local url
+    url=$(git config --get remote.origin.url 2>/dev/null || true)
+    [ -n "$url" ] || die "no origin remote to publish to"
+    GITHUB_REPO=$(printf '%s' "$url" \
+        | sed -n -e 's#^ssh://git@github\.com/##p' \
+                 -e 's#^git@github\.com:##p' \
+                 -e 's#^https://github\.com/##p' \
+        | sed -e 's#/$##' -e 's#\.git$##')
+    [ -n "$GITHUB_REPO" ] || die "origin is $url, which is not a GitHub repository,
+and releases are published through GitHub's API"
 
     # The file first, then the environment, which is the order the signing
     # material uses and for the same reason.
-    CODEBERG_TOKEN_VALUE=""
-    [ -f "$TOKEN_FILE" ] && CODEBERG_TOKEN_VALUE=$(tr -d ' \t\n\r' < "$TOKEN_FILE")
-    [ -n "$CODEBERG_TOKEN_VALUE" ] || CODEBERG_TOKEN_VALUE="${CODEBERG_TOKEN:-}"
+    GITHUB_TOKEN_VALUE=""
+    [ -f "$TOKEN_FILE" ] && GITHUB_TOKEN_VALUE=$(tr -d ' \t\n\r' < "$TOKEN_FILE")
+    [ -n "$GITHUB_TOKEN_VALUE" ] || GITHUB_TOKEN_VALUE="${GITHUB_TOKEN:-}"
     # An unfilled template is not a token. Sending it produces a 401 that reads
     # as a revoked token rather than as one never pasted in.
-    [ "$CODEBERG_TOKEN_VALUE" != "$TOKEN_PLACEHOLDER" ] || CODEBERG_TOKEN_VALUE=""
-    [ -n "$CODEBERG_TOKEN_VALUE" ] || die "No Codeberg token. Put one in $TOKEN_FILE
-or set CODEBERG_TOKEN. Generate it at codeberg.org under Settings ->
-Applications -> Access Tokens, with write access to repository."
+    [ "$GITHUB_TOKEN_VALUE" != "$TOKEN_PLACEHOLDER" ] || GITHUB_TOKEN_VALUE=""
+    [ -n "$GITHUB_TOKEN_VALUE" ] || die "No GitHub token. Put one in $TOKEN_FILE
+or set GITHUB_TOKEN. Generate a fine-grained token at github.com under
+Settings -> Developer settings -> Personal access tokens, for $GITHUB_REPO
+only, with Contents: Read and write. See docs/prerequisites.md."
 }
 
 # One API call. Prints the status on the first line and the body after it, and
 # never fails on its own account: a 404 is the ordinary answer to "is there a
 # release for this tag" and only the caller knows whether it is a problem.
-codeberg_call() {
+github_call() {
     local method="$1" path="$2" body="${3:-}" raw
+    local -a args=(-sS -w '\n%{http_code}' -X "$method"
+        -H "Authorization: Bearer $GITHUB_TOKEN_VALUE"
+        -H "Accept: application/vnd.github+json"
+        -H "X-GitHub-Api-Version: 2022-11-28")
     if [ -n "$body" ]; then
-        raw=$(curl -sS -w '\n%{http_code}' -X "$method" \
-            -H "Authorization: token $CODEBERG_TOKEN_VALUE" \
-            -H "Content-Type: application/json" \
-            --data-binary "$body" "$CODEBERG_API/$path")
-    else
-        raw=$(curl -sS -w '\n%{http_code}' -X "$method" \
-            -H "Authorization: token $CODEBERG_TOKEN_VALUE" \
-            "$CODEBERG_API/$path")
+        args+=(-H "Content-Type: application/json" --data-binary "$body")
     fi
+    raw=$(curl "${args[@]}" "$GITHUB_API/$path")
     # curl appends the status; the callers want it first, where a one-line read
     # gets it whatever the body turns out to be.
     printf '%s\n%s' "$(printf '%s' "$raw" | tail -1)" "$(printf '%s' "$raw" | sed '$d')"
@@ -631,13 +641,13 @@ codeberg_call() {
 # The same, for calls where anything but success is a failure. The API says why
 # in the body, so the body is what gets printed - a bare status sends the reader
 # to the web UI to guess.
-codeberg_api() {
+github_api() {
     local response status
-    response=$(codeberg_call "$@")
+    response=$(github_call "$@")
     status=$(printf '%s' "$response" | head -1)
     case "$status" in
         2*) printf '%s' "$response" | sed '1d' ;;
-        *) die "Codeberg API $1 $2 returned $status:
+        *) die "GitHub API $1 $2 returned $status:
 $(printf '%s' "$response" | sed '1d')" ;;
     esac
 }
@@ -654,37 +664,43 @@ publish_release() {
         '{tag_name: $tag, name: $name, body: $body, prerelease: $pre,
           draft: false, target_commitish: $target}')
 
-    existing=$(codeberg_call GET "repos/$CODEBERG_REPO/releases/tags/$tag")
+    existing=$(github_call GET "repos/$GITHUB_REPO/releases/tags/$tag")
     status=$(printf '%s' "$existing" | head -1)
     if [ "$status" = "200" ]; then
         id=$(printf '%s' "$existing" | sed '1d' | jq -r '.id')
         echo "  updating the release on $tag"
-        codeberg_api PATCH "repos/$CODEBERG_REPO/releases/$id" "$payload" >/dev/null
+        github_api PATCH "repos/$GITHUB_REPO/releases/$id" "$payload" >/dev/null
         # Every asset, not the one matching by name: the APK carries its commit
         # in the filename, so each push would otherwise leave the last one
-        # attached beside it and the release would accumulate for ever.
+        # attached beside it and the release would accumulate for ever. GitHub
+        # addresses an asset by its own id, not under the release it belongs to.
         printf '%s' "$existing" | sed '1d' | jq -r '.assets[]?.id' \
             | while read -r asset; do
                 [ -n "$asset" ] || continue
-                codeberg_api DELETE "repos/$CODEBERG_REPO/releases/$id/assets/$asset" >/dev/null
+                github_api DELETE "repos/$GITHUB_REPO/releases/assets/$asset" >/dev/null
             done
     else
         echo "  creating the release on $tag"
-        id=$(codeberg_api POST "repos/$CODEBERG_REPO/releases" "$payload" | jq -r '.id')
+        id=$(github_api POST "repos/$GITHUB_REPO/releases" "$payload" | jq -r '.id')
     fi
     [ -n "$id" ] && [ "$id" != "null" ] || die "the API returned no release id"
 
+    # A separate host, and the file as the raw body with its type rather than a
+    # form: that is what GitHub's upload endpoint takes.
     echo "  uploading $(basename "$apk")"
     local upload
     upload=$(curl -sS -o - -w '\n%{http_code}' -X POST \
-        -H "Authorization: token $CODEBERG_TOKEN_VALUE" \
-        -F "attachment=@$apk" \
-        "$CODEBERG_API/repos/$CODEBERG_REPO/releases/$id/assets?name=$(basename "$apk")")
+        -H "Authorization: Bearer $GITHUB_TOKEN_VALUE" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -H "Content-Type: application/vnd.android.package-archive" \
+        --data-binary "@$apk" \
+        "$GITHUB_UPLOADS/repos/$GITHUB_REPO/releases/$id/assets?name=$(basename "$apk")")
     case "$(printf '%s' "$upload" | tail -1)" in
         2*) ;;
         *) die "uploading the APK failed: $upload" ;;
     esac
-    echo "  https://codeberg.org/$CODEBERG_REPO/releases/tag/$tag"
+    echo "  https://github.com/$GITHUB_REPO/releases/tag/$tag"
 }
 
 # The last released version, which is what a development build's notes are
@@ -821,7 +837,7 @@ run_full_release() {
         || die "CHANGELOG.md has nothing under Unreleased, so this release would say
 nothing about itself. Write the entry first."
     require_signing
-    require_codeberg
+    require_github
     require_device
 
     cat <<NOTICE
@@ -937,7 +953,7 @@ Everything passed. What happens next cannot be undone:
 
   tag      $tag on $(git rev-parse --short HEAD)
   push     main and the tag to origin
-  publish  $(basename "$apk") as a $([ "$prerelease" = true ] && echo "pre-release" || echo "release") on Codeberg
+  publish  $(basename "$apk") as a $([ "$prerelease" = true ] && echo "pre-release" || echo "release") on GitHub
 
 CONFIRM
     printf 'Publish? [y/N] '
@@ -1238,7 +1254,7 @@ commit and nothing could reproduce it. Commit them first."
 
         if [ "$PUBLISH" -eq 1 ]; then
             require_signing
-            require_codeberg
+            require_github
         fi
 
         # main and the rolling tag in one push, so the pre-push hook runs the

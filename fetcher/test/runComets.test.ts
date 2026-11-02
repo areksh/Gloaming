@@ -33,7 +33,7 @@ const LEMMON =
 const config: CometConfig = {
   elementsUrl: "https://data.minorplanetcenter.net/iau/MPCORB/CometEls.txt",
   observationsUrl: "https://cobs.si/api/obs_list.api",
-  userAgent: "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
+  userAgent: "Gloaming/0.1 (+https://github.com/areksh/Gloaming)",
 };
 
 const now = () => new Date("2026-08-25T18:00:00Z");

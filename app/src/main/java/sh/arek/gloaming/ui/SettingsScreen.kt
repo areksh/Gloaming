@@ -1464,7 +1464,7 @@ private fun CreditsCard(state: MainUiState) {
 }
 
 /** Where the GPL says the corresponding source can be had. */
-private const val SOURCE_URL = "https://codeberg.org/arek/Gloaming"
+private const val SOURCE_URL = "https://github.com/areksh/Gloaming"
 
 /**
  * A licence behind a tap.

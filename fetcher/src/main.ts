@@ -74,7 +74,7 @@ async function main(): Promise<number> {
       "CELESTRAK_STARLINK_URL",
       "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=csv",
     ),
-    userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"),
+    userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://github.com/areksh/Gloaming)"),
   };
 
   const comets = {
@@ -93,7 +93,7 @@ async function main(): Promise<number> {
       "https://data.minorplanetcenter.net/iau/MPCORB/CometEls.txt",
     ),
     observationsUrl: optional("COBS_OBSERVATIONS_URL", "https://cobs.si/api/obs_list.api"),
-    userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"),
+    userAgent: optional("USER_AGENT", "Gloaming/0.1 (+https://github.com/areksh/Gloaming)"),
   };
 
   const result = await run(store, alerting, config);

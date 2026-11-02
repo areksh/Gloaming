@@ -51,7 +51,7 @@
     "SWPC_SOLAR_WIND_MAG_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-mag-field.json",
     "SWPC_SOLAR_WIND_SPEED_URL": "https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json",
     "AURORAWATCH_STATUS_URL": "https://aurorawatch-api.lancs.ac.uk/0.2/status/current-status.xml",
-    "USER_AGENT": "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)",
+    "USER_AGENT": "Gloaming/0.1 (+https://github.com/areksh/Gloaming)",
 
     // Manifest contents. The app bakes in only the manifest URL, so every other
     // endpoint can move by editing these and redeploying.

@@ -14,7 +14,7 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 3 | Public custom domain `sky.arek.sh` (TLS 1.2 minimum) | Done, serving |
 | 4 | Ed25519 manifest keypair | Done, in `secrets/` |
 | 5 | Maintainer ntfy topic | Done, in `secrets/` |
-| 6 | Codeberg repository and `origin` remote | Done |
+| 6 | GitHub repository and `origin` remote | Done; moved from Codeberg in November 2026 |
 | 7 | Package id `sh.arek.gloaming` | Done |
 | 8 | Compose app scaffold | Done |
 | 9 | Wrangler installed and authenticated | Done |
@@ -24,20 +24,23 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 | 11a | Cache Rule on `sky.arek.sh/v1/*` | Done, verified |
 | 12 | KV namespace for the CelesTrak circuit breaker | Not needed until Phase 3 |
 | 13 | CI runner | Decided against; ADR-0014. The gate is the pre-push hook and `./go release` |
-| 14 | Codeberg access token for publishing releases | Needed by `./go push` and `./go release` |
+| 14 | GitHub access token for publishing releases | Needed by `./go push` and `./go release` |
 
 The F-Droid-repo-on-Codeberg-Pages setup and F-Droid main-repo submission are
 post-v1 (Sec. 12).
 
-## Codeberg access token
+## GitHub access token
 
-`./go push` and `./go release` publish through the Codeberg API, which needs a
-token with write access to the repository. Generate one at codeberg.org under
-Settings -> Applications -> Access Tokens, granting `write:repository` and
-nothing else - it is used for releases and their assets, and for no other call.
+`./go push` and `./go release` publish through the GitHub REST API, which needs
+a token that can write releases. Generate a fine-grained personal access token
+at github.com under Settings -> Developer settings -> Personal access tokens ->
+Fine-grained tokens, with access to this repository only and the single
+repository permission Contents: Read and write - it is used for releases and
+their assets, and for no other call. Give it an expiry and put a reminder
+against it; an expired token fails with a 401 at the very end of a release.
 
-Put it in `secrets/codeberg-token.txt`, which is gitignored along with the rest
-of that directory, or set `CODEBERG_TOKEN` in the environment. The file wins if
+Put it in `secrets/github-token.txt`, which is gitignored along with the rest
+of that directory, or set `GITHUB_TOKEN` in the environment. The file wins if
 both are present, which is the order the signing material uses. A file still
 holding the template's placeholder counts as absent, so an unfilled template
 fails with a message about the token rather than with a 401 that reads like a

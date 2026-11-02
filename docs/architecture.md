@@ -15,7 +15,7 @@ narrative overview and links to them.
 
 A free, ad-free, Play-Services-free Android app that tells you when to look up:
 aurora first, then satellite passes, the sky calendar and comets. Global by
-design, UK-enhanced. Code and releases on Codeberg; data on Cloudflare behind a
+design, UK-enhanced. Code and releases on GitHub; data on Cloudflare behind a
 project-owned domain. The v1.0 release gate is the end of Phase 2 (Sec. 14):
 aurora, cloud cover and darkness windows, delivered reliably through Doze.
 

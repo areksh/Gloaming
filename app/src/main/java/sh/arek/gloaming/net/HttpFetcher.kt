@@ -111,7 +111,7 @@ class OkHttpFetcher(
     }
 
     companion object {
-        const val DEFAULT_USER_AGENT: String = "Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)"
+        const val DEFAULT_USER_AGENT: String = "Gloaming/0.1 (+https://github.com/areksh/Gloaming)"
         private const val HTTP_NOT_MODIFIED = 304
 
         /**

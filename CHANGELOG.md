@@ -189,6 +189,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Gloaming now lives on GitHub.** Source, releases and development builds
+  are at https://github.com/areksh/Gloaming, and the source link in Settings
+  points there. If you install updates through Obtainium, change the app's
+  source to that address: releases from this one on are not published on
+  Codeberg. The APK is signed with the same key as before, so it installs over
+  the version you have and keeps your settings.
+
 - **Check now also works tonight and the calendar out again.** Pressing Check
   now, or pulling Tonight down, used to fetch fresh data and recalculate only
   what that data changed. It now works tonight and the year ahead out again

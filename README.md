@@ -643,10 +643,10 @@ tolerance, the alert leads and quiet hours stayed reset. A restore covering a
 quarter of what it overwrites reads as though it covers all of it, so it is gone
 rather than half-kept. `./go status` reads out what the phone is actually set to.
 
-Publishing needs a Codeberg access token with write access to the repository, in
-`secrets/codeberg-token.txt` or `CODEBERG_TOKEN`, and the signing material in
-`keystore.properties` - copy `keystore.properties.example` and fill in the
-passphrase. Both are covered in
+Publishing needs a GitHub fine-grained token with Contents: Read and write on
+the repository, in `secrets/github-token.txt` or `GITHUB_TOKEN`, and the signing
+material in `keystore.properties` - copy `keystore.properties.example` and fill
+in the passphrase. Both are covered in
 [`docs/prerequisites.md`](docs/prerequisites.md).
 
 ## Verifying a release

@@ -47,7 +47,7 @@ here there is no point continuing.
 
 ```sh
 curl -sS -o /dev/null -w '%{http_code} in %{time_total}s\n' \
-  -A 'Gloaming/0.1 (+https://codeberg.org/arek/Gloaming)' \
+  -A 'Gloaming/0.1 (+https://github.com/areksh/Gloaming)' \
   'https://celestrak.org/'
 ```
 
@@ -196,7 +196,7 @@ breaker by design.
 cat > /etc/systemd/system/gloaming-elements.service <<'EOF'
 [Unit]
 Description=Fetch CelesTrak orbital elements and publish sats.json to R2
-Documentation=https://codeberg.org/arek/Gloaming
+Documentation=https://github.com/areksh/Gloaming
 After=network-online.target
 Wants=network-online.target
 
