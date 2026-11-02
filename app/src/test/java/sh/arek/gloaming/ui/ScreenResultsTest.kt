@@ -27,6 +27,7 @@ import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.TonightSnapshot
 import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.AnnouncedPass
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
 
@@ -56,12 +57,14 @@ class ScreenResultsTest {
         threshold: Int = 30,
         user: UserSettings = settings(place).copy(threshold = threshold),
         recalculation: Int = 0,
+        announced: AnnouncedPass? = null,
     ) = TonightKey.of(
         settings = user,
         forecastVersion = 0,
         lastPollAt = null,
         staleSlot = 0L,
         recalculation = recalculation,
+        announced = announced,
     )
 
     private fun event(title: String) = SkyEvent(
@@ -463,6 +466,12 @@ class ScreenResultsTest {
     @Test
     fun `a new recalculation gives tonight a new key`() {
         assertNotEquals(tonightKey(recalculation = 0), tonightKey(recalculation = 1))
+    }
+
+    /** Tonight lists the pass just announced, so an announcement has to reach it. */
+    @Test
+    fun `a newly announced pass gives tonight a new key`() {
+        assertNotEquals(tonightKey(), tonightKey(announced = AnnouncedPass(28499, 1_793_644_495_840L)))
     }
 
     @Test

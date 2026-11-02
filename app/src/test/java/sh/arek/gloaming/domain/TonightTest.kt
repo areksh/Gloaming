@@ -619,4 +619,63 @@ class TonightTest {
 
         assertEquals(listOf(one), Tonight.best(listOf(one)))
     }
+
+    /** Six higher passes of the night, and one lower one that is coming up now. */
+    private val crowded = listOf(89.0, 88.0, 87.0, 86.0, 85.0, 84.0).mapIndexed { i, height ->
+        pass("High $i", "2026-11-03T0$i:00:00Z", height, catalogue = 20000 + i)
+    }
+    private val announcedOne = pass("ARIANE 5 R/B", "2026-11-02T18:28:00Z", 40.0, catalogue = 28499)
+
+    /**
+     * The pass the app has just interrupted somebody about is the one they open
+     * Tonight to look for, however low it is against the night's best.
+     */
+    @Test
+    fun `best keeps the announced pass when six higher ones would crowd it out`() {
+        val best = Tonight.best(
+            crowded + announcedOne,
+            announced = AnnouncedPass(28499, announcedOne.peaksAt + 2 * 60_000L),
+            nowMillis = announcedOne.risesAt - 60_000L,
+        )
+
+        assertEquals(7, best.size)
+        assertTrue(best.any { it.catalogue == 28499 })
+        assertEquals(best.sortedBy { it.risesAt }, best)
+    }
+
+    @Test
+    fun `best drops the announced pass once it has set`() {
+        val best = Tonight.best(
+            crowded + announcedOne,
+            announced = AnnouncedPass(28499, announcedOne.peaksAt),
+            nowMillis = announcedOne.setsAt + 1L,
+        )
+
+        assertEquals(6, best.size)
+        assertTrue(best.none { it.catalogue == 28499 })
+    }
+
+    @Test
+    fun `best does not list the announced pass twice when it is already among the best`() {
+        val top = crowded.first()
+        val best = Tonight.best(
+            crowded + announcedOne,
+            announced = AnnouncedPass(top.catalogue, top.peaksAt),
+            nowMillis = top.risesAt - 60_000L,
+        )
+
+        assertEquals(6, best.size)
+        assertEquals(best.distinct(), best)
+    }
+
+    @Test
+    fun `best ignores an announced pass more than ten minutes off`() {
+        val best = Tonight.best(
+            crowded + announcedOne,
+            announced = AnnouncedPass(28499, announcedOne.peaksAt + 11 * 60_000L),
+            nowMillis = announcedOne.risesAt - 60_000L,
+        )
+
+        assertEquals(6, best.size)
+    }
 }

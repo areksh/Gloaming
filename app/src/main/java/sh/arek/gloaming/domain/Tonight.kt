@@ -13,6 +13,7 @@ import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.astronomy.Visibility
 import sh.arek.gloaming.comets.Comets
 import sh.arek.gloaming.comets.CometsDocument
+import sh.arek.gloaming.data.AlertState
 import sh.arek.gloaming.data.CloudCover
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
@@ -54,6 +55,21 @@ data class MoonTonight(
 )
 
 /** What there is to see between now and the end of tonight. */
+/**
+ * The pass an alert last spoke about: the object, and roughly when it was
+ * highest. Roughly, because the peak moves as it is re-derived - see
+ * [AlertState.lastPassPeakAt].
+ */
+data class AnnouncedPass(val catalogue: Int, val peakAt: Long) {
+    companion object {
+        fun from(state: AlertState): AnnouncedPass? {
+            val catalogue = state.lastPassCatalogue ?: return null
+            val peakAt = state.lastPassPeakAt ?: return null
+            return AnnouncedPass(catalogue, peakAt)
+        }
+    }
+}
+
 @Serializable
 data class TonightList(
     /** When the sky is dark enough to be worth going out, if it will be. */
@@ -194,6 +210,7 @@ object Tonight {
         nowMillis: Long,
         cloud: CloudCover? = null,
         hourly: List<HourlyCover> = emptyList(),
+        announced: AnnouncedPass? = null,
     ): TonightList {
         val latitude = settings.latitude
         val longitude = settings.longitude
@@ -255,7 +272,7 @@ object Tonight {
             darkFrom = night?.first,
             darkUntil = night?.last,
             passes = passes,
-            bestPasses = best(passes),
+            bestPasses = best(passes, announced = announced, nowMillis = nowMillis),
             // Marginal stays: somebody looking at a list of tonight has already
             // decided to go out, and "the moon is low at maximum" is what they
             // need to plan around rather than a reason to be told nothing.
@@ -353,13 +370,31 @@ object Tonight {
      * Presented in time order once chosen, because that is how somebody plans
      * an evening.
      */
-    fun best(passes: List<SatellitePass>, limit: Int = HIGHLIGHTS): List<SatellitePass> {
+    fun best(
+        passes: List<SatellitePass>,
+        limit: Int = HIGHLIGHTS,
+        announced: AnnouncedPass? = null,
+        nowMillis: Long = 0L,
+    ): List<SatellitePass> {
         val station = passes.filter { it.channel == PassChannel.Iss }
         val rest = passes
             .filterNot { it.channel == PassChannel.Iss }
             .sortedByDescending { it.peakElevation }
+        val picked = (station + rest).take(limit)
 
-        return (station + rest).take(limit).sortedBy { it.risesAt }
+        // The pass an alert has just spoken about, on top of the limit. The
+        // alert picks the soonest pass and this list the highest of the night,
+        // and on a night of three hundred passes the two almost never meet - so
+        // without this, the one pass the app chose to interrupt somebody about
+        // was the one pass no screen showed them.
+        val told = announced?.let { told ->
+            passes
+                .filter { it.catalogue == told.catalogue && it.setsAt > nowMillis }
+                .filter { kotlin.math.abs(it.peaksAt - told.peakAt) <= PassPlanner.SAME_PASS_TOLERANCE_MILLIS }
+                .minByOrNull { kotlin.math.abs(it.peaksAt - told.peakAt) }
+        }
+        val all = if (told == null || told in picked) picked else picked + told
+        return all.sortedBy { it.risesAt }
     }
 
     /** How many passes are worth leading with before a list becomes a catalogue. */

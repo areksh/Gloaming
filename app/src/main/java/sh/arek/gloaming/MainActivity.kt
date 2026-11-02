@@ -78,6 +78,7 @@ import sh.arek.gloaming.domain.OutlookInput
 import sh.arek.gloaming.domain.Outlooks
 import sh.arek.gloaming.domain.Recommendations
 import sh.arek.gloaming.domain.SkyPoller
+import sh.arek.gloaming.domain.AnnouncedPass
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.domain.findTargetFrom
@@ -975,6 +976,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
         lastPollAt = alertState.lastPollAt,
         staleSlot = shownAt / TONIGHT_STALE_MILLIS,
         recalculation = results.recalculation,
+        announced = AnnouncedPass.from(alertState),
     )
     LaunchedEffect(tonightKey) {
         val user = settings
@@ -1005,6 +1007,7 @@ private fun GloamingApp(initialFind: String?, onInitialFindShown: () -> Unit) {
                     nowMillis = now,
                     cloud = weather.lastKnown(latitude, longitude),
                     hourly = forecast,
+                    announced = AnnouncedPass.from(state),
                 )
                 val probability = state.lastProbability
                 val report = runCatching {

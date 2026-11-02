@@ -16,6 +16,7 @@ import sh.arek.gloaming.data.TonightSnapshot
 import sh.arek.gloaming.data.TonightSnapshots
 import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.usable
+import sh.arek.gloaming.domain.AnnouncedPass
 import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.SatellitesDocument
@@ -126,6 +127,8 @@ data class TonightKey(
     val staleSlot: Long,
     /** [ScreenResults.recalculation] when the key was made. */
     val recalculation: Int,
+    /** The pass an alert last spoke about, which tonight's best always includes. */
+    val announced: AnnouncedPass? = null,
 ) {
     /** The place the night is about, at the grid's resolution. */
     val cell: GridCell?
@@ -138,6 +141,7 @@ data class TonightKey(
             lastPollAt: Long?,
             staleSlot: Long,
             recalculation: Int,
+            announced: AnnouncedPass? = null,
         ) = TonightKey(
             latitude = keyed(settings.latitude),
             longitude = keyed(settings.longitude),
@@ -154,6 +158,7 @@ data class TonightKey(
             lastPollAt = lastPollAt,
             staleSlot = staleSlot,
             recalculation = recalculation,
+            announced = announced,
         )
     }
 }
