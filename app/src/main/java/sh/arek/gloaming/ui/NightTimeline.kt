@@ -124,6 +124,8 @@ data class Timeline(
     val trip: List<Long> = emptyList(),
     /** The moments the line under the headline names. */
     val alsoAt: List<Long> = emptyList(),
+    /** The moon, planets and comets across the night, drawn above the rows. */
+    val chart: UpChart? = null,
 )
 
 /** The sun's altitude, in degrees, at one moment of the night. */
@@ -339,6 +341,7 @@ object NightTimeline {
             sun = sunSamples(latitude, longitude, start, end),
             trip = trip.map { it.atMillis },
             alsoAt = also.map { it.atMillis },
+            chart = UpCharts.of(list, trip, also, latitude, longitude, start, end),
         )
     }
 

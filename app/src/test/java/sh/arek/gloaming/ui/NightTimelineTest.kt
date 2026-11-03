@@ -635,4 +635,16 @@ class NightTimelineTest {
         assertEquals(listOf("01:30", "01:30"), passes.map { it.time })
         assertEquals(listOf(first.peaksAt, second.peaksAt), passes.map { it.atMillis })
     }
+
+    @Test
+    fun `carries the up tonight chart for the same night`() {
+        val venus = planet(SkyBody.Venus, -4.0, null, "2026-12-14T20:00:00Z", "2026-12-14T17:30:00Z")
+
+        val timeline = build(list(planets = listOf(venus)))!!
+
+        val chart = timeline.chart!!
+        assertEquals(timeline.startMillis, chart.sunsetMillis)
+        assertEquals(timeline.endMillis, chart.sunriseMillis)
+        assertEquals(listOf("Venus"), chart.bodies.map { it.label })
+    }
 }
