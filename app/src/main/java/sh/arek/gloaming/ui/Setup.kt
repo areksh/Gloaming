@@ -129,18 +129,27 @@ fun SetupFlow(
         SetupStep.BackgroundChecks -> state.batteryExempt
     }
 
+    // The way on stays pinned beneath the step rather than after it: the
+    // location step alone is taller than a phone's screen once it offers
+    // background updates, and a Next that has to be scrolled to is missed.
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            "Step ${position + 1} of ${steps.size}",
-            style = MaterialTheme.typography.labelLarge,
-        )
-        SettingsPageContent(step.page, state, actions)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "Step ${position + 1} of ${steps.size}",
+                style = MaterialTheme.typography.labelLarge,
+            )
+            SettingsPageContent(step.page, state, actions)
+        }
         if (done) {
             Button(
                 onClick = ::advance,

@@ -279,6 +279,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Setup's Next and Skip stay on screen.** The location step grew taller than
+  a phone once it offered background updates, which pushed the way on below
+  the fold. The buttons now sit pinned under the step, and the step scrolls
+  above them.
+
 - **The cloud now says which kind it is.** The guide promised the app would
   say whether cloud was high and thin or low and thick, but "high and thin"
   only appeared when there was no other cloud at all - the forecast's total
