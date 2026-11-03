@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
@@ -25,10 +26,11 @@ import sh.arek.gloaming.ui.MainUiState
 import sh.arek.gloaming.ui.NOT_WORTH_TAG
 import sh.arek.gloaming.ui.ROW_SHEET_TAG
 import sh.arek.gloaming.ui.RowSubject
-import sh.arek.gloaming.ui.TIMELINE_TAG
+import sh.arek.gloaming.ui.NIGHT_STRIP_TAG
 import sh.arek.gloaming.ui.Timeline
 import sh.arek.gloaming.ui.TimelineRow
-import sh.arek.gloaming.ui.TimelineShown
+import sh.arek.gloaming.ui.TonightSections
+import sh.arek.gloaming.ui.disclosureTag
 import sh.arek.gloaming.ui.describeMissingElements
 import sh.arek.gloaming.ui.OUTLOOK_HEADLINE_TAG
 import sh.arek.gloaming.ui.OutlookWords
@@ -76,8 +78,18 @@ class ScenarioScreensTest(private val scenario: Scenario) {
     private val tonight: TonightList = requireNotNull(state.tonight)
 
     /** The whole of Tonight as the app draws it, pinned watch button included. */
+    /**
+     * The screen, with both folded lists opened: what this suite looks for is
+     * whether the night is said at all, and a folded list still says it.
+     */
     private fun render() {
         compose.setContent { TonightScreen(state = state) }
+        for (tag in listOf(ALSO_UP_TAG, NOT_WORTH_TAG)) {
+            if (compose.onAllNodesWithTag(disclosureTag(tag)).fetchSemanticsNodes().isNotEmpty()) {
+                compose.onNodeWithTag(disclosureTag(tag)).performScrollTo().performClick()
+                compose.waitForIdle()
+            }
+        }
     }
 
     /**
@@ -144,7 +156,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         render()
 
         if (scenario.settings.latitude == null) {
-            compose.onNodeWithTag(TIMELINE_TAG).assertDoesNotExist()
+            compose.onNodeWithTag(NIGHT_STRIP_TAG).assertDoesNotExist()
             compose.onNodeWithTag(ALSO_UP_TAG).assertDoesNotExist()
             compose.onNodeWithTag(NOT_WORTH_TAG).assertDoesNotExist()
             return
@@ -152,9 +164,9 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
         val timeline = state.timeline
         if (timeline != null) {
-            compose.onNodeWithTag(TIMELINE_TAG).performScrollTo().assertIsDisplayed()
-            // The rows the Busy setting draws; the rest are listed under the timeline.
-            for (row in TimelineShown.of(timeline, state.settings.busyTimeline).rows) {
+            compose.onNodeWithTag(NIGHT_STRIP_TAG).performScrollTo().assertIsDisplayed()
+            // The picked rows are drawn; the rest are listed under the strip.
+            for (row in TonightSections.worth(timeline).upcoming) {
                 compose.onNodeWithTag(timelineRowTag(row)).assertExists()
             }
         }
@@ -190,10 +202,17 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         }
     }
 
-    /** At least one row on the timeline that [matches], on the screen. */
+    /**
+     * At least one moment of the night that [matches], on the screen: as a
+     * row where the outlook picked it, and in words in the lists where not.
+     */
     private fun row(timeline: Timeline?, matches: (TimelineRow) -> Boolean) {
         val row = requireNotNull(timeline?.rows?.firstOrNull(matches)) { "no such row on ${timeline?.rows}" }
-        compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
+        if (row.pick != null) {
+            compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
+        } else {
+            somewhere(row.title)
+        }
     }
 
     /**
@@ -201,7 +220,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
      * it is up all night with no row to say so.
      */
     private fun showsTheMoon(timeline: Timeline?) {
-        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Moon }
+        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Moon && it.pick != null }
         if (row != null) {
             compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
         } else {
@@ -218,7 +237,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
      */
     private fun showsTheNoctilucentPrompt(timeline: Timeline?) {
         val prompt = requireNotNull(tonight.noctilucent)
-        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(prompt) }
+        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(prompt) && it.pick != null }
         if (row != null) {
             compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
         } else {
@@ -242,7 +261,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         val reason = (event.visibility as Visibility.Marginal).reason
 
         render()
-        val row = state.timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(event) }
+        val row = state.timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(event) && it.pick != null }
         if (row != null) {
             compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().performClick()
             compose.onNode(hasText(reason) and hasAnyAncestor(hasTestTag(ROW_SHEET_TAG)))

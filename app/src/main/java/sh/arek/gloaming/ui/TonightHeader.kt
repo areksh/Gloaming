@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.ui.theme.LocalPalette
 
 /** The line that says how fresh things are, and opens the checks sheet. */
@@ -67,10 +70,18 @@ const val WORKING_OUT_TONIGHT = "Working out tonight..."
  *
  * Then the outlook: one sentence, decided by [sh.arek.gloaming.domain.Outlooks]
  * and worded by [OutlookWords], with nothing in its place until it has been
- * worked out rather than a guess.
+ * worked out rather than a guess. Once the night is under way and something
+ * picked is still to come, what is next leads instead ("ISS in 6 min") and
+ * the sentence follows it.
  */
 @Composable
-fun TonightHeader(state: MainUiState, actions: UiActions, onOpenChecks: () -> Unit) {
+fun TonightHeader(
+    state: MainUiState,
+    actions: UiActions,
+    onOpenChecks: () -> Unit,
+    timeline: Timeline? = null,
+    onFindIt: ((FindTarget) -> Unit)? = null,
+) {
     if (!state.batteryExempt) {
         AlertBanner(
             title = "Gloaming cannot alert you overnight yet",
@@ -94,7 +105,7 @@ fun TonightHeader(state: MainUiState, actions: UiActions, onOpenChecks: () -> Un
     // and the same thing said twice, one line apart, reads as two things.
     if (state.tonightUpdating) UpdatingLine(words = !workingOutTonight(state))
 
-    OutlookLines(state)
+    OutlookLines(state, timeline, onFindIt)
 }
 
 /**
@@ -208,9 +219,15 @@ private fun AlertBanner(title: String, body: String, action: String, onAction: (
  * thing it could say. With one but no outlook yet it is left empty: the
  * outlook is worked out off the main thread, and until it lands the line
  * under the status line and the night beneath say so.
+ *
+ * Before the night, a countdown to the trip goes under the sentence; on an
+ * overcast night, a card saying when it next clears. Once the night is under
+ * way and a picked row is still to come, that row leads - with Find it where
+ * it can be pointed at - and the sentence moves under it, in place of the
+ * line that would have followed.
  */
 @Composable
-private fun OutlookLines(state: MainUiState) {
+private fun OutlookLines(state: MainUiState, timeline: Timeline?, onFindIt: ((FindTarget) -> Unit)?) {
     val palette = LocalPalette.current
     val report = state.outlook
     val headline = when {
@@ -220,6 +237,17 @@ private fun OutlookLines(state: MainUiState) {
     }
     val follow = report?.takeIf { state.settings.hasLocation }
         ?.let { OutlookWords.follow(it, state.nowMillis) }
+    val now = timeline?.nowMillis
+    val next = timeline?.let { TonightSections.nextUp(TonightSections.worth(it), now) }
+    val countdown = timeline?.takeIf { next == null }?.let { TonightSections.countdown(it, state.nowMillis) }
+    val nextClear = (report?.outlook as? Outlook.Overcast)
+        ?.takeIf { state.settings.hasLocation }
+        ?.let { OutlookWords.nextClear(it, state.nowMillis) }
+    val headlineStyle = MaterialTheme.typography.headlineMedium.copy(
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        fontWeight = FontWeight.Medium,
+    )
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
@@ -227,20 +255,40 @@ private fun OutlookLines(state: MainUiState) {
             style = MaterialTheme.typography.bodyMedium,
             color = palette.muted,
         )
-        headline?.let {
+        if (next != null && now != null) {
             Text(
-                it,
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontSize = 28.sp,
-                    lineHeight = 34.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
+                TonightSections.nextUpWords(next, now),
+                style = headlineStyle.copy(fontWeight = FontWeight.Bold),
                 color = palette.text,
-                modifier = Modifier.testTag(OUTLOOK_HEADLINE_TAG),
+                modifier = Modifier.testTag(NEXT_UP_TAG),
             )
-        }
-        follow?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+            val target = findTarget(next.subject)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (target != null && onFindIt != null) FindItButton { onFindIt(target) }
+                next.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted) }
+            }
+            headline?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = palette.text,
+                    modifier = Modifier.testTag(OUTLOOK_HEADLINE_TAG),
+                )
+            }
+        } else {
+            headline?.let {
+                Text(
+                    it,
+                    style = headlineStyle,
+                    color = palette.text,
+                    modifier = Modifier.testTag(OUTLOOK_HEADLINE_TAG),
+                )
+            }
+            follow?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+            }
+            countdown?.let { CountdownChip(it) }
+            nextClear?.let { NextClearCard(it) }
         }
         // Beside the outlook that reads it. AuroraWatch's conditions tie the
         // credit to their data, and somebody deciding whether to trust 55%
@@ -253,5 +301,45 @@ private fun OutlookLines(state: MainUiState) {
                 color = palette.muted,
             )
         }
+    }
+}
+
+/** How long until the trip out, as a filled pill: weight and fill, not colour alone. */
+@Composable
+private fun CountdownChip(text: String) {
+    val palette = LocalPalette.current
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Bold,
+        color = palette.onAccent,
+        modifier = Modifier
+            .background(palette.accent, RoundedCornerShape(50))
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .testTag(COUNTDOWN_TAG),
+    )
+}
+
+/** When an overcast night next clears, as a card of its own rather than a clause in a sentence. */
+@Composable
+private fun NextClearCard(text: String) {
+    val palette = LocalPalette.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.raised, RoundedCornerShape(16.dp))
+            .border(1.dp, palette.accent, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) {}
+            .testTag(NEXT_CLEAR_TAG),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "NEXT CLEAR SPELL",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = palette.accent,
+        )
+        Text(text, style = MaterialTheme.typography.titleMedium, color = palette.text)
     }
 }

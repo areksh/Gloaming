@@ -47,20 +47,47 @@ object TonightSections {
      */
     fun everything(list: TonightList, timeline: Timeline?, report: OutlookReport?, nowMillis: Long): List<ListEntry> {
         val shown = timeline?.let { t -> worth(t).let { t.copy(rows = it.upcoming + it.earlier) } }
-        return TonightLists.alsoUp(list, shown, report, nowMillis)
+        return listOfNotNull(timeline?.let(::theNight)) + TonightLists.alsoUp(list, shown, report, nowMillis)
     }
 
     /**
+     * The night's own moments in a line - sunset, darkness, the clear spells,
+     * the moonless stretch, sunrise - which the strip draws and nothing else
+     * puts in words. Picked rows are the short list's; the moon's rising and
+     * setting are said by "The moon" entry. Null where there are none.
+     */
+    private fun theNight(timeline: Timeline): ListEntry? {
+        val moments = timeline.rows.filter { row ->
+            row.pick == null && when (row.subject) {
+                RowSubject.Twilight, RowSubject.Clear -> true
+                RowSubject.Moon -> row.title.startsWith(MOONLESS)
+                else -> false
+            }
+        }
+        if (moments.isEmpty()) return null
+        return ListEntry(NIGHT_TITLE, moments.sortedBy { it.atMillis }.joinToString(" · ") { "${it.time} ${it.title}" })
+    }
+
+    /** The heading of the night's own moments, first under "Everything up tonight". */
+    const val NIGHT_TITLE = "The night"
+
+    private const val MOONLESS = "Moonless"
+
+    /**
      * A folded list in a line: "Jupiter, Pleiades, Orion and 3 more". Only
-     * titled entries are named; null when none is.
+     * titled entries are named, and never the night's own moments; null when
+     * none is.
      */
     fun preview(entries: List<ListEntry>): String? {
-        val names = entries.mapNotNull { it.title }
+        val names = entries.mapNotNull { it.title }.filter { it != NIGHT_TITLE }
         if (names.isEmpty()) return null
         if (names.size == 1) return names.single()
         if (names.size <= PREVIEW_NAMES) return names.dropLast(1).joinToString(", ") + " and " + names.last()
         return names.take(PREVIEW_NAMES).joinToString(", ") + " and ${names.size - PREVIEW_NAMES} more"
     }
+
+    /** How many things a folded list holds, for "Everything up tonight · 6": the night itself is not one. */
+    fun count(entries: List<ListEntry>): Int = entries.count { it.title != NIGHT_TITLE }
 
     /** "Earlier: Starlink train G6-77 18:52, Mercury 16:50", most recent first; null with none. */
     fun earlierLine(earlier: List<TimelineRow>): String? {

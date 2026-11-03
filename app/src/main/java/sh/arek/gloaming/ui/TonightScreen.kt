@@ -92,9 +92,12 @@ fun TonightScreen(
  * caller owns the scrolling. The watch button is not among them: it is pinned
  * by [TonightScreen] rather than scrolled.
  *
- * The night itself is the page: the timeline from sunset to sunrise, then what
- * else is up and what was left out and why. Each row opens a sheet saying it
- * in full; the open row is remembered by its tag, so a rotation keeps it open.
+ * One answer, one picture, one short list, and the rest a tap away: the
+ * outlook's sentence (or, once the night is under way, what is next), the
+ * whole night on one strip, the rows the outlook picked, and two folded
+ * lists - everything else up, and what was set aside and why. Each picked row
+ * opens a sheet saying it in full; the open row is remembered by its tag, so
+ * a rotation keeps it open.
  */
 @Composable
 fun TonightContent(
@@ -106,72 +109,64 @@ fun TonightContent(
     var showChecks by rememberSaveable { mutableStateOf(false) }
     var openRow by rememberSaveable { mutableStateOf<String?>(null) }
 
-    WorthItCard(state, actions.onVerdict)
-
-    TonightHeader(state, actions, onOpenChecks = { showChecks = true })
-
     val located = state.settings.hasLocation
-    // Never an empty night: the first one on an open takes several seconds.
-    if (workingOutTonight(state)) {
-        Text(WORKING_OUT_TONIGHT, style = MaterialTheme.typography.bodyLarge, color = palette.muted)
-    }
     val timeline = state.timeline?.takeIf { located }?.let { drawn ->
         // The night is laid out every quarter of an hour; the line at now
         // follows the screen's own minute.
         drawn.copy(nowMillis = state.nowMillis.takeIf { it in drawn.startMillis..drawn.endMillis })
     }
+
+    WorthItCard(state, actions.onVerdict)
+
+    TonightHeader(state, actions, onOpenChecks = { showChecks = true }, timeline = timeline, onFindIt = onFindIt)
+
+    // Never an empty night: the first one on an open takes several seconds.
+    if (workingOutTonight(state)) {
+        Text(WORKING_OUT_TONIGHT, style = MaterialTheme.typography.bodyLarge, color = palette.muted)
+    }
     if (timeline != null) {
-        NightStripView(timeline, state.settings.cloudTolerance, palette)
-        NightTimelineView(
-            timeline,
-            palette,
-            onRow = { openRow = timelineRowTag(it) },
-            busy = state.settings.busyTimeline,
-            onBusyChange = actions.onBusyTimelineChange,
-        )
-        // CC BY 4.0 asks for the credit beside the data it covers, and the
-        // hatching is that data.
-        if (timeline.cloud.isNotEmpty()) {
-            Text(
-                buildAnnotatedString {
-                    append("Weather data by ")
-                    withLink(LinkAnnotation.Url("https://open-meteo.com/")) {
-                        append("Open-Meteo.com")
-                    }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = palette.muted,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            NightStripView(timeline, state.settings.cloudTolerance, palette)
+            // CC BY 4.0 asks for the credit beside the data it covers, and the
+            // hatching is that data.
+            if (timeline.cloud.isNotEmpty()) {
+                Text(
+                    buildAnnotatedString {
+                        append("Weather data by ")
+                        withLink(LinkAnnotation.Url("https://open-meteo.com/")) {
+                            append("Open-Meteo.com")
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.muted,
+                )
+            }
         }
+        WorthList(timeline, state.nowMillis, palette, onRow = { openRow = timelineRowTag(it) })
     }
 
     state.tonight?.takeIf { located }?.let { tonight ->
         // The polar night and the midnight sun have no sunset to draw from,
         // and how dark it gets is then the first thing worth saying.
         if (timeline == null) DarknessLines(tonight)
-        EntryList(
-            "Also up tonight",
-            // Against the rows as drawn: what a quiet timeline leaves off is
-            // listed here instead, so nothing up tonight goes unsaid.
-            TonightLists.alsoUp(
-                tonight,
-                timeline?.let { TimelineShown.of(it, state.settings.busyTimeline) },
-                state.outlook,
-                state.nowMillis,
-            ),
-            ALSO_UP_TAG,
-        )
-        EntryList(
-            "Not worth it tonight",
-            TonightLists.notWorth(
-                tonight,
-                state.outlook,
-                everChecked = state.alertState.lastPollAt != null,
-                elementsFailure = state.elementsFailure,
-                nowMillis = state.nowMillis,
-            ),
-            NOT_WORTH_TAG,
-        )
+        Column {
+            Disclosure(
+                "Everything up tonight",
+                TonightSections.everything(tonight, timeline, state.outlook, state.nowMillis),
+                ALSO_UP_TAG,
+            )
+            Disclosure(
+                "Skipped tonight",
+                TonightLists.notWorth(
+                    tonight,
+                    state.outlook,
+                    everChecked = state.alertState.lastPollAt != null,
+                    elementsFailure = state.elementsFailure,
+                    nowMillis = state.nowMillis,
+                ),
+                NOT_WORTH_TAG,
+            )
+        }
     }
 
     timeline?.rows?.firstOrNull { timelineRowTag(it) == openRow }?.let { row ->
@@ -258,42 +253,3 @@ private const val WORTH_IT_DELAY_MILLIS: Long = 60 * 60 * 1000L
 
 /** How an answer is reached from a test. */
 fun verdictTag(answer: Answer): String = "verdict:${answer.name}"
-
-/**
- * A heading and its entries, or nothing at all: a heading over an empty list
- * reads as something having gone wrong.
- */
-@Composable
-private fun EntryList(title: String, entries: List<ListEntry>, tag: String) {
-    if (entries.isEmpty()) return
-    val palette = LocalPalette.current
-
-    Column(Modifier.fillMaxWidth().testTag(tag), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Text(title, style = MaterialTheme.typography.titleLarge)
-        for (entry in entries) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                entry.title?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-                // In words and weight as well as the accent, for night vision.
-                if (entry.happeningNow) {
-                    Text(
-                        HAPPENING_NOW,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = palette.accent,
-                    )
-                }
-                entry.detail?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (entry.alarming) FontWeight.Bold else null,
-                        color = if (entry.alarming) palette.alarm else palette.muted,
-                    )
-                }
-                entry.note?.let {
-                    Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
-                }
-            }
-        }
-    }
-}

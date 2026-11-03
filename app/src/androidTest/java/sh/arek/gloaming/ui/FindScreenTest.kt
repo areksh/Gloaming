@@ -659,7 +659,7 @@ class FindScreenTest {
         val compass = FakeCompassSource()
         val row = TimelineRow(
             station.peaksAt, clock(station.peaksAt), "ISS (ZARYA), 68 degrees high", null,
-            RowTone.Normal, RowSubject.Pass(station),
+            RowTone.Normal, RowSubject.Pass(station), PickTag.Go,
         )
         val timeline = Timeline(
             startMillis = now - hour,
@@ -686,7 +686,7 @@ class FindScreenTest {
 
     @Test
     fun aRowWithNothingToPointAtOffersNoFindIt() {
-        val row = TimelineRow(now, clock(now), "Sunset", null, RowTone.Normal, RowSubject.Twilight)
+        val row = TimelineRow(now, clock(now), "Sunset", null, RowTone.Normal, RowSubject.Twilight, PickTag.Go)
         val timeline = Timeline(now - hour, now + 13 * hour, listOf(row), emptyList(), emptyList(), now)
         compose.setContent {
             GloamingNav(state = state(timeline = timeline), actions = actions, compass = FakeCompassSource())

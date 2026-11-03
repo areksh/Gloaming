@@ -117,6 +117,21 @@ class TonightSectionsTest {
     }
 
     @Test
+    fun `everything opens with the night's own moments, which the strip draws but no list names`() {
+        val clear = TimelineRow(at("2026-11-03T18:30:00Z"), "18:30", "Clear until 23:00", null, RowTone.Strong, RowSubject.Clear)
+        val fully = TimelineRow(at("2026-11-03T18:35:00Z"), "18:35", "Fully dark", null, RowTone.Normal, RowSubject.Twilight)
+        val moonless = TimelineRow(at("2026-11-03T18:36:00Z"), "18:36", "Moonless dark until 21:50", "Best for faint things", RowTone.Normal, RowSubject.Moon)
+        val moonrise = TimelineRow(at("2026-11-03T21:50:00Z"), "21:50", "Moonrise", "Waning gibbous", RowTone.Normal, RowSubject.Moon)
+        val first = TonightSections.everything(
+            list(), timeline(listOf(sunsetRow, clear, fully, moonless, iss, moonrise)), report, sunset,
+        ).first()
+        assertEquals(
+            ListEntry("The night", "16:35 Sunset · 18:30 Clear until 23:00 · 18:35 Fully dark · 18:36 Moonless dark until 21:50"),
+            first,
+        )
+    }
+
+    @Test
     fun `everything with no timeline lists all of it`() {
         assertEquals(
             TonightLists.alsoUp(list(), null, report, sunset),
@@ -136,6 +151,14 @@ class TonightSectionsTest {
         assertEquals("Jupiter and Orion", TonightSections.preview(entries("Jupiter", "Orion")))
         assertEquals("Jupiter", TonightSections.preview(entries("Jupiter")))
         assertNull(TonightSections.preview(emptyList()))
+    }
+
+    @Test
+    fun `the night's own moments are neither named nor counted as something up`() {
+        val listed = entries(TonightSections.NIGHT_TITLE, "Jupiter", "Orion")
+        assertEquals("Jupiter and Orion", TonightSections.preview(listed))
+        assertEquals(2, TonightSections.count(listed))
+        assertEquals(3, TonightSections.count(entries("Jupiter", null, "Orion")))
     }
 
     @Test
