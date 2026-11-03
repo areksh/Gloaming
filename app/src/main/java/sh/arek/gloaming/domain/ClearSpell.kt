@@ -52,9 +52,33 @@ data class ClearSpell(
             darkFrom: Long,
             darkUntil: Long,
             nowMillis: Long,
-        ): ClearSpell? {
+        ): ClearSpell? = runs(hourly, tolerance, darkFrom, darkUntil, nowMillis).firstOrNull()
+
+        /**
+         * Every spell in the rest of tonight's darkness, in time order.
+         *
+         * The headline turns on the first; the timeline marks them all, so a
+         * second gap at three in the morning is on the screen rather than
+         * left for somebody to find by staying up.
+         */
+        fun all(
+            hourly: List<HourlyCover>,
+            tolerance: Int,
+            darkFrom: Long,
+            darkUntil: Long,
+            nowMillis: Long,
+        ): List<ClearSpell> = runs(hourly, tolerance, darkFrom, darkUntil, nowMillis).toList()
+
+        /** Lazily, so [first] stops at the first run as it always has. */
+        private fun runs(
+            hourly: List<HourlyCover>,
+            tolerance: Int,
+            darkFrom: Long,
+            darkUntil: Long,
+            nowMillis: Long,
+        ): Sequence<ClearSpell> = sequence {
             val windowFrom = maxOf(darkFrom, nowMillis)
-            if (windowFrom >= darkUntil) return null
+            if (windowFrom >= darkUntil) return@sequence
 
             // Sorted rather than assumed sorted. These come out of a cache file
             // that may have been written hours ago by a different version, and
@@ -75,27 +99,23 @@ data class ClearSpell(
                 // either side of it: calling 20:00 and 22:00 one continuous
                 // spell would be inventing 21:00.
                 val continues = clear && runFrom != null && entry.atMillis == runUntil
+                if (continues) {
+                    runUntil = entryUntil
+                    continue
+                }
 
-                when {
-                    continues -> runUntil = entryUntil
-
-                    // A run that is open and not continued has ended, and the
-                    // first one is the one wanted - so stop here rather than
-                    // going on to find a better. Ahead of the branch that
-                    // starts a run, or the clear hour after a gap would
-                    // silently replace the run the gap just ended.
-                    runFrom != null -> return spell(runFrom, runUntil, windowFrom, darkUntil)
-
-                    clear -> {
-                        runFrom = entry.atMillis
-                        runUntil = entryUntil
-                    }
-
-                    else -> Unit
+                // A run that is open and not continued has ended. Yielded
+                // before a new run starts, or the clear hour after a gap would
+                // silently replace the run the gap just ended.
+                runFrom?.let { yield(spell(it, runUntil, windowFrom, darkUntil)) }
+                runFrom = null
+                if (clear) {
+                    runFrom = entry.atMillis
+                    runUntil = entryUntil
                 }
             }
 
-            return runFrom?.let { spell(it, runUntil, windowFrom, darkUntil) }
+            runFrom?.let { yield(spell(it, runUntil, windowFrom, darkUntil)) }
         }
 
         private fun spell(

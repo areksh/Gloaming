@@ -126,6 +126,11 @@ object Planets {
     fun altitude(body: SkyBody, latitude: Double, longitude: Double, atMillis: Long): Double =
         position(bodyOf(body), Observer(latitude, longitude, 0.0), atMillis).altitude
 
+    /** Where [body] is at one moment: how high, and which way, refracted like the rest. */
+    fun where(body: SkyBody, latitude: Double, longitude: Double, atMillis: Long): Sighting =
+        position(bodyOf(body), Observer(latitude, longitude, 0.0), atMillis)
+            .let { Sighting(atMillis, it.altitude, it.azimuth) }
+
     internal fun position(engineBody: Body, observer: Observer, atMillis: Long) =
         Time.fromMillisecondsSince1970(atMillis).let { time ->
             val position = equator(engineBody, time, observer, EquatorEpoch.OfDate, Aberration.Corrected)

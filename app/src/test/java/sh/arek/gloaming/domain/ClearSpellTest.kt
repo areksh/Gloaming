@@ -287,4 +287,28 @@ class ClearSpellTest {
 
         assertNull(spell)
     }
+
+    /** The timeline marks every gap, not just the next one. */
+    @Test
+    fun `all finds every gap in the night`() {
+        //          00  01   02   03   04   05  06  07  08
+        val cloud = hours(10, 100, 100, 100, 100, 10, 20, 30, 10)
+
+        val spells = ClearSpell.all(cloud, tolerance = 40, darkFrom = at(0), darkUntil = at(9), nowMillis = at(0))
+
+        assertEquals(listOf(at(0) to at(1), at(5) to at(9)), spells.map { it.from to it.until })
+        assertTrue(spells[0].underway)
+        assertFalse(spells[1].underway)
+        assertFalse(spells[0].allNight)
+    }
+
+    @Test
+    fun `first is the head of all`() {
+        val cloud = hours(100, 10, 100, 10, 10, 100)
+
+        val all = ClearSpell.all(cloud, 40, at(0), at(6), at(0))
+
+        assertEquals(ClearSpell.first(cloud, 40, at(0), at(6), at(0)), all.first())
+        assertEquals(2, all.size)
+    }
 }

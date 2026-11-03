@@ -150,6 +150,11 @@ data class TonightList(
      * "cloudy".
      */
     val nextClearSpell: ClearSpell? = null,
+    /**
+     * The pass an alert last spoke about, where it is tonight's: always among
+     * [bestPasses], and kept on the timeline however quiet it is set to be.
+     */
+    val announcedPass: SatellitePass? = null,
 ) {
     /**
      * Whether there is nothing happening tonight.
@@ -279,6 +284,7 @@ object Tonight {
             darkUntil = night?.last,
             passes = passes,
             bestPasses = best(passes, announced = announced, nowMillis = nowMillis),
+            announcedPass = announced(passes, announced, nowMillis),
             // Marginal stays: somebody looking at a list of tonight has already
             // decided to go out, and "the moon is low at maximum" is what they
             // need to plan around rather than a reason to be told nothing.
@@ -394,14 +400,22 @@ object Tonight {
         // and on a night of three hundred passes the two almost never meet - so
         // without this, the one pass the app chose to interrupt somebody about
         // was the one pass no screen showed them.
-        val told = announced?.let { told ->
-            passes
-                .filter { it.catalogue == told.catalogue && it.setsAt > nowMillis }
-                .filter { kotlin.math.abs(it.peaksAt - told.peakAt) <= PassPlanner.SAME_PASS_TOLERANCE_MILLIS }
-                .minByOrNull { kotlin.math.abs(it.peaksAt - told.peakAt) }
-        }
+        val told = announced(passes, announced, nowMillis)
         val all = if (told == null || told in picked) picked else picked + told
         return all.sortedBy { it.risesAt }
+    }
+
+    /**
+     * The pass [announced] is about, among [passes]: the same object, peaking
+     * within [PassPlanner.SAME_PASS_TOLERANCE_MILLIS] of when the alert said,
+     * and not yet set.
+     */
+    fun announced(passes: List<SatellitePass>, announced: AnnouncedPass?, nowMillis: Long): SatellitePass? {
+        val told = announced ?: return null
+        return passes
+            .filter { it.catalogue == told.catalogue && it.setsAt > nowMillis }
+            .filter { kotlin.math.abs(it.peaksAt - told.peakAt) <= PassPlanner.SAME_PASS_TOLERANCE_MILLIS }
+            .minByOrNull { kotlin.math.abs(it.peaksAt - told.peakAt) }
     }
 
     /** How many passes are worth leading with before a list becomes a catalogue. */

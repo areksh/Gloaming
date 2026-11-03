@@ -4,6 +4,7 @@ import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.EventKind
@@ -686,5 +687,18 @@ class TonightTest {
         )
 
         assertEquals(6, best.size)
+    }
+
+    /** The timeline keeps the announced pass however quiet it is set to be. */
+    @Test
+    fun `announced finds the pass an alert spoke about`() {
+        val told = Tonight.announced(
+            crowded + announcedOne,
+            AnnouncedPass(28499, announcedOne.peaksAt + 2 * 60_000L),
+            nowMillis = announcedOne.risesAt - 60_000L,
+        )
+
+        assertEquals(announcedOne, told)
+        assertNull(Tonight.announced(crowded + announcedOne, null, 0L))
     }
 }
