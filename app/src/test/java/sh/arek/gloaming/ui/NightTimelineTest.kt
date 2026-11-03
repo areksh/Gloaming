@@ -3,7 +3,9 @@ package sh.arek.gloaming.ui
 import java.time.Instant
 import java.util.TimeZone
 import org.junit.After
+import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -88,6 +90,9 @@ class NightTimelineTest {
 
     private fun report(outlook: Outlook = Outlook.NoLocation, excluded: List<Excluded> = emptyList()) =
         OutlookReport(outlook, excluded, null, 40, Compass.North)
+
+    private fun goOut(picks: List<Pick>, also: List<Pick> = emptyList()) =
+        Outlook.GoOut(picks, null, null, false, alsoTonight = also)
 
     private fun build(
         list: TonightList,
@@ -239,55 +244,112 @@ class NightTimelineTest {
     }
 
     @Test
-    fun `matches an event on its own moment and a planet on its name alone`() {
+    fun `matches an event on its own moment`() {
         val event = SkyEvent(
             EventKind.MeteorShower, at("2026-12-14T23:00:00Z"), at("2026-12-14T22:00:00Z"),
             at("2026-12-15T03:00:00Z"), "Geminids at their best", "", Visibility.Good,
         )
-        val venus = planet(SkyBody.Venus, -4.0, null, "2026-12-14T20:00:00Z", "2026-12-14T17:30:00Z")
+        // Judged at a later moment than the event's own, as a shower is.
+        val report = report(excluded = listOf(Excluded(event.title, event.at, Gate.Cloud, "80")))
+
+        val rows = build(list(events = listOf(event)), report)!!.rows
+
+        assertEquals(RowTone.Dim, rows.single { it.subject is RowSubject.Event }.tone)
+    }
+
+    /** The chart above draws the planets; the timeline lists only the one it sends you out for. */
+    @Test
+    fun `has no planet rows unless one is picked`() {
+        val venus = planet(SkyBody.Venus, -4.0, "2026-12-14T16:30:00Z", "2026-12-14T20:00:00Z", "2026-12-14T18:00:00Z")
+
+        val rows = build(list(planets = listOf(venus)))!!.rows
+
+        assertTrue(rows.none { it.subject is RowSubject.Planet })
+    }
+
+    @Test
+    fun `a picked planet gets one row at its moment with a pill`() {
+        val saturn = planet(SkyBody.Saturn, 0.8, null, "2026-12-15T01:00:00Z", "2026-12-14T17:30:00Z")
+        val moment = at("2026-12-14T19:00:00Z")
+        val report = report(goOut(listOf(Pick(PickKind.Planet, "Saturn", moment, planet = saturn))))
+
+        val row = build(list(planets = listOf(saturn)), report)!!.rows.single { it.subject is RowSubject.Planet }
+
+        val seen = sh.arek.gloaming.astronomy.Planets.where(SkyBody.Saturn, 55.9533, -3.1883, moment)
+        assertEquals(moment, row.atMillis)
+        assertEquals("Saturn, ${seen.altitude.roundToInt()} degrees high", row.title)
+        assertEquals("In the ${Compass.of(seen.azimuth).label}", row.detail)
+        assertEquals(PickTag.Go, row.pick)
+        assertEquals(RowTone.Strong, row.tone)
+        assertFalse(row.busy)
+    }
+
+    @Test
+    fun `the headline's picks are Go and the line under it Also`() {
+        val trip = pass("ISS", "2026-12-14T17:00:00Z")
+        val later = pass("ISS", "2026-12-14T21:00:00Z")
         val report = report(
-            excluded = listOf(
-                // Judged at a later moment than the event's own, as a shower is.
-                Excluded(event.title, event.at, Gate.Cloud, "80"),
-                // Judged at a time other than the planet's peak.
-                Excluded("Venus", at("2026-12-14T18:10:00Z"), Gate.Cloud, "80"),
+            goOut(
+                listOf(Pick(PickKind.Pass, "ISS", trip.peaksAt, pass = trip)),
+                also = listOf(Pick(PickKind.Pass, "ISS", later.peaksAt, pass = later)),
             ),
         )
 
-        val rows = build(list(events = listOf(event), planets = listOf(venus)), report)!!.rows
+        val timeline = build(list(passes = listOf(trip, later)), report)!!
+        val rows = timeline.rows.filter { it.subject is RowSubject.Pass }
 
-        assertEquals(RowTone.Dim, rows.single { it.subject is RowSubject.Event }.tone)
-        assertTrue(rows.filter { it.subject is RowSubject.Planet }.all { it.tone == RowTone.Dim })
+        assertEquals(listOf(PickTag.Go, PickTag.Also), rows.map { it.pick })
+        assertEquals(listOf(trip.peaksAt), timeline.trip)
+        assertEquals(listOf(later.peaksAt), timeline.alsoAt)
     }
 
     @Test
-    fun `lists a planet's rise, highest and set`() {
-        val venus = planet(SkyBody.Venus, -4.0, "2026-12-14T16:30:00Z", "2026-12-14T20:00:00Z", "2026-12-14T18:00:00Z")
+    fun `a pick outside the night has no row`() {
+        val morning = pass("ISS", "2026-12-15T09:30:00Z")
+        val report = report(goOut(emptyList(), also = listOf(Pick(PickKind.Pass, "ISS", morning.peaksAt, pass = morning))))
 
-        val rows = build(list(planets = listOf(venus)))!!.rows.filter { it.subject is RowSubject.Planet }
+        val timeline = build(list(passes = listOf(morning)), report)!!
 
-        assertEquals(listOf("Venus rises", "Venus highest, 40 degrees", "Venus sets"), rows.map { it.title })
-        assertEquals(listOf("16:30", "18:00", "20:00"), rows.map { it.time })
+        assertTrue(timeline.rows.none { it.pick != null })
+    }
+
+    /** Clear 19:00-23:00 and 02:00-05:00, cloudy either side, from the forecast. */
+    private val twoGaps = (12..31).map { h ->
+        val t = at("2026-12-14T00:00:00Z") + h * 3_600_000L
+        HourlyCover(t, if (h in 19..22 || h in 26..28) 10 else 90)
     }
 
     @Test
-    fun `marks the clear spell with its end`() {
-        val spell = ClearSpell(at("2026-12-14T19:00:00Z"), at("2026-12-14T23:00:00Z"), underway = false, allNight = false)
+    fun `marks every clear gap with its end`() {
+        val rows = build(list(), hourly = twoGaps)!!.rows.filter { it.subject is RowSubject.Clear }
 
-        val rows = build(list(clearSpell = spell))!!.rows
+        assertEquals(
+            listOf("Clear until 23:00", "Cloud returns", "Clear again until 05:00", "Cloud returns"),
+            rows.map { it.title },
+        )
+        assertEquals(listOf("19:00", "23:00", "02:00", "05:00"), rows.map { it.time })
+        assertTrue(rows.all { it.tone == RowTone.Normal })
+    }
 
-        val start = rows.single { it.subject is RowSubject.Clear && it.atMillis == spell.from }
-        assertEquals("Clear until 23:00", start.title)
-        assertEquals(RowTone.Strong, start.tone)
-        val end = rows.single { it.title == "Cloud returns" }
-        assertEquals(spell.until, end.atMillis)
+    @Test
+    fun `bolds only the clear spell a pick falls in`() {
+        val station = pass("ISS", "2026-12-15T03:00:00Z")
+        val report = report(goOut(listOf(Pick(PickKind.Pass, "ISS", station.peaksAt, pass = station))))
+
+        val rows = build(list(passes = listOf(station)), report, hourly = twoGaps)!!
+            .rows.filter { it.subject is RowSubject.Clear && it.title.startsWith("Clear") }
+
+        assertEquals(listOf(RowTone.Normal, RowTone.Strong), rows.map { it.tone })
     }
 
     @Test
     fun `a spell covering the night has no cloud returning`() {
-        val spell = ClearSpell(at("2026-12-14T19:00:00Z"), at("2026-12-15T07:55:00Z"), underway = false, allNight = true)
+        val clear = (12..33).map { HourlyCover(at("2026-12-14T00:00:00Z") + it * 3_600_000L, 0) }
 
-        assertTrue(build(list(clearSpell = spell))!!.rows.none { it.title == "Cloud returns" })
+        val rows = build(list(), hourly = clear, nowMillis = at("2026-12-14T15:00:00Z"))!!.rows
+
+        assertTrue(rows.none { it.title == "Cloud returns" })
+        assertEquals(1, rows.count { it.subject is RowSubject.Clear })
     }
 
     @Test
@@ -304,18 +366,102 @@ class NightTimelineTest {
     }
 
     @Test
-    fun `lanes at most two planets, the brightest`() {
+    fun `lanes only the moon`() {
         val planets = listOf(
             planet(SkyBody.Saturn, 1.0, null, null, "2026-12-14T18:00:00Z"),
             planet(SkyBody.Venus, -4.0, null, null, "2026-12-14T18:00:00Z"),
-            planet(SkyBody.Jupiter, -2.5, "2026-12-14T21:00:00Z", null, "2026-12-15T02:00:00Z"),
+        )
+        val moon = MoonTonight(180.0, 1.0, 1.0, 1.0, risesAt = null, setsAt = null)
+
+        val lanes = build(list(planets = planets, moon = moon))!!.lanes
+
+        assertEquals(listOf("Moon"), lanes.map { it.label })
+    }
+
+    @Test
+    fun `moonrise says the phase`() {
+        val moon = MoonTonight(250.0, 0.38, 0.4, 0.15, risesAt = at("2026-12-14T23:40:00Z"), setsAt = null)
+
+        val row = build(list(moon = moon))!!.rows.single { it.title == "Moonrise" }
+
+        assertEquals("Waning gibbous, 38% lit", row.detail)
+    }
+
+    @Test
+    fun `says when the dark is moonless`() {
+        val rising = MoonTonight(250.0, 0.38, 0.4, 0.15, risesAt = at("2026-12-14T23:40:00Z"), setsAt = null)
+        val setting = MoonTonight(60.0, 0.4, 0.3, 0.1, risesAt = null, setsAt = at("2026-12-14T21:10:00Z"))
+        val newMoon = MoonTonight(2.0, 0.01, 0.5, 0.0, risesAt = null, setsAt = null)
+
+        fun moonless(moon: MoonTonight) = build(list(moon = moon))!!.rows.filter { it.title.startsWith("Moonless") }
+
+        // Fully dark at 18:30 until 06:00, in the list above.
+        assertEquals(listOf("Moonless dark until 23:40" to "18:30"), moonless(rising).map { it.title to it.time })
+        assertEquals(listOf("Moonless dark until first light" to "21:10"), moonless(setting).map { it.title to it.time })
+        assertEquals(listOf("Moonless all night" to "18:30"), moonless(newMoon).map { it.title to it.time })
+        assertTrue(moonless(MoonTonight(180.0, 1.0, 1.0, 1.0, null, null)).isEmpty())
+    }
+
+    @Test
+    fun `flags almanac dates, constellations and lesser passes as busy`() {
+        val station = pass("ISS", "2026-12-14T17:00:00Z")
+        val rocket = pass("SL-16 R/B", "2026-12-14T19:00:00Z").copy(catalogue = 22000, channel = PassChannel.Bright)
+        val told = pass("ARIANE 5 R/B", "2026-12-14T20:00:00Z").copy(catalogue = 28499, channel = PassChannel.Bright)
+        val train = pass("STARLINK train", "2026-12-14T21:00:00Z").copy(catalogue = 50000, channel = PassChannel.Trains)
+        val quarter = SkyEvent(
+            EventKind.MoonQuarter, at("2026-12-14T22:00:00Z"), at("2026-12-14T22:00:00Z"),
+            at("2026-12-14T22:00:00Z"), "First quarter", "", Visibility.Good,
+        )
+        val conjunction = SkyEvent(
+            EventKind.Conjunction, at("2026-12-14T23:00:00Z"), at("2026-12-14T22:00:00Z"),
+            at("2026-12-15T02:00:00Z"), "The moon passes Mars", "", Visibility.Good,
+        )
+        val orion = sh.arek.gloaming.astronomy.ConstellationTonight(
+            sh.arek.gloaming.astronomy.Constellations.WATCHED.first { it.name == "Orion" },
+            38.0, at("2026-12-15T00:30:00Z"), 180.0, isCircumpolar = false, isAtItsBest = false,
+        )
+        val tonight = list(passes = listOf(station, rocket, told, train), events = listOf(quarter, conjunction))
+            .copy(everyConstellation = listOf(orion), announcedPass = told)
+
+        val rows = build(tonight)!!.rows
+        fun busy(title: String) = rows.single { it.title.startsWith(title) }.busy
+
+        assertFalse(busy("ISS"))
+        assertTrue(busy("SL-16"))
+        assertFalse(busy("ARIANE"))
+        assertFalse(busy("STARLINK"))
+        assertTrue(busy("First quarter"))
+        assertFalse(busy("The moon passes Mars"))
+        val pattern = rows.single { it.subject is RowSubject.Constellation }
+        assertEquals("Orion highest, 38 degrees", pattern.title)
+        assertEquals("In the south", pattern.detail)
+        assertTrue(pattern.busy)
+        assertTrue(rows.filter { it.subject is RowSubject.Twilight }.none { it.busy })
+    }
+
+    @Test
+    fun `never flags a pick as busy`() {
+        val rocket = pass("SL-16 R/B", "2026-12-14T19:00:00Z").copy(catalogue = 22000, channel = PassChannel.Bright)
+        val report = report(goOut(listOf(Pick(PickKind.Pass, rocket.name, rocket.peaksAt, pass = rocket))))
+
+        val row = build(list(passes = listOf(rocket)), report)!!.rows.single { it.subject is RowSubject.Pass }
+
+        assertFalse(row.busy)
+        assertEquals(PickTag.Go, row.pick)
+    }
+
+    @Test
+    fun `prompts a look for noctilucent cloud`() {
+        val nlc = SkyEvent(
+            EventKind.Noctilucent, at("2026-12-14T17:10:00Z"), at("2026-12-14T17:10:00Z"),
+            at("2026-12-14T18:10:00Z"), "Good conditions for noctilucent clouds", "", Visibility.Good,
         )
 
-        val lanes = build(list(planets = planets))!!.lanes
+        val row = build(list().copy(noctilucent = nlc))!!.rows.single { it.title == "Look for noctilucent cloud" }
 
-        assertEquals(listOf("Venus", "Jupiter"), lanes.map { it.label })
-        assertTrue(lanes.all { it.style != LaneStyle.Solid })
-        assertEquals(at("2026-12-14T21:00:00Z"), lanes[1].fromMillis)
+        assertEquals("17:10", row.time)
+        assertEquals("Low in the north until 18:10", row.detail)
+        assertFalse(row.busy)
     }
 
     @Test

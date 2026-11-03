@@ -3,6 +3,8 @@ package sh.arek.gloaming.ui
 import kotlin.math.roundToInt
 import kotlinx.serialization.Serializable
 import sh.arek.gloaming.astronomy.Compass
+import sh.arek.gloaming.astronomy.EventKind
+import sh.arek.gloaming.astronomy.Planets
 import sh.arek.gloaming.astronomy.ConstellationTonight
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyEvent
@@ -10,11 +12,16 @@ import sh.arek.gloaming.astronomy.SunTimes
 import sh.arek.gloaming.astronomy.Twilight
 import sh.arek.gloaming.data.HourlyCover
 import sh.arek.gloaming.data.UserSettings
+import sh.arek.gloaming.domain.ClearSpell
 import sh.arek.gloaming.domain.Gate
+import sh.arek.gloaming.domain.MoonTonight
 import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.domain.OutlookReport
+import sh.arek.gloaming.domain.Pick
 import sh.arek.gloaming.domain.PickKind
+import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
+import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
 
 /**
@@ -23,8 +30,17 @@ import sh.arek.gloaming.satellites.SatellitePass
  */
 enum class RowTone { Normal, Dim, Strong }
 
-/** How a lane is drawn, so the moon and two planets can run side by side without a key. */
+/**
+ * How a lane is drawn. Only the moon has one now - the planets moved to the
+ * chart above - but a lane drawn from a snapshot made before that still reads.
+ */
 enum class LaneStyle { Solid, Dashed, Dotted }
+
+/**
+ * Which of the outlook's recommendations a row is: the headline's one trip
+ * out, or the line under it.
+ */
+enum class PickTag { Go, Also }
 
 /** What a row is about, so the screen can give it an icon and a tap target. */
 @Serializable
@@ -41,7 +57,7 @@ sealed interface RowSubject {
     data class Planet(val planet: PlanetTonight) : RowSubject
     @Serializable
     data class Event(val event: SkyEvent) : RowSubject
-    /** A pattern: never a timeline row, but listed on Sky and opened from there. */
+    /** A pattern at its highest: a busy row on the timeline, and listed on Sky. */
     @Serializable
     data class Constellation(val seen: ConstellationTonight) : RowSubject
 }
@@ -69,6 +85,13 @@ data class TimelineRow(
     val detail: String?,
     val tone: RowTone,
     val subject: RowSubject,
+    /** Set where the outlook recommends this, which the row says with a pill. */
+    val pick: PickTag? = null,
+    /**
+     * Something to browse rather than to go out for: shown only with the
+     * Busy setting on, and counted under the timeline when it is off.
+     */
+    val busy: Boolean = false,
 )
 
 /** A stretch of forecast cloud cover, in percent, drawn as shading down the time axis. */
@@ -97,6 +120,10 @@ data class Timeline(
     val nowMillis: Long?,
     /** How far down the sun is through the night, for colouring the sky column. */
     val sun: List<SunSample> = emptyList(),
+    /** The moments of the headline's trip out, which a bracket joins. */
+    val trip: List<Long> = emptyList(),
+    /** The moments the line under the headline names. */
+    val alsoAt: List<Long> = emptyList(),
 )
 
 /** The sun's altitude, in degrees, at one moment of the night. */
@@ -107,7 +134,6 @@ data class SunSample(val atMillis: Long, val altitude: Double)
 object NightTimeline {
 
     private const val HOUR_MILLIS: Long = 60 * 60 * 1000L
-    private const val MAX_PLANET_LANES: Int = 2
     private const val SUN_STEP_MILLIS: Long = 15 * 60 * 1000L
 
     /** Cover at or above which a stretch of the night is called mostly cloudy. */
@@ -121,14 +147,39 @@ object NightTimeline {
     private val UNSEEN = setOf(Gate.Cloud, Gate.Sunlit)
 
     /**
+     * The calendar's dates rather than its sights: worth knowing, and shown
+     * only on a busy timeline. An eclipse, a shower or a conjunction is
+     * something to go out for, and is always shown.
+     */
+    private val ALMANAC = setOf(
+        EventKind.MoonPhase,
+        EventKind.MoonQuarter,
+        EventKind.Season,
+        EventKind.Elongation,
+        EventKind.Opposition,
+        EventKind.GreatestBrightness,
+    )
+
+    /** Below this much of the disc lit, the moon spoils nothing and the night is moonless. */
+    private const val MOONLESS_ILLUMINATION: Double = 0.03
+
+    /**
      * Null when there is no sunset or no sunrise to bound the night - the
      * midnight sun, the polar night, or no position at all. A night with
      * no civil darkness but a sunset and sunrise still has a timeline.
      *
+     * The rows are the night's moments: twilight, every gap in the cloud, the
+     * moon, events, passes, and what the outlook recommends. The planets are
+     * not among them - the chart draws when each is up - except one the
+     * outlook picks, which gets a row at the moment it was picked for.
+     *
+     * Every row the night could show is here, the ones to browse flagged
+     * [TimelineRow.busy], so the Busy setting is a filter on the screen and
+     * never a reason to work the night out again.
+     *
      * Passes are the list's best ones only, so every pass row has a verdict
      * from the outlook to match. Passes and events match a verdict on subject
-     * and moment; planets on subject alone, because the moment a planet is
-     * judged at moves with the clock.
+     * and moment.
      */
     fun of(
         list: TonightList,
@@ -151,69 +202,128 @@ object NightTimeline {
         val end = sun.risesAt ?: return null
         if (end <= start) return null
 
-        // Everything recommended, the headline's and the line under it's.
-        val picks = (report.outlook as? Outlook.GoOut)?.let { it.picks + it.alsoTonight }.orEmpty()
+        val goOut = report.outlook as? Outlook.GoOut
+        val trip = goOut?.picks.orEmpty()
+        val also = goOut?.alsoTonight.orEmpty()
         val unseen = report.excluded.filter { it.gate in UNSEEN }
 
-        fun toneOf(picked: Boolean, dimmed: Boolean) = when {
-            picked -> RowTone.Strong
+        fun tagOf(match: (Pick) -> Boolean): PickTag? = when {
+            trip.any(match) -> PickTag.Go
+            also.any(match) -> PickTag.Also
+            else -> null
+        }
+
+        fun toneOf(pick: PickTag?, dimmed: Boolean) = when {
+            pick != null -> RowTone.Strong
             dimmed -> RowTone.Dim
             else -> RowTone.Normal
         }
 
         val rows = mutableListOf<TimelineRow>()
 
-        fun row(at: Long, title: String, subject: RowSubject, detail: String? = null, tone: RowTone = RowTone.Normal) {
-            if (at in start..end) rows += TimelineRow(at, clock(at), title, detail, tone, subject)
+        fun row(
+            at: Long,
+            title: String,
+            subject: RowSubject,
+            detail: String? = null,
+            tone: RowTone = RowTone.Normal,
+            pick: PickTag? = null,
+            busy: Boolean = false,
+        ) {
+            if (at in start..end) rows += TimelineRow(at, clock(at), title, detail, tone, subject, pick, busy && pick == null)
         }
 
         row(start, "Sunset", RowSubject.Twilight)
         darkFrom?.let { row(it, "Dark enough for aurora", RowSubject.Twilight) }
         list.darkestFrom?.takeIf { it != darkFrom }?.let { row(it, "Fully dark", RowSubject.Twilight) }
 
+        val announced = list.announcedPass
         for (pass in list.bestPasses) {
-            val picked = picks.any { it.kind == PickKind.Pass && it.subject == pass.name && it.atMillis == pass.peaksAt }
+            val pick = tagOf { it.kind == PickKind.Pass && it.subject == pass.name && it.atMillis == pass.peaksAt }
             val dimmed = unseen.any { it.subject == pass.name && it.atMillis == pass.peaksAt }
+            val wanted = pass.channel == PassChannel.Iss || pass.channel == PassChannel.Trains ||
+                (announced != null && pass.catalogue == announced.catalogue && pass.peaksAt == announced.peaksAt)
             row(
                 pass.peaksAt,
                 passTitle(pass),
                 RowSubject.Pass(pass),
                 passEnds(pass),
-                toneOf(picked, dimmed),
+                toneOf(pick, dimmed),
+                pick,
+                busy = !wanted,
             )
         }
 
         list.moon?.let { moon ->
-            moon.risesAt?.let { row(it, "Moonrise", RowSubject.Moon) }
-            moon.setsAt?.let { row(it, "Moonset", RowSubject.Moon) }
+            val phase = "${describeMoonPhase(moon.phaseDegrees, moon.illumination)}, " +
+                "${(moon.illumination * 100).roundToInt()}% lit"
+            moon.risesAt?.let { row(it, "Moonrise", RowSubject.Moon, phase) }
+            moon.setsAt?.let { row(it, "Moonset", RowSubject.Moon, phase) }
+            moonless(list, moon)?.let { (at, title) -> row(at, title, RowSubject.Moon, "Best for faint things") }
         }
 
-        for (planet in list.planets) {
-            val name = planet.body.label
-            val picked = picks.any { it.kind == PickKind.Planet && it.subject == name }
-            val dimmed = unseen.any { it.subject == name }
-            val tone = toneOf(picked, dimmed)
-            val subject = RowSubject.Planet(planet)
-            planet.risesAt?.let { row(it, "$name rises", subject, tone = tone) }
+        for (pick in trip + also) {
+            val planet = pick.planet ?: continue
+            if (pick.kind != PickKind.Planet) continue
+            val seen = Planets.where(planet.body, latitude, longitude, pick.atMillis)
+            val tag = if (pick in trip) PickTag.Go else PickTag.Also
             row(
-                planet.peakAt,
-                planetPeakTitle(planet),
-                subject,
-                planetPeakDetail(planet),
-                tone,
+                pick.atMillis,
+                "${planet.body.label}, ${seen.altitude.roundToInt()} degrees high",
+                RowSubject.Planet(planet),
+                "In the ${Compass.of(seen.azimuth).label}",
+                RowTone.Strong,
+                tag,
             )
-            planet.setsAt?.let { row(it, "$name sets", subject, tone = tone) }
         }
 
         for (event in list.events) {
-            val picked = picks.any { it.kind == PickKind.Event && it.subject == event.title && it.event?.at == event.at }
+            val pick = tagOf { it.kind == PickKind.Event && it.subject == event.title && it.event?.at == event.at }
             val dimmed = unseen.any { it.subject == event.title && it.atMillis == event.at }
-            row(event.at, event.title, RowSubject.Event(event), tone = toneOf(picked, dimmed))
+            row(
+                event.at,
+                event.title,
+                RowSubject.Event(event),
+                tone = toneOf(pick, dimmed),
+                pick = pick,
+                busy = event.kind in ALMANAC,
+            )
         }
 
-        list.clearSpell?.let { spell ->
-            row(spell.from, "Clear until ${clock(spell.until)}", RowSubject.Clear, tone = RowTone.Strong)
-            if (!spell.allNight && spell.until < end) row(spell.until, "Cloud returns", RowSubject.Clear)
+        list.noctilucent?.let { nlc ->
+            val pick = tagOf { it.kind == PickKind.Event && it.subject == nlc.title }
+            row(
+                nlc.from,
+                "Look for noctilucent cloud",
+                RowSubject.Event(nlc),
+                "Low in the ${report.poleward.label} until ${clock(nlc.until)}",
+                toneOf(pick, dimmed = false),
+                pick,
+            )
+        }
+
+        // The ones the app leads with, whatever the Sky tab is set to list:
+        // every pattern up would bury the night's moments.
+        val patterns = list.everyConstellation.ifEmpty { list.constellations }
+        for (seen in Tonight.worthListing(patterns, settings.copy(showEveryConstellation = false))) {
+            row(
+                seen.peakAt,
+                "${seen.constellation.name} highest, ${seen.peakAltitude.roundToInt()} degrees",
+                RowSubject.Constellation(seen),
+                "In the ${Compass.of(seen.peakAzimuth).label}",
+                busy = true,
+            )
+        }
+
+        if (darkFrom != null && darkUntil != null) {
+            val moments = (trip + also).map { it.atMillis }
+            ClearSpell.all(hourly, settings.cloudTolerance, darkFrom, darkUntil, nowMillis)
+                .forEachIndexed { i, spell ->
+                    val title = if (i == 0) "Clear until ${clock(spell.until)}" else "Clear again until ${clock(spell.until)}"
+                    val holdsPick = moments.any { it in spell.from..spell.until }
+                    row(spell.from, title, RowSubject.Clear, tone = if (holdsPick) RowTone.Strong else RowTone.Normal)
+                    if (!spell.allNight && spell.until < darkUntil) row(spell.until, "Cloud returns", RowSubject.Clear)
+                }
         }
 
         (list.darkestUntil ?: darkUntil)?.let { row(it, "First light", RowSubject.Twilight) }
@@ -227,7 +337,60 @@ object NightTimeline {
             lanes = lanes(list, start, end),
             nowMillis = nowMillis.takeIf { it in start..end },
             sun = sunSamples(latitude, longitude, start, end),
+            trip = trip.map { it.atMillis },
+            alsoAt = also.map { it.atMillis },
         )
+    }
+
+    /**
+     * Where the darkest part of the night has no moon in it, as the moment it
+     * starts and what to call it; null where the moon is up throughout.
+     *
+     * The first stretch only: the moon crosses the horizon at most once each
+     * way in a night, so a second would need it to set, rise and set again.
+     */
+    private fun moonless(list: TonightList, moon: MoonTonight): Pair<Long, String>? {
+        val from = list.darkestFrom ?: list.darkFrom ?: return null
+        val until = list.darkestUntil ?: list.darkUntil ?: return null
+        if (until <= from) return null
+        if (moon.illumination < MOONLESS_ILLUMINATION) return from to "Moonless all night"
+
+        val up = upSpans(moon, from, until)
+        var cursor = from
+        for (span in up.sortedBy { it.first }) {
+            if (span.first > cursor) return cursor to downUntil(cursor, span.first, from, until)
+            cursor = maxOf(cursor, span.last)
+        }
+        return if (cursor < until) cursor to downUntil(cursor, until, from, until) else null
+    }
+
+    private fun downUntil(down: Long, up: Long, from: Long, until: Long): String = when {
+        down <= from && up >= until -> "Moonless all night"
+        up >= until -> "Moonless dark until first light"
+        else -> "Moonless dark until ${clock(up)}"
+    }
+
+    /** When the moon is up between [start] and [end], from its crossings. */
+    private fun upSpans(moon: MoonTonight, start: Long, end: Long): List<LongRange> {
+        val spans = mutableListOf<LongRange>()
+        fun add(from: Long, until: Long) {
+            val f = from.coerceIn(start, end)
+            val u = until.coerceIn(start, end)
+            if (f < u) spans += f..u
+        }
+        val rises = moon.risesAt
+        val sets = moon.setsAt
+        when {
+            rises != null && sets != null && sets < rises -> {
+                add(start, sets)
+                add(rises, end)
+            }
+            rises != null && sets != null -> add(rises, sets)
+            rises != null -> add(rises, end)
+            sets != null -> add(start, sets)
+            moon.upFraction >= 0.5 -> add(start, end)
+        }
+        return spans
     }
 
     /**
@@ -354,42 +517,10 @@ object NightTimeline {
             if (from < until) CloudSpan(from, until, it.effective) else null
         }
 
+    /** The moon's lane; the planets are drawn on the chart above instead. */
     private fun lanes(list: TonightList, start: Long, end: Long): List<Lane> {
-        val lanes = mutableListOf<Lane>()
-
-        list.moon?.let { moon ->
-            fun add(from: Long, until: Long) {
-                val f = from.coerceIn(start, end)
-                val u = until.coerceIn(start, end)
-                if (f < u) lanes += Lane("Moon", LaneStyle.Solid, f, u)
-            }
-            val rises = moon.risesAt
-            val sets = moon.setsAt
-            when {
-                rises != null && sets != null && sets < rises -> {
-                    add(start, sets)
-                    add(rises, end)
-                }
-                rises != null && sets != null -> add(rises, sets)
-                rises != null -> add(rises, end)
-                sets != null -> add(start, sets)
-                moon.upFraction >= 0.5 -> add(start, end)
-            }
-        }
-
-        list.planets.sortedBy { it.magnitude }.take(MAX_PLANET_LANES).forEachIndexed { index, planet ->
-            val from = (planet.risesAt ?: start).coerceIn(start, end)
-            val until = (planet.setsAt ?: end).coerceIn(start, end)
-            if (from < until) {
-                lanes += Lane(
-                    planet.body.label,
-                    if (index == 0) LaneStyle.Dashed else LaneStyle.Dotted,
-                    from,
-                    until,
-                )
-            }
-        }
-        return lanes
+        val moon = list.moon ?: return emptyList()
+        return upSpans(moon, start, end).map { Lane("Moon", LaneStyle.Solid, it.first, it.last) }
     }
 }
 
