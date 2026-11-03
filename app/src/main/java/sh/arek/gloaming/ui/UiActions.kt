@@ -32,7 +32,6 @@ data class UiActions(
     val onQuietHoursOverrideChange: (Boolean) -> Unit = {},
     val onNightVisionChange: (Boolean) -> Unit = {},
     val onShowEveryConstellationChange: (Boolean) -> Unit = {},
-    val onBusyTimelineChange: (Boolean) -> Unit = {},
     val onLogRetentionChange: (Int) -> Unit = {},
     val onExportLog: () -> Unit = {},
     val onClearLog: () -> Unit = {},

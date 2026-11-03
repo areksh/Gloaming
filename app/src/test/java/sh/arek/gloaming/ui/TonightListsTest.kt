@@ -98,7 +98,7 @@ class TonightListsTest {
         OutlookReport(Outlook.Quiet(now, null, false), excluded.toList(), 12, 40, Compass.North)
 
     private fun timeline(vararg rows: TimelineRow) =
-        Timeline(now - hour, now + 14 * hour, rows.toList(), emptyList(), emptyList(), now)
+        Timeline(now - hour, now + 14 * hour, rows.toList(), emptyList(), now)
 
     private fun row(at: Long, title: String, subject: RowSubject) =
         TimelineRow(at, clock(at), title, null, RowTone.Normal, subject)

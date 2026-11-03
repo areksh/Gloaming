@@ -375,16 +375,6 @@ data class UserSettings(
     val showEveryConstellation: Boolean = false,
 
     /**
-     * Whether Tonight's timeline also shows what is there to browse rather
-     * than to go out for: the calendar's dates, the constellations to learn,
-     * and the night's best satellite passes beyond the station and the trains.
-     *
-     * Off by default, so the timeline is the night's moments. What it leaves
-     * out it counts in a line underneath, and the Sky tab lists in full.
-     */
-    val busyTimeline: Boolean = false,
-
-    /**
      * The events the user has picked out, by kind and time.
      *
      * Kept here rather than in [AlertState] because it is a choice the user

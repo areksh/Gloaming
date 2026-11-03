@@ -139,7 +139,6 @@ fun SettingsPageContent(
         SettingsPage.Constellations ->
             ConstellationCard(state, actions.onShowEveryConstellationChange)
 
-        SettingsPage.Timeline -> BusyTimelineCard(state, actions.onBusyTimelineChange)
 
         SettingsPage.QuietHours -> QuietHoursCard(
             state,
@@ -1053,46 +1052,6 @@ private fun ConstellationCard(state: MainUiState, onChange: (Boolean) -> Unit) {
                         "in a line at the end. Ranked by height alone the patterns that " +
                         "are up every night of the year fill the list, and what has " +
                         "changed since last month never reaches it."
-                },
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-/** The Busy switch, the same one as above Tonight's timeline. */
-const val BUSY_TIMELINE_SWITCH_TAG = "busy-timeline-switch"
-
-/**
- * How much Tonight's timeline shows: the night's moments, or those and what
- * there is to browse. The same switch sits above the timeline itself.
- */
-@Composable
-private fun BusyTimelineCard(state: MainUiState, onChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Busy timeline", style = MaterialTheme.typography.titleMedium)
-                Switch(
-                    checked = state.settings.busyTimeline,
-                    onCheckedChange = onChange,
-                    modifier = Modifier.testTag(BUSY_TIMELINE_SWITCH_TAG),
-                )
-            }
-            Text(
-                if (state.settings.busyTimeline) {
-                    "The night's moments, and what there is to browse: the calendar's " +
-                        "dates, five constellations at their highest, and the night's best " +
-                        "satellite passes."
-                } else {
-                    "The night's moments: twilight, the gaps in the cloud, the moon, " +
-                        "events, the space station and Starlink trains, and whatever the " +
-                        "outlook sends you out for. A line under the timeline counts what " +
-                        "is left out."
                 },
                 style = MaterialTheme.typography.bodySmall,
             )

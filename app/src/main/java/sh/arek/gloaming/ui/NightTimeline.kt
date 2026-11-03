@@ -21,7 +21,6 @@ import sh.arek.gloaming.domain.Pick
 import sh.arek.gloaming.domain.PickKind
 import sh.arek.gloaming.domain.Tonight
 import sh.arek.gloaming.domain.TonightList
-import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
 
 /**
@@ -29,12 +28,6 @@ import sh.arek.gloaming.satellites.SatellitePass
  * a pass in the earth's shadow - strong where the outlook sends you out.
  */
 enum class RowTone { Normal, Dim, Strong }
-
-/**
- * How a lane is drawn. Only the moon has one now - the planets moved to the
- * chart above - but a lane drawn from a snapshot made before that still reads.
- */
-enum class LaneStyle { Solid, Dashed, Dotted }
 
 /**
  * Which of the outlook's recommendations a row is: the headline's one trip
@@ -57,7 +50,7 @@ sealed interface RowSubject {
     data class Planet(val planet: PlanetTonight) : RowSubject
     @Serializable
     data class Event(val event: SkyEvent) : RowSubject
-    /** A pattern at its highest: a busy row on the timeline, and listed on Sky. */
+    /** A pattern at its highest: in words under the strip, and listed on Sky. */
     @Serializable
     data class Constellation(val seen: ConstellationTonight) : RowSubject
 }
@@ -85,13 +78,8 @@ data class TimelineRow(
     val detail: String?,
     val tone: RowTone,
     val subject: RowSubject,
-    /** Set where the outlook recommends this, which the row says with a pill. */
+    /** Set where the outlook recommends this: the trip out, or the line under the headline. */
     val pick: PickTag? = null,
-    /**
-     * Something to browse rather than to go out for: shown only with the
-     * Busy setting on, and counted under the timeline when it is off.
-     */
-    val busy: Boolean = false,
 ) {
     /**
      * Whether the row says "Happening now": an event under way at [nowMillis].
@@ -109,10 +97,6 @@ data class TimelineRow(
 @Serializable
 data class CloudSpan(val fromMillis: Long, val untilMillis: Long, val cover: Int)
 
-/** Something that is up for a stretch of the night: the moon or a bright planet. */
-@Serializable
-data class Lane(val label: String, val style: LaneStyle, val fromMillis: Long, val untilMillis: Long)
-
 /**
  * Tonight from sunset to sunrise, as data for a time-proportional axis.
  *
@@ -126,10 +110,9 @@ data class Timeline(
     val endMillis: Long,
     val rows: List<TimelineRow>,
     val cloud: List<CloudSpan>,
-    val lanes: List<Lane>,
     /** Where now falls on the axis, null once the night is over or before it starts. */
     val nowMillis: Long?,
-    /** How far down the sun is through the night, for colouring the sky column. */
+    /** How far down the sun is through the night, for colouring the sky on the strip. */
     val sun: List<SunSample> = emptyList(),
     /** The moments of the headline's trip out, which a bracket joins. */
     val trip: List<Long> = emptyList(),
@@ -149,29 +132,12 @@ object NightTimeline {
     private const val HOUR_MILLIS: Long = 60 * 60 * 1000L
     private const val SUN_STEP_MILLIS: Long = 15 * 60 * 1000L
 
-    /** Cover at or above which a stretch of the night is called mostly cloudy. */
-    private const val CLOUDY_PERCENT: Int = 50
-
     /**
      * The verdicts that mean it will not be seen at all, which a row says by
      * being dimmed: behind cloud, or a pass in the earth's shadow. The rest -
      * low, in twilight, already over - are things a row can still be true of.
      */
     private val UNSEEN = setOf(Gate.Cloud, Gate.Sunlit)
-
-    /**
-     * The calendar's dates rather than its sights: worth knowing, and shown
-     * only on a busy timeline. An eclipse, a shower or a conjunction is
-     * something to go out for, and is always shown.
-     */
-    private val ALMANAC = setOf(
-        EventKind.MoonPhase,
-        EventKind.MoonQuarter,
-        EventKind.Season,
-        EventKind.Elongation,
-        EventKind.Opposition,
-        EventKind.GreatestBrightness,
-    )
 
     /** Below this much of the disc lit, the moon spoils nothing and the night is moonless. */
     private const val MOONLESS_ILLUMINATION: Double = 0.03
@@ -186,9 +152,8 @@ object NightTimeline {
      * not among them - the chart draws when each is up - except one the
      * outlook picks, which gets a row at the moment it was picked for.
      *
-     * Every row the night could show is here, the ones to browse flagged
-     * [TimelineRow.busy], so the Busy setting is a filter on the screen and
-     * never a reason to work the night out again.
+     * Every moment the night has is here. Tonight draws the picked ones as
+     * rows and puts the rest in words under the strip.
      *
      * Passes are the list's best ones only, so every pass row has a verdict
      * from the outlook to match. Passes and events match a verdict on subject
@@ -241,21 +206,17 @@ object NightTimeline {
             detail: String? = null,
             tone: RowTone = RowTone.Normal,
             pick: PickTag? = null,
-            busy: Boolean = false,
         ) {
-            if (at in start..end) rows += TimelineRow(at, clock(at), title, detail, tone, subject, pick, busy && pick == null)
+            if (at in start..end) rows += TimelineRow(at, clock(at), title, detail, tone, subject, pick)
         }
 
         row(start, "Sunset", RowSubject.Twilight)
         darkFrom?.let { row(it, "Dark enough for aurora", RowSubject.Twilight) }
         list.darkestFrom?.takeIf { it != darkFrom }?.let { row(it, "Fully dark", RowSubject.Twilight) }
 
-        val announced = list.announcedPass
         for (pass in list.bestPasses) {
             val pick = tagOf { it.kind == PickKind.Pass && it.subject == pass.name && it.atMillis == pass.peaksAt }
             val dimmed = unseen.any { it.subject == pass.name && it.atMillis == pass.peaksAt }
-            val wanted = pass.channel == PassChannel.Iss || pass.channel == PassChannel.Trains ||
-                (announced != null && pass.catalogue == announced.catalogue && pass.peaksAt == announced.peaksAt)
             row(
                 pass.peaksAt,
                 passTitle(pass),
@@ -263,7 +224,6 @@ object NightTimeline {
                 passEnds(pass),
                 toneOf(pick, dimmed),
                 pick,
-                busy = !wanted,
             )
         }
 
@@ -299,7 +259,6 @@ object NightTimeline {
                 RowSubject.Event(event),
                 tone = toneOf(pick, dimmed),
                 pick = pick,
-                busy = event.kind in ALMANAC,
             )
         }
 
@@ -324,7 +283,6 @@ object NightTimeline {
                 "${seen.constellation.name} highest, ${seen.peakAltitude.roundToInt()} degrees",
                 RowSubject.Constellation(seen),
                 "In the ${Compass.of(seen.peakAzimuth).label}",
-                busy = true,
             )
         }
 
@@ -347,7 +305,6 @@ object NightTimeline {
             endMillis = end,
             rows = rows.sortedBy { it.atMillis },
             cloud = cloudSpans(hourly, start, end),
-            lanes = lanes(list, start, end),
             nowMillis = nowMillis.takeIf { it in start..end },
             sun = sunSamples(latitude, longitude, start, end),
             trip = trip.map { it.atMillis },
@@ -437,131 +394,10 @@ object NightTimeline {
         return if (rise >= nowMillis) current else nightFrom(rise + 12 * HOUR_MILLIS)
     }
 
-    /**
-     * The drawing in one paragraph, for a screen reader: the span of the
-     * night, when it is mostly cloudy, what each lane says is up, and now.
-     * The rows say the rest themselves.
-     */
-    fun summary(timeline: Timeline): String {
-        val start = timeline.startMillis
-        val end = timeline.endMillis
-
-        fun span(from: Long, until: Long): String = when {
-            from <= start && until >= end -> "all night"
-            from <= start -> "until ${clock(until)}"
-            until >= end -> "from ${clock(from)}"
-            else -> "from ${clock(from)} to ${clock(until)}"
-        }
-
-        val sentences = mutableListOf("Tonight from sunset at ${clock(start)} to sunrise at ${clock(end)}.")
-
-        val cloudy = mutableListOf<LongRange>()
-        for (span in timeline.cloud.sortedBy { it.fromMillis }.filter { it.cover >= CLOUDY_PERCENT }) {
-            val last = cloudy.lastOrNull()
-            if (last != null && last.last >= span.fromMillis) {
-                cloudy[cloudy.lastIndex] = last.first..maxOf(last.last, span.untilMillis)
-            } else {
-                cloudy += span.fromMillis..span.untilMillis
-            }
-        }
-        if (cloudy.isNotEmpty()) {
-            sentences += "Mostly cloudy " + cloudy.joinToString(", and ") { span(it.first, it.last) } + "."
-        }
-
-        for (lane in timeline.lanes) {
-            val name = if (lane.label == "Moon") "The moon" else lane.label
-            sentences += "$name is up ${span(lane.fromMillis, lane.untilMillis)}."
-        }
-
-        timeline.nowMillis?.let { sentences += "Now ${clock(it)}." }
-        return sentences.joinToString(" ")
-    }
-
-    /**
-     * Something placed beside the axis: a row, or the label at now. [lead] is
-     * how far below its top the point is that sits on its moment - the middle
-     * of a row's first line, the middle of the label.
-     */
-    data class Slot(val atMillis: Long, val lead: Int, val height: Int)
-
-    /** The axis that came of placing the slots, and each slot's top, in their order. */
-    data class Placed(val axis: NightAxis, val tops: List<Int>)
-
-    /**
-     * Places [slots], which must be in time order, and draws the axis through
-     * them, so the sky column, the cloud, the lanes and the line at now stay
-     * level with the rows that name them.
-     *
-     * An hour is [hourPx] tall wherever the slots leave room. Where one would
-     * overlap the slot above it - closer than [gap] - it is pushed down to
-     * clear it, and the axis stretches with it: the time after it is measured
-     * from where it was pushed to, never from where it would have been. So an
-     * hour is never shorter than [hourPx], only longer where the night is
-     * crowded.
-     *
-     * Before this the rows were pushed and the axis was not. A crowded evening
-     * left them hours below their moments by morning, and now, drawn at its
-     * moment on the axis, sat among the rows at 23:00 at five past midnight.
-     */
-    fun place(startMillis: Long, slots: List<Slot>, hourPx: Float, pad: Int, gap: Int): Placed {
-        if (slots.isEmpty()) return Placed(NightAxis(longArrayOf(startMillis), floatArrayOf(pad.toFloat()), hourPx), emptyList())
-        val perMilli = hourPx / HOUR_MILLIS
-        val ys = FloatArray(slots.size)
-        val tops = IntArray(slots.size)
-        for (i in slots.indices) {
-            val slot = slots[i]
-            ys[i] = if (i == 0) {
-                maxOf(pad + (slot.atMillis - startMillis) * perMilli, slot.lead.toFloat())
-            } else {
-                val above = slots[i - 1]
-                maxOf(
-                    ys[i - 1] + (slot.atMillis - above.atMillis) * perMilli,
-                    (tops[i - 1] + above.height + gap + slot.lead).toFloat(),
-                )
-            }
-            tops[i] = (ys[i] - slot.lead).roundToInt()
-        }
-        return Placed(NightAxis(LongArray(slots.size) { slots[it].atMillis }, ys, hourPx), tops.toList())
-    }
-
     private fun cloudSpans(hourly: List<HourlyCover>, start: Long, end: Long): List<CloudSpan> =
         hourly.sortedBy { it.atMillis }.mapNotNull {
             val from = maxOf(it.atMillis, start)
             val until = minOf(it.atMillis + HOUR_MILLIS, end)
             if (from < until) CloudSpan(from, until, it.effective) else null
         }
-
-    /** The moon's lane; the planets are drawn on the chart above instead. */
-    private fun lanes(list: TonightList, start: Long, end: Long): List<Lane> {
-        val moon = list.moon ?: return emptyList()
-        return upSpans(moon, start, end).map { Lane("Moon", LaneStyle.Solid, it.first, it.last) }
-    }
-}
-
-/**
- * Where each moment of the night falls down the drawing, in pixels: straight
- * between the knots [NightTimeline.place] put at each row, and [hourPx] an
- * hour beyond them. Two knots at one moment are a step, which that moment
- * reads at the top of.
- */
-class NightAxis internal constructor(
-    private val times: LongArray,
-    private val ys: FloatArray,
-    private val hourPx: Float,
-) {
-    fun y(atMillis: Long): Float {
-        val perMilli = hourPx / (60 * 60 * 1000f)
-        if (atMillis <= times.first()) return ys.first() - (times.first() - atMillis) * perMilli
-        if (atMillis > times.last()) return ys.last() + (atMillis - times.last()) * perMilli
-        // The first knot at or after the moment; the one before it is the last before.
-        var lo = 0
-        var hi = times.lastIndex
-        while (lo < hi) {
-            val mid = (lo + hi) / 2
-            if (times[mid] < atMillis) lo = mid + 1 else hi = mid
-        }
-        if (times[lo] == atMillis) return ys[lo]
-        val fraction = (atMillis - times[lo - 1]).toFloat() / (times[lo] - times[lo - 1])
-        return ys[lo - 1] + (ys[lo] - ys[lo - 1]) * fraction
-    }
 }

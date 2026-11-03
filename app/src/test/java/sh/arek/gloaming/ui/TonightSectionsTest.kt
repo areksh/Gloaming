@@ -58,7 +58,6 @@ class TonightSectionsTest {
         endMillis = sunrise,
         rows = rows,
         cloud = emptyList(),
-        lanes = emptyList(),
         nowMillis = now,
         trip = trip,
     )

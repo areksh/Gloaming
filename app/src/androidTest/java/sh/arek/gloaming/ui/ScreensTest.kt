@@ -2173,7 +2173,6 @@ class ScreensTest {
                 row(now + 13 * hour, "Sunrise", RowSubject.Twilight)
             ).sortedBy { it.atMillis },
         cloud = cloud,
-        lanes = emptyList(),
         nowMillis = now,
     )
 

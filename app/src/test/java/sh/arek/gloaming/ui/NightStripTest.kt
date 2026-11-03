@@ -48,7 +48,6 @@ class NightStripTest {
         endMillis = end,
         rows = rows,
         cloud = cloud,
-        lanes = emptyList(),
         nowMillis = now,
         chart = chart,
     )

@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import java.time.Instant
 import java.util.TimeZone
+import kotlinx.serialization.json.Json
 import org.junit.After
 import kotlin.math.roundToInt
 import org.junit.Assert.assertEquals
@@ -300,7 +301,6 @@ class NightTimelineTest {
         assertEquals("In the ${Compass.of(seen.azimuth).label}", row.detail)
         assertEquals(PickTag.Go, row.pick)
         assertEquals(RowTone.Strong, row.tone)
-        assertFalse(row.busy)
     }
 
     @Test
@@ -372,32 +372,6 @@ class NightTimelineTest {
     }
 
     @Test
-    fun `gives the moon a solid lane from moonrise`() {
-        val moon = MoonTonight(180.0, 1.0, 0.5, 0.5, risesAt = at("2026-12-14T22:00:00Z"), setsAt = null)
-
-        val timeline = build(list(moon = moon))!!
-
-        val lane = timeline.lanes.single { it.label == "Moon" }
-        assertEquals(LaneStyle.Solid, lane.style)
-        assertEquals(moon.risesAt, lane.fromMillis)
-        assertEquals(timeline.endMillis, lane.untilMillis)
-        assertTrue(timeline.rows.any { it.subject is RowSubject.Moon && it.title == "Moonrise" })
-    }
-
-    @Test
-    fun `lanes only the moon`() {
-        val planets = listOf(
-            planet(SkyBody.Saturn, 1.0, null, null, "2026-12-14T18:00:00Z"),
-            planet(SkyBody.Venus, -4.0, null, null, "2026-12-14T18:00:00Z"),
-        )
-        val moon = MoonTonight(180.0, 1.0, 1.0, 1.0, risesAt = null, setsAt = null)
-
-        val lanes = build(list(planets = planets, moon = moon))!!.lanes
-
-        assertEquals(listOf("Moon"), lanes.map { it.label })
-    }
-
-    @Test
     fun `moonrise says the phase`() {
         val moon = MoonTonight(250.0, 0.38, 0.4, 0.15, risesAt = at("2026-12-14T23:40:00Z"), setsAt = null)
 
@@ -422,54 +396,6 @@ class NightTimelineTest {
     }
 
     @Test
-    fun `flags almanac dates, constellations and lesser passes as busy`() {
-        val station = pass("ISS", "2026-12-14T17:00:00Z")
-        val rocket = pass("SL-16 R/B", "2026-12-14T19:00:00Z").copy(catalogue = 22000, channel = PassChannel.Bright)
-        val told = pass("ARIANE 5 R/B", "2026-12-14T20:00:00Z").copy(catalogue = 28499, channel = PassChannel.Bright)
-        val train = pass("STARLINK train", "2026-12-14T21:00:00Z").copy(catalogue = 50000, channel = PassChannel.Trains)
-        val quarter = SkyEvent(
-            EventKind.MoonQuarter, at("2026-12-14T22:00:00Z"), at("2026-12-14T22:00:00Z"),
-            at("2026-12-14T22:00:00Z"), "First quarter", "", Visibility.Good,
-        )
-        val conjunction = SkyEvent(
-            EventKind.Conjunction, at("2026-12-14T23:00:00Z"), at("2026-12-14T22:00:00Z"),
-            at("2026-12-15T02:00:00Z"), "The moon passes Mars", "", Visibility.Good,
-        )
-        val orion = sh.arek.gloaming.astronomy.ConstellationTonight(
-            sh.arek.gloaming.astronomy.Constellations.WATCHED.first { it.name == "Orion" },
-            38.0, at("2026-12-15T00:30:00Z"), 180.0, isCircumpolar = false, isAtItsBest = false,
-        )
-        val tonight = list(passes = listOf(station, rocket, told, train), events = listOf(quarter, conjunction))
-            .copy(everyConstellation = listOf(orion), announcedPass = told)
-
-        val rows = build(tonight)!!.rows
-        fun busy(title: String) = rows.single { it.title.startsWith(title) }.busy
-
-        assertFalse(busy("ISS"))
-        assertTrue(busy("SL-16"))
-        assertFalse(busy("ARIANE"))
-        assertFalse(busy("STARLINK"))
-        assertTrue(busy("First quarter"))
-        assertFalse(busy("The moon passes Mars"))
-        val pattern = rows.single { it.subject is RowSubject.Constellation }
-        assertEquals("Orion highest, 38 degrees", pattern.title)
-        assertEquals("In the south", pattern.detail)
-        assertTrue(pattern.busy)
-        assertTrue(rows.filter { it.subject is RowSubject.Twilight }.none { it.busy })
-    }
-
-    @Test
-    fun `never flags a pick as busy`() {
-        val rocket = pass("SL-16 R/B", "2026-12-14T19:00:00Z").copy(catalogue = 22000, channel = PassChannel.Bright)
-        val report = report(goOut(listOf(Pick(PickKind.Pass, rocket.name, rocket.peaksAt, pass = rocket))))
-
-        val row = build(list(passes = listOf(rocket)), report)!!.rows.single { it.subject is RowSubject.Pass }
-
-        assertFalse(row.busy)
-        assertEquals(PickTag.Go, row.pick)
-    }
-
-    @Test
     fun `prompts a look for noctilucent cloud`() {
         val nlc = SkyEvent(
             EventKind.Noctilucent, at("2026-12-14T17:10:00Z"), at("2026-12-14T17:10:00Z"),
@@ -480,7 +406,6 @@ class NightTimelineTest {
 
         assertEquals("17:10", row.time)
         assertEquals("Low in the north until 18:10", row.detail)
-        assertFalse(row.busy)
     }
 
     @Test
@@ -514,122 +439,7 @@ class NightTimelineTest {
         assertTrue("${midnight.altitude}", midnight.altitude < -18.0)
     }
 
-    /** What TalkBack reads for the drawing, which is otherwise only shading and lines. */
-    @Test
-    fun `summarises the drawing in words`() {
-        val start = at("2026-12-14T15:40:00Z")
-        val end = at("2026-12-15T08:40:00Z")
-        val timeline = Timeline(
-            startMillis = start,
-            endMillis = end,
-            rows = emptyList(),
-            cloud = listOf(
-                CloudSpan(start, at("2026-12-14T17:00:00Z"), 90),
-                CloudSpan(at("2026-12-14T17:00:00Z"), at("2026-12-14T18:00:00Z"), 80),
-                CloudSpan(at("2026-12-14T18:00:00Z"), at("2026-12-15T02:00:00Z"), 10),
-                CloudSpan(at("2026-12-15T02:00:00Z"), at("2026-12-15T03:00:00Z"), 60),
-            ),
-            lanes = listOf(
-                Lane("Moon", LaneStyle.Solid, at("2026-12-14T20:40:00Z"), end),
-                Lane("Jupiter", LaneStyle.Dashed, start, at("2026-12-15T04:10:00Z")),
-                Lane("Saturn", LaneStyle.Dotted, start, end),
-            ),
-            nowMillis = at("2026-12-14T18:05:00Z"),
-        )
-
-        assertEquals(
-            "Tonight from sunset at 15:40 to sunrise at 08:40. Mostly cloudy until 18:00, " +
-                "and from 02:00 to 03:00. The moon is up from 20:40. Jupiter is up until 04:10. " +
-                "Saturn is up all night. Now 18:05.",
-            NightTimeline.summary(timeline),
-        )
-    }
-
-    @Test
-    fun `summarises a clear night with nothing drawn on it in a sentence`() {
-        val timeline = Timeline(
-            at("2026-12-14T15:40:00Z"), at("2026-12-15T08:40:00Z"),
-            emptyList(), emptyList(), emptyList(), null,
-        )
-
-        assertEquals("Tonight from sunset at 15:40 to sunrise at 08:40.", NightTimeline.summary(timeline))
-    }
-
-    private val hour = 3_600_000L
-
     /** Slots a row each, with the middle of the first line 10 below the top. */
-    private fun slots(vararg at: Pair<Long, Int>) = at.map { (millis, height) -> NightTimeline.Slot(millis, 10, height) }
-
-    @Test
-    fun `places rows at their times, an hour apart by the hour, when there is room`() {
-        val placed = NightTimeline.place(0, slots(0L to 40, hour to 40, 3 * hour to 40), 100f, 10, 4)
-
-        assertEquals(listOf(0, 100, 300), placed.tops)
-        assertEquals(10f, placed.axis.y(0))
-        assertEquals(160f, placed.axis.y(hour + hour / 2))
-    }
-
-    @Test
-    fun `pushes a crowded row down by exactly the overlap`() {
-        // The second wants its top at 50 but the first ends at 80 and a gap of 4 follows.
-        val placed = NightTimeline.place(0, slots(0L to 80, hour / 2 to 40), 100f, 10, 4)
-
-        assertEquals(listOf(0, 84), placed.tops)
-    }
-
-    /**
-     * The point of the axis: where a row is pushed, the hours after it are
-     * measured from where it went, so the drawing beside every later row is
-     * still of that row's moment.
-     */
-    @Test
-    fun `stretches the axis where rows crowd and keeps every row on its moment`() {
-        val placed = NightTimeline.place(
-            0,
-            slots(0L to 80, hour / 4 to 80, hour / 2 to 80, 2 * hour to 40),
-            100f, 10, 4,
-        )
-
-        assertEquals(listOf(0, 84, 168, 318), placed.tops)
-        // Each row's first line sits on the axis at its own moment.
-        assertEquals(listOf(10f, 94f, 178f, 328f), listOf(0L, hour / 4, hour / 2, 2 * hour).map { placed.axis.y(it) })
-        // After the crowd an hour is an hour again.
-        assertEquals(100f, placed.axis.y(3 * hour) - placed.axis.y(2 * hour))
-    }
-
-    @Test
-    fun `never makes an hour shorter than the hour`() {
-        val placed = NightTimeline.place(0, slots(0L to 200, hour / 10 to 30, 5 * hour to 30), 50f, 10, 4)
-        val ys = (0..60).map { placed.axis.y(it * hour / 10) }
-
-        for ((earlier, later) in ys.zipWithNext()) assertTrue("$earlier then $later", later - earlier >= 5f - 0.001f)
-    }
-
-    @Test
-    fun `two rows at one moment are a step the moment reads at the top of`() {
-        val placed = NightTimeline.place(0, slots(0L to 40, hour to 40, hour to 40, 2 * hour to 40), 100f, 10, 4)
-
-        assertEquals(listOf(0, 100, 144, 244), placed.tops)
-        assertEquals(110f, placed.axis.y(hour))
-        assertEquals(204f, placed.axis.y(hour + hour / 2))
-    }
-
-    @Test
-    fun `keeps the first row on the page when it falls right at the top`() {
-        val placed = NightTimeline.place(0, listOf(NightTimeline.Slot(0, 14, 44)), 100f, 10, 4)
-
-        assertEquals(listOf(0), placed.tops)
-        assertEquals(14f, placed.axis.y(0))
-    }
-
-    @Test
-    fun `an empty night is an hour an hour from the pad`() {
-        val placed = NightTimeline.place(0, emptyList(), 100f, 10, 4)
-
-        assertEquals(emptyList<Int>(), placed.tops)
-        assertEquals(210f, placed.axis.y(2 * hour))
-    }
-
     /**
      * The night of the autumn change: Edinburgh, clocks go back at 01:00 UTC on
      * the 25th, so the night is an hour longer than the clock says and 01:30
@@ -665,5 +475,22 @@ class NightTimelineTest {
         assertEquals(timeline.startMillis, chart.sunsetMillis)
         assertEquals(timeline.endMillis, chart.sunriseMillis)
         assertEquals(listOf("Venus"), chart.bodies.map { it.label })
+    }
+
+    /**
+     * A night saved before the Busy setting and the moon's lane went: its rows
+     * carry "busy" and it carries "lanes", and it must still open rather than
+     * leave Tonight blank until the night is worked out again.
+     */
+    @Test
+    fun `a snapshot with busy rows and lanes still decodes`() {
+        val json = Json { ignoreUnknownKeys = true }
+        val row = TimelineRow(0, "00:00", "Sunset", null, RowTone.Normal, RowSubject.Twilight)
+        val current = json.encodeToString(Timeline(startMillis = 0, endMillis = 1, rows = listOf(row), cloud = emptyList(), nowMillis = null))
+        val old = current
+            .replace("\"title\":\"Sunset\"", "\"title\":\"Sunset\",\"busy\":true")
+            .replaceFirst("{", "{\"lanes\":[{\"label\":\"Moon\",\"style\":\"Solid\",\"fromMillis\":0,\"untilMillis\":1}],")
+        assertTrue(old.contains("\"busy\":true") && old.contains("\"lanes\""))
+        assertEquals(listOf(row), json.decodeFromString<Timeline>(old).rows)
     }
 }

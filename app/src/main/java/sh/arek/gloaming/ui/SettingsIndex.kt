@@ -73,7 +73,6 @@ enum class SettingsPage(val group: SettingsGroup, val title: String) {
     YourAnswers(SettingsGroup.LearningFromAnswers, "Your answers"),
 
     NightVision(SettingsGroup.ScreenAndReference, "Night vision"),
-    Timeline(SettingsGroup.ScreenAndReference, "Tonight's timeline"),
     Guide(SettingsGroup.ScreenAndReference, "Guide to the words"),
     CalendarSync(SettingsGroup.ScreenAndReference, "Calendar sync"),
     Credits(SettingsGroup.ScreenAndReference, "Credits and licences"),
@@ -141,9 +140,6 @@ fun summary(page: SettingsPage, state: MainUiState): String {
             } else {
                 "The handful worth leading with"
             }
-
-        SettingsPage.Timeline ->
-            if (settings.busyTimeline) "Busy: dates, constellations and more passes" else "The night's moments"
 
         SettingsPage.QuietHours -> settings.quietHours?.let {
             "${formatTimeOfDay(it.startMinute)} to ${formatTimeOfDay(it.endMinute)}"

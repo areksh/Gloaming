@@ -97,7 +97,7 @@ class SettingsSummaryTest {
             titles(SettingsGroup.LearningFromAnswers),
         )
         assertEquals(
-            listOf("Night vision", "Tonight's timeline", "Guide to the words", "Calendar sync", "Credits and licences"),
+            listOf("Night vision", "Guide to the words", "Calendar sync", "Credits and licences"),
             titles(SettingsGroup.ScreenAndReference),
         )
     }
@@ -262,15 +262,6 @@ class SettingsSummaryTest {
         assertEquals(
             "Every one above the horizon",
             summary(SettingsPage.Constellations, state(UserSettings(showEveryConstellation = true))),
-        )
-    }
-
-    @Test
-    fun `says how busy the timeline is`() {
-        assertEquals("The night's moments", summary(SettingsPage.Timeline, state()))
-        assertEquals(
-            "Busy: dates, constellations and more passes",
-            summary(SettingsPage.Timeline, state(UserSettings(busyTimeline = true))),
         )
     }
 

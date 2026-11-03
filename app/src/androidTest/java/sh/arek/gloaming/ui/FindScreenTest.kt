@@ -666,7 +666,6 @@ class FindScreenTest {
             endMillis = now + 13 * hour,
             rows = listOf(row),
             cloud = emptyList(),
-            lanes = emptyList(),
             nowMillis = now,
         )
         compose.setContent {
@@ -687,7 +686,7 @@ class FindScreenTest {
     @Test
     fun aRowWithNothingToPointAtOffersNoFindIt() {
         val row = TimelineRow(now, clock(now), "Sunset", null, RowTone.Normal, RowSubject.Twilight, PickTag.Go)
-        val timeline = Timeline(now - hour, now + 13 * hour, listOf(row), emptyList(), emptyList(), now)
+        val timeline = Timeline(now - hour, now + 13 * hour, listOf(row), emptyList(), now)
         compose.setContent {
             GloamingNav(state = state(timeline = timeline), actions = actions, compass = FakeCompassSource())
         }
