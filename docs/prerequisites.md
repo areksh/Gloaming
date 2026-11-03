@@ -59,6 +59,49 @@ Install the platform `android-37.0`. The build and `./go` find the SDK through
 `local.properties` at the repository root. That file is gitignored, because the
 path differs from machine to machine.
 
+Debian's packaged SDK is too old for this, so use Google's command-line tools.
+Put the SDK in your home directory, not in `/usr/lib/android-sdk`: that
+directory is owned by root, so Gradle could not install build-tools into it.
+None of this needs root.
+
+```sh
+mkdir -p ~/Android/Sdk/cmdline-tools
+cd ~/Android/Sdk/cmdline-tools
+wget https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+unzip commandlinetools-linux-13114758_latest.zip
+mv cmdline-tools latest
+rm commandlinetools-linux-13114758_latest.zip
+```
+
+If that link has gone, copy the current Linux one from "Command line tools only"
+at developer.android.com/studio. Any build will do, because the install below
+updates it. The `latest/` directory name is required: `sdkmanager` works out the
+SDK root from its own location and refuses to run from anywhere else.
+
+Add this to `~/.zshrc` (or `~/.bashrc`) and open a new shell:
+
+```sh
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+```
+
+Then accept the licences yourself, and install the packages:
+
+```sh
+sdkmanager --licenses
+sdkmanager "cmdline-tools;latest" "platform-tools" "platforms;android-37.0"
+```
+
+Build-tools are not listed, because once the licences are accepted and the SDK
+directory is writable, the Android Gradle plugin installs the version it wants
+on the first build. Check with `./go check`.
+
+If `/usr/bin/adb` is also installed from Debian's
+`google-android-platform-tools-installer`, the `PATH` line above puts the SDK's
+`adb` first. If both are used, they fight over the adb server ("adb server
+version doesn't match this client"). Either run `adb kill-server` when that
+happens, or `sudo apt remove google-android-platform-tools-installer`.
+
 ## GitHub access token
 
 `./go push` and `./go release` publish through the GitHub REST API, which needs
