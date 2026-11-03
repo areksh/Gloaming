@@ -98,6 +98,17 @@ proper astronomical darkness, which at this latitude does not arrive at all
 between May and August. The planets are there too, with how high each gets,
 which way to look, and which constellation each is sitting in.
 
+The moon, the planets and any comet are drawn as bars across the night in an
+"Up tonight" chart, from an hour before sunset to an hour after sunrise: each
+bar fades as its body gets low or the sky is still bright, and a ring marks
+where it is highest. Under it the timeline lists the night's moments - twilight,
+every gap in the cloud, moonrise and moonset with the phase, when the dark is
+moonless, events, the space station and Starlink trains - and whatever the
+headline sends you out for, marked "Go out", with what the line under it names
+marked "Also". A Busy switch adds what there is to browse: the calendar's dates,
+five constellations at their highest and the night's best satellite passes.
+With it off, a line under the timeline counts what is left out.
+
 The constellations are listed under the night, under "Also up tonight",
 because which patterns are up is a season rather than an occasion and a calendar
 of them would be an almanac. The list leads with a handful worth going out for, with where to look and one sentence on

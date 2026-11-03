@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An "Up tonight" chart above the timeline.** The moon, every planet worth
+  looking for and any comet are drawn as bars from an hour before sunset to an
+  hour after sunrise, each with its symbol, fading as it gets low or the sky is
+  still bright, with a ring where it is highest. Sunset and sunrise are marked,
+  and so are the headline's picks: the trip out as a shaded band, the line
+  under it as dotted lines, and a dot on the bar of each planet picked.
+
+- **The timeline is the night's moments, and a Busy switch adds the rest.**
+  Every gap in the cloud gets a row, not just the first; moonrise and moonset
+  say the phase, and a row says when the dark is moonless. Whatever the
+  headline sends you out for is marked "Go out", joined by a bracket where it
+  is one trip at two times, and what the line under it names is marked "Also"
+  - a planet picked gets a row of its own at the moment it was picked for. A
+  Busy switch, above the timeline and in Settings, adds the calendar's dates,
+  five constellations at their highest and the night's best satellite passes;
+  with it off, a line under the timeline counts what is left out and shows it
+  all with one tap. Rows at the same minute share one time.
+
 - **A Sky tab lists everything up tonight.** Tonight is the shortlist; Sky,
   second on the bar, is the whole of it: every satellite pass of the night under
   the hour it is highest in, with chips to show or hide the space station,
@@ -188,6 +206,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reboot or an app open.
 
 ### Changed
+
+- **The planets moved from the timeline to the chart.** The timeline no longer
+  lists each planet's rise, highest and set, or draws two planets as lanes
+  beside the moon's: the chart shows all of them at once. Bold on the timeline
+  now means only what the headline picks and the clear spell it falls in.
 
 - **Gloaming now lives on GitHub.** Source, releases and development builds
   are at https://github.com/areksh/Gloaming, and the source link in Settings
