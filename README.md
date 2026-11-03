@@ -98,19 +98,23 @@ proper astronomical darkness, which at this latitude does not arrive at all
 between May and August. The planets are there too, with how high each gets,
 which way to look, and which constellation each is sitting in.
 
-The moon, the planets and any comet are drawn as bars across the night in an
-"Up tonight" chart, from an hour before sunset to an hour after sunrise: each
-bar fades as its body gets low or the sky is still bright, and a ring marks
-where it is highest. Under it the timeline lists the night's moments - twilight,
-every gap in the cloud, moonrise and moonset with the phase, when the dark is
-moonless, events, the space station and Starlink trains - and whatever the
-headline sends you out for, marked "Go out", with what the line under it names
-marked "Also". A Busy switch adds what there is to browse: the calendar's dates,
-five constellations at their highest and the night's best satellite passes.
-With it off, those are listed under the timeline instead, and a line there
-says what Busy would add.
+Tonight is one answer, one picture and one short list. The answer is the
+headline, with a countdown to the trip out under it; once the night is under
+way, what is next leads instead - "ISS in 6 min", with Find it - and on an
+overcast night a card says when the forecast next clears. The picture is the
+whole night on one strip from sunset to sunrise: the sky by how far down the sun
+is, the cloud as hatching, a bar for the moon and each planet and comet, ticks
+for the passes and events the headline picked and a bracket over the trip. A
+bar is solid where its body can be seen and dotted where the cloud hides it, so
+night vision's single red loses nothing. Once the night is under way the strip
+opens on the three hours round now, and a button shows the whole of it. The
+short list is only what the headline picked, each row opening a sheet that
+says it in full. Everything else is folded into two lists underneath:
+"Everything up tonight", which starts with the night's own moments - twilight,
+the clear spells, the moonless stretch - and "Skipped tonight", which says why
+each thing was set aside.
 
-The constellations are listed under the night, under "Also up tonight",
+The constellations are listed under the night, under "Everything up tonight",
 because which patterns are up is a season rather than an occasion and a calendar
 of them would be an almanac. The list leads with a handful worth going out for, with where to look and one sentence on
 how to pick each one out - three stars in a line make Orion's belt, the end of
@@ -137,7 +141,7 @@ the landmarks every direction in the app is measured from, the vocabulary the
 rest of the app uses - magnitude, opposition, occultation, radiant, umbra - and
 the part nobody tells you, which is that your eyes take twenty minutes to adapt
 to the dark and an aurora rarely looks like the photographs. Each row on
-Tonight's timeline also explains its own words in place, in the sheet it opens,
+Tonight also explains its own words in place, in the sheet it opens,
 underneath its answer rather than in front of it, because the question gets
 asked while looking at the sentence that raised it. None of it needs a location,
 a forecast or a network, so it is the one screen that works before anything is

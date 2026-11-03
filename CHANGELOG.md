@@ -7,26 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **The Busy setting.** The short list is now only what the headline picks,
+  and everything else is a tap away under it, so there is nothing left for a
+  switch to add.
+
 ### Added
 
-- **An "Up tonight" chart above the timeline.** The moon, every planet worth
-  looking for and any comet are drawn as bars from an hour before sunset to an
-  hour after sunrise, each with its symbol, fading as it gets low or the sky is
-  still bright, with a ring where it is highest. Sunset and sunrise are marked,
-  and so are the headline's picks: the trip out as a shaded band, the line
-  under it as dotted lines, and a dot on the bar of each planet picked.
+- **Tonight is one answer, one strip and one short list.** The whole night is
+  drawn on one horizontal strip from sunset to sunrise, in place of the chart
+  and the vertical timeline: the sky by how far down the sun is, the cloud as
+  hatching, a bar for the moon and each planet and comet with its symbol, ticks
+  for the passes and events the headline picked (dashed for the line under
+  it) and a bracket over the trip out. A bar is dotted where the forecast puts
+  more cloud than your tolerance over it, solid where it is clear. Once the
+  night is under way the strip opens on the three hours round now, with the
+  whole night a tap away. Under the strip, only what the headline picked has a
+  row - "Worth going out for", then "Still to come", with what is over folded
+  into one "Earlier" line - and everything else is in two folded lists,
+  "Everything up tonight" (opening with the night's own moments: twilight, the
+  clear spells, the moonless dark) and "Skipped tonight", each saying how much
+  it holds and naming the first of it.
 
-- **The timeline is the night's moments, and a Busy switch adds the rest.**
-  Every gap in the cloud gets a row, not just the first; moonrise and moonset
-  say the phase, and a row says when the dark is moonless. Whatever the
-  headline sends you out for is marked "Go out", joined by a bracket where it
-  is one trip at two times, and what the line under it names is marked "Also"
-  - a planet picked gets a row of its own at the moment it was picked for. A
-  Busy switch, above the timeline and in Settings, adds the calendar's dates,
-  five constellations at their highest and the night's best satellite passes;
-  with it off, they are listed under "Also up tonight" instead, and a line
-  under the timeline says what Busy would add and turns it on with one tap.
-  Rows at the same minute share one time.
+- **What is next leads once the night is under way.** "ISS in 6 min", with
+  Find it beside it and the headline under it. Before the night, a countdown
+  to the trip sits under the headline; on an overcast night, a card says when
+  the next clear spell is.
 
 - **A Sky tab lists everything up tonight.** Tonight is the shortlist; Sky,
   second on the bar, is the whole of it: every satellite pass of the night under

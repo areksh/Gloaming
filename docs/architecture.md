@@ -477,18 +477,21 @@ is a file replacement.
   elements' age it is given is how long ago `sats.json` says they were
   published, not how long the phone has held them, since a 304 keeps the
   latter young for ever. The same pass lays the night out as a `Timeline`
-  (`NightTimeline.of`: rows, cloud spans, lanes and the sun's altitude every
+  (`NightTimeline.of`: rows, cloud spans and the sun's altitude every
   quarter hour, matching rows to the outlook's picks and exclusions so a row's
   weight is the outlook's verdict: dimmed where it will not be seen - behind
-  cloud, or a pass in the earth's shadow). Under the header, `NightTimelineView` draws
-  it at 56 dp an hour or more: one `Canvas` for the sky column, hatching, lanes
-  and the now line, heard by a screen reader as `NightTimeline.summary`, with
-  the rows as real tappable nodes over it, so TalkBack reads them in time
-  order. The rows are placed first and the drawing follows them:
-  `NightTimeline.place` pushes a row clear of the one above and stretches the
-  axis with it, never shrinks an hour, and places now as one of the rows, so
-  the cloud and lanes beside a row are of that row's moment and the now line
-  falls between rows rather than across them. With no sunset or sunrise to bound it -
+  cloud, or a pass in the earth's shadow). Under the header, `NightStripView` draws
+  it on one horizontal axis from sunset to sunrise - the sky by the sun's
+  altitude, cloud hatching, a bar per body from the `UpChart` (dotted where
+  `NightStrips.hidden` puts more cloud than the tolerance over it), ticks for
+  the picked passes and events and a bracket over the trip - as one `Canvas`
+  heard by a screen reader as `NightStrips.summary`. Once the night is under
+  way `NightStrips.window` zooms it to three hours round now. Under the strip,
+  `TonightSections` decides the rest: `worth` is the picked rows (the only
+  rows drawn, each opening its sheet), `everything` is `TonightLists.alsoUp`
+  with only those counted as drawn, opened by the night's own moments, and the
+  two folded lists show `count` and `preview` until opened; `nextUp` and
+  `countdown` feed the header. With no sunset or sunrise to bound it -
   the polar night, the midnight sun - there is no timeline, and the darkness
   thresholds are said in words in its place. A row opens `RowSheet` - the detail the
   old cards carried, the caveat, the guide's notes, Share and Export for a
