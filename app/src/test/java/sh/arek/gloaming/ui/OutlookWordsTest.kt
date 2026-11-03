@@ -362,10 +362,9 @@ class OutlookWordsTest {
         )
 
         assertEquals("Overcast all night. Nothing worth going out for.", OutlookWords.headline(r))
-        assertEquals(
-            "The Geminids peak tonight. The next clear spell in the forecast is tomorrow from 21:00.",
-            OutlookWords.follow(r, now),
-        )
+        // The clear spell is the card's to say, so the line under says only what the cloud costs.
+        assertEquals("The Geminids peak tonight.", OutlookWords.follow(r, now))
+        assertEquals("Tomorrow from 21:00 until 02:00", OutlookWords.nextClear(r.outlook as Outlook.Overcast, now))
     }
 
     @Test
@@ -386,10 +385,19 @@ class OutlookWordsTest {
             ),
         )
 
-        assertEquals(
-            "The next clear spell in the forecast is on Wednesday from 21:00.",
-            OutlookWords.follow(r, now),
+        assertNull(OutlookWords.follow(r, now))
+        assertEquals("Wednesday from 21:00 until 02:00", OutlookWords.nextClear(r.outlook as Outlook.Overcast, now))
+    }
+
+    @Test
+    fun `next clear spell tonight, and none to name`() {
+        val tonight = Outlook.Overcast(
+            ClearSpell(at("2026-12-13T22:00:00Z"), at("2026-12-14T01:00:00Z"), underway = false, allNight = false),
+            null,
         )
+        assertEquals("Tonight from 22:00 until 01:00", OutlookWords.nextClear(tonight, now))
+        assertNull(OutlookWords.nextClear(Outlook.Overcast(null, null), now))
+        assertEquals("The forecast has no clear spell yet.", OutlookWords.follow(report(Outlook.Overcast(null, null)), now))
     }
 
     @Test

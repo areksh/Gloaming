@@ -301,10 +301,21 @@ object OutlookWords {
                 else -> "Cloud will hide ${pickName(pick)} tonight."
             }
         }
-        val next = outlook.nextClear?.let { spell ->
-            "The next clear spell in the forecast is ${day(spell, nowMillis)} from ${clock(spell.from)}."
-        } ?: "The forecast has no clear spell yet.".takeIf { missed == null }
+        // A clear spell to come is the card's to say ([nextClear]), so it is
+        // not said twice, one line apart.
+        val next = "The forecast has no clear spell yet.".takeIf { missed == null && outlook.nextClear == null }
         return listOfNotNull(missed, next).joinToString(" ").ifEmpty { null }
+    }
+
+    /**
+     * The next clear spell on an overcast night, for the card under the
+     * headline: "Tomorrow from 21:00 until 02:00". Null where the forecast
+     * has none.
+     */
+    fun nextClear(outlook: Outlook.Overcast, nowMillis: Long): String? {
+        val spell = outlook.nextClear ?: return null
+        val day = day(spell, nowMillis).removePrefix("on ").capital()
+        return "$day from ${clock(spell.from)} until ${clock(spell.until)}"
     }
 
     private fun day(spell: ClearSpell, nowMillis: Long): String {
