@@ -114,6 +114,14 @@ class NightStripTest {
     }
 
     @Test
+    fun `hour ticks fall on the local hour where the zone is half an hour off`() {
+        val kolkata = ZoneId.of("Asia/Kolkata")
+        val ticks = NightStrips.hourTicks(at("2026-12-14T12:10:00Z"), at("2026-12-14T15:40:00Z"), kolkata)
+        assertEquals(listOf(18, 19, 20, 21), ticks.map { it.hour })
+        assertEquals(listOf(at("2026-12-14T12:30:00Z"), at("2026-12-14T13:30:00Z"), at("2026-12-14T14:30:00Z"), at("2026-12-14T15:30:00Z")), ticks.map { it.atMillis })
+    }
+
+    @Test
     fun `ticks are the picked passes and events, with short labels`() {
         val issAt = sunset + 3 * hour
         val showerAt = sunset + 6 * hour

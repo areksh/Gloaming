@@ -1682,7 +1682,7 @@ class ScreensTest {
             underway = false,
             allNight = false,
         )
-        val row = row(spell.from, "Clear until ${clock(spell.until)}", RowSubject.Clear, tone = RowTone.Strong, pick = PickTag.Go)
+        val row = row(spell.from, "Clear until ${clock(spell.until)}", RowSubject.Clear, tone = RowTone.Strong)
         show(
             tonight = quietNight().copy(
                 cloud = CloudCover(total = 80, low = 60, mid = 20, high = 10),
@@ -1691,9 +1691,9 @@ class ScreensTest {
             timeline = night(row, cloud = listOf(CloudSpan(now - 3_600_000L, spell.from, 80))),
         )
 
-        openRow(row)
-        inSheet("80% cloud overhead, low and thick.")
-        inSheet("Clearer from about", substring = true)
+        // A clear spell is never a pick, so it is said under "The night" rather than in a sheet.
+        inList(ALSO_UP_TAG, "80% cloud overhead, low and thick.", substring = true)
+        inList(ALSO_UP_TAG, "Clearer from about", substring = true)
     }
 
     /**
@@ -1758,24 +1758,21 @@ class ScreensTest {
      */
     @Test
     fun showsBothDarknessThresholds() {
-        val dark = row(now, "Dark enough for aurora", RowSubject.Twilight, pick = PickTag.Go)
+        val dark = row(now, "Dark enough for aurora", RowSubject.Twilight)
         show(
             tonight = quietNight().copy(darkestFrom = now + 3_600_000L, darkestUntil = now + 7 * 3_600_000L),
             timeline = night(dark),
         )
 
-        openRow(dark)
-        inSheet("Dark from", substring = true)
-        inSheet("Fully dark from", substring = true)
+        inList(ALSO_UP_TAG, "Dark from", substring = true)
+        inList(ALSO_UP_TAG, "Fully dark from", substring = true)
     }
 
     @Test
     fun saysWhenItNeverGetsFullyDark() {
-        val dusk = row(now, "Dark enough for aurora", RowSubject.Twilight, pick = PickTag.Go)
-        show(tonight = quietNight(), timeline = night(dusk))
+        show(tonight = quietNight(), timeline = night())
 
-        openRow(dusk)
-        inSheet("It never gets fully dark here", substring = true)
+        inList(ALSO_UP_TAG, "It never gets fully dark here", substring = true)
     }
 
     /**
@@ -1918,9 +1915,9 @@ class ScreensTest {
     fun worthListHoldsOnlyThePickedRows() {
         val other = station.copy(catalogue = 48274, name = "CSS (TIANHE)", peaksAt = station.peaksAt + hour)
         val drawn = night(passRow(station), passRow(other, pick = null))
-        show(tonight = quietNight(passes = listOf(station, other)), timeline = drawn.copy(nowMillis = null))
+        show(tonight = quietNight(passes = listOf(station, other)), timeline = beforeTheNight(drawn))
 
-        compose.onNodeWithTag(WORTH_TAG).performScrollTo().assertTextContains("Worth going out for", substring = true)
+        inList(WORTH_TAG, "Worth going out for")
         compose.onNodeWithTag(timelineRowTag(drawn.rows.first { it.pick != null && it.subject is RowSubject.Pass }))
             .performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag(timelineRowTag(drawn.rows.first { it.pick == null && it.subject is RowSubject.Pass }))
@@ -1939,9 +1936,10 @@ class ScreensTest {
 
         compose.onNodeWithTag(ALSO_UP_TAG).assertDoesNotExist()
         compose.onNodeWithTag(NOT_WORTH_TAG).assertDoesNotExist()
+        // The aurora set aside, and the satellites with nothing crossing.
         compose.onNodeWithTag(disclosureTag(NOT_WORTH_TAG)).performScrollTo()
-            .assertTextContains("Skipped tonight · 1", substring = true)
-            .assertTextContains("Aurora")
+            .assertTextContains("Skipped tonight · 2", substring = true)
+            .assertTextContains("Aurora and Satellites")
         compose.onNodeWithTag(disclosureTag(NOT_WORTH_TAG)).performClick()
         compose.onNodeWithTag(NOT_WORTH_TAG).performScrollTo().assertIsDisplayed()
     }
@@ -1950,7 +1948,7 @@ class ScreensTest {
     @Test
     fun countdownBeforeTheTrip() {
         val pass = passRow(station)
-        val drawn = night(pass).copy(nowMillis = null, trip = listOf(station.peaksAt))
+        val drawn = beforeTheNight(night(pass)).copy(trip = listOf(station.peaksAt))
         show(tonight = quietNight(passes = listOf(station)), timeline = drawn)
 
         compose.onNodeWithTag(COUNTDOWN_TAG)
@@ -1973,7 +1971,7 @@ class ScreensTest {
 
         compose.onNodeWithTag(NEXT_UP_TAG).assertTextEquals("ISS in 6 min")
         compose.onNodeWithTag(OUTLOOK_HEADLINE_TAG).assertTextEquals(requireNotNull(OutlookWords.headline(report)))
-        compose.onNodeWithTag(WORTH_TAG).performScrollTo().assertTextContains("Still to come", substring = true)
+        inList(WORTH_TAG, "Still to come")
     }
 
     /** An overcast night says when it next clears, in a card of its own. */
@@ -2144,7 +2142,7 @@ class ScreensTest {
     /** Before sunset there is nothing to zoom on. */
     @Test
     fun noZoomSwitchBeforeTheNight() {
-        show(tonight = quietNight(), timeline = night().copy(nowMillis = null))
+        show(tonight = quietNight(), timeline = beforeTheNight(night()))
 
         compose.onNodeWithTag(NIGHT_STRIP_TAG).performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag(STRIP_ZOOM_TAG).assertDoesNotExist()
@@ -2175,6 +2173,13 @@ class ScreensTest {
         cloud = cloud,
         nowMillis = now,
     )
+
+    /**
+     * [drawn] as it reads before sunset: the screen puts now on a night by its
+     * own clock, so a night that has begun cannot be made to read as one that
+     * has not by clearing its now alone.
+     */
+    private fun beforeTheNight(drawn: Timeline) = drawn.copy(startMillis = now + hour / 2, nowMillis = null)
 
     /**
      * A row of the night. Only the outlook's picks are drawn as rows, so one a
@@ -2262,11 +2267,9 @@ class ScreensTest {
     /** Midsummer at high latitude has no darkness, and the night's rows say that. */
     @Test
     fun saysWhenItDoesNotGetDark() {
-        val dusk = row(now, "Sunset", RowSubject.Twilight, pick = PickTag.Go)
-        show(tonight = quietNight().copy(darkFrom = null, darkUntil = null), timeline = night(dusk))
+        show(tonight = quietNight().copy(darkFrom = null, darkUntil = null), timeline = night())
 
-        openRow(dusk)
-        inSheet("It does not get properly dark here at this time of year.")
+        inList(ALSO_UP_TAG, "It does not get properly dark here at this time of year.", substring = true)
     }
 
     // --- comets ---

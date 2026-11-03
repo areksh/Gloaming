@@ -54,16 +54,16 @@ object NightStrips {
 
     /**
      * Every whole hour after [fromMillis] up to [untilMillis], read off the
-     * clock in [zone], every third named. Stepped in real hours, so the night
-     * the clocks go back has the hour of one o'clock twice.
+     * clock in [zone], every third named. Truncated in the zone, so a zone half
+     * an hour off UTC has its ticks on its own hours, and stepped in real
+     * hours, so the night the clocks go back has the hour of one o'clock twice.
      */
     fun hourTicks(fromMillis: Long, untilMillis: Long, zone: ZoneId): List<HourTick> {
         val ticks = mutableListOf<HourTick>()
-        var at = Instant.ofEpochMilli(fromMillis).truncatedTo(ChronoUnit.HOURS).plus(1, ChronoUnit.HOURS)
-        while (at.toEpochMilli() <= untilMillis) {
-            val hour = at.atZone(zone).hour
-            ticks += HourTick(at.toEpochMilli(), hour, named = hour % 3 == 0)
-            at = at.plus(1, ChronoUnit.HOURS)
+        var at = Instant.ofEpochMilli(fromMillis).atZone(zone).truncatedTo(ChronoUnit.HOURS).plusHours(1)
+        while (at.toInstant().toEpochMilli() <= untilMillis) {
+            ticks += HourTick(at.toInstant().toEpochMilli(), at.hour, named = at.hour % 3 == 0)
+            at = at.plusHours(1)
         }
         return ticks
     }

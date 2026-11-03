@@ -31,6 +31,9 @@ const val ROW_SHEET_TAG = "row-sheet"
 /** Find it, on a row whose subject can be pointed at. */
 const val FIND_IT_TAG = "find-it"
 
+/** Find it beside what is next at the head of Tonight, apart from the one in a row's sheet. */
+const val NEXT_UP_FIND_TAG = "next-up-find-it"
+
 /**
  * Which words a row offers to explain: the ones the card it replaced offered
  * behind its Explain button, so a term is still explained beside the thing
@@ -153,8 +156,8 @@ fun SubjectSheet(
 
 /** Opens Find aimed at a row's subject. */
 @Composable
-internal fun FindItButton(onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.testTag(FIND_IT_TAG)) { Text("Find it") }
+internal fun FindItButton(tag: String = FIND_IT_TAG, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.testTag(tag)) { Text("Find it") }
 }
 
 @Composable
@@ -173,23 +176,30 @@ private fun Said(text: String) {
  */
 @Composable
 internal fun DarknessLines(list: TonightList) {
-    Said(
-        if (list.darkFrom == null || list.darkUntil == null) {
-            "It does not get properly dark here at this time of year."
-        } else {
-            "Dark from ${clock(list.darkFrom)} until ${clock(list.darkUntil)}."
-        },
-    )
-    Said(
-        if (list.darkestFrom == null || list.darkestUntil == null) {
-            "It never gets fully dark here at this time of year - the sun stays " +
-                "too close to the horizon all night for a properly black sky."
-        } else {
-            "Fully dark from ${clock(list.darkestFrom)} until ${clock(list.darkestUntil)}, " +
-                "which is when anything faint is worth looking for."
-        },
-    )
+    describeDarkness(list).forEach { Said(it) }
 }
+
+/** Both darkness thresholds in words, for a sheet and for "The night" under the strip alike. */
+internal fun describeDarkness(list: TonightList): List<String> = listOf(
+    if (list.darkFrom == null || list.darkUntil == null) {
+        "It does not get properly dark here at this time of year."
+    } else {
+        "Dark from ${clock(list.darkFrom)} until ${clock(list.darkUntil)}."
+    },
+    if (list.darkestFrom == null || list.darkestUntil == null) {
+        "It never gets fully dark here at this time of year - the sun stays " +
+            "too close to the horizon all night for a properly black sky."
+    } else {
+        "Fully dark from ${clock(list.darkestFrom)} until ${clock(list.darkestUntil)}, " +
+            "which is when anything faint is worth looking for."
+    },
+)
+
+/** The cloud now and the gap in it, in words, for a sheet and for "The night" alike. */
+internal fun describeCloudTonight(list: TonightList, tolerance: Int): List<String> = listOfNotNull(
+    list.cloud?.let { describeCloud(it, overhead = true).replaceFirstChar { c -> c.uppercase() } + "." },
+    list.darkFrom?.let { describeClearSpell(list.clearSpell, tolerance) },
+)
 
 /**
  * The cloud now and the gap in it. "80% cloud" alone is the wrong summary of
@@ -197,8 +207,7 @@ internal fun DarknessLines(list: TonightList) {
  */
 @Composable
 private fun Cloud(list: TonightList, tolerance: Int) {
-    list.cloud?.let { Said(describeCloud(it, overhead = true).replaceFirstChar { c -> c.uppercase() } + ".") }
-    if (list.darkFrom != null) Said(describeClearSpell(list.clearSpell, tolerance))
+    describeCloudTonight(list, tolerance).forEach { Said(it) }
 }
 
 @Composable

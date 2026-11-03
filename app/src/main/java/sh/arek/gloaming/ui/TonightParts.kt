@@ -63,7 +63,12 @@ fun disclosureTag(listTag: String): String = "$listTag-toggle"
 @Composable
 internal fun WorthList(timeline: Timeline, nowMillis: Long, palette: Palette, onRow: (TimelineRow) -> Unit) {
     val worth = TonightSections.worth(timeline)
-    if (worth.upcoming.isEmpty()) return
+    val earlier = TonightSections.earlierLine(worth.earlier)
+    if (worth.upcoming.isEmpty()) {
+        // Everything picked is over: said in one line rather than dropped.
+        earlier?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted) }
+        return
+    }
 
     Column(Modifier.fillMaxWidth().testTag(WORTH_TAG)) {
         Text(
@@ -75,7 +80,7 @@ internal fun WorthList(timeline: Timeline, nowMillis: Long, palette: Palette, on
             if (i > 0) HorizontalDivider(color = palette.line)
             WorthRow(row, nowMillis, palette, onClick = { onRow(row) })
         }
-        TonightSections.earlierLine(worth.earlier)?.let {
+        earlier?.let {
             Text(
                 it,
                 style = MaterialTheme.typography.bodySmall,
@@ -130,13 +135,14 @@ private fun WorthRow(row: TimelineRow, nowMillis: Long, palette: Palette, onClic
 /**
  * A folded list: a row saying what it is, how much it holds and the first of
  * it, which opens onto the entries. Closed until asked for, and absent with
- * nothing in it.
+ * nothing in it - except that a list holding something gone wrong (a broken
+ * download, say) starts open: a fault folded away is a fault nobody sees.
  */
 @Composable
 internal fun Disclosure(title: String, entries: List<ListEntry>, listTag: String) {
     if (entries.isEmpty()) return
     val palette = LocalPalette.current
-    var open by rememberSaveable(listTag) { mutableStateOf(false) }
+    var open by rememberSaveable(listTag) { mutableStateOf(entries.any { it.alarming }) }
 
     Column(Modifier.fillMaxWidth()) {
         HorizontalDivider(color = palette.line)
@@ -152,11 +158,12 @@ internal fun Disclosure(title: String, entries: List<ListEntry>, listTag: String
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                val heading = TonightSections.heading(title, entries)
                 Text(
                     buildAnnotatedString {
                         append(title)
                         withStyle(SpanStyle(color = palette.muted, fontWeight = FontWeight.Normal)) {
-                            append(" · ${TonightSections.count(entries)}")
+                            append(heading.removePrefix(title))
                         }
                     },
                     style = MaterialTheme.typography.titleSmall,

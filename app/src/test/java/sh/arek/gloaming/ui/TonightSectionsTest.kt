@@ -11,6 +11,9 @@ import org.junit.Test
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
+import sh.arek.gloaming.astronomy.Visibility
+import sh.arek.gloaming.astronomy.SkyEvent
+import sh.arek.gloaming.astronomy.EventKind
 import sh.arek.gloaming.domain.Outlook
 import sh.arek.gloaming.domain.OutlookReport
 import sh.arek.gloaming.domain.TonightList
@@ -85,9 +88,31 @@ class TonightSectionsTest {
     }
 
     @Test
-    fun `a row ten minutes past is still upcoming`() {
-        val w = TonightSections.worth(timeline(night, now = iss.atMillis + 10 * min))
-        assertEquals(listOf("19:24", "19:30"), w.upcoming.map { it.time })
+    fun `a pass is to come until it sets, and over once it has`() {
+        // The fixture's passes set four minutes after their peak.
+        val during = TonightSections.worth(timeline(night, now = iss.atMillis + 3 * min))
+        assertEquals(listOf("19:24", "19:30"), during.upcoming.map { it.time })
+        val after = TonightSections.worth(timeline(night, now = iss.atMillis + 5 * min))
+        assertEquals(listOf("19:30"), after.upcoming.map { it.time })
+        assertEquals(listOf("18:52", "19:24"), after.earlier.map { it.time })
+    }
+
+    private val eclipse = SkyEvent(
+        EventKind.LunarEclipse, at("2026-11-03T20:00:00Z"), at("2026-11-03T19:30:00Z"), at("2026-11-03T21:30:00Z"),
+        "Total lunar eclipse", "The moon in the earth's shadow", Visibility.Good,
+    )
+    private val eclipseRow = TimelineRow(
+        eclipse.at, clock(eclipse.at), eclipse.title, null, RowTone.Strong, RowSubject.Event(eclipse), PickTag.Go,
+    )
+
+    @Test
+    fun `an event is to come until it is over, not ten minutes after its moment`() {
+        val now = eclipse.at + 30 * min
+        val w = TonightSections.worth(timeline(listOf(eclipseRow), now = now))
+        assertEquals(listOf(eclipseRow), w.upcoming)
+        assertEquals("Total lunar eclipse now", TonightSections.nextUpWords(eclipseRow, now))
+        val over = TonightSections.worth(timeline(listOf(eclipseRow), now = eclipse.until + min))
+        assertEquals(listOf(eclipseRow), over.earlier)
     }
 
     @Test
@@ -109,7 +134,7 @@ class TonightSectionsTest {
 
     @Test
     fun `everything holds every row the list leaves out`() {
-        val titles = TonightSections.everything(list(), timeline(night), report, sunset).map { it.title }
+        val titles = TonightSections.everything(list(), timeline(night), report, sunset, tolerance = 50).map { it.title }
         assertTrue("ISS (ZARYA)" !in titles)
         assertTrue("CSS (TIANHE)" in titles)
         assertTrue("Jupiter" in titles)
@@ -122,19 +147,38 @@ class TonightSectionsTest {
         val moonless = TimelineRow(at("2026-11-03T18:36:00Z"), "18:36", "Moonless dark until 21:50", "Best for faint things", RowTone.Normal, RowSubject.Moon)
         val moonrise = TimelineRow(at("2026-11-03T21:50:00Z"), "21:50", "Moonrise", "Waning gibbous", RowTone.Normal, RowSubject.Moon)
         val first = TonightSections.everything(
-            list(), timeline(listOf(sunsetRow, clear, fully, moonless, iss, moonrise)), report, sunset,
+            list(), timeline(listOf(sunsetRow, clear, fully, moonless, iss, moonrise)), report, sunset, tolerance = 50,
         ).first()
-        assertEquals(
-            ListEntry("The night", "16:35 Sunset · 18:30 Clear until 23:00 · 18:35 Fully dark · 18:36 Moonless dark until 21:50"),
-            first,
-        )
+        assertEquals("The night", first.title)
+        assertEquals("16:35 Sunset · 18:30 Clear until 23:00 · 18:35 Fully dark · 18:36 Moonless dark until 21:50", first.detail)
+    }
+
+    @Test
+    fun `the night says how dark it gets and what the cloud is doing`() {
+        val first = TonightSections.everything(list(), timeline(listOf(sunsetRow)), report, sunset, tolerance = 50).first()
+        assertEquals(TonightSections.NIGHT_TITLE, first.title)
+        assertTrue(first.note!!, first.note!!.contains("Dark from 18:35 until 05:25."))
+    }
+
+    @Test
+    fun `a midsummer night says it never gets fully dark`() {
+        val bright = list().copy(darkestFrom = null, darkestUntil = null)
+        val first = TonightSections.everything(bright, timeline(emptyList()), report, sunset, tolerance = 50).first()
+        assertEquals(TonightSections.NIGHT_TITLE, first.title)
+        assertTrue(first.detail!!, first.detail!!.contains("It never gets fully dark here"))
+    }
+
+    @Test
+    fun `a folded list holding only the night is headed without a count`() {
+        assertEquals("Everything up tonight", TonightSections.heading("Everything up tonight", entries(TonightSections.NIGHT_TITLE)))
+        assertEquals("Everything up tonight · 2", TonightSections.heading("Everything up tonight", entries("A", "B")))
     }
 
     @Test
     fun `everything with no timeline lists all of it`() {
         assertEquals(
             TonightLists.alsoUp(list(), null, report, sunset),
-            TonightSections.everything(list(), null, report, sunset),
+            TonightSections.everything(list(), null, report, sunset, tolerance = 50),
         )
     }
 

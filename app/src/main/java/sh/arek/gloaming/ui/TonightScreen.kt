@@ -152,7 +152,7 @@ fun TonightContent(
         Column {
             Disclosure(
                 "Everything up tonight",
-                TonightSections.everything(tonight, timeline, state.outlook, state.nowMillis),
+                TonightSections.everything(tonight, timeline, state.outlook, state.nowMillis, state.settings.cloudTolerance),
                 ALSO_UP_TAG,
             )
             Disclosure(

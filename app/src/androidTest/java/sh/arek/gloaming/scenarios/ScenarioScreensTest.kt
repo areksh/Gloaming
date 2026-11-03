@@ -77,15 +77,18 @@ class ScenarioScreensTest(private val scenario: Scenario) {
 
     private val tonight: TonightList = requireNotNull(state.tonight)
 
-    /** The whole of Tonight as the app draws it, pinned watch button included. */
     /**
-     * The screen, with both folded lists opened: what this suite looks for is
+     * The whole of Tonight as the app draws it, pinned watch button included,
+     * with both folded lists opened: what this suite looks for is
      * whether the night is said at all, and a folded list still says it.
      */
     private fun render() {
         compose.setContent { TonightScreen(state = state) }
         for (tag in listOf(ALSO_UP_TAG, NOT_WORTH_TAG)) {
-            if (compose.onAllNodesWithTag(disclosureTag(tag)).fetchSemanticsNodes().isNotEmpty()) {
+            // A list holding something gone wrong opens by itself; a click would close it.
+            val folded = compose.onAllNodesWithTag(disclosureTag(tag)).fetchSemanticsNodes().isNotEmpty() &&
+                compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty()
+            if (folded) {
                 compose.onNodeWithTag(disclosureTag(tag)).performScrollTo().performClick()
                 compose.waitForIdle()
             }

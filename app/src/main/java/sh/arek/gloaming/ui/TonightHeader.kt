@@ -264,7 +264,7 @@ private fun OutlookLines(state: MainUiState, timeline: Timeline?, onFindIt: ((Fi
             )
             val target = findTarget(next.subject)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (target != null && onFindIt != null) FindItButton { onFindIt(target) }
+                if (target != null && onFindIt != null) FindItButton(NEXT_UP_FIND_TAG) { onFindIt(target) }
                 next.detail?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted) }
             }
             headline?.let {

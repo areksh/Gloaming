@@ -21,7 +21,10 @@ data class Worth(val upcoming: List<TimelineRow>, val earlier: List<TimelineRow>
  */
 object TonightSections {
 
-    /** How long after its moment a picked row still counts as to come: a pass lasts minutes. */
+    /**
+     * How long after its moment a picked row with no end of its own - a
+     * planet at the moment it was picked for - still counts as to come.
+     */
     const val EARLIER_GRACE_MILLIS: Long = 10 * 60 * 1000L
 
     /** Beyond this, what is next is given a time rather than a count of minutes. */
@@ -32,12 +35,24 @@ object TonightSections {
     /** How many names a folded list's preview gives before counting the rest. */
     private const val PREVIEW_NAMES = 3
 
-    /** The picked rows in time order, split at now; all to come before the night. */
+    /**
+     * The picked rows in time order, split at now; all to come before the
+     * night. A row is over once what it is about is: a pass once it has set,
+     * an event once its window has closed - an eclipse is still to come for as
+     * long as it is going on - and anything else a little after its moment.
+     */
     fun worth(timeline: Timeline): Worth {
         val picked = timeline.rows.filter { it.pick != null }.sortedBy { it.atMillis }
         val now = timeline.nowMillis ?: return Worth(picked, emptyList())
-        val (earlier, upcoming) = picked.partition { it.atMillis < now - EARLIER_GRACE_MILLIS }
+        val (earlier, upcoming) = picked.partition { endOf(it) < now }
         return Worth(upcoming, earlier)
+    }
+
+    /** When what [row] is about is over. */
+    private fun endOf(row: TimelineRow): Long = when (val subject = row.subject) {
+        is RowSubject.Pass -> subject.pass.setsAt
+        is RowSubject.Event -> maxOf(subject.event.until, row.atMillis)
+        else -> row.atMillis + EARLIER_GRACE_MILLIS
     }
 
     /**
@@ -45,18 +60,26 @@ object TonightSections {
      * already say. With only the picked rows counted as drawn, [TonightLists.alsoUp]
      * lists all the rest; with no timeline, all of it.
      */
-    fun everything(list: TonightList, timeline: Timeline?, report: OutlookReport?, nowMillis: Long): List<ListEntry> {
+    fun everything(
+        list: TonightList,
+        timeline: Timeline?,
+        report: OutlookReport?,
+        nowMillis: Long,
+        tolerance: Int,
+    ): List<ListEntry> {
         val shown = timeline?.let { t -> worth(t).let { t.copy(rows = it.upcoming + it.earlier) } }
-        return listOfNotNull(timeline?.let(::theNight)) + TonightLists.alsoUp(list, shown, report, nowMillis)
+        return listOfNotNull(timeline?.let { theNight(list, it, tolerance) }) +
+            TonightLists.alsoUp(list, shown, report, nowMillis)
     }
 
     /**
      * The night's own moments in a line - sunset, darkness, the clear spells,
      * the moonless stretch, sunrise - which the strip draws and nothing else
-     * puts in words. Picked rows are the short list's; the moon's rising and
-     * setting are said by "The moon" entry. Null where there are none.
+     * puts in words, then how dark it gets and what the cloud is doing, which
+     * the twilight and clear rows' sheets used to say. Picked rows are the
+     * short list's; the moon's rising and setting are said by "The moon" entry.
      */
-    private fun theNight(timeline: Timeline): ListEntry? {
+    private fun theNight(list: TonightList, timeline: Timeline, tolerance: Int): ListEntry {
         val moments = timeline.rows.filter { row ->
             row.pick == null && when (row.subject) {
                 RowSubject.Twilight, RowSubject.Clear -> true
@@ -64,8 +87,18 @@ object TonightSections {
                 else -> false
             }
         }
-        if (moments.isEmpty()) return null
-        return ListEntry(NIGHT_TITLE, moments.sortedBy { it.atMillis }.joinToString(" · ") { "${it.time} ${it.title}" })
+        val said = (describeDarkness(list) + describeCloudTonight(list, tolerance)).joinToString(" ")
+        if (moments.isEmpty()) return ListEntry(NIGHT_TITLE, said)
+        return ListEntry(NIGHT_TITLE, moments.sortedBy { it.atMillis }.joinToString(" · ") { "${it.time} ${it.title}" }, note = said)
+    }
+
+    /**
+     * A folded list's heading: "Everything up tonight · 6", or the title alone
+     * where all it holds is the night itself, rather than "· 0" over it.
+     */
+    fun heading(title: String, entries: List<ListEntry>): String {
+        val n = count(entries)
+        return if (n == 0) title else "$title · $n"
     }
 
     /** The heading of the night's own moments, first under "Everything up tonight". */
@@ -101,7 +134,7 @@ object TonightSections {
         return worth.upcoming.firstOrNull()
     }
 
-    /** "ISS in 6 min", "ISS now", or "ISS at 21:14" when it is more than 90 minutes off. */
+    /** "ISS in 6 min", "ISS now" once it has begun, or "ISS at 21:14" when it is more than 90 minutes off. */
     fun nextUpWords(row: TimelineRow, nowMillis: Long): String {
         val name = shortLabel(row)
         val ahead = row.atMillis - nowMillis
