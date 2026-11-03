@@ -29,6 +29,36 @@ UK, Open-Meteo, CelesTrak) were granted in July 2026 (Sec. 1 of
 The F-Droid-repo-on-Codeberg-Pages setup and F-Droid main-repo submission are
 post-v1 (Sec. 12).
 
+## The build machine
+
+`./go setup` installs only what the Node projects need. The Android build needs
+two things it leaves to you: JDK 21 and the Android SDK.
+
+### JDK 21
+
+`app/build.gradle.kts` compiles to Java 21, so Gradle needs a JDK 21. A JRE
+will not work, because the build calls `javac`. On Debian 13 (trixie) it is in
+main:
+
+```sh
+sudo apt update
+sudo apt install openjdk-21-jdk
+java -version     # want: openjdk version "21.0.x"
+```
+
+Gradle finds it as `java` on `PATH`, or through `JAVA_HOME` if that is set, so
+the apt install needs nothing more. If several JDKs are installed, choose 21
+with `sudo update-alternatives --config java` (and again for `javac`), or point
+`JAVA_HOME` at `/usr/lib/jvm/java-21-openjdk-amd64`. A newer JDK is not needed,
+and the build is only checked against 21.
+
+### Android SDK
+
+Install the platform `android-37.0`. The build and `./go` find the SDK through
+`ANDROID_HOME` (or `ANDROID_SDK_ROOT`), or through `sdk.dir=` in a
+`local.properties` at the repository root. That file is gitignored, because the
+path differs from machine to machine.
+
 ## GitHub access token
 
 `./go push` and `./go release` publish through the GitHub REST API, which needs
