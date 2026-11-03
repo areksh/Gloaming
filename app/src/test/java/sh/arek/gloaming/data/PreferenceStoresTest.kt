@@ -95,6 +95,7 @@ class PreferenceStoresTest {
         quietHoursOverride = true,
         nightVision = true,
         showEveryConstellation = true,
+        busyTimeline = true,
         passAlertsEnabled = false,
         auroraAlertIntervalMinutes = 180,
         issPassAlertIntervalMinutes = 720,

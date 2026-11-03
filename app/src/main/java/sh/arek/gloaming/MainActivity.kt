@@ -1225,6 +1225,10 @@ private fun GloamingApp(
                         settings = settings.copy(showEveryConstellation = it)
                         saveSettings(settings)
                     },
+                    onBusyTimelineChange = {
+                        settings = settings.copy(busyTimeline = it)
+                        saveSettings(settings)
+                    },
                     onLogRetentionChange = {
                         settings = settings.copy(logRetentionDays = it)
                         saveSettings(settings)
