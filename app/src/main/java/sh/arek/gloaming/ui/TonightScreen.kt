@@ -121,7 +121,13 @@ fun TonightContent(
         drawn.copy(nowMillis = state.nowMillis.takeIf { it in drawn.startMillis..drawn.endMillis })
     }
     if (timeline != null) {
-        NightTimelineView(timeline, palette, onRow = { openRow = timelineRowTag(it) })
+        NightTimelineView(
+            timeline,
+            palette,
+            onRow = { openRow = timelineRowTag(it) },
+            busy = state.settings.busyTimeline,
+            onBusyChange = actions.onBusyTimelineChange,
+        )
         // CC BY 4.0 asks for the credit beside the data it covers, and the
         // hatching is that data.
         if (timeline.cloud.isNotEmpty()) {
@@ -144,6 +150,8 @@ fun TonightContent(
         if (timeline == null) DarknessLines(tonight)
         EntryList(
             "Also up tonight",
+            // The whole night, not only the rows Busy shows: what it hides is
+            // counted under the timeline and listed on Sky, not said again here.
             TonightLists.alsoUp(tonight, timeline, state.outlook, state.nowMillis),
             ALSO_UP_TAG,
         )

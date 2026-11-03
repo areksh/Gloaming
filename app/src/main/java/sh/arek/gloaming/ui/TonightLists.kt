@@ -77,7 +77,9 @@ object TonightLists {
             }
             .forEach { entries += ListEntry(it.name, describePassLine(it)) }
 
-        list.constellations.forEach { entries += ListEntry(it.constellation.name, describeConstellation(it)) }
+        list.constellations
+            .filter { !drawn(RowSubject.Constellation(it)) }
+            .forEach { entries += ListEntry(it.constellation.name, describeConstellation(it)) }
         if (list.constellationsAlwaysUp.isNotEmpty()) {
             entries += ListEntry(null, describeAlwaysUp(list.constellationsAlwaysUp))
         }

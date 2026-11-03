@@ -113,6 +113,16 @@ class TonightListsTest {
         assertEquals(listOf("Comet 220P/McNaught", "Orion"), titles)
     }
 
+    /** A pattern with a row - shown or counted under the timeline - is not listed again. */
+    @Test
+    fun `leaves out a constellation the timeline has a row for`() {
+        val drawn = timeline(row(orion.peakAt, "Orion highest, 39 degrees", RowSubject.Constellation(orion)))
+
+        val titles = TonightLists.alsoUp(list(constellations = listOf(orion)), drawn, report(), now).map { it.title }
+
+        assertTrue(titles.none { it == "Orion" })
+    }
+
     @Test
     fun `says where a comet is and how to find a constellation`() {
         val entries = TonightLists.alsoUp(

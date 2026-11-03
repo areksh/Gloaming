@@ -2,6 +2,7 @@ package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,7 +41,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,6 +64,12 @@ fun timelineRowTag(row: TimelineRow): String = "row:${row.atMillis}:${row.title}
 
 /** The label at now, beside the rows. */
 const val TIMELINE_NOW_TAG = "timeline-now"
+
+/** The Busy switch above the timeline. */
+const val TIMELINE_BUSY_TAG = "timeline-busy"
+
+/** The line under a quiet timeline counting what it leaves out. */
+const val TIMELINE_HIDDEN_TAG = "timeline-hidden"
 
 /**
  * One hour of the night is at least this tall, so a glance reads durations;
@@ -80,6 +93,11 @@ private val HATCH_SPACING = 5.dp
 private val HATCH_STROKE = 1.5.dp
 
 private val NOW_STROKE = 2.dp
+
+/** Where the bracket joining the headline's trip runs, just left of the rows. */
+private val BRACKET_X = ROWS_START - 6.dp
+private val BRACKET_TICK = 4.dp
+private val BRACKET_STROKE = 2.dp
 
 /** How far left of the rows the label at now starts, so it sits over their times. */
 private val NOW_LABEL_INSET = 8.dp
@@ -105,8 +123,12 @@ private enum class Part { Rows, Now, Sky }
  *
  * Nothing here is said by colour alone, because night vision has only red to
  * give: a row behind cloud is dimmed, one the outlook sends you out for is
- * bold, and the three lanes are solid, dashed and dotted, named in the key
- * above.
+ * bold and carries a pill that says so in words, and the moon's lane is
+ * named in the key above.
+ *
+ * [timeline] is the whole night; with [busy] off its busy rows are left out
+ * ([TimelineShown]) and counted in a line under the rest, which turns Busy
+ * on.
  */
 @Composable
 fun NightTimelineView(
@@ -114,12 +136,17 @@ fun NightTimelineView(
     palette: Palette,
     onRow: (TimelineRow) -> Unit,
     modifier: Modifier = Modifier,
+    busy: Boolean = true,
+    onBusyChange: (Boolean) -> Unit = {},
 ) {
-    val summary = remember(timeline) { NightTimeline.summary(timeline) }
-    val now = timeline.nowMillis
+    val shown = remember(timeline, busy) { TimelineShown.of(timeline, busy) }
+    val hidden = remember(timeline, busy) { if (busy) null else TimelineShown.hidden(timeline).sentence() }
+    val summary = remember(shown) { NightTimeline.summary(shown) }
+    val now = shown.nowMillis
 
     Column(modifier.testTag(TIMELINE_TAG), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-        Key(timeline, palette)
+        BusySwitch(busy, palette, onBusyChange)
+        Key(shown, palette)
 
         // Subcomposed because the drawing is of the axis the rows' heights make.
         SubcomposeLayout { constraints ->
@@ -127,8 +154,10 @@ fun NightTimelineView(
             val rowStart = ROWS_START.roundToPx()
             val rowConstraints = Constraints(maxWidth = (width - rowStart).coerceAtLeast(0))
             val rows = subcompose(Part.Rows) {
-                for (row in timeline.rows) {
-                    TimelineRowView(row, now, palette, onClick = { onRow(row) })
+                shown.rows.forEachIndexed { i, row ->
+                    // Rows at one minute stack under a single time.
+                    val showTime = i == 0 || shown.rows[i - 1].time != row.time
+                    TimelineRowView(row, now, palette, showTime, onClick = { onRow(row) })
                 }
             }.map { it.measure(rowConstraints) }
 
@@ -149,12 +178,12 @@ fun NightTimelineView(
             }
 
             val lead = FIRST_LINE_MIDDLE.roundToPx()
-            val slots = timeline.rows.mapIndexed { i, row -> NightTimeline.Slot(row.atMillis, lead, rows[i].height) }
+            val slots = shown.rows.mapIndexed { i, row -> NightTimeline.Slot(row.atMillis, lead, rows[i].height) }
             // After every row at or before now, before every row after it.
             val nowSlot = if (now != null && label != null) NightTimeline.Slot(now, label.height / 2, label.height) else null
-            val nowIndex = nowSlot?.let { at -> timeline.rows.count { it.atMillis <= at.atMillis } }
+            val nowIndex = nowSlot?.let { at -> shown.rows.count { it.atMillis <= at.atMillis } }
             val placed = NightTimeline.place(
-                timeline.startMillis,
+                shown.startMillis,
                 if (nowSlot == null || nowIndex == null) slots else slots.take(nowIndex) + nowSlot + slots.drop(nowIndex),
                 HOUR_HEIGHT.toPx(),
                 END_PAD.roundToPx(),
@@ -166,14 +195,18 @@ fun NightTimelineView(
             // minute takes the top of the step and now sits below it.
             val nowY = if (label != null && labelTop != null) labelTop + label.height / 2f else null
 
+            // The headline's trip, joined where it is more than one row.
+            val trip = shown.rows.indices.filter { shown.rows[it].pick == PickTag.Go }.map { rowTops[it] + lead.toFloat() }
+
             val height = maxOf(
-                ceil(placed.axis.y(timeline.endMillis) + END_PAD.toPx()).toInt(),
+                ceil(placed.axis.y(shown.endMillis) + END_PAD.toPx()).toInt(),
                 rows.indices.maxOfOrNull { rowTops[it] + rows[it].height } ?: 0,
                 if (label != null && labelTop != null) labelTop + label.height else 0,
             )
             val sky = subcompose(Part.Sky) {
                 Canvas(Modifier.clearAndSetSemantics { contentDescription = summary }) {
-                    drawNight(timeline, placed.axis, nowY, palette)
+                    drawNight(shown, placed.axis, nowY, palette)
+                    if (trip.size >= 2) bracket(trip.first(), trip.last(), palette)
                 }
             }.single().measure(Constraints.fixed(width, height))
 
@@ -185,7 +218,66 @@ fun NightTimelineView(
                 }
             }
         }
+
+        hidden?.let { HiddenLine(it, palette) { onBusyChange(true) } }
     }
+}
+
+/**
+ * The Busy setting, where it acts: the same switch as in Settings, so
+ * somebody browsing tonight need not go looking for it.
+ */
+@Composable
+private fun BusySwitch(busy: Boolean, palette: Palette, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Busy timeline", style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (busy) "Dates, constellations and more passes too" else "The night's moments only",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.muted,
+            )
+        }
+        Switch(checked = busy, onCheckedChange = onChange, modifier = Modifier.testTag(TIMELINE_BUSY_TAG))
+    }
+}
+
+/** What a quiet timeline leaves out, and the way to show it. */
+@Composable
+private fun HiddenLine(sentence: String, palette: Palette, onShow: () -> Unit) {
+    FlowRow(
+        Modifier.fillMaxWidth().testTag(TIMELINE_HIDDEN_TAG),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            sentence,
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.muted,
+            modifier = Modifier.align(Alignment.CenterVertically),
+        )
+        TextButton(onClick = onShow) { Text("Show everything") }
+    }
+}
+
+/**
+ * Joins the headline's trip down the gutter: two rows that are one trip out
+ * read as one, even with other rows between them.
+ */
+private fun DrawScope.bracket(top: Float, bottom: Float, palette: Palette) {
+    val x = BRACKET_X.toPx()
+    val tick = BRACKET_TICK.toPx()
+    val path = Path().apply {
+        moveTo(x + tick, top)
+        lineTo(x, top)
+        lineTo(x, bottom)
+        lineTo(x + tick, bottom)
+    }
+    drawPath(path, palette.accent, style = Stroke(BRACKET_STROKE.toPx(), cap = StrokeCap.Round))
 }
 
 /** Where each kind of lane runs, to the right of the sky column. */
@@ -316,10 +408,19 @@ private fun DrawScope.laneLine(style: LaneStyle, palette: Palette, from: Offset,
 /**
  * One row: its time, what happens, a line of detail, and for a pass a small
  * compass of the way it crosses. Dimmed behind cloud, bold where the outlook
- * sends you out - weight and lightness both, never hue alone.
+ * sends you out - weight and lightness both, never hue alone - and a pill
+ * saying which of its recommendations this is. A planet's row leads with
+ * its symbol. [showTime] is false under a row at the same minute, so a
+ * moment's rows stack under one time.
  */
 @Composable
-private fun TimelineRowView(row: TimelineRow, nowMillis: Long?, palette: Palette, onClick: () -> Unit) {
+private fun TimelineRowView(
+    row: TimelineRow,
+    nowMillis: Long?,
+    palette: Palette,
+    showTime: Boolean,
+    onClick: () -> Unit,
+) {
     val colour = if (row.tone == RowTone.Dim) palette.dim else palette.text
     val weight = if (row.tone == RowTone.Strong) FontWeight.Bold else FontWeight.Normal
     val event = (row.subject as? RowSubject.Event)?.event
@@ -336,19 +437,30 @@ private fun TimelineRowView(row: TimelineRow, nowMillis: Long?, palette: Palette
         verticalAlignment = Alignment.Top,
     ) {
         Text(
-            row.time,
+            if (showTime) row.time else "",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = weight,
             color = colour,
             modifier = Modifier.width(44.dp),
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(
-                row.title,
-                style = MaterialTheme.typography.bodyMedium.copy(lineHeight = MaterialTheme.typography.labelLarge.lineHeight),
-                fontWeight = weight,
-                color = colour,
-            )
+            val planet = (row.subject as? RowSubject.Planet)?.planet?.body
+            val title = buildAnnotatedString {
+                planet?.let {
+                    withStyle(SpanStyle(color = bodyColour(it, palette))) { append(glyph(it)) }
+                    append(" ")
+                }
+                append(row.title)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                row.pick?.let { PickPill(it, palette) }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodyMedium.copy(lineHeight = MaterialTheme.typography.labelLarge.lineHeight),
+                    fontWeight = weight,
+                    color = colour,
+                )
+            }
             // Said in words and weight, not in the accent alone.
             if (underWay) {
                 Text(
@@ -368,6 +480,22 @@ private fun TimelineRowView(row: TimelineRow, nowMillis: Long?, palette: Palette
         }
         (row.subject as? RowSubject.Pass)?.let { PassCompass(it.pass, colour, palette) }
     }
+}
+
+/** "GO OUT" filled for the headline's trip, "ALSO" outlined for the line under it. */
+@Composable
+private fun PickPill(tag: PickTag, palette: Palette) {
+    val shape = RoundedCornerShape(4.dp)
+    val go = tag == PickTag.Go
+    Text(
+        if (go) "GO OUT" else "ALSO",
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = if (go) palette.onAccent else palette.accent,
+        modifier = Modifier
+            .then(if (go) Modifier.background(palette.accent, shape) else Modifier.border(1.dp, palette.accent, shape))
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    )
 }
 
 /**
