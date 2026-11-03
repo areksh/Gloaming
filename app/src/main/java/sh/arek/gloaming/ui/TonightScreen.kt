@@ -121,7 +121,7 @@ fun TonightContent(
         drawn.copy(nowMillis = state.nowMillis.takeIf { it in drawn.startMillis..drawn.endMillis })
     }
     if (timeline != null) {
-        timeline.chart?.let { UpChartView(it, timeline.nowMillis, palette) }
+        NightStripView(timeline, state.settings.cloudTolerance, palette)
         NightTimelineView(
             timeline,
             palette,

@@ -2048,6 +2048,56 @@ class ScreensTest {
         ),
     )
 
+    /** The whole night on one strip, said in a sentence to a screen reader. */
+    @Test
+    fun nightStripIsDrawnAndSaysTheNight() {
+        val drawn = night(cloud = listOf(CloudSpan(now + hour, now + 5 * hour, 90)))
+        show(tonight = quietNight(), timeline = drawn)
+
+        compose.onNodeWithTag(NIGHT_STRIP_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription(NightStrips.summary(drawn))).assertExists()
+    }
+
+    /** Bars for what is up, and the strip still there on a night with nothing up at all. */
+    @Test
+    fun nightStripWithAChartDrawsItsBodies() {
+        val base = night()
+        val steps = ((base.endMillis - base.startMillis) / UpCharts.STEP_MILLIS + 1).toInt()
+        val chart = UpChart(
+            fromMillis = base.startMillis,
+            untilMillis = base.endMillis,
+            sunsetMillis = base.startMillis,
+            sunriseMillis = base.endMillis,
+            sun = emptyList(),
+            bodies = listOf(UpBody(UpKind.Planet, "Saturn", SkyBody.Saturn, List(steps) { 30f }, now, 30.0)),
+            marks = emptyList(),
+        )
+        val drawn = base.copy(chart = chart)
+        show(tonight = quietNight(), timeline = drawn)
+
+        compose.onNodeWithTag(NIGHT_STRIP_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNode(hasContentDescription(NightStrips.summary(drawn))).assertExists()
+    }
+
+    /** Under way, the strip opens on the hours round now and can be switched to the whole night. */
+    @Test
+    fun stripZoomsDuringTheNightAndSwitchesBack() {
+        show(tonight = quietNight(), timeline = night())
+
+        compose.onNodeWithTag(STRIP_ZOOM_TAG).performScrollTo().assertTextEquals("Whole night").performClick()
+        compose.onNodeWithTag(STRIP_ZOOM_TAG).assertTextEquals("Next 3 hours").performClick()
+        compose.onNodeWithTag(STRIP_ZOOM_TAG).assertTextEquals("Whole night")
+    }
+
+    /** Before sunset there is nothing to zoom on. */
+    @Test
+    fun noZoomSwitchBeforeTheNight() {
+        show(tonight = quietNight(), timeline = night().copy(nowMillis = null))
+
+        compose.onNodeWithTag(NIGHT_STRIP_TAG).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag(STRIP_ZOOM_TAG).assertDoesNotExist()
+    }
+
     /** A dark night with nothing in it but what a test adds. */
     private fun quietNight(
         passes: List<SatellitePass> = emptyList(),
