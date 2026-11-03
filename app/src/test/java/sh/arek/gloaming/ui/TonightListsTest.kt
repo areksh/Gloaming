@@ -244,6 +244,21 @@ class TonightListsTest {
         assertEquals("12%, too weak to see from here.", entries[1].detail)
     }
 
+    /**
+     * A shower the moon washes out is still going on, and says so where it is
+     * listed with its reason: set aside is not the same as over.
+     */
+    @Test
+    fun `marks something set aside that is happening now`() {
+        val moonlit = Excluded(conjunction.title, conjunction.at, Gate.Moon)
+        val tonight = list(events = listOf(conjunction))
+
+        val during = TonightLists.notWorth(tonight, report(moonlit), true, null, now + 2 * hour)
+        assertTrue(during.single { it.title!!.startsWith(conjunction.title) }.happeningNow)
+        val before = TonightLists.notWorth(tonight, report(moonlit), true, null, now - hour)
+        assertFalse(before.single { it.title!!.startsWith(conjunction.title) }.happeningNow)
+    }
+
     /** A planet is judged at a moment that moves with the clock, so it is given none. */
     @Test
     fun `gives a planet left out no time`() {

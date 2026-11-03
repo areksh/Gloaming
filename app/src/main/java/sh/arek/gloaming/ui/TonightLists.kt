@@ -109,9 +109,16 @@ object TonightLists {
             return "${e.subject} at ${clock(at)}"
         }
 
+        // Set aside is not the same as over: a shower the moon washes out is
+        // still going on, and says so.
+        val dated = list.events + list.comets
+        fun underWay(e: Excluded) = dated.any { it.title == e.subject && it.at == e.atMillis && it.isUnderWay(nowMillis) }
+
         val entries = mutableListOf<ListEntry>()
         report?.let { held ->
-            held.excluded.forEach { entries += ListEntry(title(it), OutlookWords.excluded(it, held.threshold, nowMillis)) }
+            held.excluded.forEach {
+                entries += ListEntry(title(it), OutlookWords.excluded(it, held.threshold, nowMillis), happeningNow = underWay(it))
+            }
         }
 
         if (!list.elementsHeld) {
