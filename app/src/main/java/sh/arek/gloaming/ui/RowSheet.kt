@@ -197,7 +197,7 @@ internal fun DarknessLines(list: TonightList) {
  */
 @Composable
 private fun Cloud(list: TonightList, tolerance: Int) {
-    list.cloud?.let { Said(describeCloud(it).replaceFirstChar { c -> c.uppercase() } + " overhead.") }
+    list.cloud?.let { Said(describeCloud(it, overhead = true).replaceFirstChar { c -> c.uppercase() } + ".") }
     if (list.darkFrom != null) Said(describeClearSpell(list.clearSpell, tolerance))
 }
 

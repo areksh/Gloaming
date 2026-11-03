@@ -1689,7 +1689,7 @@ class ScreensTest {
         )
 
         openRow(row)
-        inSheet("80% cloud overhead.")
+        inSheet("80% cloud overhead, low and thick.")
         inSheet("Clearer from about", substring = true)
     }
 

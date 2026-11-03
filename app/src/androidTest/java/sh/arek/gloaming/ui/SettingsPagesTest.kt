@@ -362,6 +362,7 @@ class SettingsPagesTest {
             openLocationPage()
 
             compose.onNodeWithText("Android no longer lets Gloaming read", substring = true)
+                .performScrollTo()
                 .assertIsDisplayed()
             val stored = Graph.settings(targetContext).read()
             assertEquals(LocationCadence.OnOpen, stored.locationCadence)

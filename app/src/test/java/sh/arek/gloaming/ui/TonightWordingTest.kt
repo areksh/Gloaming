@@ -85,6 +85,19 @@ class TonightWordingTest {
         assertEquals("60% cloud, low and thick", describeCloud(cloud))
     }
 
+    /** "Overhead" goes with the figure, not after "low and thick". */
+    @Test
+    fun `says overhead straight after the figure`() {
+        val low = CloudCover(total = 60, low = 55, mid = 20, high = 10)
+        val high = CloudCover(total = 60, low = 5, mid = 5, high = 55)
+        val mid = CloudCover(total = 60, low = 10, mid = 55, high = 10)
+
+        assertEquals("60% cloud overhead, low and thick", describeCloud(low, overhead = true))
+        assertEquals("60% cloud overhead, high and thin", describeCloud(high, overhead = true))
+        assertEquals("60% cloud overhead", describeCloud(mid, overhead = true))
+        assertEquals("clear overhead", describeCloud(CloudCover(total = 10, low = 0, mid = 0, high = 10), overhead = true))
+    }
+
     @Test
     fun `quotes the total when the cloud is mostly mid-level`() {
         val cloud = CloudCover(total = 60, low = 10, mid = 55, high = 10)

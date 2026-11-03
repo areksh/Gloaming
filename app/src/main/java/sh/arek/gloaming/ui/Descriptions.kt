@@ -282,13 +282,17 @@ internal fun describePercent(percent: Int): String = "$percent per cent"
  *
  * Mid-level cloud gets the bare total: it blocks as well as low cloud does,
  * but "mid-level" is not a word anyone looking up would use.
+ *
+ * [overhead] puts the place straight after the figure, "80% cloud overhead,
+ * low and thick", since tacked on at the end it would land on the layer.
  */
-fun describeCloud(cloud: CloudCover?): String {
+fun describeCloud(cloud: CloudCover?, overhead: Boolean = false): String {
     if (cloud == null) return "cloud cover unknown"
     val blocking = cloud.low + cloud.mid
-    val total = "${cloud.total}% cloud"
+    val where = if (overhead) " overhead" else ""
+    val total = "${cloud.total}% cloud$where"
     return when {
-        cloud.total <= CLEAR_PERCENT -> "clear"
+        cloud.total <= CLEAR_PERCENT -> "clear$where"
         blocking <= THIN_PERCENT && cloud.high > blocking -> "$total, high and thin"
         cloud.low > THIN_PERCENT && cloud.low >= maxOf(cloud.mid, cloud.high) -> "$total, low and thick"
         else -> total
