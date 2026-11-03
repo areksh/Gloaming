@@ -113,7 +113,7 @@ class TonightListsTest {
         assertEquals(listOf("Comet 220P/McNaught", "Orion"), titles)
     }
 
-    /** A pattern with a row - shown or counted under the timeline - is not listed again. */
+    /** A pattern with a row on the timeline as drawn is not listed again. */
     @Test
     fun `leaves out a constellation the timeline has a row for`() {
         val drawn = timeline(row(orion.peakAt, "Orion highest, 39 degrees", RowSubject.Constellation(orion)))
@@ -148,6 +148,17 @@ class TonightListsTest {
      * The noctilucent prompt is worked out for tonight rather than dated, so
      * it is a suggestion to look, never something happening as you read.
      */
+    /** The prompt has a row on the timeline wherever there is one, so it is not said twice. */
+    @Test
+    fun `leaves out the noctilucent prompt the timeline has a row for`() {
+        val noctilucent = SkyEvent(
+            EventKind.Noctilucent, now, now, now + 3 * hour, "Noctilucent cloud season", "", Visibility.Good,
+        )
+        val drawn = timeline(row(now, "Look for noctilucent cloud", RowSubject.Event(noctilucent)))
+
+        assertTrue(TonightLists.alsoUp(list().copy(noctilucent = noctilucent), drawn, report(), now).isEmpty())
+    }
+
     @Test
     fun `never marks the noctilucent prompt as happening now`() {
         val noctilucent = SkyEvent(

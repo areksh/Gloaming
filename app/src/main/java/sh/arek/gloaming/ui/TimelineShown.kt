@@ -1,12 +1,13 @@
 package sh.arek.gloaming.ui
 
-/** How many busy rows a quiet timeline leaves out, by kind. */
+/** How many busy rows a quiet timeline leaves off, by kind. */
 data class Hidden(val passes: Int, val constellations: Int, val dates: Int) {
 
     /**
-     * "Hidden: 3 passes, 5 constellations and 1 date.", or null when nothing
-     * is. The line under a quiet timeline, so what it leaves out is never left
-     * out silently.
+     * "Busy adds 3 passes, 5 constellations and 1 date to the timeline.", or
+     * null when it would add nothing. The line under a quiet timeline, so
+     * what it leaves off is never left off silently. Not "hidden": each is
+     * still listed under "Also up tonight", only not given a row.
      */
     fun sentence(): String? {
         val parts = listOfNotNull(
@@ -16,7 +17,7 @@ data class Hidden(val passes: Int, val constellations: Int, val dates: Int) {
         )
         if (parts.isEmpty()) return null
         val joined = if (parts.size == 1) parts.single() else parts.dropLast(1).joinToString(", ") + " and " + parts.last()
-        return "Hidden: $joined."
+        return "Busy adds $joined to the timeline."
     }
 
     private fun count(n: Int, one: String, many: String): String? = when (n) {

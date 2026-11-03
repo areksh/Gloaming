@@ -107,7 +107,8 @@ moonless, events, the space station and Starlink trains - and whatever the
 headline sends you out for, marked "Go out", with what the line under it names
 marked "Also". A Busy switch adds what there is to browse: the calendar's dates,
 five constellations at their highest and the night's best satellite passes.
-With it off, a line under the timeline counts what is left out.
+With it off, those are listed under the timeline instead, and a line there
+says what Busy would add.
 
 The constellations are listed under the night, under "Also up tonight",
 because which patterns are up is a season rather than an occasion and a calendar

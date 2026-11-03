@@ -28,6 +28,7 @@ import sh.arek.gloaming.ui.RowSubject
 import sh.arek.gloaming.ui.TIMELINE_TAG
 import sh.arek.gloaming.ui.Timeline
 import sh.arek.gloaming.ui.TimelineRow
+import sh.arek.gloaming.ui.TimelineShown
 import sh.arek.gloaming.ui.describeMissingElements
 import sh.arek.gloaming.ui.OUTLOOK_HEADLINE_TAG
 import sh.arek.gloaming.ui.OutlookWords
@@ -152,7 +153,10 @@ class ScenarioScreensTest(private val scenario: Scenario) {
         val timeline = state.timeline
         if (timeline != null) {
             compose.onNodeWithTag(TIMELINE_TAG).performScrollTo().assertIsDisplayed()
-            for (row in timeline.rows) compose.onNodeWithTag(timelineRowTag(row)).assertExists()
+            // The rows the Busy setting draws; the rest are listed under the timeline.
+            for (row in TimelineShown.of(timeline, state.settings.busyTimeline).rows) {
+                compose.onNodeWithTag(timelineRowTag(row)).assertExists()
+            }
         }
 
         for (shows in scenario.shows) {
@@ -166,7 +170,7 @@ class ScenarioScreensTest(private val scenario: Scenario) {
                 Shows.Constellations -> somewhere(tonight.constellations.first().constellation.name)
                 Shows.ConstellationAtItsBest -> somewhere("At its best tonight")
                 Shows.ConstellationsAlwaysUp -> somewhere("Also up, as they are")
-                Shows.Noctilucent -> somewhere(requireNotNull(tonight.noctilucent).title)
+                Shows.Noctilucent -> showsTheNoctilucentPrompt(timeline)
                 Shows.ClearSpell, Shows.ClearSpellUnderway -> row(timeline) { it.subject == RowSubject.Clear }
                 Shows.Cloud -> if (timeline?.cloud.orEmpty().isNotEmpty()) {
                     somewhere("Weather data by Open-Meteo.com")
@@ -204,6 +208,21 @@ class ScenarioScreensTest(private val scenario: Scenario) {
             compose.onNode(hasText("The moon") and hasAnyAncestor(hasTestTag(ALSO_UP_TAG)))
                 .performScrollTo()
                 .assertIsDisplayed()
+        }
+    }
+
+    /**
+     * The noctilucent prompt has a row of its own on the timeline, worded as
+     * something to do, and is listed by its title only where there is no
+     * timeline to put it on.
+     */
+    private fun showsTheNoctilucentPrompt(timeline: Timeline?) {
+        val prompt = requireNotNull(tonight.noctilucent)
+        val row = timeline?.rows?.firstOrNull { it.subject == RowSubject.Event(prompt) }
+        if (row != null) {
+            compose.onNodeWithTag(timelineRowTag(row)).performScrollTo().assertIsDisplayed()
+        } else {
+            somewhere(prompt.title)
         }
     }
 

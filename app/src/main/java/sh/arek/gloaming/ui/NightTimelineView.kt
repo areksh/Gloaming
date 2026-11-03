@@ -41,10 +41,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.testTag
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -68,7 +65,7 @@ const val TIMELINE_NOW_TAG = "timeline-now"
 /** The Busy switch above the timeline. */
 const val TIMELINE_BUSY_TAG = "timeline-busy"
 
-/** The line under a quiet timeline counting what it leaves out. */
+/** The line under a quiet timeline counting what Busy would add to it. */
 const val TIMELINE_HIDDEN_TAG = "timeline-hidden"
 
 /**
@@ -260,7 +257,7 @@ private fun HiddenLine(sentence: String, palette: Palette, onShow: () -> Unit) {
             color = palette.muted,
             modifier = Modifier.align(Alignment.CenterVertically),
         )
-        TextButton(onClick = onShow) { Text("Show everything") }
+        TextButton(onClick = onShow) { Text("Turn on Busy") }
     }
 }
 
@@ -423,8 +420,7 @@ private fun TimelineRowView(
 ) {
     val colour = if (row.tone == RowTone.Dim) palette.dim else palette.text
     val weight = if (row.tone == RowTone.Strong) FontWeight.Bold else FontWeight.Normal
-    val event = (row.subject as? RowSubject.Event)?.event
-    val underWay = nowMillis != null && event?.isUnderWay(nowMillis) == true
+    val underWay = nowMillis != null && row.isHappening(nowMillis)
 
     Row(
         modifier = Modifier
@@ -445,17 +441,20 @@ private fun TimelineRowView(
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val planet = (row.subject as? RowSubject.Planet)?.planet?.body
-            val title = buildAnnotatedString {
-                planet?.let {
-                    withStyle(SpanStyle(color = bodyColour(it, palette))) { append(glyph(it)) }
-                    append(" ")
-                }
-                append(row.title)
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 row.pick?.let { PickPill(it, palette) }
+                // The symbol is for the eye, and the title names the planet:
+                // a screen reader hears the title alone, word for word.
+                planet?.let {
+                    Text(
+                        glyph(it),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = bodyColour(it, palette),
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
                 Text(
-                    title,
+                    row.title,
                     style = MaterialTheme.typography.bodyMedium.copy(lineHeight = MaterialTheme.typography.labelLarge.lineHeight),
                     fontWeight = weight,
                     color = colour,

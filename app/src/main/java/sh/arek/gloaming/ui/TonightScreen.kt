@@ -151,9 +151,14 @@ fun TonightContent(
         if (timeline == null) DarknessLines(tonight)
         EntryList(
             "Also up tonight",
-            // The whole night, not only the rows Busy shows: what it hides is
-            // counted under the timeline and listed on Sky, not said again here.
-            TonightLists.alsoUp(tonight, timeline, state.outlook, state.nowMillis),
+            // Against the rows as drawn: what a quiet timeline leaves off is
+            // listed here instead, so nothing up tonight goes unsaid.
+            TonightLists.alsoUp(
+                tonight,
+                timeline?.let { TimelineShown.of(it, state.settings.busyTimeline) },
+                state.outlook,
+                state.nowMillis,
+            ),
             ALSO_UP_TAG,
         )
         EntryList(

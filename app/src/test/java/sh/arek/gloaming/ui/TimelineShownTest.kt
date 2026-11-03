@@ -63,9 +63,9 @@ class TimelineShownTest {
         val hidden = TimelineShown.hidden(night)
 
         assertEquals(Hidden(passes = 3, constellations = 1, dates = 1), hidden)
-        assertEquals("Hidden: 3 passes, 1 constellation and 1 date.", hidden.sentence())
-        assertEquals("Hidden: 1 pass.", Hidden(1, 0, 0).sentence())
-        assertEquals("Hidden: 2 constellations and 4 dates.", Hidden(0, 2, 4).sentence())
+        assertEquals("Busy adds 3 passes, 1 constellation and 1 date to the timeline.", hidden.sentence())
+        assertEquals("Busy adds 1 pass to the timeline.", Hidden(1, 0, 0).sentence())
+        assertEquals("Busy adds 2 constellations and 4 dates to the timeline.", Hidden(0, 2, 4).sentence())
     }
 
     @Test

@@ -24,8 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - a planet picked gets a row of its own at the moment it was picked for. A
   Busy switch, above the timeline and in Settings, adds the calendar's dates,
   five constellations at their highest and the night's best satellite passes;
-  with it off, a line under the timeline counts what is left out and shows it
-  all with one tap. Rows at the same minute share one time.
+  with it off, they are listed under "Also up tonight" instead, and a line
+  under the timeline says what Busy would add and turns it on with one tap.
+  Rows at the same minute share one time.
 
 - **A Sky tab lists everything up tonight.** Tonight is the shortlist; Sky,
   second on the bar, is the whole of it: every satellite pass of the night under

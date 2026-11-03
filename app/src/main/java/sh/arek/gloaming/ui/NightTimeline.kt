@@ -92,7 +92,18 @@ data class TimelineRow(
      * Busy setting on, and counted under the timeline when it is off.
      */
     val busy: Boolean = false,
-)
+) {
+    /**
+     * Whether the row says "Happening now": an event under way at [nowMillis].
+     * Never the noctilucent prompt, which is worked out for tonight rather
+     * than dated - its window being open is a suggestion to look, not
+     * something going on.
+     */
+    fun isHappening(nowMillis: Long): Boolean {
+        val event = (subject as? RowSubject.Event)?.event ?: return false
+        return event.kind != EventKind.Noctilucent && event.isUnderWay(nowMillis)
+    }
+}
 
 /** A stretch of forecast cloud cover, in percent, drawn as shading down the time axis. */
 @Serializable

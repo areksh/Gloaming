@@ -53,7 +53,7 @@ object TonightLists {
         val entries = mutableListOf<ListEntry>()
         // Worked out for tonight rather than dated: a suggestion to look, not
         // something under way.
-        list.noctilucent?.let { entries += event(it).copy(happeningNow = false) }
+        list.noctilucent?.takeIf { !drawn(RowSubject.Event(it)) }?.let { entries += event(it).copy(happeningNow = false) }
         list.events.filter { !drawn(RowSubject.Event(it)) && !setAside(it) }.forEach { entries += event(it) }
         list.comets.filter { !setAside(it) }.forEach { entries += event(it) }
 

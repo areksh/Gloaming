@@ -257,6 +257,25 @@ class NightTimelineTest {
         assertEquals(RowTone.Dim, rows.single { it.subject is RowSubject.Event }.tone)
     }
 
+    /**
+     * An event under way says so on its row; the noctilucent prompt is
+     * worked out for tonight rather than dated, so its window being open is
+     * not something happening.
+     */
+    @Test
+    fun `marks an event under way as happening but never the noctilucent prompt`() {
+        val from = at("2026-06-21T22:00:00Z")
+        val until = at("2026-06-22T02:00:00Z")
+        val eclipse = SkyEvent(EventKind.LunarEclipse, from + 3_600_000L, from, until, "Eclipse", "", Visibility.Good)
+        val nlc = SkyEvent(EventKind.Noctilucent, from, from, until, "Noctilucent cloud season", "", Visibility.Good)
+        fun row(event: SkyEvent) = TimelineRow(event.at, "", event.title, null, RowTone.Normal, RowSubject.Event(event))
+        val during = from + 1_800_000L
+
+        assertTrue(row(eclipse).isHappening(during))
+        assertFalse(row(eclipse).isHappening(until + 1))
+        assertFalse(row(nlc).isHappening(during))
+    }
+
     /** The chart above draws the planets; the timeline lists only the one it sends you out for. */
     @Test
     fun `has no planet rows unless one is picked`() {
