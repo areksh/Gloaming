@@ -7,6 +7,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.astronomy.PlanePoint
+import sh.arek.gloaming.astronomy.SkyProjection
 import sh.arek.gloaming.data.FindAim
 
 class PointingTest {
@@ -169,10 +171,37 @@ class PointingTest {
         assertEquals(0.0, Pointing.roll(matrix(40.0, 180.0), FindAim.LookThrough), 0.0)
     }
 
-    /** Aimed by the top edge the screen is not a window, and the drawing is never turned. */
+    /** Aimed by the top edge the screen is not a window, and below the zenith the drawing is not turned. */
     @Test
-    fun `aimed by the top edge the drawing is never turned`() {
+    fun `aimed by the top edge low down the drawing is not turned`() {
         assertEquals(0.0, Pointing.roll(held(200.0, 20.0, roll = 35.0), FindAim.TopEdge), 0.0)
+        assertEquals(0.0, Pointing.roll(matrix(200.0, 55.0), FindAim.TopEdge), 0.0)
+    }
+
+    /**
+     * Where [target] is drawn, aimed by the top edge: projected around where
+     * the phone points, then turned by the roll as the view turns it -
+     * clockwise on the screen, which with y up is this.
+     */
+    private fun drawnTopEdge(rotation: FloatArray, target: AltAz): PlanePoint {
+        val flat = SkyProjection.around(direction(rotation), target)!!
+        val r = Math.toRadians(Pointing.roll(rotation, FindAim.TopEdge))
+        return PlanePoint(flat.x * cos(r) + flat.y * sin(r), -flat.x * sin(r) + flat.y * cos(r))
+    }
+
+    /**
+     * Tipping the top edge a fraction of a degree past straight up swings the
+     * azimuth round by half a turn. The Plough, 85 degrees up, must stay
+     * where it was on the screen rather than jump to the other side of it.
+     */
+    @Test
+    fun `aimed by the top edge the sky does not flip as the edge passes straight up`() {
+        val plough = AltAz(85.0, 0.0)
+        val before = drawnTopEdge(matrix(0.0, 89.8), plough)
+        val after = drawnTopEdge(matrix(0.0, 90.2), plough)
+
+        assertEquals(before.x, after.x, 0.5)
+        assertEquals(before.y, after.y, 0.5)
     }
 
     @Test

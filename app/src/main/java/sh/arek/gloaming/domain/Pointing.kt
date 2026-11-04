@@ -62,16 +62,38 @@ object Pointing {
      * the phone sees the horizon tilt anticlockwise, and this is negative by
      * as much. Looking straight up or down there is no such way, and it is 0.
      *
-     * Always 0 aimed by the top edge: the screen is not a window then, and
-     * its up is where the top edge points, not the sky's.
+     * Aimed by the top edge it is 0 below [TOP_EDGE_TURNS_FROM]: the screen
+     * is not a window then, and its up is where the top edge points, not the
+     * sky's. Near the zenith that rule breaks down, because the azimuth is
+     * read from the top edge's level part, which shrinks to nothing there:
+     * a degree of hand movement swings it by ten, and tipping the edge past
+     * straight up turns it by half a turn, which would throw the drawing to
+     * the other side of the reticle. So from there up the drawing is turned
+     * by the phone's own frame - up towards the screen's face, as tipping
+     * the top edge back moves it - weighed in until [TOP_EDGE_TURNS_FULLY],
+     * where the swing in the azimuth is cancelled exactly.
      */
     fun roll(rotation: FloatArray, aim: FindAim): Double {
-        if (aim == FindAim.TopEdge) return 0.0
         val right = rotation[6].toDouble()
-        val top = rotation[7].toDouble()
+        val top = when (aim) {
+            FindAim.TopEdge -> rotation[8].toDouble()
+            FindAim.LookThrough -> rotation[7].toDouble()
+        }
         if (abs(right) < NO_ROLL_BELOW && abs(top) < NO_ROLL_BELOW) return 0.0
-        return Math.toDegrees(atan2(right, top))
+        val turn = Math.toDegrees(atan2(right, top))
+        if (aim == FindAim.LookThrough) return turn
+
+        val altitude = Math.toDegrees(asin(rotation[7].toDouble().coerceIn(-1.0, 1.0)))
+        val weight = ((altitude - TOP_EDGE_TURNS_FROM) / (TOP_EDGE_TURNS_FULLY - TOP_EDGE_TURNS_FROM))
+            .coerceIn(0.0, 1.0)
+        return turn * weight
     }
+
+    /** Aimed by the top edge, the drawing starts to turn with the phone at this height. */
+    private const val TOP_EDGE_TURNS_FROM = 60.0
+
+    /** And turns with it fully from here up, where the azimuth would otherwise swing. */
+    private const val TOP_EDGE_TURNS_FULLY = 80.0
 }
 
 internal fun wrap360(degrees: Double): Double {

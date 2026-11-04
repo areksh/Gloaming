@@ -624,18 +624,14 @@ private fun FindView(
                     drawLabel(horizonLayout, Offset(center.x - radius * 0.6f, horizonY), above = true)
 
                     fix?.figure?.let { figure ->
-                        val points = figure.positions.map { star ->
-                            SkyProjection.around(pointing, star)?.let {
-                                Offset(center.x + it.x.toFloat() * perDegree, center.y - it.y.toFloat() * perDegree)
-                            }
-                        }
+                        val points = figure.positions.map { skyToScreen(pointing, it, center, perDegree) }
                         drawFigure(points, figure.stars.map { it.magnitude }, figure.segments, palette)
                     }
 
-                    val flat = fix?.position?.let { SkyProjection.around(pointing, it) }
-                    if (flat != null) {
-                        val dx = flat.x.toFloat() * perDegree
-                        val dy = -flat.y.toFloat() * perDegree
+                    val onScreen = fix?.position?.let { skyToScreen(pointing, it, center, perDegree) }
+                    if (onScreen != null) {
+                        val dx = onScreen.x - center.x
+                        val dy = onScreen.y - center.y
                         val ring = 14.dp.toPx()
                         if (hypot(dx, dy) <= radius - ring) {
                             val at = Offset(center.x + dx, center.y + dy)
