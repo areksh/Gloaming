@@ -25,6 +25,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -320,7 +321,7 @@ class FindScreenTest {
     fun inDaylightOnlyTheMoonIsOffered() {
         show(FakeCompassSource(), initial = null, at = dayWithMoon())
 
-        assertEquals(listOf(findChipTag(FindTarget.Moon)), chipTags())
+        assertEquals(listOf(FIND_EVERYTHING_TAG, findChipTag(FindTarget.Moon)), chipTags())
         compose.onNodeWithTag(findChipTag(FindTarget.Moon)).assertIsSelected()
     }
 
@@ -808,5 +809,58 @@ class FindScreenTest {
         override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
             if (hapticFeedbackType == HapticFeedbackType.LongPress) longPresses++
         }
+    }
+
+    // --- everything ---
+
+    @Test
+    fun everythingIsTheFirstChip() {
+        show(FakeCompassSource(), at = dark())
+
+        assertEquals(FIND_EVERYTHING_TAG, chipTags().first())
+    }
+
+    @Test
+    fun findOpenedForATargetStillGuides() {
+        show(FakeCompassSource(), initial = FindTarget.Aurora, at = dark())
+
+        compose.onNodeWithTag(findChipTag(FindTarget.Aurora)).assertIsSelected()
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).assertIsNotSelected()
+    }
+
+    @Test
+    fun withNoCompassEverythingListsWhatIsUp() {
+        show(FakeCompassSource(present = false), at = dark())
+        val plough = FindTarget.Pattern("Ursa Major")
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodes(SemanticsMatcher("the Plough's row") {
+                SemanticsProperties.TestTag in it.config && it.config[SemanticsProperties.TestTag] == findUpTag(plough)
+            }).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(findUpTag(plough)).performScrollTo().performClick()
+
+        compose.onNodeWithTag(findChipTag(plough)).assertIsSelected()
+    }
+
+    @Test
+    fun everythingSurvivesRecreation() {
+        val restoration = StateRestorationTester(compose)
+        val at = dark()
+        restoration.setContent {
+            FindScreen(
+                state = state(nowMillis = at),
+                actions = actions,
+                source = FakeCompassSource(),
+                initial = FindTarget.Aurora,
+                clock = { at },
+            )
+        }
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        restoration.emulateSavedInstanceStateRestore()
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).assertIsSelected()
     }
 }

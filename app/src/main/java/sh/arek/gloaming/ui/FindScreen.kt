@@ -1,6 +1,7 @@
 package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -146,6 +147,15 @@ private val EMPTY_NIGHT = TonightList(
 /** How a test finds the line shown when nothing is up to point at. */
 const val FIND_NOTHING_TAG = "find-nothing"
 
+/** The saved choice that means Everything mode rather than a target. */
+internal const val FIND_EVERYTHING = "everything"
+
+/** The Everything chip; a chip's tag, so the row's order reads as one list. */
+const val FIND_EVERYTHING_TAG = "find-chip:everything"
+
+/** A row of what is up, in Everything mode on a phone with no compass. */
+fun findUpTag(target: FindTarget): String = "find-up:${target.encode()}"
+
 private const val MINUTE_MILLIS = 60_000L
 
 private fun skyFor(state: MainUiState, latitude: Double, longitude: Double, now: Long): Sky {
@@ -267,7 +277,11 @@ private fun FindContent(
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
         var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
-        val asked = chosen?.let { FindTarget.decode(it) } ?: available.firstOrNull()
+        // Everything is a mode of this screen, not a target, so it is checked
+        // for before the choice is read as one; underneath it, the first
+        // target stands in for the row's sake.
+        val everything = chosen == FIND_EVERYTHING
+        val asked = (if (everything) null else chosen?.let { FindTarget.decode(it) }) ?: available.firstOrNull()
         // A default nobody tapped is held once shown, so a list that changes
         // underneath it does not move the guidance to another target.
         LaunchedEffect(asked) {
@@ -304,9 +318,20 @@ private fun FindContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            FilterChip(
+                selected = everything,
+                onClick = { chosen = FIND_EVERYTHING },
+                label = { Text("Everything") },
+                modifier = Modifier.testTag(FIND_EVERYTHING_TAG),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = palette.accent,
+                    selectedLabelColor = palette.onAccent,
+                    labelColor = palette.text,
+                ),
+            )
             for (chip in chips) {
                 FilterChip(
-                    selected = chip == target,
+                    selected = !everything && chip == target,
                     onClick = {
                         chosen = chip.encode()
                         onTargetChange(chip)
@@ -320,6 +345,25 @@ private fun FindContent(
                     ),
                 )
             }
+        }
+
+        if (everything) {
+            // Every second, like the one target guidance places, because a
+            // pass moves about a degree a second; off the main thread, because
+            // it is every pattern's figure and every body at once.
+            val items by produceState(
+                emptyList<Pair<FindTarget, TargetFix>>(), now, available, list, state.elements, latitude, longitude,
+            ) {
+                val at = now
+                value = withContext(Dispatchers.Default) {
+                    FindTargets.everythingUp(available, list, state.elements, latitude, longitude, at)
+                }
+            }
+            Everything(state, source, items, list, now) { picked ->
+                chosen = picked.encode()
+                onTargetChange(picked)
+            }
+            return@Column
         }
 
         val fix = remember(target, list, state.elements, latitude, longitude, now) {
@@ -336,6 +380,43 @@ private fun FindContent(
         }
 
         Guided(state, actions, source, fix, latitude, longitude, now)
+    }
+}
+
+/**
+ * Everything mode: every offered target that is up, at once. A tap on one
+ * hands it to [onPick], which selects its chip as tapping the chip does.
+ *
+ * Without a compass there is no view to draw it on, so it is a list of what
+ * is up and where.
+ */
+@Composable
+private fun Everything(
+    state: MainUiState,
+    source: CompassSource,
+    items: List<Pair<FindTarget, TargetFix>>,
+    list: TonightList,
+    now: Long,
+    onPick: (FindTarget) -> Unit,
+) {
+    val palette = LocalPalette.current
+    if (!source.present) {
+        Text(NO_COMPASS_LINE, style = MaterialTheme.typography.titleMedium)
+        for ((target, fix) in items) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onPick(target) }
+                    .testTag(findUpTag(target))
+                    .padding(vertical = 6.dp),
+            ) {
+                Text(chipLabel(target, list, now, state.elements), style = MaterialTheme.typography.titleSmall)
+                whereLine(fix, null)?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+                }
+            }
+        }
+        return
     }
 }
 
