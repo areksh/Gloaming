@@ -4,7 +4,7 @@ Date: 2026-08-30
 
 ## Status
 
-Accepted.
+Accepted. Amended by [0017](0017-constellation-figures-draw-stars-without-listing-them.md).
 
 ## Context
 
