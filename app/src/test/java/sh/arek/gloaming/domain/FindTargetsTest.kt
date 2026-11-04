@@ -9,11 +9,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.astronomy.ConstellationFigures
 import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.PlanetTonight
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.astronomy.placedAt
 import sh.arek.gloaming.satellites.LiveTracker
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatelliteElements
@@ -254,6 +256,31 @@ class FindTargetsTest {
         )
         assertTrue(result.position!!.altitude > 0.0)
         assertEquals(centre.starHop, result.recognise)
+    }
+
+    @Test
+    fun `places a pattern's figure with it`() {
+        val orion = Constellations.WATCHED.first { it.name == "Orion" }
+
+        val figure = fix(FindTarget.Pattern("Orion"))!!.figure
+
+        assertNotNull(figure)
+        assertEquals(8, figure!!.stars.size)
+        assertEquals(ConstellationFigures.of(orion)!!.placedAt(latitude, longitude, now).positions, figure.positions)
+    }
+
+    /** The view still draws whatever part of the figure is up, or the ground it is under. */
+    @Test
+    fun `gives the figure even while the pattern is down`() {
+        val result = fix(FindTarget.Pattern("Orion"), at = Instant.parse("2027-07-15T00:00:00Z").toEpochMilli())!!
+
+        assertNull(result.position)
+        assertNotNull(result.figure)
+    }
+
+    @Test
+    fun `gives no figure for a planet`() {
+        assertNull(fix(FindTarget.Planet(SkyBody.Jupiter))!!.figure)
     }
 
     @Test

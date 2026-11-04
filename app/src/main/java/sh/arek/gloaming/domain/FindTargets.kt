@@ -3,10 +3,13 @@ package sh.arek.gloaming.domain
 import sh.arek.gloaming.astronomy.AltAz
 import sh.arek.gloaming.astronomy.Compass
 import sh.arek.gloaming.astronomy.Constellation
+import sh.arek.gloaming.astronomy.ConstellationFigures
 import sh.arek.gloaming.astronomy.Constellations
+import sh.arek.gloaming.astronomy.PlacedFigure
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.astronomy.Twilight
+import sh.arek.gloaming.astronomy.placedAt
 import sh.arek.gloaming.satellites.LiveTracker
 import sh.arek.gloaming.satellites.PassFinder
 import sh.arek.gloaming.satellites.SatellitePass
@@ -89,6 +92,9 @@ fun FindTarget.Companion.decode(text: String): FindTarget? {
  *   cannot be worked out (a pass whose elements the device does not hold).
  * @property risesAt when a target below the horizon next comes up, if known.
  * @property riseAzimuth degrees clockwise from north where it comes up.
+ * @property figure a pattern's stick figure placed on the sky now, for the
+ *   view to draw over itself; null for anything that is not a pattern. Given
+ *   even while the pattern's centre is down, because part of it may be up.
  */
 data class TargetFix(
     val label: String,
@@ -96,6 +102,7 @@ data class TargetFix(
     val risesAt: Long?,
     val riseAzimuth: Double?,
     val recognise: String,
+    val figure: PlacedFigure? = null,
 )
 
 /**
@@ -477,7 +484,7 @@ object FindTargets {
             positionAt = { SkyPositions.fixed(c.raHours, c.dec, latitude, longitude, it) },
             key = "pattern:${c.name}@$latitude,$longitude",
             nowMillis = nowMillis,
-        )
+        ).copy(figure = ConstellationFigures.of(c)?.placedAt(latitude, longitude, nowMillis))
 
     private fun bodyFix(
         label: String,

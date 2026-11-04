@@ -40,6 +40,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import sh.arek.gloaming.astronomy.Constellations
 import sh.arek.gloaming.astronomy.SkyBody
 import sh.arek.gloaming.astronomy.SkyPositions
 import sh.arek.gloaming.astronomy.Twilight
@@ -405,6 +406,27 @@ class FindScreenTest {
         show(compass)
 
         compass.point(azimuth = 0.0, altitude = 10.0)
+
+        compose.onNodeWithTag(FIND_VIEW_TAG).assert(hasContentDescription("There.", substring = true))
+    }
+
+    /**
+     * A pattern's view draws its figure and still says it is lined up.
+     *
+     * The words come from the separation, not from where the ring is drawn,
+     * so this proves the figure draws without breaking the view; that the
+     * ring sits on the reticle when lined up is [SkyProjection]'s own test,
+     * which puts the centre at the origin.
+     */
+    @Test
+    fun drawsAPatternWithoutLosingTheRing() {
+        val compass = FakeCompassSource()
+        val at = dark()
+        val plough = Constellations.WATCHED.first { it.name == "Ursa Major" }
+        show(compass, initial = FindTarget.Pattern("Ursa Major"), at = at)
+
+        val centre = SkyPositions.fixed(plough.raHours, plough.dec, latitude, longitude, at)
+        compass.point(azimuth = centre.azimuth, altitude = centre.altitude)
 
         compose.onNodeWithTag(FIND_VIEW_TAG).assert(hasContentDescription("There.", substring = true))
     }

@@ -68,6 +68,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import sh.arek.gloaming.astronomy.AltAz
+import sh.arek.gloaming.astronomy.SkyProjection
 import sh.arek.gloaming.data.CompassReading
 import sh.arek.gloaming.data.CompassSource
 import sh.arek.gloaming.data.FindAim
@@ -558,9 +559,16 @@ private fun AimChoice(aim: FindAim, onChange: (FindAim) -> Unit) {
  * The horizon is a dashed line with the ground shaded below it. The target is
  * a ring with its name while it is inside the view; off the view, or not yet
  * risen, it is an arrow at the edge pointing the way to turn - the rise point
- * on the horizon for a target not up. The reticle is drawn thicker when lined
- * up, so the state reads by shape and not by colour alone, which night vision
- * would take away.
+ * on the horizon for a target not up. A pattern is also drawn as its stick
+ * figure, under the ring, so what to look for is on the screen as well as
+ * where. The reticle is drawn thicker when lined up, so the state reads by
+ * shape and not by colour alone, which night vision would take away.
+ *
+ * The ring and the figure are placed by one projection, [SkyProjection], so
+ * the ring always sits on the figure's centre - near the zenith too, where
+ * [Guide.of] stops giving a turn. The edge arrow still takes its direction
+ * from [Guide.of], because it has to point at things behind the viewer, which
+ * a projection cannot place.
  *
  * [roll] turns the sky - horizon, ground, target and arrow - clockwise by so
  * many degrees, so that looked through, it stays level with the real one
@@ -615,11 +623,19 @@ private fun FindView(
                     )
                     drawLabel(horizonLayout, Offset(center.x - radius * 0.6f, horizonY), above = true)
 
-                    val position = fix?.position
-                    if (position != null) {
-                        val guidance = Guide.of(pointing, position)
-                        val dx = guidance.turnDegrees.toFloat() * perDegree
-                        val dy = -guidance.tiltDegrees.toFloat() * perDegree
+                    fix?.figure?.let { figure ->
+                        val points = figure.positions.map { star ->
+                            SkyProjection.around(pointing, star)?.let {
+                                Offset(center.x + it.x.toFloat() * perDegree, center.y - it.y.toFloat() * perDegree)
+                            }
+                        }
+                        drawFigure(points, figure.stars.map { it.magnitude }, figure.segments, palette)
+                    }
+
+                    val flat = fix?.position?.let { SkyProjection.around(pointing, it) }
+                    if (flat != null) {
+                        val dx = flat.x.toFloat() * perDegree
+                        val dy = -flat.y.toFloat() * perDegree
                         val ring = 14.dp.toPx()
                         if (hypot(dx, dy) <= radius - ring) {
                             val at = Offset(center.x + dx, center.y + dy)
@@ -662,10 +678,13 @@ private fun edgeArrowDirection(pointing: AltAz, fix: TargetFix?, perDegree: Floa
     fix ?: return null
     val position = fix.position
     if (position != null) {
+        // In view by the same projection the ring is drawn with, so the ring
+        // and the arrow are never both shown or both missing; which way to
+        // turn is still the guide's, which knows about behind you.
+        val flat = SkyProjection.around(pointing, position)
+        if (flat != null && hypot(flat.x, flat.y).toFloat() * perDegree <= inView) return null
         val guidance = Guide.of(pointing, position)
-        val dx = guidance.turnDegrees.toFloat() * perDegree
-        val dy = -guidance.tiltDegrees.toFloat() * perDegree
-        return if (hypot(dx, dy) > inView) dx to dy else null
+        return guidance.turnDegrees.toFloat() * perDegree to -guidance.tiltDegrees.toFloat() * perDegree
     }
     val riseAzimuth = fix.riseAzimuth ?: return null
     val guidance = Guide.of(pointing, AltAz(0.0, riseAzimuth))
