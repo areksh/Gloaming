@@ -1,6 +1,13 @@
 package sh.arek.gloaming.ui
 
 import androidx.compose.foundation.background
+import sh.arek.gloaming.domain.EverythingView
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.draw.CacheDrawScope
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -152,6 +159,9 @@ internal const val FIND_EVERYTHING = "everything"
 
 /** The Everything chip; a chip's tag, so the row's order reads as one list. */
 const val FIND_EVERYTHING_TAG = "find-chip:everything"
+
+/** The line naming what is in view, in Everything mode. */
+const val FIND_IN_VIEW_TAG = "find-in-view"
 
 /** A row of what is up, in Everything mode on a phone with no compass. */
 fun findUpTag(target: FindTarget): String = "find-up:${target.encode()}"
@@ -359,7 +369,7 @@ private fun FindContent(
                     FindTargets.everythingUp(available, list, state.elements, latitude, longitude, at)
                 }
             }
-            Everything(state, source, items, list, now) { picked ->
+            Everything(state, actions, source, items, list, latitude, longitude, now) { picked ->
                 chosen = picked.encode()
                 onTargetChange(picked)
             }
@@ -393,9 +403,12 @@ private fun FindContent(
 @Composable
 private fun Everything(
     state: MainUiState,
+    actions: UiActions,
     source: CompassSource,
     items: List<Pair<FindTarget, TargetFix>>,
     list: TonightList,
+    latitude: Double,
+    longitude: Double,
     now: Long,
     onPick: (FindTarget) -> Unit,
 ) {
@@ -418,7 +431,75 @@ private fun Everything(
         }
         return
     }
+
+    val reading = rememberCompassReadingState(source)
+    val (pointing, roll) = rememberAim(reading, state, latitude, longitude, now)
+    // The items are replaced every second; read through one state, so what
+    // derives from them follows without the buzz below starting over.
+    val current = rememberUpdatedState(items)
+    val labels = remember(items, list, state.elements) {
+        items.map { (target, _) -> chipLabel(target, list, now, state.elements) }
+    }
+    val labelOf = remember(items, labels) { items.map { it.first }.zip(labels).toMap() }
+    val line by remember(labelOf) {
+        derivedStateOf {
+            pointing.value?.let { p ->
+                inViewLine(EverythingView.inView(p, current.value, HALF_VIEW_DEGREES.toDouble()).mapNotNull { labelOf[it] })
+            }
+        }
+    }
+    val under = remember { derivedStateOf { pointing.value?.let { EverythingView.underReticle(it, current.value) } } }
+
+    // Buzzes on coming onto any target, and again on one only after moving
+    // well off it (AlignBuzz.nextAmong); a flow of what is under the reticle
+    // and how far the last one buzzed for is, as guidance follows its one.
+    val haptics = LocalHapticFeedback.current
+    LaunchedEffect(haptics) {
+        var buzz = AlignBuzz.AMONG_START
+        snapshotFlow {
+            val p = pointing.value
+            val last = buzz.last
+            val lastAt = last?.let { l -> current.value.firstOrNull { it.first == l }?.second?.position }
+            under.value to if (p != null && lastAt != null) Guide.separation(p, lastAt) else null
+        }.collect { (onTarget, fromLast) ->
+            val (next, fire) = AlignBuzz.nextAmong(buzz, onTarget, fromLast)
+            buzz = next
+            if (fire) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        EverythingWindow(
+            pointing = { pointing.value },
+            roll = { roll.value },
+            items = items,
+            labels = labels,
+            under = { under.value },
+            onPick = onPick,
+            palette = palette,
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .testTag(FIND_VIEW_TAG)
+                .clearAndSetSemantics { contentDescription = line ?: WAITING_FOR_COMPASS },
+        )
+    }
+    Text(
+        line ?: WAITING_FOR_COMPASS,
+        style = MaterialTheme.typography.titleMedium,
+        modifier = Modifier.testTag(FIND_IN_VIEW_TAG),
+    )
+    Text(
+        "Tap a name to be guided to it.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = palette.muted,
+    )
+    CompassFooter(state, actions, reading, now)
 }
+
+/** Said until the compass has given its first reading. */
+private const val WAITING_FOR_COMPASS = "Waiting for the compass."
 
 /**
  * Everything that follows the compass, in a composable of its own so a new
@@ -436,34 +517,12 @@ private fun Guided(
 ) {
     val palette = LocalPalette.current
     val reading = rememberCompassReadingState(source)
-    val declination = remember(latitude, longitude, now / DAY_MILLIS) {
-        magneticDeclination(latitude, longitude, now)
-    }
     // A reading arrives every frame or so. Everything that follows from one is
     // a derived state read only where a change should reach - the drawing, and
     // the words, which change far less often than the readings do - so a
     // reading redraws the view and does not recompose this function.
-    val offsetDegrees = state.settings.compassOffsetDegrees
-    val aim = state.settings.findAim
+    val (pointing, roll) = rememberAim(reading, state, latitude, longitude, now)
     val position = fix?.position
-    val pointing = remember(declination, offsetDegrees, aim) {
-        derivedStateOf {
-            reading.value?.let { Pointing.direction(it.rotation, aim, declination, offsetDegrees) }
-        }
-    }
-    // The roll is from the device's top edge; the screen's up is a quarter
-    // turn round from it for each quarter the display is rotated.
-    val displayQuarters = LocalView.current.display?.rotation ?: 0
-    val roll = remember(aim, displayQuarters) {
-        derivedStateOf {
-            val rotation = reading.value?.rotation
-            if (rotation == null || aim != FindAim.LookThrough) {
-                0f
-            } else {
-                (Pointing.roll(rotation, aim) - 90.0 * displayQuarters).toFloat()
-            }
-        }
-    }
     val guidance = remember(position) {
         derivedStateOf {
             val p = pointing.value
@@ -489,24 +548,6 @@ private fun Guided(
             val step = AlignBuzz.next(armed, it)
             armed = step.armed
             if (step.fire) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        }
-    }
-
-    var sheetOpen by rememberSaveable { mutableStateOf(false) }
-    var sheetOffered by rememberSaveable { mutableStateOf(false) }
-    // Offered at most once per visit as well as once a week, so a screen whose
-    // settings have not caught up with the stamp yet does not offer it twice.
-    var offeredThisVisit by remember { mutableStateOf(false) }
-    val accuracy by remember { derivedStateOf { reading.value?.accuracy } }
-    LaunchedEffect(accuracy) {
-        val seen = accuracy
-        if (seen != null && !offeredThisVisit &&
-            CompassCheck.shouldOffer(seen, state.settings.compassOfferedAt, now)
-        ) {
-            offeredThisVisit = true
-            sheetOffered = true
-            sheetOpen = true
-            actions.onCompassOffered(now)
         }
     }
 
@@ -552,13 +593,80 @@ private fun Guided(
     }
     fix?.let { Text(it.recognise, style = MaterialTheme.typography.bodyMedium) }
 
+    CompassFooter(state, actions, reading, now)
+}
+
+/**
+ * Where the phone points and how far to turn the drawing for its roll, as
+ * derived states of the compass [reading]: read only where a change should
+ * reach, so a reading redraws a view and recomposes nothing.
+ */
+@Composable
+private fun rememberAim(
+    reading: State<CompassReading?>,
+    state: MainUiState,
+    latitude: Double,
+    longitude: Double,
+    now: Long,
+): Pair<State<AltAz?>, State<Float>> {
+    val declination = remember(latitude, longitude, now / DAY_MILLIS) {
+        magneticDeclination(latitude, longitude, now)
+    }
+    val offsetDegrees = state.settings.compassOffsetDegrees
+    val aim = state.settings.findAim
+    val pointing = remember(declination, offsetDegrees, aim) {
+        derivedStateOf {
+            reading.value?.let { Pointing.direction(it.rotation, aim, declination, offsetDegrees) }
+        }
+    }
+    // The roll is from the device's top edge; the screen's up is a quarter
+    // turn round from it for each quarter the display is rotated.
+    val displayQuarters = LocalView.current.display?.rotation ?: 0
+    val roll = remember(aim, displayQuarters) {
+        derivedStateOf {
+            val rotation = reading.value?.rotation
+            if (rotation == null || aim != FindAim.LookThrough) {
+                0f
+            } else {
+                (Pointing.roll(rotation, aim) - 90.0 * displayQuarters).toFloat()
+            }
+        }
+    }
+    return pointing to roll
+}
+
+/**
+ * Below either mode's view: how good the compass reading is, and the button
+ * to check it, with the check offered of itself when the reading is poor.
+ */
+@Composable
+private fun CompassFooter(state: MainUiState, actions: UiActions, reading: State<CompassReading?>, now: Long) {
+    val palette = LocalPalette.current
+    var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var sheetOffered by rememberSaveable { mutableStateOf(false) }
+    // Offered at most once per visit as well as once a week, so a screen whose
+    // settings have not caught up with the stamp yet does not offer it twice.
+    var offeredThisVisit by remember { mutableStateOf(false) }
+    val accuracy by remember { derivedStateOf { reading.value?.accuracy } }
+    LaunchedEffect(accuracy) {
+        val seen = accuracy
+        if (seen != null && !offeredThisVisit &&
+            CompassCheck.shouldOffer(seen, state.settings.compassOfferedAt, now)
+        ) {
+            offeredThisVisit = true
+            sheetOffered = true
+            sheetOpen = true
+            actions.onCompassOffered(now)
+        }
+    }
+
     HorizontalDivider(color = palette.line)
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            accuracy?.let(::accuracyLine) ?: "Waiting for the compass.",
+            accuracy?.let(::accuracyLine) ?: WAITING_FOR_COMPASS,
             style = MaterialTheme.typography.bodySmall,
             color = palette.muted,
             modifier = Modifier.weight(1f),
@@ -679,25 +787,15 @@ private fun FindView(
     // draw; a draw happens for each compass reading, and the lambdas below are
     // where a reading is read, so a reading redraws this and recomposes nothing.
     Spacer(modifier.graphicsLayer {}.drawWithCache {
-        val circle = Path().apply { addOval(Rect(Offset(size.width / 2f, size.height / 2f), size.minDimension / 2f)) }
-        val dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx()))
-        val horizonLayout = measurer.measure("Horizon", horizonStyle)
+        val backdrop = backdrop(measurer, horizonStyle)
         val targetLayout = fix?.let { measurer.measure(it.label, labelStyle) }
-        val ground = Path()
         val figure = fix?.figure
         val magnitudes = figure?.stars?.map { it.magnitude }.orEmpty()
         val figurePoints = MutableList<Offset?>(figure?.positions?.size ?: 0) { null }
         onDrawBehind {
-            val pointing = pointing()
-            val aligned = aligned()
-            val radius = size.minDimension / 2f
-            val perDegree = radius / HALF_VIEW_DEGREES
-
-            drawCircle(palette.raised, radius, center)
-            if (pointing != null) rotate(roll(), center) {
-                clipPath(circle) {
-                    drawHorizon(pointing.altitude, perDegree, radius, ground, dash, horizonLayout, palette)
-
+            drawSky(
+                pointing(), roll(), backdrop, aligned(), palette,
+                clipped = { pointing, perDegree, radius ->
                     if (figure != null) {
                         figure.positions.forEachIndexed { i, star ->
                             figurePoints[i] = skyToScreen(pointing, star, center, perDegree)
@@ -716,30 +814,158 @@ private fun FindView(
                             targetLayout?.let { drawLabel(it, Offset(at.x + ring + 4.dp.toPx(), at.y), above = false) }
                         }
                     }
-                }
-                edgeArrowDirection(pointing, fix, perDegree, radius - 14.dp.toPx())?.let { (dx, dy) ->
-                    drawEdgeArrow(dx, dy, radius, palette)
-                }
-            }
-            drawCircle(palette.line, radius, center, style = Stroke(1.5.dp.toPx()))
-
-            val reticle = if (aligned) palette.accent else palette.muted
-            val width = if (aligned) 4.dp.toPx() else 1.6.dp.toPx()
-            val r = 22.dp.toPx()
-            drawCircle(reticle, r, center, style = Stroke(width))
-            val from = r - 4.dp.toPx()
-            val to = r + 10.dp.toPx()
-            for ((ux, uy) in listOf(0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f)) {
-                drawLine(
-                    reticle,
-                    Offset(center.x + ux * from, center.y + uy * from),
-                    Offset(center.x + ux * to, center.y + uy * to),
-                    strokeWidth = width,
-                    cap = StrokeCap.Round,
-                )
-            }
+                },
+                turned = { pointing, perDegree, radius ->
+                    edgeArrowDirection(pointing, fix, perDegree, radius - 14.dp.toPx())?.let { (dx, dy) ->
+                        drawEdgeArrow(dx, dy, radius, palette)
+                    }
+                },
+            )
         }
     })
+}
+
+/**
+ * Everything mode's view: every target in [items] that falls in it, each
+ * pattern as its figure and everything else as a dot, with its label from
+ * [labels] where there is room for one (see [placeLabels]). The reticle
+ * takes the lined-up look while [under] gives a target.
+ *
+ * A tap picks a target by [pickAt], from the layout of the frame last drawn,
+ * so what is picked is what was on the screen; [onPick] gets it.
+ */
+@Composable
+private fun EverythingWindow(
+    pointing: () -> AltAz?,
+    roll: () -> Float,
+    items: List<Pair<FindTarget, TargetFix>>,
+    labels: List<String>,
+    under: () -> FindTarget?,
+    onPick: (FindTarget) -> Unit,
+    palette: Palette,
+    modifier: Modifier = Modifier,
+) {
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = palette.text)
+    val horizonStyle = MaterialTheme.typography.labelSmall.copy(color = palette.muted)
+    val drawn = remember { DrawnFrame() }
+    val pick by rememberUpdatedState(onPick)
+
+    Spacer(
+        modifier
+            .graphicsLayer {}
+            .pointerInput(Unit) {
+                detectTapGestures { tap ->
+                    val layout = drawn.layout ?: return@detectTapGestures
+                    val middle = Offset(size.width / 2f, size.height / 2f)
+                    pickAt(layout, tap, roll(), middle, TAP_REACH.toPx())?.let(pick)
+                }
+            }
+            .drawWithCache {
+                val backdrop = backdrop(measurer, horizonStyle)
+                val texts = labels.map { measurer.measure(it, labelStyle) }
+                val sizes = texts.map { it.size }
+                val targets = items.map { it.first }
+                val anchors = MutableList<Offset?>(items.size) { null }
+                val magnitudes = items.map { (_, fix) -> fix.figure?.stars?.map { it.magnitude }.orEmpty() }
+                val figurePoints = items.map { (_, fix) -> MutableList<Offset?>(fix.figure?.positions?.size ?: 0) { null } }
+                onDrawBehind {
+                    val pointing = pointing()
+                    if (pointing == null) drawn.layout = null
+                    drawSky(
+                        pointing, roll(), backdrop, under() != null, palette,
+                        clipped = { at, perDegree, radius ->
+                            items.forEachIndexed { i, (_, fix) ->
+                                anchors[i] = fix.position?.let { skyToScreen(at, it, center, perDegree) }
+                                val figure = fix.figure
+                                if (figure != null) {
+                                    figure.positions.forEachIndexed { j, star ->
+                                        figurePoints[i][j] = skyToScreen(at, star, center, perDegree)
+                                    }
+                                    drawFigure(figurePoints[i], magnitudes[i], figure.segments, palette)
+                                } else {
+                                    anchors[i]?.let { drawCircle(palette.text, DOT_RADIUS.toPx(), it) }
+                                }
+                            }
+                            val layout = placeLabels(targets, anchors.toList(), sizes, center, radius, LABEL_GAP.toPx())
+                            drawn.layout = layout
+                            layout.labels.forEachIndexed { i, box -> box?.let { drawText(texts[i], topLeft = it.topLeft) } }
+                        },
+                    )
+                }
+            },
+    )
+}
+
+/** The layout of Everything's last frame, written by the draw and read by a tap; not state, so writing it redraws nothing. */
+private class DrawnFrame {
+    var layout: EverythingLayout? = null
+}
+
+/** How far from a target a tap still picks it. */
+private val TAP_REACH = 32.dp
+
+/** Everything mode's dot for a target that is not a pattern. */
+private val DOT_RADIUS = 4.dp
+
+/** Between a target and its label in Everything mode. */
+private val LABEL_GAP = 6.dp
+
+/** What both views' backdrop needs, made once per size: the view's circle, the horizon's dash and label, and a path for the ground. */
+private class Backdrop(val circle: Path, val dash: PathEffect, val horizon: TextLayoutResult, val ground: Path)
+
+private fun CacheDrawScope.backdrop(measurer: TextMeasurer, horizonStyle: TextStyle) = Backdrop(
+    circle = Path().apply { addOval(Rect(Offset(size.width / 2f, size.height / 2f), size.minDimension / 2f)) },
+    dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx())),
+    horizon = measurer.measure("Horizon", horizonStyle),
+    ground = Path(),
+)
+
+/**
+ * The view both modes share: the disc, then - once there is a reading - the
+ * sky turned by [roll], with the horizon and [clipped] inside the circle and
+ * [turned] turned with it but not clipped (an edge arrow overhangs the rim),
+ * then the rim and the reticle, which is the phone's own and stays put. The
+ * reticle is thicker and in the accent while [aligned], so the state reads by
+ * shape and not by colour alone, which night vision would take away.
+ */
+private fun DrawScope.drawSky(
+    pointing: AltAz?,
+    roll: Float,
+    backdrop: Backdrop,
+    aligned: Boolean,
+    palette: Palette,
+    clipped: DrawScope.(pointing: AltAz, perDegree: Float, radius: Float) -> Unit,
+    turned: DrawScope.(pointing: AltAz, perDegree: Float, radius: Float) -> Unit = { _, _, _ -> },
+) {
+    val radius = size.minDimension / 2f
+    val perDegree = radius / HALF_VIEW_DEGREES
+
+    drawCircle(palette.raised, radius, center)
+    if (pointing != null) rotate(roll, center) {
+        clipPath(backdrop.circle) {
+            drawHorizon(pointing.altitude, perDegree, radius, backdrop.ground, backdrop.dash, backdrop.horizon, palette)
+            clipped(pointing, perDegree, radius)
+        }
+        turned(pointing, perDegree, radius)
+    }
+    drawCircle(palette.line, radius, center, style = Stroke(1.5.dp.toPx()))
+
+    val reticle = if (aligned) palette.accent else palette.muted
+    val width = if (aligned) 4.dp.toPx() else 1.6.dp.toPx()
+    val r = 22.dp.toPx()
+    drawCircle(reticle, r, center, style = Stroke(width))
+    val from = r - 4.dp.toPx()
+    val to = r + 10.dp.toPx()
+    for ((ux, uy) in listOf(0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f)) {
+        drawLine(
+            reticle,
+            Offset(center.x + ux * from, center.y + uy * from),
+            Offset(center.x + ux * to, center.y + uy * to),
+            strokeWidth = width,
+            cap = StrokeCap.Round,
+        )
+    }
 }
 
 /**

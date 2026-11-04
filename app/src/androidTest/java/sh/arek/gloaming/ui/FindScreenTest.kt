@@ -863,4 +863,69 @@ class FindScreenTest {
 
         compose.onNodeWithTag(FIND_EVERYTHING_TAG).assertIsSelected()
     }
+
+    private fun inViewText(): String? = compose.onAllNodes(SemanticsMatcher("the in-view line") {
+        SemanticsProperties.TestTag in it.config && it.config[SemanticsProperties.TestTag] == FIND_IN_VIEW_TAG
+    }).fetchSemanticsNodes().firstOrNull()
+        ?.let { node -> node.config.getOrElseNullable(SemanticsProperties.Text) { null } }
+        ?.joinToString("") { part -> part.text }
+
+    private fun ploughCentre(at: Long) = Constellations.WATCHED.first { it.name == "Ursa Major" }
+        .let { SkyPositions.fixed(it.raHours, it.dec, latitude, longitude, at) }
+
+    @Test
+    fun everythingNamesWhatIsInView() {
+        val compass = FakeCompassSource()
+        val at = dark()
+        show(compass, at = at)
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+
+        val centre = ploughCentre(at)
+        compass.point(azimuth = centre.azimuth, altitude = centre.altitude)
+
+        compose.waitUntil(5_000) { inViewText()?.contains("the Plough") == true }
+    }
+
+    @Test
+    fun everythingSaysWhenNothingIsInView() {
+        val compass = FakeCompassSource()
+        show(compass, at = dark())
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+
+        compass.point(azimuth = 180.0, altitude = -60.0)
+
+        compose.waitUntil(5_000) { inViewText() == "Nothing up in this part of the sky." }
+    }
+
+    @Test
+    fun everythingViewSaysWhatItShows() {
+        val compass = FakeCompassSource()
+        val at = dark()
+        show(compass, at = at)
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        val centre = ploughCentre(at)
+        compass.point(azimuth = centre.azimuth, altitude = centre.altitude)
+        compose.waitUntil(5_000) { inViewText()?.contains("the Plough") == true }
+
+        compose.onNodeWithTag(FIND_VIEW_TAG).assert(hasContentDescription(inViewText()!!))
+    }
+
+    @Test
+    fun everythingBuzzesOnAimingAtATarget() {
+        val compass = FakeCompassSource()
+        val haptics = CountingHaptics()
+        val at = dark()
+        compose.setContent {
+            CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+                FindScreen(state(nowMillis = at), actions, compass, FindTarget.Aurora, clock = { at })
+            }
+        }
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        val centre = ploughCentre(at)
+        compass.point(azimuth = centre.azimuth, altitude = centre.altitude)
+        compose.waitUntil(5_000) { inViewText()?.contains("the Plough") == true }
+        compose.waitForIdle()
+
+        assertEquals(1, haptics.longPresses)
+    }
 }
