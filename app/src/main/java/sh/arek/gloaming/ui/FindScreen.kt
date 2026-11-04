@@ -203,6 +203,8 @@ fun FindScreen(
     modifier: Modifier = Modifier,
     onTargetChange: (FindTarget) -> Unit = {},
     clock: () -> Long = { System.currentTimeMillis() },
+    everything: Boolean = false,
+    onEverythingChosen: () -> Unit = {},
 ) {
     KeepScreenOn()
     // Dimmed as well as red, the same as night vision everywhere else, and
@@ -210,10 +212,10 @@ fun FindScreen(
     DimScreen(state.settings.nightVisionWhenFinding)
     if (state.settings.nightVisionWhenFinding) {
         GloamingTheme(nightVision = true) {
-            FindContent(state, actions, source, initial, modifier, onTargetChange, clock)
+            FindContent(state, actions, source, initial, everything, modifier, onTargetChange, onEverythingChosen, clock)
         }
     } else {
-        FindContent(state, actions, source, initial, modifier, onTargetChange, clock)
+        FindContent(state, actions, source, initial, everything, modifier, onTargetChange, onEverythingChosen, clock)
     }
 }
 
@@ -223,8 +225,10 @@ private fun FindContent(
     actions: UiActions,
     source: CompassSource,
     initial: FindTarget?,
+    everything: Boolean,
     modifier: Modifier,
     onTargetChange: (FindTarget) -> Unit,
+    onEverythingChosen: () -> Unit,
     clock: () -> Long,
 ) {
     val palette = LocalPalette.current
@@ -286,12 +290,17 @@ private fun FindContent(
         }
         // By its text, so a saved choice from a build with different targets
         // falls back to the first one rather than failing.
-        var chosen by rememberSaveable(initial?.encode()) { mutableStateOf(initial?.encode()) }
+        // Keyed on what the host holds, so a choice made here and handed back
+        // up - a chip, or Everything - is still the choice after a visit to
+        // another tab, and a target handed in afresh replaces it.
+        var chosen by rememberSaveable(initial?.encode(), everything) {
+            mutableStateOf(if (everything) FIND_EVERYTHING else initial?.encode())
+        }
         // Everything is a mode of this screen, not a target, so it is checked
         // for before the choice is read as one; underneath it, the first
         // target stands in for the row's sake.
-        val everything = chosen == FIND_EVERYTHING
-        val asked = (if (everything) null else chosen?.let { FindTarget.decode(it) }) ?: available.firstOrNull()
+        val inEverything = chosen == FIND_EVERYTHING
+        val asked = (if (inEverything) null else chosen?.let { FindTarget.decode(it) }) ?: available.firstOrNull()
         // A default nobody tapped is held once shown, so a list that changes
         // underneath it does not move the guidance to another target.
         LaunchedEffect(asked) {
@@ -329,8 +338,11 @@ private fun FindContent(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             FilterChip(
-                selected = everything,
-                onClick = { chosen = FIND_EVERYTHING },
+                selected = inEverything,
+                onClick = {
+                    chosen = FIND_EVERYTHING
+                    onEverythingChosen()
+                },
                 label = { Text("Everything") },
                 modifier = Modifier.testTag(FIND_EVERYTHING_TAG),
                 colors = FilterChipDefaults.filterChipColors(
@@ -341,7 +353,7 @@ private fun FindContent(
             )
             for (chip in chips) {
                 FilterChip(
-                    selected = !everything && chip == target,
+                    selected = !inEverything && chip == target,
                     onClick = {
                         chosen = chip.encode()
                         onTargetChange(chip)
@@ -357,7 +369,7 @@ private fun FindContent(
             }
         }
 
-        if (everything) {
+        if (inEverything) {
             // Every second, like the one target guidance places, because a
             // pass moves about a degree a second; off the main thread, because
             // it is every pattern's figure and every body at once.
@@ -458,11 +470,15 @@ private fun Everything(
         var buzz = AlignBuzz.AMONG_START
         snapshotFlow {
             val p = pointing.value
-            val last = buzz.last
-            val lastAt = last?.let { l -> current.value.firstOrNull { it.first == l }?.second?.position }
-            under.value to if (p != null && lastAt != null) Guide.separation(p, lastAt) else null
-        }.collect { (onTarget, fromLast) ->
-            val (next, fire) = AlignBuzz.nextAmong(buzz, onTarget, fromLast)
+            // How far each target buzzed for is now, to know which re-arm; one
+            // no longer up has no distance, and re-arms.
+            val apart = buzz.disarmed.associateWith { target ->
+                val at = current.value.firstOrNull { it.first == target }?.second?.position
+                if (p != null && at != null) Guide.separation(p, at) else null
+            }
+            under.value to apart
+        }.collect { (onTarget, apart) ->
+            val (next, fire) = AlignBuzz.nextAmong(buzz, onTarget) { apart[it] }
             buzz = next
             if (fire) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
@@ -522,11 +538,14 @@ private fun Guided(
     // the words, which change far less often than the readings do - so a
     // reading redraws the view and does not recompose this function.
     val (pointing, roll) = rememberAim(reading, state, latitude, longitude, now)
-    val position = fix?.position
-    val guidance = remember(position) {
+    // Read through a state, as the aim is, so the guidance, the reticle and
+    // the buzz below follow a newly chosen target and its movement.
+    val position = rememberUpdatedState(fix?.position)
+    val guidance = remember {
         derivedStateOf {
             val p = pointing.value
-            if (p != null && position != null) Guide.of(p, position) else null
+            val at = position.value
+            if (p != null && at != null) Guide.of(p, at) else null
         }
     }
     val aligned = remember { derivedStateOf { guidance.value?.aligned == true } }
@@ -535,14 +554,16 @@ private fun Guided(
     // the target (AlignBuzz), so a hand wavering at the edge of lined up does
     // not buzz on every crossing. Followed as a flow of the separation rather
     // than decided in composition, which must not perform effects.
-    val separation = remember(position) {
+    val separation = remember {
         derivedStateOf {
             val p = pointing.value
-            if (p != null && position != null) Guide.separation(p, position) else null
+            val at = position.value
+            if (p != null && at != null) Guide.separation(p, at) else null
         }
     }
     val haptics = LocalHapticFeedback.current
-    LaunchedEffect(haptics) {
+    // Started again for a different target, so it is armed for it.
+    LaunchedEffect(haptics, fix?.label) {
         var armed = true
         snapshotFlow { separation.value }.collect {
             val step = AlignBuzz.next(armed, it)
@@ -612,23 +633,28 @@ private fun rememberAim(
     val declination = remember(latitude, longitude, now / DAY_MILLIS) {
         magneticDeclination(latitude, longitude, now)
     }
-    val offsetDegrees = state.settings.compassOffsetDegrees
-    val aim = state.settings.findAim
-    val pointing = remember(declination, offsetDegrees, aim) {
-        derivedStateOf {
-            reading.value?.let { Pointing.direction(it.rotation, aim, declination, offsetDegrees) }
-        }
-    }
+    // The settings are read through states of their own, so the two states
+    // returned are the same objects for the life of the screen: whatever has
+    // captured them - an effect, a tap handler, another derived state - follows
+    // a change of aim or a compass correction rather than keeping the old one.
+    val offsetDegrees = rememberUpdatedState(state.settings.compassOffsetDegrees)
+    val aim = rememberUpdatedState(state.settings.findAim)
+    val declinationNow = rememberUpdatedState(declination)
     // The roll is from the device's top edge; the screen's up is a quarter
     // turn round from it for each quarter the display is rotated.
-    val displayQuarters = LocalView.current.display?.rotation ?: 0
-    val roll = remember(aim, displayQuarters) {
+    val displayQuarters = rememberUpdatedState(LocalView.current.display?.rotation ?: 0)
+    val pointing = remember(reading) {
+        derivedStateOf {
+            reading.value?.let { Pointing.direction(it.rotation, aim.value, declinationNow.value, offsetDegrees.value) }
+        }
+    }
+    val roll = remember(reading) {
         derivedStateOf {
             val rotation = reading.value?.rotation
-            if (rotation == null || aim != FindAim.LookThrough) {
+            if (rotation == null || aim.value != FindAim.LookThrough) {
                 0f
             } else {
-                (Pointing.roll(rotation, aim) - 90.0 * displayQuarters).toFloat()
+                (Pointing.roll(rotation, aim.value) - 90.0 * displayQuarters.value).toFloat()
             }
         }
     }
@@ -850,6 +876,7 @@ private fun EverythingWindow(
     val horizonStyle = MaterialTheme.typography.labelSmall.copy(color = palette.muted)
     val drawn = remember { DrawnFrame() }
     val pick by rememberUpdatedState(onPick)
+    val rollNow by rememberUpdatedState(roll)
 
     Spacer(
         modifier
@@ -858,7 +885,7 @@ private fun EverythingWindow(
                 detectTapGestures { tap ->
                     val layout = drawn.layout ?: return@detectTapGestures
                     val middle = Offset(size.width / 2f, size.height / 2f)
-                    pickAt(layout, tap, roll(), middle, TAP_REACH.toPx())?.let(pick)
+                    pickAt(layout, tap, rollNow(), middle, TAP_REACH.toPx())?.let(pick)
                 }
             }
             .drawWithCache {

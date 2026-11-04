@@ -358,15 +358,15 @@ class PointingTest {
 
     // --- the buzz among many ---
 
-    private val jupiter = FindTarget.Planet(sh.arek.gloaming.astronomy.SkyBody.Jupiter)
-    private val saturn = FindTarget.Planet(sh.arek.gloaming.astronomy.SkyBody.Saturn)
+    private val jupiter: FindTarget = FindTarget.Planet(sh.arek.gloaming.astronomy.SkyBody.Jupiter)
+    private val saturn: FindTarget = FindTarget.Planet(sh.arek.gloaming.astronomy.SkyBody.Saturn)
 
-    /** Feeds (what is under the reticle, how far the last-buzzed target is) pairs from the start, counting buzzes. */
-    private fun buzzesAmong(vararg steps: Pair<FindTarget?, Double?>): Int {
+    /** Feeds (what is under the reticle, how far each target is) steps from the start, counting buzzes. */
+    private fun buzzesAmong(vararg steps: Pair<FindTarget?, Map<FindTarget, Double>>): Int {
         var state = AlignBuzz.AMONG_START
         var fired = 0
-        for ((under, fromLast) in steps) {
-            val (next, fire) = AlignBuzz.nextAmong(state, under, fromLast)
+        for ((under, apart) in steps) {
+            val (next, fire) = AlignBuzz.nextAmong(state, under) { apart[it] }
             state = next
             if (fire) fired++
         }
@@ -375,27 +375,47 @@ class PointingTest {
 
     @Test
     fun `buzzes on coming onto a target among many`() {
-        assertEquals(1, buzzesAmong(null to null, jupiter to 3.0))
+        assertEquals(1, buzzesAmong(null to emptyMap(), jupiter to mapOf(jupiter to 3.0)))
     }
 
     @Test
     fun `wavering on one target buzzes once`() {
-        assertEquals(1, buzzesAmong(jupiter to 3.0, null to 6.0, jupiter to 4.0, null to 7.9, jupiter to 2.0))
+        assertEquals(
+            1,
+            buzzesAmong(
+                jupiter to mapOf(jupiter to 3.0), null to mapOf(jupiter to 6.0), jupiter to mapOf(jupiter to 4.0),
+                null to mapOf(jupiter to 7.9), jupiter to mapOf(jupiter to 2.0),
+            ),
+        )
     }
 
     @Test
     fun `moving off past re-arm and back buzzes again`() {
-        assertEquals(2, buzzesAmong(jupiter to 3.0, null to 8.1, jupiter to 3.0))
+        assertEquals(
+            2,
+            buzzesAmong(jupiter to mapOf(jupiter to 3.0), null to mapOf(jupiter to 8.1), jupiter to mapOf(jupiter to 3.0)),
+        )
     }
 
     @Test
     fun `moving straight onto another target buzzes at once`() {
-        assertEquals(2, buzzesAmong(jupiter to 3.0, saturn to 6.0))
+        assertEquals(2, buzzesAmong(jupiter to mapOf(jupiter to 3.0), saturn to mapOf(jupiter to 6.0, saturn to 3.0)))
+    }
+
+    /** Two targets a degree or two apart, the reticle wavering between them: one buzz each, not one per crossing. */
+    @Test
+    fun `wavering between two close targets buzzes once for each`() {
+        val nearJupiter: Map<FindTarget, Double> = mapOf(jupiter to 1.0, saturn to 2.0)
+        val nearSaturn: Map<FindTarget, Double> = mapOf(jupiter to 2.0, saturn to 1.0)
+        assertEquals(
+            2,
+            buzzesAmong(jupiter to nearJupiter, saturn to nearSaturn, jupiter to nearJupiter, saturn to nearSaturn, jupiter to nearJupiter),
+        )
     }
 
     @Test
-    fun `a last target no longer up re-arms`() {
-        assertEquals(2, buzzesAmong(jupiter to 3.0, null to null, jupiter to 3.0))
+    fun `a target no longer up re-arms`() {
+        assertEquals(2, buzzesAmong(jupiter to mapOf(jupiter to 3.0), null to emptyMap(), jupiter to mapOf(jupiter to 3.0)))
     }
 
     @Test

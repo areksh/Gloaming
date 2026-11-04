@@ -201,36 +201,40 @@ object AlignBuzz {
     data class Step(val armed: Boolean, val fire: Boolean)
 
     /**
-     * The next step from [armed] and the angle between where the phone points
-     * and the target, or null where there is none (no reading, or nothing to
-     * point at), which changes nothing.
+     * Where the buzz among many targets stands: the targets it has buzzed for
+     * that would not buzz again yet, because the phone has not been more than
+     * [REARM_DEGREES] off them since.
      */
-    /**
-     * Where the buzz among many targets stands: the target it last buzzed
-     * for, if any, and whether coming back onto that one would buzz again.
-     */
-    data class Among(val last: FindTarget?, val armed: Boolean)
+    data class Among(val disarmed: Set<FindTarget>)
 
     /** Nothing buzzed for yet. */
-    val AMONG_START = Among(null, true)
+    val AMONG_START = Among(emptySet())
 
     /**
      * The buzz for Everything mode, where any of several targets can come
      * under the reticle: the next state, and whether to buzz now.
      *
      * [under] is the target within the aligned distance, if any;
-     * [separationFromLast] how far the phone points from the target last
-     * buzzed for, or null when that target is no longer up. Coming onto a
-     * different target buzzes at once; coming back onto the same one buzzes
-     * only once the phone has been more than [REARM_DEGREES] off it, as
-     * [next] does for one target - and a target that has gone re-arms.
+     * [separationOf] how far the phone points from a target, or null for one
+     * no longer up. Each target is armed on its own, as [next] arms its one:
+     * coming onto a target buzzes unless it has been buzzed for and not left
+     * by [REARM_DEGREES] since, so a reticle wavering between two close
+     * targets buzzes once for each, not on every crossing, and moving on to
+     * another target buzzes at once. A target that has gone re-arms.
      */
-    fun nextAmong(state: Among, under: FindTarget?, separationFromLast: Double?): Pair<Among, Boolean> {
-        val armed = state.armed || separationFromLast == null || separationFromLast > REARM_DEGREES
-        if (under != null && (under != state.last || armed)) return Among(under, armed = false) to true
-        return Among(state.last, armed) to false
+    fun nextAmong(state: Among, under: FindTarget?, separationOf: (FindTarget) -> Double?): Pair<Among, Boolean> {
+        val disarmed = state.disarmed.filterTo(mutableSetOf()) { target ->
+            separationOf(target)?.let { it <= REARM_DEGREES } == true
+        }
+        if (under != null && under !in disarmed) return Among(disarmed + under) to true
+        return Among(disarmed) to false
     }
 
+    /**
+     * The next step from [armed] and the angle between where the phone points
+     * and the target, or null where there is none (no reading, or nothing to
+     * point at), which changes nothing.
+     */
     fun next(armed: Boolean, separationDegrees: Double?): Step = when {
         separationDegrees == null -> Step(armed, fire = false)
         armed && separationDegrees <= Guide.ALIGNED_DEGREES -> Step(armed = false, fire = true)

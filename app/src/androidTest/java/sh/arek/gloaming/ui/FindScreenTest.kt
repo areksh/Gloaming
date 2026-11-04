@@ -51,6 +51,8 @@ import sh.arek.gloaming.data.UserSettings
 import sh.arek.gloaming.data.magneticDeclination
 import sh.arek.gloaming.domain.CompassAccuracy
 import sh.arek.gloaming.domain.FindTarget
+import sh.arek.gloaming.domain.decode
+import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.satellites.PassChannel
 import sh.arek.gloaming.satellites.SatellitePass
@@ -927,5 +929,79 @@ class FindScreenTest {
         compose.waitForIdle()
 
         assertEquals(1, haptics.longPresses)
+    }
+
+    /** Correcting the compass while in Everything moves what the reticle is on, the line and the buzz with it. */
+    @Test
+    fun everythingFollowsACompassCorrection() {
+        val compass = FakeCompassSource()
+        val haptics = CountingHaptics()
+        val at = dark()
+        var settings by mutableStateOf(located.copy(compassOffsetDegrees = 40.0))
+        compose.setContent {
+            CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+                FindScreen(state(settings = settings, nowMillis = at), actions, compass, FindTarget.Aurora, clock = { at })
+            }
+        }
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        val centre = ploughCentre(at)
+        val declination = magneticDeclination(latitude, longitude, at)
+        compass.point(azimuth = centre.azimuth - declination, altitude = centre.altitude)
+        compose.waitForIdle()
+        assertEquals(0, haptics.longPresses)
+
+        settings = located
+        compose.waitUntil(5_000) { inViewText()?.contains("the Plough") == true }
+        compose.waitForIdle()
+
+        assertEquals(1, haptics.longPresses)
+    }
+
+    /** Guidance buzzes on the target chosen now, not the one Find opened on. */
+    @Test
+    fun guidanceBuzzesOnTheNewlyChosenTarget() {
+        val compass = FakeCompassSource()
+        val haptics = CountingHaptics()
+        val at = dark()
+        compose.setContent {
+            CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+                FindScreen(state(nowMillis = at), actions, compass, FindTarget.Aurora, clock = { at })
+            }
+        }
+        compose.onNodeWithTag(findChipTag(FindTarget.Pattern("Ursa Major"))).performClick()
+        val centre = ploughCentre(at)
+        val declination = magneticDeclination(latitude, longitude, at)
+        compass.point(azimuth = centre.azimuth - declination, altitude = centre.altitude)
+        compose.waitForIdle()
+
+        assertEquals(1, haptics.longPresses)
+    }
+
+    /** Leaving Find for another tab and coming back keeps Everything, as it keeps a chip. */
+    @Test
+    fun everythingSurvivesAVisitElsewhere() {
+        val at = dark()
+        var shown by mutableStateOf(true)
+        var choice by mutableStateOf<String?>(FindTarget.Aurora.encode())
+        compose.setContent {
+            if (shown) {
+                FindScreen(
+                    state = state(nowMillis = at),
+                    actions = actions,
+                    source = FakeCompassSource(),
+                    initial = choice?.let { FindTarget.decode(it) },
+                    everything = choice == FIND_EVERYTHING,
+                    onTargetChange = { choice = it.encode() },
+                    onEverythingChosen = { choice = FIND_EVERYTHING },
+                    clock = { at },
+                )
+            }
+        }
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        shown = false
+        compose.waitForIdle()
+        shown = true
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).assertIsSelected()
     }
 }

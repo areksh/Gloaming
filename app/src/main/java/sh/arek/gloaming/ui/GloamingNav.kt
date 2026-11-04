@@ -129,7 +129,8 @@ fun GloamingNav(
     val skyScroll = rememberLazyListState()
     var starredOnly by rememberSaveable { mutableStateOf(false) }
     // What Find is aimed at, encoded, so Find it on a row can open it on that
-    // row and a target picked on Find is still chosen after a visit elsewhere.
+    // row and a target picked on Find is still chosen after a visit elsewhere;
+    // or FIND_EVERYTHING, for Everything mode, which no row hands in.
     var findTarget by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialFind) {
@@ -265,6 +266,8 @@ fun GloamingNav(
                 modifier = content.fillMaxSize(),
                 onTargetChange = { findTarget = it.encode() },
                 clock = findClock,
+                everything = findTarget == FIND_EVERYTHING,
+                onEverythingChosen = { findTarget = FIND_EVERYTHING },
             )
 
             Section.Settings -> if (page == null) {
