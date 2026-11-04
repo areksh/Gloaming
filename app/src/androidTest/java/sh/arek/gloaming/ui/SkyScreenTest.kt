@@ -78,6 +78,19 @@ class SkyScreenTest {
 
     private val found = mutableListOf<FindTarget>()
 
+    private fun state(settings: UserSettings = UserSettings(latitude = 53.0, longitude = -3.0)) = MainUiState(
+        settings = settings,
+        alertState = AlertState(),
+        latitudeInput = "53",
+        longitudeInput = "-3",
+        quietFromInput = "23:00",
+        quietUntilInput = "07:00",
+        batteryExempt = true,
+        notificationsAllowed = true,
+        nowMillis = now,
+        tonight = night,
+    )
+
     private fun show() {
         compose.setContent {
             val state = MainUiState(
@@ -167,6 +180,29 @@ class SkyScreenTest {
 
         scrollTo(tag)
         compose.onNodeWithTag(tag).performClick()
+        compose.onNode(hasText("Never sets from here.", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aPatternSheetDrawsItsFigure() {
+        show()
+        val tag = skyRowTag(RowSubject.Constellation(ursaMajor))
+
+        scrollTo(tag)
+        compose.onNodeWithTag(tag).performClick()
+        compose.onNodeWithTag(FIGURE_SKETCH_TAG).assertIsDisplayed()
+        compose.onNode(hasText("As it stands at", substring = true)).assertIsDisplayed()
+    }
+
+    @Test
+    fun aPatternSheetWithoutALocationLeavesTheFigureOut() {
+        // Sky lists no patterns without a location, so the sheet is opened as a notification would.
+        val subject = RowSubject.Constellation(ursaMajor)
+        compose.setContent {
+            SubjectSheet(heading(subject)!!, subject, state(UserSettings()), UiActions(), onDismiss = {})
+        }
+
+        compose.onNodeWithTag(FIGURE_SKETCH_TAG).assertDoesNotExist()
         compose.onNode(hasText("Never sets from here.", substring = true)).assertIsDisplayed()
     }
 }

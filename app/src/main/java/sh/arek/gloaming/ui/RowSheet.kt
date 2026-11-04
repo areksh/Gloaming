@@ -144,7 +144,13 @@ fun SubjectSheet(
                 is RowSubject.Pass -> describePassDetail(subject.pass).forEach { Said(it) }
                 is RowSubject.Planet -> Said(describePlanet(subject.planet))
                 is RowSubject.Event -> Event(subject.event, state.nowMillis, actions)
-                is RowSubject.Constellation -> Said(describeConstellation(subject.seen))
+                is RowSubject.Constellation -> {
+                    // Only from somewhere: the drawing is how it stands from here.
+                    val latitude = state.settings.latitude
+                    val longitude = state.settings.longitude
+                    if (latitude != null && longitude != null) FigureSketch(subject.seen, latitude, longitude)
+                    Said(describeConstellation(subject.seen))
+                }
             }
 
             findIt?.invoke()
