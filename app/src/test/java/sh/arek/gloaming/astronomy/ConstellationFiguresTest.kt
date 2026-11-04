@@ -1,5 +1,6 @@
 package sh.arek.gloaming.astronomy
 
+import java.time.Instant
 import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.sin
@@ -131,5 +132,49 @@ class ConstellationFiguresTest {
     @Test
     fun `turns strokes into segments`() {
         assertEquals(listOf(0 to 1), figure("Canis Minor").segments())
+    }
+
+    // --- placed on the sky ---
+
+    /** Orion at its highest on a January night, flattened around its centre. */
+    private fun orionAtItsHighest(latitude: Double, longitude: Double, iso: String): Map<String, PlanePoint> {
+        val orion = Constellations.WATCHED.first { it.name == "Orion" }
+        val night = Twilight.nightNearest(latitude, longitude, Instant.parse(iso).toEpochMilli())!!
+        val at = Constellations.tonight(latitude, longitude, night)
+            .first { it.constellation.name == "Orion" }.peakAt
+        val centre = SkyPositions.fixed(orion.raHours, orion.dec, latitude, longitude, at)
+        val placed = figure("Orion").placedAt(latitude, longitude, at)
+        return placed.stars.zip(placed.positions)
+            .associate { (star, position) -> star.name.orEmpty() to SkyProjection.around(centre, position)!! }
+    }
+
+    /** From the north, facing south: Betelgeuse up and to the left, Rigel down and to the right. */
+    @Test
+    fun `stands orion upright from scotland`() {
+        val stars = orionAtItsHighest(55.95, -3.19, "2027-01-15T22:00:00Z")
+
+        assertTrue(stars.getValue("Betelgeuse").y > stars.getValue("Rigel").y)
+        assertTrue(stars.getValue("Betelgeuse").x < stars.getValue("Rigel").x)
+    }
+
+    /** From the south, facing north, the hunter stands on his head. */
+    @Test
+    fun `turns orion over from sydney`() {
+        val stars = orionAtItsHighest(-33.87, 151.21, "2027-01-15T11:00:00Z")
+
+        assertTrue(stars.getValue("Betelgeuse").y < stars.getValue("Rigel").y)
+        assertTrue(stars.getValue("Betelgeuse").x > stars.getValue("Rigel").x)
+    }
+
+    @Test
+    fun `places every star where SkyPositions puts it`() {
+        val at = Instant.parse("2027-01-15T22:00:00Z").toEpochMilli()
+        val placed = figure("Orion").placedAt(55.95, -3.19, at)
+
+        assertEquals(placed.stars.size, placed.positions.size)
+        for ((star, position) in placed.stars.zip(placed.positions)) {
+            assertEquals(star.id, SkyPositions.fixed(star.raHours, star.dec, 55.95, -3.19, at), position)
+        }
+        assertEquals(figure("Orion").segments(), placed.segments)
     }
 }

@@ -42,6 +42,25 @@ data class Figure(val stars: List<FigureStar>, val strokes: List<List<String>>) 
 }
 
 /**
+ * A figure at one moment from one place.
+ *
+ * @property positions where each of [stars] is, in the same order.
+ * @property segments the figure's lines, as pairs of indexes into [stars].
+ */
+data class PlacedFigure(
+    val stars: List<FigureStar>,
+    val positions: List<AltAz>,
+    val segments: List<Pair<Int, Int>>,
+)
+
+/** Where every star of this figure is from the given place at [atMillis]. */
+fun Figure.placedAt(latitude: Double, longitude: Double, atMillis: Long): PlacedFigure = PlacedFigure(
+    stars = stars,
+    positions = stars.map { SkyPositions.fixed(it.raHours, it.dec, latitude, longitude, atMillis) },
+    segments = segments(),
+)
+
+/**
  * The stick figure of every pattern in [Constellations.WATCHED].
  *
  * **Stars are drawn here and listed nowhere.** ADR 0012 kept individual stars
