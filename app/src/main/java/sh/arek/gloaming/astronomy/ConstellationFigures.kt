@@ -68,9 +68,11 @@ fun Figure.placedAt(latitude: Double, longitude: Double, atMillis: Long): Placed
  * a star is a point of a pattern, the landmark case 0012 already allowed, and
  * never a row, a chip, a target or an entry of its own.
  *
- * **Typed in by hand.** Positions and magnitudes are from the Yale Bright Star
- * Catalogue, 5th revised edition, looked up by Bayer designation; the lines
- * are this app's own, so no third-party figure set has to be licensed.
+ * **Copied once, kept as source.** Positions and magnitudes are from the Yale
+ * Bright Star Catalogue, 5th revised edition, looked up by Bayer designation
+ * by a one-off script and pasted here; nothing reads the catalogue at build
+ * time. The lines are this app's own, so no third-party figure set has to be
+ * licensed. Names are the IAU's where it has given one.
  * Acrux, Rigil Kentaurus and epsilon Lyrae are each two catalogue entries
  * that the eye sees as one star; each is one star here, at the brighter
  * component, with the combined magnitude (for the first two, the one the
@@ -182,9 +184,9 @@ object ConstellationFigures {
                 FigureStar("beta", "Acrab", 16.0906, -19.806, 2.62),
                 FigureStar("delta", "Dschubba", 16.0056, -22.622, 2.32),
                 FigureStar("pi", null, 15.9809, -26.114, 2.89),
-                FigureStar("sigma", "Al Niyat", 16.3531, -25.593, 2.89),
+                FigureStar("sigma", "Alniyat", 16.3531, -25.593, 2.89),
                 FigureStar("alpha", "Antares", 16.4901, -26.432, 0.96),
-                FigureStar("tau", "Alniyat", 16.5981, -28.216, 2.82),
+                FigureStar("tau", null, 16.5981, -28.216, 2.82),
                 FigureStar("epsilon", null, 16.8361, -34.293, 2.29),
                 FigureStar("mu1", null, 16.8645, -38.047, 3.08),
                 FigureStar("zeta2", null, 16.9097, -42.361, 3.62),

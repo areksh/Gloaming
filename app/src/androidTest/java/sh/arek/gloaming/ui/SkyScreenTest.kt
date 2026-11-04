@@ -93,20 +93,8 @@ class SkyScreenTest {
 
     private fun show() {
         compose.setContent {
-            val state = MainUiState(
-                settings = UserSettings(latitude = 53.0, longitude = -3.0),
-                alertState = AlertState(),
-                latitudeInput = "53",
-                longitudeInput = "-3",
-                quietFromInput = "23:00",
-                quietUntilInput = "07:00",
-                batteryExempt = true,
-                notificationsAllowed = true,
-                nowMillis = now,
-                tonight = night,
-            )
             SkyScreen(
-                state = state,
+                state = state(),
                 actions = UiActions(),
                 listState = rememberLazyListState(),
                 onFindIt = { found += it },

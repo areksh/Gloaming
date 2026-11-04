@@ -14,7 +14,7 @@ size and one sentence saying how to pick it out. That is enough to say where
 to look, and not enough to show what to look for: "a W of five stars" is
 easier to find when you have seen the W.
 
-Drawing a stick figure means storing stars. Each figure is five to fifteen
+Drawing a stick figure means storing stars. Each figure is two to fifteen
 of them, with positions and magnitudes - 154 in all for the 22 patterns.
 Read literally, that is the catalogue 0012 refused. The question is
 whether it is.
@@ -35,7 +35,9 @@ you could look up, pick and be pointed at.
   calendar entry, search result or notification is ever about one star.
   The pattern's brightest star is labelled in its sheet because the
   pattern's own row already names it.
-- **Hand-entered from the Yale Bright Star Catalogue**, 5th revised edition.
+- **Copied from the Yale Bright Star Catalogue**, 5th revised edition, once,
+  by a one-off script, into plain source; nothing reads the catalogue at build
+  time.
   Positions are facts. The lines are this app's own, so no third-party
   figure set (Stellarium's, or anybody else's) has to be licensed or
   credited.
@@ -53,8 +55,10 @@ you could look up, pick and be pointed at.
 must fall inside the constellation it is drawn in, by the vendored IAU
 boundary lookup - except Elnath in Auriga and Alpheratz in Pegasus, the two
 stars traditionally shared with a neighbour, which are marked as borrowed.
-Every star must also lie within twice its pattern's extent of the centre.
-Between them these catch the mistakes hand entry makes: hours read as
+Every star must also lie within twice its pattern's extent of the centre,
+and no line may run longer than twenty degrees (the longest, Pegasus's
+square, is 16.5).
+Between them these catch the mistakes a later edit by hand makes: hours read as
 degrees, a lost minus sign, the wrong star looked up.
 
 **Doubles are entered as the eye sees them.** Acrux, Rigil Kentaurus and

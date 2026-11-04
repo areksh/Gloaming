@@ -41,10 +41,11 @@ class FigureDrawingTest {
         )
     }
 
+    /** The drawing is still turned for one way of facing, so high up it still says which. */
     @Test
-    fun `says overhead instead of a direction high up`() {
+    fun `says overhead and still which way to face high up`() {
         assertEquals(
-            "As it stands at ${clock(peakAt)}, nearly overhead.",
+            "As it stands at ${clock(peakAt)}, nearly overhead, facing south.",
             figureCaption(orion(altitude = 80.0, azimuth = 180.0)),
         )
     }
@@ -86,13 +87,13 @@ class FigureDrawingTest {
     private val label = 40f
 
     private fun inside(point: Offset) =
-        point.x >= pad - 1e-3f && point.x <= width - pad - label + 1e-3f &&
+        point.x >= pad - 1e-3f && point.x <= width - pad + 1e-3f &&
             point.y >= pad - 1e-3f && point.y <= height - pad + 1e-3f
 
     /** Two stars on a level line: no height to scale by, and nothing may come out infinite. */
     @Test
     fun `fits two stars on one level without blowing up`() {
-        val fitted = fitToBox(listOf(PlanePoint(-2.0, 0.0), PlanePoint(2.0, 0.0)), width, height, pad, label)
+        val fitted = fitToBox(listOf(PlanePoint(-2.0, 0.0), PlanePoint(2.0, 0.0)), width, height, pad, 1, label)
 
         for (point in fitted) {
             assertTrue(point.toString(), point!!.x.isFinite() && point.y.isFinite() && inside(point))
@@ -103,7 +104,7 @@ class FigureDrawingTest {
 
     @Test
     fun `keeps up up and right right`() {
-        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), PlanePoint(1.0, 3.0)), width, height, pad, label)
+        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), PlanePoint(1.0, 3.0)), width, height, pad, 0, label)
 
         assertTrue(fitted[1]!!.y < fitted[0]!!.y)
         assertTrue(fitted[1]!!.x > fitted[0]!!.x)
@@ -111,7 +112,7 @@ class FigureDrawingTest {
 
     @Test
     fun `leaves out a star that is not on the drawing`() {
-        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), null, PlanePoint(5.0, 5.0)), width, height, pad, label)
+        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), null, PlanePoint(5.0, 5.0)), width, height, pad, 0, label)
 
         assertNull(fitted[1])
         assertTrue(fitted[0] != null && fitted[2] != null)
@@ -119,7 +120,7 @@ class FigureDrawingTest {
 
     @Test
     fun `fits nothing when nothing is on the drawing`() {
-        assertEquals(listOf<Offset?>(null, null), fitToBox(listOf(null, null), width, height, pad, label))
+        assertEquals(listOf<Offset?>(null, null), fitToBox(listOf(null, null), width, height, pad, 0, label))
     }
 
     /** The Plough at its highest over Edinburgh in spring, about 85 degrees up: it must fill the box, not collapse. */
@@ -135,14 +136,42 @@ class FigureDrawingTest {
         val centreThen = SkyPositions.fixed(plough.raHours, plough.dec, lat, lon, seen.peakAt)
         val flat = ConstellationFigures.of(plough)!!.placedAt(lat, lon, seen.peakAt).positions
             .map { SkyProjection.around(centreThen, it) }
-        val fitted = fitToBox(flat, width, height, pad, label).map { it!! }
+        val alioth = ConstellationFigures.of(plough)!!.stars.indexOfFirst { it.name == plough.brightestStar }
+        val fitted = fitToBox(flat, width, height, pad, alioth, label).map { it!! }
 
         assertTrue(fitted.all { inside(it) })
+        assertTrue(fitted[alioth].x + label <= width - pad + 1e-3f)
         val spanX = fitted.maxOf { it.x } - fitted.minOf { it.x }
         val spanY = fitted.maxOf { it.y } - fitted.minOf { it.y }
         assertTrue(
             "span $spanX x $spanY",
             spanX >= 0.99f * (width - 2 * pad - label) || spanY >= 0.99f * (height - 2 * pad),
         )
+    }
+
+    /** A label that falls inside the figure needs no room of its own, so the figure is centred. */
+    @Test
+    fun `centres a figure whose label falls inside it`() {
+        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), PlanePoint(10.0, 0.0)), width, height, pad, 0, label)
+
+        assertEquals(pad, fitted[0]!!.x, 1e-3f)
+        assertEquals(width - pad, fitted[1]!!.x, 1e-3f)
+    }
+
+    /** A label beside the rightmost star is kept in, and the figure and label are centred together. */
+    @Test
+    fun `keeps a label at the right edge inside`() {
+        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), PlanePoint(10.0, 0.0)), width, height, pad, 1, label)
+
+        assertEquals(pad, fitted[0]!!.x, 1e-3f)
+        assertEquals(width - pad, fitted[1]!!.x + label, 1e-3f)
+    }
+
+    /** With no star to label, there is nothing to make room for. */
+    @Test
+    fun `makes no room for a label when no star has one`() {
+        val fitted = fitToBox(listOf(PlanePoint(0.0, 0.0), PlanePoint(10.0, 0.0)), width, height, pad, -1, label)
+
+        assertEquals(width - pad, fitted[1]!!.x, 1e-3f)
     }
 }

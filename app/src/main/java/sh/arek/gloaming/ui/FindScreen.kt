@@ -43,6 +43,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -63,7 +64,10 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -556,7 +560,7 @@ private fun AimChoice(aim: FindAim, onChange: (FindAim) -> Unit) {
 /**
  * The view: sixty degrees of sky around where the phone points.
  *
- * The horizon is a dashed line with the ground shaded below it. The target is
+ * The horizon is dashed, with the ground shaded beyond it. The target is
  * a ring with its name while it is inside the view; off the view, or not yet
  * risen, it is an arrow at the edge pointing the way to turn - the rise point
  * on the horizon for a target not up. A pattern is also drawn as its stick
@@ -564,11 +568,14 @@ private fun AimChoice(aim: FindAim, onChange: (FindAim) -> Unit) {
  * where. The reticle is drawn thicker when lined up, so the state reads by
  * shape and not by colour alone, which night vision would take away.
  *
- * The ring and the figure are placed by one projection, [SkyProjection], so
- * the ring always sits on the figure's centre - near the zenith too, where
- * [Guide.of] stops giving a turn. The edge arrow still takes its direction
- * from [Guide.of], because it has to point at things behind the viewer, which
- * a projection cannot place.
+ * The ring, the figure and the horizon are placed by one projection,
+ * [SkyProjection], so the ring always sits on the figure's centre and a star
+ * low down is on the right side of the horizon at the edge of the view as
+ * well as in the middle. The projection draws the horizon as a circle, which
+ * is a straight line only looking level; it is drawn as one, as far as it
+ * reaches into the view. The edge arrow points the way the projection does,
+ * except for a target behind the viewer and low, where turning round beats
+ * tipping over the top and [Guide.of] says which way to turn.
  *
  * [roll] turns the sky - horizon, ground, target and arrow - clockwise by so
  * many degrees, so that looked through, it stays level with the real one
@@ -595,6 +602,10 @@ private fun FindView(
         val dash = PathEffect.dashPathEffect(floatArrayOf(2.dp.toPx(), 4.dp.toPx()))
         val horizonLayout = measurer.measure("Horizon", horizonStyle)
         val targetLayout = fix?.let { measurer.measure(it.label, labelStyle) }
+        val ground = Path()
+        val figure = fix?.figure
+        val magnitudes = figure?.stars?.map { it.magnitude }.orEmpty()
+        val figurePoints = MutableList<Offset?>(figure?.positions?.size ?: 0) { null }
         onDrawBehind {
             val pointing = pointing()
             val aligned = aligned()
@@ -604,28 +615,13 @@ private fun FindView(
             drawCircle(palette.raised, radius, center)
             if (pointing != null) rotate(roll(), center) {
                 clipPath(circle) {
-                    // Wider than the view, so the ground still fills the
-                    // circle when the drawing is turned.
-                    val horizonY = center.y + pointing.altitude.toFloat() * perDegree
-                    if (horizonY < 2 * size.height) {
-                        drawRect(
-                            palette.ground,
-                            topLeft = Offset(-size.width, horizonY.coerceAtLeast(-size.height)),
-                            size = Size(3 * size.width, 3 * size.height),
-                        )
-                    }
-                    drawLine(
-                        palette.muted,
-                        Offset(-size.width, horizonY),
-                        Offset(2 * size.width, horizonY),
-                        strokeWidth = 1.2.dp.toPx(),
-                        pathEffect = dash,
-                    )
-                    drawLabel(horizonLayout, Offset(center.x - radius * 0.6f, horizonY), above = true)
+                    drawHorizon(pointing.altitude, perDegree, radius, ground, dash, horizonLayout, palette)
 
-                    fix?.figure?.let { figure ->
-                        val points = figure.positions.map { skyToScreen(pointing, it, center, perDegree) }
-                        drawFigure(points, figure.stars.map { it.magnitude }, figure.segments, palette)
+                    if (figure != null) {
+                        figure.positions.forEachIndexed { i, star ->
+                            figurePoints[i] = skyToScreen(pointing, star, center, perDegree)
+                        }
+                        drawFigure(figurePoints, magnitudes, figure.segments, palette)
                     }
 
                     val onScreen = fix?.position?.let { skyToScreen(pointing, it, center, perDegree) }
@@ -666,28 +662,102 @@ private fun FindView(
 }
 
 /**
+ * The horizon and the ground beyond it, for a view centred at [altitude].
+ *
+ * Looking up the ground is outside the horizon's circle, looking down inside
+ * it. Only the arc that reaches into the view is stroked: a circle hundreds
+ * of views across, as it is looking nearly level, would otherwise be dashed
+ * all the way round on every reading. [ground] is reused from draw to draw.
+ */
+private fun DrawScope.drawHorizon(
+    altitude: Double,
+    perDegree: Float,
+    radius: Float,
+    ground: Path,
+    dash: PathEffect,
+    label: TextLayoutResult,
+    palette: Palette,
+) {
+    val stroke = Stroke(1.2.dp.toPx(), pathEffect = dash)
+    val labelX = center.x - radius * 0.6f
+    val circle = SkyProjection.horizon(altitude)
+    if (circle == null) {
+        // Level: the straight line through the middle, ground below it.
+        // Wider than the view, so the ground still fills it when turned.
+        val y = center.y + altitude.toFloat() * perDegree
+        drawRect(palette.ground, topLeft = Offset(-size.width, y), size = Size(3 * size.width, 3 * size.height))
+        drawLine(palette.muted, Offset(-size.width, y), Offset(2 * size.width, y), stroke.width, pathEffect = dash)
+        drawLabel(label, Offset(labelX, y), above = true)
+        return
+    }
+
+    val at = Offset(center.x + circle.centre.x.toFloat() * perDegree, center.y - circle.centre.y.toFloat() * perDegree)
+    val r = circle.radius.toFloat() * perDegree
+    ground.rewind()
+    if (altitude > 0) {
+        ground.addRect(Rect(-size.width, -size.height, 2 * size.width, 2 * size.height))
+        ground.addOval(Rect(at, r))
+        ground.fillType = PathFillType.EvenOdd
+    } else {
+        ground.addOval(Rect(at, r))
+        ground.fillType = PathFillType.NonZero
+    }
+    drawPath(ground, palette.ground)
+
+    // The arc within reach of the view, either side of the point of the
+    // circle nearest the view's centre.
+    val towards = Math.toDegrees(atan2((center.y - at.y).toDouble(), (center.x - at.x).toDouble())).toFloat()
+    val half = if (r <= 1.5f * radius) 180f else Math.toDegrees(asin(1.5 * radius / r)).toFloat()
+    drawArc(
+        palette.muted,
+        startAngle = towards - half,
+        sweepAngle = 2 * half,
+        useCenter = false,
+        topLeft = Offset(at.x - r, at.y - r),
+        size = Size(2 * r, 2 * r),
+        style = stroke,
+    )
+    // On the side of the circle nearer the view: below its centre looking up.
+    val across = labelX - at.x
+    if (r > kotlin.math.abs(across)) {
+        val rise = sqrt(r * r - across * across)
+        drawLabel(label, Offset(labelX, if (altitude > 0) at.y + rise else at.y - rise), above = true)
+    }
+}
+
+/**
  * Which way the edge arrow points, as a screen offset, or null for no arrow:
  * towards a target further than [inView] from the centre, or towards the rise
  * point of one below the horizon.
  */
-private fun edgeArrowDirection(pointing: AltAz, fix: TargetFix?, perDegree: Float, inView: Float): Pair<Float, Float>? {
+internal fun edgeArrowDirection(pointing: AltAz, fix: TargetFix?, perDegree: Float, inView: Float): Pair<Float, Float>? {
     fix ?: return null
     val position = fix.position
     if (position != null) {
         // In view by the same projection the ring is drawn with, so the ring
-        // and the arrow are never both shown or both missing; which way to
-        // turn is still the guide's, which knows about behind you.
+        // and the arrow are never both shown or both missing.
         val flat = SkyProjection.around(pointing, position)
         if (flat != null && hypot(flat.x, flat.y).toFloat() * perDegree <= inView) return null
-        val guidance = Guide.of(pointing, position)
-        return guidance.turnDegrees.toFloat() * perDegree to -guidance.tiltDegrees.toFloat() * perDegree
+        return arrowTowards(pointing, position, inFront = flat != null)
     }
-    val riseAzimuth = fix.riseAzimuth ?: return null
-    val guidance = Guide.of(pointing, AltAz(0.0, riseAzimuth))
-    val dx = guidance.turnDegrees.toFloat()
-    val dy = -guidance.tiltDegrees.toFloat()
+    val rise = AltAz(0.0, fix.riseAzimuth ?: return null)
     // Pointing straight at the rise point: down to the horizon it comes up from.
-    return if (hypot(dx, dy) < 0.5f) 0f to 1f else dx to dy
+    if (Guide.separation(pointing, rise) < 0.5) return 0f to 1f
+    return arrowTowards(pointing, rise, inFront = SkyProjection.around(pointing, rise) != null)
+}
+
+/**
+ * In front, or looking nearly straight up, the way the projection points, so
+ * the arrow says where the ring will come in. Behind and lower, the way
+ * [Guide.of] says: a turn and a tilt, because somebody facing away from a
+ * star low in the east turns round to it rather than tipping over the top.
+ */
+private fun arrowTowards(pointing: AltAz, target: AltAz, inFront: Boolean): Pair<Float, Float> {
+    if (inFront || pointing.altitude >= Guide.ZENITH_DEGREES) {
+        SkyProjection.towards(pointing, target)?.let { return it.x.toFloat() to -it.y.toFloat() }
+    }
+    val guidance = Guide.of(pointing, target)
+    return guidance.turnDegrees.toFloat() to -guidance.tiltDegrees.toFloat()
 }
 
 private fun DrawScope.drawEdgeArrow(dx: Float, dy: Float, radius: Float, palette: Palette) {

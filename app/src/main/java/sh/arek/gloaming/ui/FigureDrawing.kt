@@ -45,14 +45,17 @@ internal fun starRadiusDp(magnitude: Double): Float = (3.6 - 0.55 * magnitude).c
 
 /**
  * What the sheet's drawing shows, said under it: the moment it is drawn for,
- * and which way to face to see it like that.
+ * and which way to face to see it like that. High up it says so, and still
+ * says which way to face, because the drawing is turned for one way of
+ * facing however high the pattern is.
  */
 internal fun figureCaption(seen: ConstellationTonight): String {
     val at = clock(seen.peakAt)
+    val way = Compass.of(seen.peakAzimuth).label
     return if (seen.peakAltitude >= OVERHEAD_DEGREES) {
-        "As it stands at $at, nearly overhead."
+        "As it stands at $at, nearly overhead, facing $way."
     } else {
-        "As it stands at $at, looking ${Compass.of(seen.peakAzimuth).label}."
+        "As it stands at $at, looking $way."
     }
 }
 
@@ -69,10 +72,14 @@ internal fun skyToScreen(pointing: AltAz, target: AltAz, center: Offset, perDegr
 
 /**
  * Fits a flattened figure into a [width] by [height] drawing, at one scale
- * for both directions and centred, with [pad] all round and [labelWidth]
- * kept free on the right so the label beside a star is never cut off. A
- * figure with no width or no height (two stars on a level line) is scaled by
- * the direction it has. Null points stay null; with none at all there is
+ * for both directions, with [pad] all round. The star at [labelAt] (none
+ * when it is out of range) has a label [labelWidth] wide to its right, and
+ * the figure and that label are fitted and centred together: the label gets
+ * room only where it reaches past the figure, so a figure whose labelled
+ * star is on its left is not pushed off centre by room it does not use.
+ *
+ * A figure with no width or no height (two stars on a level line) is scaled
+ * by the direction it has. Null points stay null; with none at all there is
  * nothing to fit.
  */
 internal fun fitToBox(
@@ -80,6 +87,7 @@ internal fun fitToBox(
     width: Float,
     height: Float,
     pad: Float,
+    labelAt: Int,
     labelWidth: Float,
 ): List<Offset?> {
     val shown = points.filterNotNull()
@@ -88,18 +96,23 @@ internal fun fitToBox(
     val maxX = shown.maxOf { it.x }
     val minY = shown.minOf { it.y }
     val maxY = shown.maxOf { it.y }
-    val roomX = (width - 2 * pad - labelWidth).coerceAtLeast(1f)
-    val roomY = (height - 2 * pad).coerceAtLeast(1f)
-    val scale = minOf(
-        roomX / (maxX - minX).coerceAtLeast(1e-6),
-        roomY / (maxY - minY).coerceAtLeast(1e-6),
-    ).toFloat()
-    val midX = (minX + maxX) / 2
+    val roomX = (width - 2 * pad).coerceAtLeast(1f).toDouble()
+    val roomY = (height - 2 * pad).coerceAtLeast(1f).toDouble()
+    val labelled = points.getOrNull(labelAt)
+    val label = if (labelled != null) labelWidth.toDouble() else 0.0
+
+    var scale = minOf(roomX / (maxX - minX).coerceAtLeast(1e-6), roomY / (maxY - minY).coerceAtLeast(1e-6))
+    if (labelled != null && labelled.x > minX) {
+        scale = minOf(scale, (roomX - label).coerceAtLeast(1.0) / (labelled.x - minX))
+    }
+    // Everything drawn, from the leftmost star to the further of the
+    // rightmost star and the label's end, measured from the leftmost star.
+    val reach = maxOf((maxX - minX) * scale, labelled?.let { (it.x - minX) * scale + label } ?: 0.0)
+    val left = pad + (roomX - reach) / 2
     val midY = (minY + maxY) / 2
-    val centreX = pad + roomX / 2
     val centreY = height / 2
     return points.map { p ->
-        p?.let { Offset(centreX + ((it.x - midX) * scale).toFloat(), centreY - ((it.y - midY) * scale).toFloat()) }
+        p?.let { Offset((left + (it.x - minX) * scale).toFloat(), centreY - ((it.y - midY) * scale).toFloat()) }
     }
 }
 
@@ -177,11 +190,11 @@ internal fun FigureSketch(
                 }
                 .drawWithCache {
                     val label = measurer.measure(constellation.brightestStar, labelStyle)
-                    val points = fitToBox(flat, size.width, size.height, 16.dp.toPx(), label.size.width.toFloat())
+                    val gap = magnitudes.getOrNull(brightest)?.let { starRadiusDp(it).dp.toPx() + 4.dp.toPx() } ?: 0f
+                    val points = fitToBox(flat, size.width, size.height, 16.dp.toPx(), brightest, gap + label.size.width)
                     onDrawBehind {
                         drawFigure(points, magnitudes, segments, palette)
                         points.getOrNull(brightest)?.let { at ->
-                            val gap = starRadiusDp(magnitudes[brightest]).dp.toPx() + 4.dp.toPx()
                             drawText(label, topLeft = Offset(at.x + gap, at.y - label.size.height / 2f))
                         }
                     }

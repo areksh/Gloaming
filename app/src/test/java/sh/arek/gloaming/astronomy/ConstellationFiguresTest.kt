@@ -12,8 +12,8 @@ import org.junit.Test
 /**
  * The stick figures, checked against things that do not depend on the table.
  *
- * The figures were typed in by hand, so the checks here are the ones a typo
- * fails: a star outside the constellation it is drawn in (the library's own
+ * The figures were copied into the source once and are edited there, so the
+ * checks here are the ones a typo fails: a star outside the constellation it is drawn in (the library's own
  * IAU boundaries say so), a star too far from the pattern's centre to belong
  * to it (hours entered as degrees, a dropped minus sign), and a line to a
  * star that is not there. Which stars make the shape is judgement, recorded
@@ -126,6 +126,33 @@ class ConstellationFiguresTest {
                 assertTrue("$name ${star.id}", star.id.all { it.code in 32..126 })
                 star.name?.let { assertTrue("$name $it", it.all { c -> c.code in 32..126 }) }
             }
+        }
+    }
+
+    /**
+     * The longest line in the table is about 16.5 degrees, Pegasus's square.
+     * The boundary check above catches most typos first; this one also covers
+     * the two borrowed stars, which that check lets off, and any edit that
+     * stretches a line without leaving the constellation.
+     */
+    @Test
+    fun `draws no line longer than twenty degrees`() {
+        for ((name, figure) in ConstellationFigures.FIGURES) {
+            for ((a, b) in figure.segments()) {
+                val from = figure.stars[a]
+                val to = figure.stars[b]
+                val length = apart(from.raHours, from.dec, to.raHours, to.dec)
+                assertTrue("$name ${from.id}-${to.id} is $length degrees", length < 20.0)
+            }
+        }
+    }
+
+    /** One name, one star: two spellings of the same name are the same name. */
+    @Test
+    fun `gives no two stars one name`() {
+        for ((name, figure) in ConstellationFigures.FIGURES) {
+            val names = figure.stars.mapNotNull { it.name?.lowercase()?.filter(Char::isLetter) }
+            assertEquals("$name: $names", names.size, names.toSet().size)
         }
     }
 
