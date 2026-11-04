@@ -501,7 +501,14 @@ is a file replacement.
   (`passTitle`, `passEnds`, `planetPeakTitle`), so Sky and a notification open
   the same sheet. A pass's sheet says the whole pass in `describePassDetail`:
   each end, its highest point, when it goes into or comes out of the earth's
-  shadow, and what kind of object it is.
+  shadow, and what kind of object it is. A constellation's sheet draws its
+  stick figure (`FigureSketch`) as it stands at its highest tonight from the
+  saved location, up towards the zenith rather than north-up. The figures are
+  `astronomy/ConstellationFigures`, a hand-entered table kept apart from the
+  serialized `Constellation`; `SkyProjection` flattens a patch of sky
+  stereographically around one direction; and `drawFigure` is shared with
+  Find, which lays the same figure over its view and places its ring by the
+  same projection. ADR 0017 records why drawing stars is not listing them.
 
   **Sky (`SkyScreen`) is everything up tonight, uncut.** Tonight is the
   shortlist; Sky lists every pass in `TonightList.passes` (three hundred is an

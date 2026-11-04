@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Constellations are drawn as stick figures** in their sheet, turned the way
+  they stand at their highest tonight from where you are, and over the sky in
+  Find, so what to look for is on the screen as well as where.
+
 - **Tonight is one answer, one strip and one short list.** The whole night is
   drawn on one horizontal strip from sunset to sunrise, in place of the chart
   and the vertical timeline: the sky by how far down the sun is, the cloud as
