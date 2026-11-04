@@ -387,4 +387,16 @@ class FindWordsTest {
             nothingToPointAt("Saturn" to now + hour),
         )
     }
+
+    // --- what is in view ---
+
+    @Test
+    fun `names what is in view`() {
+        assertEquals("In view: the moon, Jupiter, the Plough.", inViewLine(listOf("The moon", "Jupiter", "The Plough")))
+    }
+
+    @Test
+    fun `says when nothing is in view`() {
+        assertEquals("Nothing up in this part of the sky.", inViewLine(emptyList()))
+    }
 }

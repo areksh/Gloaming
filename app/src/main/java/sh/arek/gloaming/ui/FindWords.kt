@@ -192,3 +192,15 @@ fun nothingToPointAt(next: Pair<String, Long>?): String =
     } else {
         "Nothing to point at right now. Next up: ${next.first}, from ${clock(next.second)}."
     }
+
+/**
+ * What Everything mode has in view, nearest first, from the targets' chip
+ * labels: "In view: the moon, Jupiter, the Plough." A label's leading "The"
+ * is lowered, as it reads in a sentence.
+ */
+fun inViewLine(labels: List<String>): String =
+    if (labels.isEmpty()) {
+        "Nothing up in this part of the sky."
+    } else {
+        "In view: " + labels.joinToString(", ") { if (it.startsWith("The ")) "the " + it.removePrefix("The ") else it } + "."
+    }
