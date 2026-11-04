@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Find has an Everything chip.** Hold the phone up and sweep it round: every
+  planet, pattern, the moon and any pass that is up is drawn and named in the
+  view, the line under it says what is in view, the phone buzzes as you come
+  onto each one, and a tap on a name guides you to it. Without a compass it is
+  a list of what is up and where.
+
 - **Constellations are drawn as stick figures** in their sheet, turned the way
   they stand at their highest tonight from where you are, and over the sky in
   Find, so what to look for is on the screen as well as where.

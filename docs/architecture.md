@@ -661,6 +661,25 @@ is a file replacement.
   alert spoke about was on no screen. It is part of `TonightKey`, so a new
   announcement works tonight out again.
 
+  **Everything is a mode of Find, not a target.** Its chip is first in the
+  row and its saved choice is the word `everything`, checked before
+  `FindTarget.decode`, so notifications and rows never meet it.
+  `FindTargets.everythingUp` gives each offered target that is up with its
+  fix, once a second off the main thread; it checks a body's or pattern's
+  height before placing it, because placing one below the horizon would run
+  a rise search and displace the one rise `fix` remembers for guidance. Both
+  modes draw the same backdrop (`drawSky`: disc, roll, clip, horizon, rim,
+  reticle); Everything's foreground draws each figure and a dot for the rest,
+  labels placed by `placeLabels` in priority order (moon, planets, passes,
+  aurora, patterns), dropping any that overlap or leave the circle. A tap is
+  turned back through the roll and picked by `pickAt` from the layout of the
+  frame last drawn, then selects that target's chip. `EverythingView.inView`
+  names what is in view, measured on the drawing so the words agree with the
+  circle, and is the view's content description; `underReticle` drives the
+  lined-up reticle and `AlignBuzz.nextAmong`, which buzzes at once on a
+  different target and on the same one only after re-arming. Without a
+  compass it is a list of what is up, each with its where line.
+
   **A notification's tap opens what it was about.** Pass alerts, the live pass
   tracker and event alerts carry a `SubjectRef` (`domain/SubjectRef.kt`:
   a pass by catalogue and rise, an event by `EventPlanner.starKey`) in their
