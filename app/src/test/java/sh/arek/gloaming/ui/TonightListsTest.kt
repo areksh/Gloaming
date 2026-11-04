@@ -259,6 +259,15 @@ class TonightListsTest {
         assertFalse(before.single { it.title!!.startsWith(conjunction.title) }.happeningNow)
     }
 
+    /** A comet's window is the night it is up, not a moment of its own, so it is never "happening now". */
+    @Test
+    fun `never marks a comet set aside as happening now`() {
+        val moonlit = Excluded(comet.title, comet.at, Gate.Moon)
+
+        val entries = TonightLists.notWorth(list(comets = listOf(comet)), report(moonlit), true, null, now + 2 * hour)
+        assertFalse(entries.single { it.title!!.startsWith(comet.title) }.happeningNow)
+    }
+
     /** A planet is judged at a moment that moves with the clock, so it is given none. */
     @Test
     fun `gives a planet left out no time`() {

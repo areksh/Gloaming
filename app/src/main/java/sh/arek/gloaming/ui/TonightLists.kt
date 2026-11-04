@@ -110,9 +110,9 @@ object TonightLists {
         }
 
         // Set aside is not the same as over: a shower the moon washes out is
-        // still going on, and says so.
-        val dated = list.events + list.comets
-        fun underWay(e: Excluded) = dated.any { it.title == e.subject && it.at == e.atMillis && it.isUnderWay(nowMillis) }
+        // still going on, and says so. Dated events only - a comet's window is
+        // the night it is up, not a moment of its own.
+        fun underWay(e: Excluded) = list.events.any { it.title == e.subject && it.at == e.atMillis && it.isUnderWay(nowMillis) }
 
         val entries = mutableListOf<ListEntry>()
         report?.let { held ->
