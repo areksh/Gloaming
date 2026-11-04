@@ -920,4 +920,38 @@ class FindTargetsTest {
 
         assertNull(FindTargets.nextUp(tonight(), now, late, { -30.0 }))
     }
+
+    // --- everything that is up ---
+
+    private val upPlanet get() = planets.first { altitude(it) > 5.0 }
+    private val downPlanet get() = planets.first { altitude(it) < -5.0 }
+
+    @Test
+    fun `everything up keeps what is up in offered order`() {
+        val offered = listOf(FindTarget.Planet(upPlanet), FindTarget.Pattern("Ursa Major"))
+
+        val up = FindTargets.everythingUp(offered, tonight(), elements, latitude, longitude, now)
+
+        assertEquals(offered, up.map { it.first })
+        assertTrue(up.all { it.second.position != null })
+    }
+
+    @Test
+    fun `everything up leaves out a target below the horizon`() {
+        val offered = listOf(FindTarget.Planet(downPlanet), FindTarget.Pattern("Ursa Major"))
+
+        val up = FindTargets.everythingUp(offered, tonight(), elements, latitude, longitude, now)
+
+        assertEquals(listOf<FindTarget>(FindTarget.Pattern("Ursa Major")), up.map { it.first })
+    }
+
+    /** Guidance remembers one rise; a target below the horizon here must not search for and replace it. */
+    @Test
+    fun `everything up runs no rise search`() {
+        FindTargets.forget()
+
+        FindTargets.everythingUp(listOf(FindTarget.Planet(downPlanet)), tonight(), elements, latitude, longitude, now)
+
+        assertEquals(0, FindTargets.scans)
+    }
 }

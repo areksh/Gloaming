@@ -351,6 +351,31 @@ object FindTargets {
         sky = sky,
     )
 
+    /**
+     * Each of [available] that is up at [nowMillis], with its fix, in the
+     * order offered: what Find's Everything mode draws. A target offered
+     * because it rises soon, or handed in below the horizon, is left out.
+     *
+     * A body or pattern has its height checked before it is placed, so that
+     * one below the horizon is never placed at all: placing it would search
+     * for its rise and displace the one rise [fix] remembers, which belongs to
+     * the target guidance is following.
+     */
+    fun everythingUp(
+        available: List<FindTarget>,
+        list: TonightList,
+        elements: SatellitesDocument?,
+        latitude: Double,
+        longitude: Double,
+        nowMillis: Long,
+    ): List<Pair<FindTarget, TargetFix>> = available.mapNotNull { target ->
+        val height = altitudeAt(target, latitude, longitude, nowMillis)
+        if (height != null && height < 0.0) return@mapNotNull null
+        fix(target, list, elements, latitude, longitude, nowMillis)
+            ?.takeIf { it.position != null }
+            ?.let { target to it }
+    }
+
     /** Whether a pass so placed is under way or about to be. */
     private fun passSoon(fix: TargetFix?, nowMillis: Long): Boolean {
         if (fix == null) return false

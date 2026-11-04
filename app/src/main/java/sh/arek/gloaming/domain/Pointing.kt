@@ -205,6 +205,32 @@ object AlignBuzz {
      * and the target, or null where there is none (no reading, or nothing to
      * point at), which changes nothing.
      */
+    /**
+     * Where the buzz among many targets stands: the target it last buzzed
+     * for, if any, and whether coming back onto that one would buzz again.
+     */
+    data class Among(val last: FindTarget?, val armed: Boolean)
+
+    /** Nothing buzzed for yet. */
+    val AMONG_START = Among(null, true)
+
+    /**
+     * The buzz for Everything mode, where any of several targets can come
+     * under the reticle: the next state, and whether to buzz now.
+     *
+     * [under] is the target within the aligned distance, if any;
+     * [separationFromLast] how far the phone points from the target last
+     * buzzed for, or null when that target is no longer up. Coming onto a
+     * different target buzzes at once; coming back onto the same one buzzes
+     * only once the phone has been more than [REARM_DEGREES] off it, as
+     * [next] does for one target - and a target that has gone re-arms.
+     */
+    fun nextAmong(state: Among, under: FindTarget?, separationFromLast: Double?): Pair<Among, Boolean> {
+        val armed = state.armed || separationFromLast == null || separationFromLast > REARM_DEGREES
+        if (under != null && (under != state.last || armed)) return Among(under, armed = false) to true
+        return Among(state.last, armed) to false
+    }
+
     fun next(armed: Boolean, separationDegrees: Double?): Step = when {
         separationDegrees == null -> Step(armed, fire = false)
         armed && separationDegrees <= Guide.ALIGNED_DEGREES -> Step(armed = false, fire = true)
