@@ -676,8 +676,14 @@ is a file replacement.
   frame last drawn, then selects that target's chip. `EverythingView.inView`
   names what is in view, measured on the drawing so the words agree with the
   circle, and is the view's content description; `underReticle` drives the
-  lined-up reticle and `AlignBuzz.nextAmong`, which buzzes at once on a
-  different target and on the same one only after re-arming. Without a
+  lined-up reticle and `AlignBuzz.nextAmong`, which arms each target on its
+  own: coming onto one buzzes unless it was buzzed for and not left by
+  `REARM_DEGREES` since, so wavering between two close targets buzzes once
+  for each. The aim's states (`rememberAim`) are the same objects for the
+  life of the screen and read the settings through states of their own, so
+  an effect or tap handler that captured them follows a change of aim or a
+  compass check. The host keeps Everything as Find's choice (the encoded
+  `findTarget` in `GloamingNav`), so a visit to another tab comes back to it. Without a
   compass it is a list of what is up, each with its where line.
 
   **A notification's tap opens what it was about.** Pass alerts, the live pass
