@@ -61,13 +61,21 @@ internal fun placeLabels(
 
 /**
  * The target a tap at [tap] picks: one whose label holds it, else the one
- * drawn nearest within [reach], else null.
+ * drawn nearest within [reach], else null. A target drawn outside the view's
+ * circle of [radius] is clipped from the screen, so it is never picked.
  *
  * The view is drawn turned [rollDegrees] clockwise about [centre], and the
  * layout is in the sky's frame, so the tap is turned back first: on a phone
  * rolled a quarter turn, a target drawn right of the middle shows below it.
  */
-internal fun pickAt(layout: EverythingLayout, tap: Offset, rollDegrees: Float, centre: Offset, reach: Float): FindTarget? {
+internal fun pickAt(
+    layout: EverythingLayout,
+    tap: Offset,
+    rollDegrees: Float,
+    centre: Offset,
+    radius: Float,
+    reach: Float,
+): FindTarget? {
     val turn = Math.toRadians(rollDegrees.toDouble())
     val dx = tap.x - centre.x
     val dy = tap.y - centre.y
@@ -77,7 +85,7 @@ internal fun pickAt(layout: EverythingLayout, tap: Offset, rollDegrees: Float, c
     )
     layout.labels.indexOfFirst { it?.contains(sky) == true }.takeIf { it >= 0 }?.let { return layout.targets[it] }
     return layout.anchors.indices
-        .mapNotNull { i -> layout.anchors[i]?.let { i to hypot(it.x - sky.x, it.y - sky.y) } }
+        .mapNotNull { i -> layout.anchors[i]?.takeIf { (it - centre).getDistance() <= radius }?.let { i to hypot(it.x - sky.x, it.y - sky.y) } }
         .filter { it.second <= reach }
         .minByOrNull { it.second }
         ?.let { layout.targets[it.first] }

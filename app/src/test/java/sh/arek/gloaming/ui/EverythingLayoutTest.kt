@@ -52,21 +52,21 @@ class EverythingLayoutTest {
     fun `picks by label`() {
         val layout = place(listOf(jupiter), listOf(Offset(100f, 160f)))
 
-        assertEquals(jupiter, pickAt(layout, Offset(150f, 165f), 0f, centre, 32f))
+        assertEquals(jupiter, pickAt(layout, Offset(150f, 165f), 0f, centre, radius, 32f))
     }
 
     @Test
     fun `picks the nearest target within reach`() {
         val layout = EverythingLayout(listOf(orion, jupiter), listOf(Offset(100f, 100f), Offset(130f, 100f)), listOf(null, null))
 
-        assertEquals(jupiter, pickAt(layout, Offset(120f, 100f), 0f, centre, 32f))
+        assertEquals(jupiter, pickAt(layout, Offset(120f, 100f), 0f, centre, radius, 32f))
     }
 
     @Test
     fun `picks nothing out of reach`() {
         val layout = EverythingLayout(listOf(jupiter), listOf(Offset(100f, 100f)), listOf(null))
 
-        assertNull(pickAt(layout, Offset(300f, 300f), 0f, centre, 32f))
+        assertNull(pickAt(layout, Offset(300f, 300f), 0f, centre, radius, 32f))
     }
 
     /** Turned a quarter clockwise, a target drawn right of centre shows below it, and is picked there. */
@@ -74,7 +74,15 @@ class EverythingLayoutTest {
     fun `picks through the roll`() {
         val layout = EverythingLayout(listOf(jupiter), listOf(Offset(210f, 160f)), listOf(null))
 
-        assertEquals(jupiter, pickAt(layout, Offset(160f, 210f), 90f, centre, 32f))
-        assertNull(pickAt(layout, Offset(210f, 160f), 90f, centre, 32f))
+        assertEquals(jupiter, pickAt(layout, Offset(160f, 210f), 90f, centre, radius, 32f))
+        assertNull(pickAt(layout, Offset(210f, 160f), 90f, centre, radius, 32f))
+    }
+
+    /** A target placed just outside the circle is clipped from the drawing, so a tap near the rim must not pick it. */
+    @Test
+    fun `picks nothing drawn outside the circle`() {
+        val layout = EverythingLayout(listOf(orion, jupiter), listOf(Offset(325f, 160f), Offset(280f, 160f)), listOf(null, null))
+
+        assertEquals(jupiter, pickAt(layout, Offset(310f, 160f), 0f, centre, radius, 32f))
     }
 }

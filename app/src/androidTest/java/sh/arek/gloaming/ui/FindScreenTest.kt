@@ -1004,4 +1004,44 @@ class FindScreenTest {
 
         compose.onNodeWithTag(FIND_EVERYTHING_TAG).assertIsSelected()
     }
+
+    /** Only a planet handed in below the horizon is offered: Everything has nothing up to list, and says so. */
+    @Test
+    fun withNoCompassEverythingSaysWhenNothingIsUp() {
+        val at = dayWithoutMoon()
+        val down = listOf(SkyBody.Mercury, SkyBody.Venus, SkyBody.Mars, SkyBody.Jupiter, SkyBody.Saturn)
+            .first { SkyPositions.body(it, latitude, longitude, at).altitude < -5.0 }
+        show(FakeCompassSource(present = false), initial = FindTarget.Planet(down), at = at)
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(NOTHING_UP_LINE).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun everythingSaysItIsWaitingForTheCompassOnce() {
+        show(FakeCompassSource(), at = dark())
+
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        compose.waitForIdle()
+
+        assertEquals(1, compose.onAllNodesWithText("Waiting for the compass.").fetchSemanticsNodes().size)
+    }
+
+    /** What is in view is announced as it changes while sweeping, as guidance's instruction is. */
+    @Test
+    fun everythingAnnouncesWhatIsInView() {
+        val compass = FakeCompassSource()
+        val at = dark()
+        show(compass, at = at)
+        compose.onNodeWithTag(FIND_EVERYTHING_TAG).performClick()
+        val centre = ploughCentre(at)
+        compass.point(azimuth = centre.azimuth, altitude = centre.altitude)
+        compose.waitUntil(5_000) { inViewText()?.contains("the Plough") == true }
+
+        compose.onNodeWithTag(FIND_IN_VIEW_TAG)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+    }
 }

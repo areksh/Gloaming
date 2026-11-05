@@ -373,15 +373,17 @@ private fun FindContent(
             // Every second, like the one target guidance places, because a
             // pass moves about a degree a second; off the main thread, because
             // it is every pattern's figure and every body at once.
-            val items by produceState(
-                emptyList<Pair<FindTarget, TargetFix>>(), now, available, list, state.elements, latitude, longitude,
+            // Null until first worked out, so an empty list means nothing is up
+            // rather than not known yet.
+            val items by produceState<List<Pair<FindTarget, TargetFix>>?>(
+                null, now, available, list, state.elements, latitude, longitude,
             ) {
                 val at = now
                 value = withContext(Dispatchers.Default) {
                     FindTargets.everythingUp(available, list, state.elements, latitude, longitude, at)
                 }
             }
-            Everything(state, actions, source, items, list, latitude, longitude, now) { picked ->
+            Everything(state, actions, source, items.orEmpty(), items != null, list, latitude, longitude, now) { picked ->
                 chosen = picked.encode()
                 onTargetChange(picked)
             }
@@ -418,6 +420,7 @@ private fun Everything(
     actions: UiActions,
     source: CompassSource,
     items: List<Pair<FindTarget, TargetFix>>,
+    known: Boolean,
     list: TonightList,
     latitude: Double,
     longitude: Double,
@@ -427,6 +430,7 @@ private fun Everything(
     val palette = LocalPalette.current
     if (!source.present) {
         Text(NO_COMPASS_LINE, style = MaterialTheme.typography.titleMedium)
+        if (known && items.isEmpty()) Text(NOTHING_UP_LINE, style = MaterialTheme.typography.bodyLarge)
         for ((target, fix) in items) {
             Column(
                 Modifier
@@ -501,11 +505,18 @@ private fun Everything(
                 .clearAndSetSemantics { contentDescription = line ?: WAITING_FOR_COMPASS },
         )
     }
-    Text(
-        line ?: WAITING_FOR_COMPASS,
-        style = MaterialTheme.typography.titleMedium,
-        modifier = Modifier.testTag(FIND_IN_VIEW_TAG),
-    )
+    // Nothing until the first reading, which the footer already waits for;
+    // announced as it changes, as guidance's instruction is, which is only
+    // when the names in view change and not on every reading.
+    line?.let {
+        Text(
+            it,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier
+                .testTag(FIND_IN_VIEW_TAG)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
     Text(
         "Tap a name to be guided to it.",
         style = MaterialTheme.typography.bodyMedium,
@@ -513,6 +524,9 @@ private fun Everything(
     )
     CompassFooter(state, actions, reading, now)
 }
+
+/** Everything without a compass, when nothing offered is up. */
+internal const val NOTHING_UP_LINE = "Nothing is up right now."
 
 /** Said until the compass has given its first reading. */
 private const val WAITING_FOR_COMPASS = "Waiting for the compass."
@@ -885,7 +899,7 @@ private fun EverythingWindow(
                 detectTapGestures { tap ->
                     val layout = drawn.layout ?: return@detectTapGestures
                     val middle = Offset(size.width / 2f, size.height / 2f)
-                    pickAt(layout, tap, rollNow(), middle, TAP_REACH.toPx())?.let(pick)
+                    pickAt(layout, tap, rollNow(), middle, size.width.coerceAtMost(size.height) / 2f, TAP_REACH.toPx())?.let(pick)
                 }
             }
             .drawWithCache {
