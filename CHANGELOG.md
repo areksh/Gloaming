@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc3] - 2026-11-05
+
 ### Removed
 
 - **The Busy setting.** The short list is now only what the headline picks,
