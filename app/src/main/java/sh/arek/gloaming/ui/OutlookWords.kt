@@ -94,14 +94,16 @@ object OutlookWords {
                 .takeIf { outlook.noctilucent }
         is Outlook.Overcast -> overcastFollow(outlook, nowMillis)
         // Under a spoiling moon the headline names nothing, so what it set
-        // aside comes first; otherwise what else is on comes before the reading.
+        // aside comes first.
         is Outlook.GoOut ->
             if (moonSpoils(report) != null) {
                 sentences(stillWorthALook(outlook.picks), alsoTonight(outlook.alsoTonight))
             } else {
-                sentences(alsoTonight(outlook.alsoTonight), auroraLine(report))
+                alsoTonight(outlook.alsoTonight)
             }
-        is Outlook.Quiet -> auroraLine(report)
+        // The aurora reading has a place of its own on Tonight ([auroraReading]),
+        // so it is not said here as well.
+        is Outlook.Quiet -> null
     }
 
     /** Why a candidate was set aside, for the list of what was not chosen. */
@@ -147,6 +149,62 @@ object OutlookWords {
         val until = clearUntil?.let { ", while it stays clear until ${clock(it)}" } ?: ""
         return "Aurora ${chance(probability)} now: $probability% here. " +
             "Look ${towards.label}, low down$until."
+    }
+
+    /**
+     * The aurora reading as Tonight shows it, or null where it has nothing to
+     * show: no position, no reading yet, or an aurora the headline is already
+     * about.
+     *
+     * [prominent] is a reading young enough to act on and at or over the
+     * user's own threshold - the one that sends the notification - which is
+     * then said under the headline rather than at the foot of the screen,
+     * with what is in the way where something is. The notification is a
+     * snapshot from when it was posted; this is what the app holds now, and
+     * every reading says how old it is, because a figure without an age is
+     * the thing that misleads.
+     *
+     * [probability] and [polledAt] are the last poll's, not the report's: the
+     * report drops a reading once it is too old to act on, and an old one is
+     * still worth saying, as old.
+     */
+    fun auroraReading(
+        probability: Int?,
+        polledAt: Long?,
+        threshold: Int,
+        report: OutlookReport?,
+        nowMillis: Long,
+    ): AuroraReading? {
+        probability ?: return null
+        val outlook = report?.outlook
+        if (outlook == Outlook.NoLocation || outlook is Outlook.AuroraNow) return null
+        val age = describeAge(polledAt, nowMillis) + "."
+        val fresh = polledAt != null && nowMillis - polledAt < Outlooks.AURORA_READING_MAX_AGE_MILLIS
+        if (!fresh) {
+            return AuroraReading(probability, "Aurora $probability%, but that reading is too old to go by. $age", false)
+        }
+        if (probability < threshold) {
+            val how = if (probability * 4 <= threshold * 3) "well under" else "just under"
+            return AuroraReading(probability, "Aurora $probability%, $how the $threshold% that would wake you. $age", false)
+        }
+        val over = if (probability == threshold) "At" else "Over"
+        val blocked = report?.excluded?.firstOrNull { it.subject == Outlooks.AURORA_SUBJECT }
+            ?.let(::auroraBlocked)
+            ?.let { ", but $it" }
+            ?: ""
+        return AuroraReading(probability, "$over the $threshold% that would wake you$blocked. $age", true)
+    }
+
+    /**
+     * What stands between a strong reading and seeing it, judged at now as the
+     * aurora is. Null for a gate with nothing to add to the number.
+     */
+    private fun auroraBlocked(e: Excluded): String? = when (e.gate) {
+        Gate.Darkness -> "it is not dark enough to see yet"
+        Gate.Cloud -> e.note?.let { "the forecast has $it% cloud here now" }
+            ?: "there is no forecast for now, so it cannot be called clear"
+        Gate.Moon -> "the moon is up and ${e.note}% lit, which washes out a faint one"
+        else -> null
     }
 
     /**
@@ -285,13 +343,6 @@ object OutlookWords {
             clock(pick.atMillis)
     }
 
-    private fun auroraLine(report: OutlookReport): String? {
-        val probability = report.auroraProbability ?: return null
-        if (probability >= report.threshold) return null
-        val how = if (probability * 4 <= report.threshold * 3) "well under" else "just under"
-        return "Aurora $probability%, $how the ${report.threshold}% that would wake you."
-    }
-
     private fun overcastFollow(outlook: Outlook.Overcast, nowMillis: Long): String? {
         val missed = outlook.missed?.let { pick ->
             val event = pick.event
@@ -378,3 +429,10 @@ object OutlookWords {
     private fun showerName(subject: String): String =
         if (subject.endsWith(SHOWER_SUFFIX)) "the " + subject.removeSuffix(SHOWER_SUFFIX) else subject
 }
+
+/**
+ * The aurora reading for Tonight: [percent] for the card's title, [words] for
+ * what goes with it, and whether it belongs at the top ([prominent]) or as one
+ * quiet line at the foot.
+ */
+data class AuroraReading(val percent: Int, val words: String, val prominent: Boolean)

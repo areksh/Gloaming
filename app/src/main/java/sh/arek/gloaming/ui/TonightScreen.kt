@@ -95,7 +95,8 @@ fun TonightScreen(
  * One answer, one picture, one short list, and the rest a tap away: the
  * outlook's sentence (or, once the night is under way, what is next), the
  * whole night on one strip, the rows the outlook picked, and two folded
- * lists - everything else up, and what was set aside and why. Each picked row
+ * lists - everything else up, and what was set aside and why - then, where
+ * it is too weak or too old to be at the top, the aurora reading. Each picked row
  * opens a sheet saying it in full; the open row is remembered by its tag, so
  * a rotation keeps it open.
  */
@@ -168,6 +169,8 @@ fun TonightContent(
             )
         }
     }
+
+    AuroraFootnote(state)
 
     timeline?.rows?.firstOrNull { timelineRowTag(it) == openRow }?.let { row ->
         // Find it only where there is somewhere to go: a row about something

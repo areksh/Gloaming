@@ -491,7 +491,13 @@ is a file replacement.
   rows drawn, each opening its sheet), `everything` is `TonightLists.alsoUp`
   with only those counted as drawn, opened by the night's own moments, and the
   two folded lists show `count` and `preview` until opened; `nextUp` and
-  `countdown` feed the header. With no sunset or sunrise to bound it -
+  `countdown` feed the header. The aurora reading has a place of its own
+  (`OutlookWords.auroraReading`, from the last poll rather than the report,
+  so an old reading can still be said, as old): unless the headline is the
+  aurora, a reading young enough to act on and at or over the threshold is a
+  card under the headline saying what is in the way, and anything else is one
+  quiet line at the foot of the screen; either way with its age and, for an
+  AuroraWatch reading, their credit beside it. With no sunset or sunrise to bound it -
   the polar night, the midnight sun - there is no timeline, and the darkness
   thresholds are said in words in its place. A row opens `RowSheet` - the detail the
   old cards carried, the caveat, the guide's notes, Share and Export for a

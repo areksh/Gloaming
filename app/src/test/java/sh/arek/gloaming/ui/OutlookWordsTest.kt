@@ -116,7 +116,7 @@ class OutlookWordsTest {
             "Cloudy until 23:40, then three clear hours. Go out at midnight for Saturn and Tiangong.",
             OutlookWords.headline(r),
         )
-        assertEquals("Aurora 12%, well under the 40% that would wake you.", OutlookWords.follow(r, now))
+        assertNull(OutlookWords.follow(r, now))
     }
 
     /**
@@ -437,7 +437,7 @@ class OutlookWordsTest {
             "Clear and dark from 18:45, but the moon will hide most of the Leonids: it is 92% lit and up.",
             OutlookWords.headline(r),
         )
-        assertEquals("Aurora 12%, well under the 40% that would wake you.", OutlookWords.follow(r, now))
+        assertNull(OutlookWords.follow(r, now))
     }
 
     @Test
@@ -714,7 +714,7 @@ class OutlookWordsTest {
     }
 
     @Test
-    fun `the rest comes before the aurora reading`() {
+    fun `the rest follows a go-out headline, and the aurora reading is left to its own place`() {
         val r = report(
             goOut(
                 listOf(planetPick(SkyBody.Saturn, "2026-12-13T20:00:00Z")),
@@ -728,8 +728,7 @@ class OutlookWordsTest {
         )
 
         assertEquals(
-            "Also tonight: Mars at 23:00 and H-2A R/B at 05:41. " +
-                "Aurora 12%, well under the 40% that would wake you.",
+            "Also tonight: Mars at 23:00 and H-2A R/B at 05:41.",
             OutlookWords.follow(r, now),
         )
     }
@@ -749,5 +748,76 @@ class OutlookWordsTest {
             "Jupiter is still worth a look, high in the south around 22:00. Also tonight: Mars at 03:00.",
             OutlookWords.follow(r, now),
         )
+    }
+
+    // ---- the aurora reading
+
+    private val minute = 60_000L
+
+    private fun reading(
+        probability: Int? = 12,
+        polledMinutesAgo: Long? = 5,
+        threshold: Int = 40,
+        report: OutlookReport? = report(Outlook.Quiet(at("2026-12-13T18:45:00Z"), null, conditional = false)),
+    ) = OutlookWords.auroraReading(probability, polledMinutesAgo?.let { now - it * minute }, threshold, report, now)
+
+    @Test
+    fun `a weak reading is a quiet line with its age`() {
+        assertEquals(
+            AuroraReading(12, "Aurora 12%, well under the 40% that would wake you. Checked 5 minutes ago.", false),
+            reading(),
+        )
+        assertEquals(
+            "Aurora 35%, just under the 40% that would wake you. Checked 5 minutes ago.",
+            reading(probability = 35)?.words,
+        )
+    }
+
+    /** The case that went missing: the notification fired, and the screen it opens said nothing. */
+    @Test
+    fun `a reading at or over the threshold is prominent, with what is in the way`() {
+        val cloudy = report(
+            Outlook.Overcast(null, null),
+            excluded = listOf(Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Cloud, "85")),
+        )
+        assertEquals(
+            AuroraReading(
+                30,
+                "At the 30% that would wake you, but the forecast has 85% cloud here now. Checked 5 minutes ago.",
+                true,
+            ),
+            reading(probability = 30, threshold = 30, report = cloudy),
+        )
+        val light = report(
+            Outlook.Quiet(at("2026-12-13T18:45:00Z"), null, conditional = false),
+            excluded = listOf(Excluded(Outlooks.AURORA_SUBJECT, null, Gate.Darkness, null)),
+        )
+        assertEquals(
+            "Over the 25% that would wake you, but it is not dark enough to see yet. Checked 5 minutes ago.",
+            reading(probability = 30, threshold = 25, report = light)?.words,
+        )
+    }
+
+    @Test
+    fun `a strong reading with nothing in the way, or before the outlook, still says it`() {
+        assertEquals(
+            AuroraReading(55, "Over the 40% that would wake you. Checked 5 minutes ago.", true),
+            reading(probability = 55, report = null),
+        )
+    }
+
+    @Test
+    fun `an old reading is never prominent and says it is too old`() {
+        assertEquals(
+            AuroraReading(55, "Aurora 55%, but that reading is too old to go by. Checked 4 hours ago.", false),
+            reading(probability = 55, polledMinutesAgo = 4 * 60),
+        )
+    }
+
+    @Test
+    fun `nothing where the headline is the aurora, or there is no reading or position`() {
+        assertNull(reading(probability = 55, report = report(Outlook.AuroraNow(55, null, conditional = false))))
+        assertNull(reading(probability = null))
+        assertNull(reading(report = report(Outlook.NoLocation)))
     }
 }

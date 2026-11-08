@@ -41,6 +41,9 @@ const val ALERT_BANNER_TAG = "alert-banner"
 /** The opening sentence. */
 const val OUTLOOK_HEADLINE_TAG = "outlook-headline"
 
+/** The aurora reading, whichever place it is shown in. */
+const val AURORA_READING_TAG = "aurora-reading"
+
 /** The progress bar under the status line while tonight is being worked out. */
 const val TONIGHT_UPDATING_TAG = "tonight-updating"
 
@@ -290,17 +293,98 @@ private fun OutlookLines(state: MainUiState, timeline: Timeline?, onFindIt: ((Fi
             countdown?.let { CountdownChip(it) }
             nextClear?.let { NextClearCard(it) }
         }
-        // Beside the outlook that reads it. AuroraWatch's conditions tie the
-        // credit to their data, and somebody deciding whether to trust 55%
-        // should see where it came from without scrolling; the attribution
-        // they specify is carried in full under Credits and licences.
-        if (state.settings.hasLocation && state.alertState.lastFromAuroraWatch) {
+        // Under the answer even once what is next leads: a strong reading is
+        // the thing somebody opened the app from the notification to check.
+        val reading = auroraReading(state)
+        if (reading?.prominent == true) AuroraCard(reading, state.alertState.lastFromAuroraWatch)
+        // Where the headline is the aurora, the credit goes beside it; any
+        // other reading carries its own. Never on its own: a credit for a
+        // number nobody can see reads as a bug, and was one.
+        if (state.outlook?.outlook is Outlook.AuroraNow) AuroraWatchCredit(state)
+    }
+}
+
+/**
+ * The aurora reading for this screen, or null where there is nothing to show
+ * or the headline already says it. See [OutlookWords.auroraReading].
+ */
+fun auroraReading(state: MainUiState): AuroraReading? {
+    if (!state.settings.hasLocation) return null
+    return OutlookWords.auroraReading(
+        probability = state.alertState.lastProbability,
+        polledAt = state.alertState.lastPollAt,
+        threshold = state.settings.threshold,
+        report = state.outlook,
+        nowMillis = state.nowMillis,
+    )
+}
+
+/**
+ * Beside the reading it covers. AuroraWatch's conditions tie the credit to
+ * their data, and somebody deciding whether to trust 55% should see where it
+ * came from without scrolling; the attribution they specify is carried in
+ * full under Credits and licences.
+ */
+@Composable
+fun AuroraWatchCredit(state: MainUiState) {
+    if (!state.settings.hasLocation || !state.alertState.lastFromAuroraWatch) return
+    Text(
+        "This reading came from AuroraWatch UK.",
+        style = MaterialTheme.typography.bodySmall,
+        color = LocalPalette.current.muted,
+    )
+}
+
+/**
+ * A reading at or over the user's threshold that the headline is not about -
+ * because it is cloudy, or not dark yet - in a card of its own, so that the
+ * number the notification gave is on the screen it opens, and current.
+ */
+@Composable
+private fun AuroraCard(reading: AuroraReading, fromAuroraWatch: Boolean) {
+    val palette = LocalPalette.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.raised, RoundedCornerShape(16.dp))
+            .border(1.dp, palette.accent, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+            .semantics(mergeDescendants = true) {}
+            .testTag(AURORA_READING_TAG),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            "AURORA",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = palette.accent,
+        )
+        Text("${reading.percent}% here", style = MaterialTheme.typography.titleMedium, color = palette.text)
+        Text(reading.words, style = MaterialTheme.typography.bodyMedium, color = palette.muted)
+        if (fromAuroraWatch) {
             Text(
                 "This reading came from AuroraWatch UK.",
                 style = MaterialTheme.typography.bodySmall,
                 color = palette.muted,
             )
         }
+    }
+}
+
+/**
+ * A reading under the threshold, or too old to act on: one quiet line at the
+ * foot of Tonight, there for whoever looks and out of the way of the night.
+ */
+@Composable
+fun AuroraFootnote(state: MainUiState) {
+    val reading = auroraReading(state)?.takeUnless { it.prominent } ?: return
+    val palette = LocalPalette.current
+    Column(
+        modifier = Modifier.semantics(mergeDescendants = true) {}.testTag(AURORA_READING_TAG),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(reading.words, style = MaterialTheme.typography.bodySmall, color = palette.muted)
+        AuroraWatchCredit(state)
     }
 }
 

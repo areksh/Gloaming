@@ -619,6 +619,42 @@ class ScreensTest {
         ).performScrollTo().assertExists()
     }
 
+    /**
+     * A reading over the threshold that the headline is not about - here
+     * because it is overcast - is in a card at the top, with its age and
+     * AuroraWatch's credit inside it, never the credit alone.
+     */
+    @Test
+    fun showsAStrongReadingTheHeadlineIsNotAbout() {
+        show(
+            settings = located.copy(threshold = 30),
+            alertState = AlertState(lastProbability = 30, lastPollAt = now - 5 * 60_000L, lastFromAuroraWatch = true),
+            outlook = OutlookReport(
+                Outlook.Overcast(null, null),
+                listOf(Excluded(sh.arek.gloaming.domain.Outlooks.AURORA_SUBJECT, null, Gate.Cloud, "85")),
+                30,
+                30,
+                Compass.North,
+            ),
+        )
+
+        compose.onNodeWithTag(AURORA_READING_TAG).assertIsDisplayed()
+        compose.onNodeWithText("30% here").assertExists()
+        compose.onNodeWithText("85% cloud", substring = true).assertExists()
+        compose.onAllNodesWithText("This reading came from AuroraWatch UK.").assertCountEquals(1)
+    }
+
+    /** A weak reading is still on the screen, as one quiet line. */
+    @Test
+    fun keepsAWeakReadingAtTheFoot() {
+        show(alertState = AlertState(lastProbability = 5, lastPollAt = now - 5 * 60_000L))
+
+        compose.onNodeWithText("Aurora 5%, well under", substring = true)
+            .performScrollTo()
+            .assertIsDisplayed()
+        compose.onAllNodesWithText("% here").assertCountEquals(0)
+    }
+
     @Test
     fun leavesAuroraWatchUncreditedForAGlobalGridReading() {
         show(alertState = AlertState(lastProbability = 55, lastFromAuroraWatch = false))
