@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Night vision when finding reddens the bottom bar too.** Only Find's own
+  view went red on black, so the bar under it stayed in the day colours. The
+  whole screen now goes red while Find is shown, and back as you leave it.
+
 ## [1.0.0-rc3] - 2026-11-05
 
 ### Removed

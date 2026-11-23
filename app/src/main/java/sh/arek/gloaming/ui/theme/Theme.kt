@@ -111,3 +111,24 @@ fun GloamingTheme(
         )
     }
 }
+
+/**
+ * Red on black over [content] while [on], and whatever theme surrounds it
+ * otherwise.
+ *
+ * The same composition either way, rather than an if around [GloamingTheme]:
+ * turning it on or off changes the colours below and keeps everything else,
+ * so the bottom bar can go red as Find is chosen without being built again.
+ */
+@Composable
+fun NightVisionWhen(on: Boolean, content: @Composable () -> Unit) {
+    val palette = if (on) Palettes.Night else LocalPalette.current
+    val colorScheme = if (on) NightColorScheme else MaterialTheme.colorScheme
+    CompositionLocalProvider(LocalPalette provides palette) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = MaterialTheme.typography,
+            content = content,
+        )
+    }
+}

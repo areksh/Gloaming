@@ -1,6 +1,9 @@
 package sh.arek.gloaming.ui
 
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
@@ -14,6 +17,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -266,6 +271,62 @@ class GloamingNavTest {
             compose.onNodeWithTag(it.tag).fetchSemanticsNode().boundsInRoot.left
         }
         assertEquals(lefts.sorted(), lefts)
+    }
+
+    /**
+     * The first pixel that is not a shade of red on black, as night vision
+     * draws, described; null if there is none.
+     */
+    private fun ImageBitmap.notRedOnBlack(): String? {
+        val pixels = toPixelMap()
+        for (y in 0 until height) for (x in 0 until width) {
+            val c = pixels[x, y]
+            // A tenth, not zero: drawing leaves a trace of green and blue
+            // in the odd red pixel, where the day palettes are a quarter
+            // blue at their darkest.
+            if (c.green > 0.1f || c.blue > 0.1f) return "($x, $y) of $width x $height is $c"
+        }
+        return null
+    }
+
+    private fun bar() = compose.onNodeWithTag(NAV_BAR_TAG).captureToImage()
+
+    /**
+     * Night vision when finding reddens the bar as well as Find: the bar is
+     * on the screen held up to the sky, and a white or blue strip under the
+     * view would undo the rest.
+     */
+    @Test
+    fun nightVisionWhenFindingReddensTheBarOnFind() {
+        show(settings = located.copy(nightVisionWhenFinding = true))
+
+        compose.onNodeWithTag(Section.Find.tag).performClick()
+        compose.waitForIdle()
+
+        assertNull(bar().notRedOnBlack())
+    }
+
+    /** ...and only on Find: elsewhere the bar keeps the app's own colours. */
+    @Test
+    fun nightVisionWhenFindingLeavesTheBarAloneElsewhere() {
+        show(settings = located.copy(nightVisionWhenFinding = true))
+
+        compose.onNodeWithTag(Section.Find.tag).performClick()
+        compose.onNodeWithTag(Section.Tonight.tag).performClick()
+        compose.waitForIdle()
+
+        assertNotNull(bar().notRedOnBlack())
+    }
+
+    /** With it off, Find's bar keeps the app's own colours too. */
+    @Test
+    fun withoutNightVisionWhenFindingTheBarOnFindIsNotRed() {
+        show(settings = located.copy(nightVisionWhenFinding = false))
+
+        compose.onNodeWithTag(Section.Find.tag).performClick()
+        compose.waitForIdle()
+
+        assertNotNull(bar().notRedOnBlack())
     }
 
     /** The calendar is a tab away and shows what it was given. */

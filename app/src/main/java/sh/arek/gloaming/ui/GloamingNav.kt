@@ -43,6 +43,7 @@ import sh.arek.gloaming.domain.SubjectRef
 import sh.arek.gloaming.domain.decode
 import sh.arek.gloaming.domain.encode
 import sh.arek.gloaming.ui.theme.LocalPalette
+import sh.arek.gloaming.ui.theme.NightVisionWhen
 
 /**
  * The sections of the app, each one a place on the bottom bar.
@@ -63,6 +64,9 @@ const val SETTINGS_BACK_TAG = "settings-back"
 
 /** The heading of an open Settings page. */
 const val SETTINGS_PAGE_TITLE_TAG = "settings-page-title"
+
+/** The bottom bar itself, reached by tag from a test. */
+const val NAV_BAR_TAG = "nav-bar"
 
 /**
  * The sections over one activity, behind a bottom bar.
@@ -179,116 +183,126 @@ fun GloamingNav(
     // System Back leaves a page for the index rather than the app.
     BackHandler(enabled = page != null) { openPage = null }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            val palette = LocalPalette.current
-            NavigationBar(containerColor = palette.raised, contentColor = palette.text) {
-                sections.forEachIndexed { index, section ->
-                    NavigationBarItem(
-                        selected = selected == index,
-                        // Choosing a section, Settings included, lands on its
-                        // index: a page never outlives a visit to it.
-                        onClick = {
-                            selected = index
-                            openPage = null
-                        },
-                        icon = { SectionIcon(section) },
-                        label = { Text(section.label) },
-                        modifier = Modifier.testTag(section.tag),
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = palette.onAccent,
-                            selectedTextColor = palette.accent,
-                            indicatorColor = palette.accent,
-                            unselectedIconColor = palette.muted,
-                            unselectedTextColor = palette.muted,
-                        ),
-                    )
+    // Night vision when finding covers the whole screen while Find is shown,
+    // the bar and the strip behind the status bar included, not only Find's
+    // own content: the bar is held up to the sky with the rest.
+    val findInRed = sections[selected] == Section.Find && state.settings.nightVisionWhenFinding
+    NightVisionWhen(findInRed) {
+        Scaffold(
+            modifier = modifier.fillMaxSize(),
+            bottomBar = {
+                val palette = LocalPalette.current
+                NavigationBar(
+                    containerColor = palette.raised,
+                    contentColor = palette.text,
+                    modifier = Modifier.testTag(NAV_BAR_TAG),
+                ) {
+                    sections.forEachIndexed { index, section ->
+                        NavigationBarItem(
+                            selected = selected == index,
+                            // Choosing a section, Settings included, lands on its
+                            // index: a page never outlives a visit to it.
+                            onClick = {
+                                selected = index
+                                openPage = null
+                            },
+                            icon = { SectionIcon(section) },
+                            label = { Text(section.label) },
+                            modifier = Modifier.testTag(section.tag),
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = palette.onAccent,
+                                selectedTextColor = palette.accent,
+                                indicatorColor = palette.accent,
+                                unselectedIconColor = palette.muted,
+                                unselectedTextColor = palette.muted,
+                            ),
+                        )
+                    }
                 }
-            }
-        },
-    ) { inner ->
-        val content = Modifier.padding(inner)
-        when (sections[selected]) {
-            // The calendar brings its own scrolling: it is a lazy list, and a
-            // lazy list inside a scrolling column is measured with unbounded
-            // height, which defeats the point of it and throws.
-            Section.Ahead -> AheadScreen(
-                state = state,
-                actions = actions,
-                starredOnly = starredOnly,
-                onStarredOnlyChange = { starredOnly = it },
-                modifier = content.fillMaxSize(),
-                listState = aheadScroll,
-                initialOpen = aheadOpen,
-                onInitialOpenShown = { aheadOpen = null },
-            )
+            },
+        ) { inner ->
+            val content = Modifier.padding(inner)
+            when (sections[selected]) {
+                // The calendar brings its own scrolling: it is a lazy list, and a
+                // lazy list inside a scrolling column is measured with unbounded
+                // height, which defeats the point of it and throws.
+                Section.Ahead -> AheadScreen(
+                    state = state,
+                    actions = actions,
+                    starredOnly = starredOnly,
+                    onStarredOnlyChange = { starredOnly = it },
+                    modifier = content.fillMaxSize(),
+                    listState = aheadScroll,
+                    initialOpen = aheadOpen,
+                    onInitialOpenShown = { aheadOpen = null },
+                )
 
-            // Tonight scrolls itself too, with the watch button pinned under
-            // the scroll and pulling down to check.
-            Section.Tonight -> TonightScreen(
-                state = state,
-                actions = actions,
-                scroll = tonightScroll,
-                modifier = content.fillMaxSize(),
-                onFindIt = { target ->
-                    findTarget = target.encode()
-                    selected = Section.Find.ordinal
-                },
-            )
+                // Tonight scrolls itself too, with the watch button pinned under
+                // the scroll and pulling down to check.
+                Section.Tonight -> TonightScreen(
+                    state = state,
+                    actions = actions,
+                    scroll = tonightScroll,
+                    modifier = content.fillMaxSize(),
+                    onFindIt = { target ->
+                        findTarget = target.encode()
+                        selected = Section.Find.ordinal
+                    },
+                )
 
-            // Sky is a lazy list like the calendar, for the same reason and
-            // more of it: a night of passes is hundreds of rows.
-            Section.Sky -> SkyScreen(
-                state = state,
-                actions = actions,
-                listState = skyScroll,
-                modifier = content.fillMaxSize(),
-                openSubject = skyOpen,
-                onSubjectShown = { skyOpen = null },
-                note = skyNote,
-                // The screen's own clock, as Tonight reads it, so what Sky
-                // folds away as gone agrees with the rest of the app.
-                nowMillis = state.nowMillis,
-                onFindIt = { target ->
-                    findTarget = target.encode()
-                    selected = Section.Find.ordinal
-                },
-            )
+                // Sky is a lazy list like the calendar, for the same reason and
+                // more of it: a night of passes is hundreds of rows.
+                Section.Sky -> SkyScreen(
+                    state = state,
+                    actions = actions,
+                    listState = skyScroll,
+                    modifier = content.fillMaxSize(),
+                    openSubject = skyOpen,
+                    onSubjectShown = { skyOpen = null },
+                    note = skyNote,
+                    // The screen's own clock, as Tonight reads it, so what Sky
+                    // folds away as gone agrees with the rest of the app.
+                    nowMillis = state.nowMillis,
+                    onFindIt = { target ->
+                        findTarget = target.encode()
+                        selected = Section.Find.ordinal
+                    },
+                )
 
-            // Find scrolls itself, and listens to the compass only while it
-            // is the section shown.
-            Section.Find -> FindScreen(
-                state = state,
-                actions = actions,
-                source = compass,
-                initial = findTarget?.let { FindTarget.decode(it) },
-                modifier = content.fillMaxSize(),
-                onTargetChange = { findTarget = it.encode() },
-                clock = findClock,
-                everything = findTarget == FIND_EVERYTHING,
-                onEverythingChosen = { findTarget = FIND_EVERYTHING },
-            )
+                // Find scrolls itself, and listens to the compass only while it
+                // is the section shown.
+                Section.Find -> FindScreen(
+                    state = state,
+                    actions = actions,
+                    source = compass,
+                    initial = findTarget?.let { FindTarget.decode(it) },
+                    modifier = content.fillMaxSize(),
+                    onTargetChange = { findTarget = it.encode() },
+                    clock = findClock,
+                    everything = findTarget == FIND_EVERYTHING,
+                    onEverythingChosen = { findTarget = FIND_EVERYTHING },
+                )
 
-            Section.Settings -> if (page == null) {
-                ScrollingSection(settingsScroll, content) {
-                    SettingsIndex(state = state, onOpen = { openPage = it.name })
-                }
-            } else {
-                // Its own scroll, made here so each page opens at the top.
-                ScrollingSection(rememberScrollState(), content) {
-                    TextButton(
-                        onClick = { openPage = null },
-                        modifier = Modifier.testTag(SETTINGS_BACK_TAG),
-                    ) { Text("Back to Settings") }
-                    Text(
-                        page.title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier
-                            .semantics { heading() }
-                            .testTag(SETTINGS_PAGE_TITLE_TAG),
-                    )
-                    SettingsPageContent(page = page, state = state, actions = actions, compass = compass)
+                Section.Settings -> if (page == null) {
+                    ScrollingSection(settingsScroll, content) {
+                        SettingsIndex(state = state, onOpen = { openPage = it.name })
+                    }
+                } else {
+                    // Its own scroll, made here so each page opens at the top.
+                    ScrollingSection(rememberScrollState(), content) {
+                        TextButton(
+                            onClick = { openPage = null },
+                            modifier = Modifier.testTag(SETTINGS_BACK_TAG),
+                        ) { Text("Back to Settings") }
+                        Text(
+                            page.title,
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier
+                                .semantics { heading() }
+                                .testTag(SETTINGS_PAGE_TITLE_TAG),
+                        )
+                        SettingsPageContent(page = page, state = state, actions = actions, compass = compass)
+                    }
                 }
             }
         }

@@ -97,7 +97,7 @@ import sh.arek.gloaming.domain.TargetFix
 import sh.arek.gloaming.domain.TonightList
 import sh.arek.gloaming.domain.decode
 import sh.arek.gloaming.domain.encode
-import sh.arek.gloaming.ui.theme.GloamingTheme
+import sh.arek.gloaming.ui.theme.NightVisionWhen
 import sh.arek.gloaming.ui.theme.LocalPalette
 import sh.arek.gloaming.ui.theme.Palette
 
@@ -210,11 +210,9 @@ fun FindScreen(
     // Dimmed as well as red, the same as night vision everywhere else, and
     // only while Find is shown: leaving it puts the brightness back.
     DimScreen(state.settings.nightVisionWhenFinding)
-    if (state.settings.nightVisionWhenFinding) {
-        GloamingTheme(nightVision = true) {
-            FindContent(state, actions, source, initial, everything, modifier, onTargetChange, onEverythingChosen, clock)
-        }
-    } else {
+    // Here as well as around the bar in GloamingNav, so Find is red wherever
+    // it is shown, a test's bare screen included.
+    NightVisionWhen(state.settings.nightVisionWhenFinding) {
         FindContent(state, actions, source, initial, everything, modifier, onTargetChange, onEverythingChosen, clock)
     }
 }
