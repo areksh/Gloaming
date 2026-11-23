@@ -52,6 +52,22 @@ with `sudo update-alternatives --config java` (and again for `javac`), or point
 `JAVA_HOME` at `/usr/lib/jvm/java-21-openjdk-amd64`. A newer JDK is not needed,
 and the build is only checked against 21.
 
+Fedora 45 packages no JDK 21, only 25 and later. Take Adoptium's Temurin 21
+tarball instead, into the home directory, which needs no root. The asset API
+gives the current link and its SHA-256:
+
+```sh
+curl -s 'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=linux&vendor=eclipse' \
+  | python3 -c 'import json,sys; p=json.load(sys.stdin)[0]["binary"]["package"]; print(p["link"], p["checksum"])'
+# download that link, check it with sha256sum, then:
+mkdir -p ~/.jdks && tar -xzf OpenJDK21U-jdk_x64_linux_hotspot_*.tar.gz -C ~/.jdks
+ln -sfn jdk-21.<version> ~/.jdks/jdk-21
+```
+
+and add `export JAVA_HOME="$HOME/.jdks/jdk-21"` beside the SDK lines below,
+with `$JAVA_HOME/bin` at the front of `PATH`. Fedora's own Java 25 stays the
+system `java`; Gradle takes `JAVA_HOME` first.
+
 ### Android SDK
 
 Install the platform `android-37.0`. The build and `./go` find the SDK through
@@ -100,7 +116,9 @@ If `/usr/bin/adb` is also installed from Debian's
 `google-android-platform-tools-installer`, the `PATH` line above puts the SDK's
 `adb` first. If both are used, they fight over the adb server ("adb server
 version doesn't match this client"). Either run `adb kill-server` when that
-happens, or `sudo apt remove google-android-platform-tools-installer`.
+happens, or `sudo apt remove google-android-platform-tools-installer`. On
+Fedora the same clash comes from the `android-tools` package, and
+`sudo dnf remove android-tools` is the cure.
 
 ## GitHub access token
 
