@@ -252,9 +252,12 @@ load-bearing, not tidying:
 If the read path ever looks wrong, check this rule first. Verify with:
 
 ```sh
-curl -sI https://sky.arek.sh/v1/status.json   # want cf-cache-status: HIT on a repeat
+curl -s -o /dev/null -D - https://sky.arek.sh/v1/status.json   # want cf-cache-status: HIT on a repeat
 curl -sI https://sky.arek.sh/v1/oval.bin      # want max-age=120, not 14400
 ```
+
+The first is a GET on purpose. A HEAD request (`curl -I`) bypasses the edge
+cache and always reports `DYNAMIC`, which looks exactly like the rule being gone.
 
 ## Already done
 
